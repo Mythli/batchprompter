@@ -9,8 +9,17 @@ import PQueue from 'p-queue';
 
 dotenv.config();
 
+// Helper to resolve environment variables with fallbacks
+function getEnvVar(keys: string[]): string | undefined {
+    for (const key of keys) {
+        const value = process.env[key];
+        if (value) return value;
+    }
+    return undefined;
+}
+
 export const configSchema = z.object({
-    AI_API_KEY: z.string().min(1, "AI_API_KEY is required"),
+    AI_API_KEY: z.string().min(1, "API Key is required. Checked: BATCHPROMPT_OPENAI_API_KEY, OPENAI_API_KEY, AI_API_KEY"),
     AI_API_URL: z.string().url().default("https://api.openai.com/v1"),
     MODEL: z.string().default("google/gemini-3-pro-image-preview"),
     GPT_MAX_CONVERSATION_CHARS: z.coerce.number().int().positive().optional(),
@@ -23,7 +32,15 @@ export type ConfigOverrides = {
 };
 
 export const initConfig = async (overrides: ConfigOverrides = {}) => {
-    const config = configSchema.parse(process.env);
+    // Resolve values from multiple possible environment variable names
+    const rawConfig = {
+        ...process.env,
+        AI_API_KEY: getEnvVar(['BATCHPROMPT_OPENAI_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY']),
+        AI_API_URL: getEnvVar(['BATCHPROMPT_OPENAI_BASE_URL', 'OPENAI_BASE_URL', 'AI_API_URL']),
+        MODEL: getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']),
+    };
+
+    const config = configSchema.parse(rawConfig);
 
     // Setup Cache
     let cache;
