@@ -4,6 +4,13 @@
   "description": "",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "batchprompt": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "test-data"
+  ],
   "scripts": {
     "test": "echo \"Error: no test-data specified\" && exit 1",
     "start": "tsx src/index.ts",
