@@ -1,0 +1,29 @@
+{
+  "name": "imagegen",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test-data specified\" && exit 1",
+    "start": "tsx src/index.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@keyv/redis": "^4.4.1",
+    "@keyv/sqlite": "^4.0.6",
+    "cache-manager": "^6.4.3",
+    "cacheable": "^1.9.0",
+    "commander": "^14.0.2",
+    "crypto": "^1.0.1",
+    "csv-parser": "^3.2.0",
+    "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
+    "handlebars": "^4.7.8",
+    "keyv": "^5.5.4",
+    "openai": "^4.103.0",
+    "sanitize-filename": "^1.6.3",
+    "zod": "^3.25.42"
+  }
+}
