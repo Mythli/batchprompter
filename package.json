@@ -2,14 +2,20 @@
   "name": "imagegen",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test-data specified\" && exit 1",
-    "start": "tsx src/index.ts"
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "publish": "node scripts/release.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  },
   "dependencies": {
     "@keyv/redis": "^4.4.1",
     "@keyv/sqlite": "^4.0.6",
