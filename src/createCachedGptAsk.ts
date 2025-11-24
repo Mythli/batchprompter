@@ -184,7 +184,7 @@ export type OpenRouterResponseFormat =
  * These can override defaults or add call-specific parameters.
  * 'messages' is a required property, inherited from OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming.
  */
-export interface GptAskOptions extends Omit<OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming, 'model' | 'response_format'> {
+export interface GptAskOptions extends Omit<OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming, 'model' | 'response_format' | 'modalities'> {
     model?: ModelConfig;    // Allow overriding the default model for a specific call
     ttl?: number;      // Cache TTL in *MILLISECONDS* for this specific call, used if cache is enabled
     retries?: number;  // Number of retries for the API call.
