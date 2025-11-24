@@ -1,31 +1,25 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.runAction = runAction;
-const fs_1 = __importDefault(require("fs"));
-const promises_1 = __importDefault(require("fs/promises"));
-const path_1 = __importDefault(require("path"));
-const csv_parser_1 = __importDefault(require("csv-parser"));
-const sanitize_filename_1 = __importDefault(require("sanitize-filename"));
-const getConfig_js_1 = require("./getConfig.js");
-const zod_1 = require("zod");
-const p_queue_1 = __importDefault(require("p-queue"));
-const handlebars_1 = __importDefault(require("handlebars"));
+import fs from 'fs';
+import fsPromises from 'fs/promises';
+import path from 'path';
+import csv from 'csv-parser';
+import sanitize from 'sanitize-filename';
+import { getConfig } from "./getConfig.js";
+import { z } from 'zod';
+import PQueue from 'p-queue';
+import Handlebars from 'handlebars';
 // Helper to ensure directory exists
 async function ensureDir(filePath) {
-    const dir = path_1.default.dirname(filePath);
-    await promises_1.default.mkdir(dir, { recursive: true });
+    const dir = path.dirname(filePath);
+    await fsPromises.mkdir(dir, { recursive: true });
 }
 // Response schema to extract image URL
-const responseSchema = zod_1.z.object({
-    choices: zod_1.z.array(zod_1.z.object({
-        message: zod_1.z.object({
-            content: zod_1.z.string().nullable(),
-            images: zod_1.z.array(zod_1.z.object({
-                image_url: zod_1.z.object({
-                    url: zod_1.z.string()
+const responseSchema = z.object({
+    choices: z.array(z.object({
+        message: z.object({
+            content: z.string().nullable(),
+            images: z.array(z.object({
+                image_url: z.object({
+                    url: z.string()
                 })
             })).optional()
         })
@@ -34,15 +28,15 @@ const responseSchema = zod_1.z.object({
 function getIndexedPath(basePath, stepIndex, totalSteps) {
     if (totalSteps <= 1)
         return basePath;
-    const ext = path_1.default.extname(basePath);
-    const name = path_1.default.basename(basePath, ext);
-    const dir = path_1.default.dirname(basePath);
-    return path_1.default.join(dir, `${name}_${stepIndex}${ext}`);
+    const ext = path.extname(basePath);
+    const name = path.basename(basePath, ext);
+    const dir = path.dirname(basePath);
+    return path.join(dir, `${name}_${stepIndex}${ext}`);
 }
 async function loadData(filePath) {
-    const ext = path_1.default.extname(filePath).toLowerCase();
+    const ext = path.extname(filePath).toLowerCase();
     if (ext === '.json') {
-        const content = await promises_1.default.readFile(filePath, 'utf-8');
+        const content = await fsPromises.readFile(filePath, 'utf-8');
         const data = JSON.parse(content);
         if (!Array.isArray(data)) {
             throw new Error('JSON file must contain an array of objects.');
@@ -52,8 +46,8 @@ async function loadData(filePath) {
     else {
         const rows = [];
         await new Promise((resolve, reject) => {
-            fs_1.default.createReadStream(filePath)
-                .pipe((0, csv_parser_1.default)())
+            fs.createReadStream(filePath)
+                .pipe(csv())
                 .on('data', (data) => rows.push(data))
                 .on('end', () => resolve())
                 .on('error', (err) => reject(err));
@@ -65,19 +59,19 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
     const concurrency = options.concurrency;
     // 1. Initialize Config with Concurrency
     console.log(`Initializing with concurrency: ${concurrency}`);
-    const { ask } = await (0, getConfig_js_1.getConfig)({ concurrency });
+    const { ask } = await getConfig({ concurrency });
     // 2. Read Template Files
-    const userTemplates = await Promise.all(templateFilePaths.map(p => promises_1.default.readFile(p, 'utf-8')));
-    const systemTemplate = options.system ? await promises_1.default.readFile(options.system, 'utf-8') : null;
+    const userTemplates = await Promise.all(templateFilePaths.map(p => fsPromises.readFile(p, 'utf-8')));
+    const systemTemplate = options.system ? await fsPromises.readFile(options.system, 'utf-8') : null;
     // Compile Handlebars templates
     // noEscape: true ensures we don't HTML-escape characters in the prompt or path
-    const userDelegates = userTemplates.map(t => handlebars_1.default.compile(t, { noEscape: true }));
-    const systemDelegate = systemTemplate ? handlebars_1.default.compile(systemTemplate, { noEscape: true }) : null;
-    const outputDelegate = handlebars_1.default.compile(outputTemplate, { noEscape: true });
+    const userDelegates = userTemplates.map(t => Handlebars.compile(t, { noEscape: true }));
+    const systemDelegate = systemTemplate ? Handlebars.compile(systemTemplate, { noEscape: true }) : null;
+    const outputDelegate = Handlebars.compile(outputTemplate, { noEscape: true });
     // 3. Read Data (CSV or JSON)
     const rows = await loadData(dataFilePath);
     console.log(`Found ${rows.length} rows to process.`);
-    const queue = new p_queue_1.default({ concurrency });
+    const queue = new PQueue({ concurrency });
     const tasks = rows.map((row, index) => {
         return queue.add(async () => {
             try {
@@ -102,7 +96,7 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
                 for (const [key, val] of Object.entries(row)) {
                     // Ensure val is a string for sanitization
                     const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                    const sanitized = (0, sanitize_filename_1.default)(stringVal).replace(/\s+/g, '_');
+                    const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
                     sanitizedRow[key] = sanitized.substring(0, 50);
                 }
                 const baseOutputPath = outputDelegate(sanitizedRow);
@@ -147,7 +141,7 @@ const handleUnifiedGeneration = async (ask, systemPrompt, userPrompts, baseOutpu
         // Handle Text
         if (textContent) {
             await ensureDir(currentOutputPath);
-            await promises_1.default.writeFile(currentOutputPath, textContent);
+            await fsPromises.writeFile(currentOutputPath, textContent);
             console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Text saved to ${currentOutputPath}`);
         }
         // Handle Images
@@ -165,12 +159,12 @@ const handleUnifiedGeneration = async (ask, systemPrompt, userPrompts, baseOutpu
             }
             // Determine image path (swap extension to .png if it's not an image extension)
             let imagePath = currentOutputPath;
-            const ext = path_1.default.extname(imagePath).toLowerCase();
+            const ext = path.extname(imagePath).toLowerCase();
             if (!['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext)) {
-                imagePath = path_1.default.join(path_1.default.dirname(imagePath), path_1.default.basename(imagePath, ext) + '.png');
+                imagePath = path.join(path.dirname(imagePath), path.basename(imagePath, ext) + '.png');
             }
             await ensureDir(imagePath);
-            await promises_1.default.writeFile(imagePath, buffer);
+            await fsPromises.writeFile(imagePath, buffer);
             console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Image saved to ${imagePath}`);
         }
         if (!textContent && (!images || images.length === 0)) {
@@ -188,7 +182,7 @@ const handleUnifiedGeneration = async (ask, systemPrompt, userPrompts, baseOutpu
         }
     }
 };
-async function runAction(dataFilePath, templateFilePaths, outputTemplate, options) {
+export async function runAction(dataFilePath, templateFilePaths, outputTemplate, options) {
     try {
         await processBatch(dataFilePath, templateFilePaths, outputTemplate, options, handleUnifiedGeneration);
     }

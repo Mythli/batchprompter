@@ -1,7 +1,4 @@
-"use strict";
 // retryUtils.ts
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.executeWithRetry = executeWithRetry;
 /**
  * Executes an operation with a retry mechanism.
  *
@@ -14,7 +11,7 @@ exports.executeWithRetry = executeWithRetry;
  * @returns A Promise that resolves with the validated data if successful.
  * @throws An error if all attempts fail or a critical failure occurs.
  */
-async function executeWithRetry(operation, validateAndProcess, maxRetries, initialFeedbackForOperation) {
+export async function executeWithRetry(operation, validateAndProcess, maxRetries, initialFeedbackForOperation) {
     let currentFeedbackForOperation = initialFeedbackForOperation;
     for (let attemptNumber = 0; attemptNumber <= maxRetries; attemptNumber++) {
         if (attemptNumber > 0) {

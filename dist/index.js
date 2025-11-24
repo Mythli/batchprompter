@@ -1,8 +1,6 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const commander_1 = require("commander");
-const actions_js_1 = require("./actions.js");
-const program = new commander_1.Command();
+import { Command } from 'commander';
+import { runAction } from './actions.js';
+const program = new Command();
 program
     .name('imagegen')
     .description('Generate images and text from CSV or JSON data using GPT');
@@ -32,7 +30,7 @@ program.command('generate')
         system: options.system
     };
     try {
-        await (0, actions_js_1.runAction)(dataFilePath, templateFilePaths, options.output, actionOptions);
+        await runAction(dataFilePath, templateFilePaths, options.output, actionOptions);
         process.exit(0);
     }
     catch (e) {

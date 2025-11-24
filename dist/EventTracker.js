@@ -1,19 +1,13 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.EventTracker = void 0;
-const crypto_1 = require("crypto");
-const eventemitter3_1 = __importDefault(require("eventemitter3"));
-const date_fns_1 = require("date-fns");
-class EventTracker {
+import { randomUUID } from 'crypto';
+import EventEmitter from 'eventemitter3';
+import { formatDuration, intervalToDuration } from 'date-fns';
+export class EventTracker {
     // @ts-ignore
     events;
     // @ts-ignore
     constructor(eventEmitter) {
         // @ts-ignore
-        this.events = eventEmitter || new eventemitter3_1.default();
+        this.events = eventEmitter || new EventEmitter();
     }
     startPerformanceLogging(logPrefix = '') {
         const prefix = logPrefix ? `[${logPrefix}] ` : '';
@@ -24,8 +18,8 @@ class EventTracker {
         });
         this.events.on('end', (event) => {
             const shortId = event.id.substring(0, 8);
-            const durationObject = (0, date_fns_1.intervalToDuration)({ start: 0, end: event.duration });
-            const formattedDuration = (0, date_fns_1.formatDuration)(durationObject) || `${event.duration}ms`;
+            const durationObject = intervalToDuration({ start: 0, end: event.duration });
+            const formattedDuration = formatDuration(durationObject) || `${event.duration}ms`;
             if (event.error) {
                 const errorMessage = event.error instanceof Error ? event.error.message : JSON.stringify(event.error);
                 console.error(`${prefix}❌ Failed: ${event.name} (ID: ${shortId}) after ${formattedDuration} | Error: ${errorMessage}`);
@@ -36,7 +30,7 @@ class EventTracker {
         });
     }
     async trackOperation(name, payload, action) {
-        const id = (0, crypto_1.randomUUID)();
+        const id = randomUUID();
         const startTime = Date.now();
         this.events.emit('start', { id, name, payload, startTime });
         try {
@@ -54,4 +48,3 @@ class EventTracker {
         }
     }
 }
-exports.EventTracker = EventTracker;

@@ -1,15 +1,6 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.countChars = countChars;
-exports.truncateSingleMessage = truncateSingleMessage;
-exports.truncateMessages = truncateMessages;
-exports.createCachedGptAsk = createCachedGptAsk;
-const crypto_1 = __importDefault(require("crypto"));
-const retryUtils_js_1 = require("./retryUtils.js");
-function countChars(message) {
+import crypto from 'crypto';
+import { executeWithRetry } from './retryUtils.js';
+export function countChars(message) {
     if (!message.content)
         return 0;
     if (typeof message.content === 'string') {
@@ -28,7 +19,7 @@ function countChars(message) {
     }
     return 0;
 }
-function truncateSingleMessage(message, charLimit) {
+export function truncateSingleMessage(message, charLimit) {
     const TRUNCATION_SUFFIX = '...[truncated]';
     const messageCopy = JSON.parse(JSON.stringify(message));
     if (charLimit <= 0) {
@@ -83,7 +74,7 @@ function truncateSingleMessage(message, charLimit) {
     }
     return messageCopy;
 }
-function truncateMessages(messages, limit) {
+export function truncateMessages(messages, limit) {
     const systemMessage = messages.find(m => m.role === 'system');
     const otherMessages = messages.filter(m => m.role !== 'system');
     let totalChars = otherMessages.reduce((sum, msg) => sum + countChars(msg), 0);
@@ -152,7 +143,7 @@ function getPromptSummary(messages) {
  * @param params - The core dependencies (API key, base URL, default model, and optional cache instance).
  * @returns An async function `gptAsk` ready to make OpenAI calls, with caching if configured.
  */
-function createCachedGptAsk(params) {
+export function createCachedGptAsk(params) {
     const { openai, cache: cacheInstance, defaultModel: factoryDefaultModel, eventTracker, maxConversationChars, queue } = params;
     const getCompletionParamsAndCacheKey = (options) => {
         const { ttl, model: callSpecificModel, messages, reasoning_effort, retries, ...restApiOptions } = options;
@@ -177,7 +168,7 @@ function createCachedGptAsk(params) {
         let cacheKey;
         if (cacheInstance) {
             const cacheKeyString = JSON.stringify(completionParams);
-            cacheKey = `gptask:${crypto_1.default.createHash('md5').update(cacheKeyString).digest('hex')}`;
+            cacheKey = `gptask:${crypto.createHash('md5').update(cacheKeyString).digest('hex')}`;
         }
         return { completionParams, cacheKey, ttl, modelToUse, finalMessages, retries };
     };
@@ -195,7 +186,7 @@ function createCachedGptAsk(params) {
             }
         }
         const apiCallAndCache = async () => {
-            const task = () => (0, retryUtils_js_1.executeWithRetry)(async () => {
+            const task = () => executeWithRetry(async () => {
                 return openai.chat.completions.create(completionParams);
             }, async (completion) => {
                 return { isValid: true, data: completion };
