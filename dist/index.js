@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command } from 'commander';
 import { runAction } from './actions.js';
 const program = new Command();
