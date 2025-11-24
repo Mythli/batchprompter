@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test-data specified\" && exit 1",
     "start": "tsx src/index.ts",
     "build": "tsc",
-    "publish": "node scripts/release.js"
+    "publish": "bash scripts/release.sh"
   },
   "keywords": [],
   "author": "",
