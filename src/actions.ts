@@ -148,7 +148,7 @@ async function processBatch(
     console.log("All tasks completed.");
 }
 
-const handleTextGeneration: RowHandler = async (ask, systemPrompt, userPrompts, baseOutputPath, index, options) => {
+const handleUnifiedGeneration: RowHandler = async (ask, systemPrompt, userPrompts, baseOutputPath, index, options) => {
     const messages: any[] = [];
 
     if (systemPrompt) {
@@ -167,57 +167,31 @@ const handleTextGeneration: RowHandler = async (ask, systemPrompt, userPrompts, 
             askOptions.model = options.model;
         }
 
+        // If aspect ratio is provided, we assume the user might want images and the model supports it via modalities.
+        if (options.aspectRatio) {
+            askOptions.modalities = ['image', 'text'];
+            askOptions.image_config = {
+                aspect_ratio: options.aspectRatio
+            };
+        }
+
         const response = await ask(askOptions);
         const parsed = responseSchema.parse(response);
         const message = parsed.choices[0].message;
 
         const textContent = message.content;
+        const images = message.images;
+        
         const currentOutputPath = getIndexedPath(baseOutputPath, i + 1, userPrompts.length);
 
+        // Handle Text
         if (textContent) {
             await ensureDir(currentOutputPath);
             await fsPromises.writeFile(currentOutputPath, textContent);
-            console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} saved to ${currentOutputPath}`);
-            
-            // Add assistant response to history
-            messages.push({ role: 'assistant', content: textContent });
-        } else {
-            console.warn(`[Row ${index}] Step ${i + 1} No text content returned.`);
-            messages.push({ role: 'assistant', content: "" });
-        }
-    }
-};
-
-const handleImageGeneration: RowHandler = async (ask, systemPrompt, userPrompts, baseOutputPath, index, options) => {
-    const messages: any[] = [];
-
-    if (systemPrompt) {
-        messages.push({ role: 'system', content: systemPrompt });
-    }
-
-    for (let i = 0; i < userPrompts.length; i++) {
-        const prompt = userPrompts[i];
-        messages.push({ role: 'user', content: prompt });
-
-        const askOptions: any = {
-            messages: [...messages],
-            modalities: ['image', 'text'],
-            image_config: {
-                aspect_ratio: options.aspectRatio || '3:2'
-            }
-        };
-
-        if (options.model) {
-            askOptions.model = options.model;
+            console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Text saved to ${currentOutputPath}`);
         }
 
-        const response = await ask(askOptions);
-        const parsed = responseSchema.parse(response);
-        const message = parsed.choices[0].message;
-
-        const images = message.images;
-        const currentOutputPath = getIndexedPath(baseOutputPath, i + 1, userPrompts.length);
-
+        // Handle Images
         if (images && images.length > 0) {
             const imageUrl = images[0].image_url.url;
             let buffer: Buffer;
@@ -231,35 +205,41 @@ const handleImageGeneration: RowHandler = async (ask, systemPrompt, userPrompts,
                 buffer = Buffer.from(base64Data, 'base64');
             }
 
-            await ensureDir(currentOutputPath);
-            await fsPromises.writeFile(currentOutputPath, buffer);
-            console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Image saved to ${currentOutputPath}`);
-        } else {
-            console.warn(`[Row ${index}] Step ${i + 1} No image returned.`);
+            // Determine image path (swap extension to .png if it's not an image extension)
+            let imagePath = currentOutputPath;
+            const ext = path.extname(imagePath).toLowerCase();
+            if (!['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext)) {
+                imagePath = path.join(path.dirname(imagePath), path.basename(imagePath, ext) + '.png');
+            }
+
+            await ensureDir(imagePath);
+            await fsPromises.writeFile(imagePath, buffer);
+            console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Image saved to ${imagePath}`);
+        }
+
+        if (!textContent && (!images || images.length === 0)) {
+            console.warn(`[Row ${index}] Step ${i + 1} No content returned.`);
         }
 
         // Update history
-        if (message.content) {
-            messages.push({ role: 'assistant', content: message.content });
-        } else {
+        if (textContent) {
+            messages.push({ role: 'assistant', content: textContent });
+        } else if (images && images.length > 0) {
             messages.push({ role: 'assistant', content: "Image generated." });
+        } else {
+            messages.push({ role: 'assistant', content: "" });
         }
     }
 };
 
 export async function runAction(
-    mode: 'text' | 'image',
     dataFilePath: string,
     templateFilePaths: string[],
     outputTemplate: string,
     options: ActionOptions
 ) {
     try {
-        if (mode === 'text') {
-            await processBatch(dataFilePath, templateFilePaths, outputTemplate, options, handleTextGeneration);
-        } else if (mode === 'image') {
-            await processBatch(dataFilePath, templateFilePaths, outputTemplate, options, handleImageGeneration);
-        }
+        await processBatch(dataFilePath, templateFilePaths, outputTemplate, options, handleUnifiedGeneration);
     } catch (error) {
         console.error("Fatal Error:", error);
         throw error;
