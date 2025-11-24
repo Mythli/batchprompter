@@ -21,8 +21,8 @@ export const configSchema = z.object({
     AI_API_URL: z.string().url().default("https://api.openai.com/v1"),
     MODEL: z.string().default("gpt-5.1"),
     GPT_MAX_CONVERSATION_CHARS: z.coerce.number().int().positive().optional(),
-    CACHE_ENABLED: z.coerce.boolean().default(false),
-    SQLITE_PATH: z.string().default("cache.sqlite"),
+    CACHE_ENABLED: z.coerce.boolean().default(true),
+    SQLITE_PATH: z.string().default(".cache.sqlite"),
 });
 export const initConfig = async (overrides = {}) => {
     // Resolve values from multiple possible environment variable names
