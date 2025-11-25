@@ -251,8 +251,8 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
         const stepOverride = options.stepOverrides?.[stepIndex];
         
         // System Prompt
-        let currentSystemPrompt = renderedSystemPrompts.steps[stepIndex];
-        if (currentSystemPrompt === undefined) {
+        let currentSystemPrompt: string | null = (renderedSystemPrompts.steps[stepIndex] as string | undefined) ?? null;
+        if (currentSystemPrompt === null) {
             currentSystemPrompt = renderedSystemPrompts.global || null;
         }
 
