@@ -60,17 +60,13 @@ export class LlmReQuerier {
     }
 
     private _constructLlmMessages(
-        mainInstruction: string,
-        userMessagePayload: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        baseMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         attemptNumber: number,
         previousError?: LlmAttemptError
     ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
         if (attemptNumber === 0) {
             // First attempt
-            return [
-                { role: "system", content: mainInstruction },
-                { role: "user", content: userMessagePayload }
-            ];
+            return baseMessages;
         }
 
         if (!previousError) {
@@ -91,8 +87,7 @@ export class LlmReQuerier {
     }
 
     public async query<T>(
-        mainInstruction: string,
-        userMessagePayload: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         processResponse: (response: string, info: LlmResponseInfo) => Promise<T>,
         options?: LlmReQuerierOptions
     ): Promise<T> {
@@ -104,9 +99,8 @@ export class LlmReQuerier {
             const currentAsk = useFallback ? this.fallbackAsk! : this.ask;
             const mode = useFallback ? 'fallback' : 'main';
 
-            const messages = this._constructLlmMessages(
-                mainInstruction,
-                userMessagePayload,
+            const currentMessages = this._constructLlmMessages(
+                messages,
                 attempt,
                 lastError
             );
@@ -114,17 +108,19 @@ export class LlmReQuerier {
             const { maxRetries: _maxRetries, ...restOptions } = options || {};
 
             try {
-                const llmResponseString = await currentAsk({
-                    messages: messages,
+                const completion = await currentAsk({
+                    messages: currentMessages,
                     ...restOptions,
                 });
 
+                const llmResponseString = completion.choices[0]?.message?.content;
+
                 if (!llmResponseString) {
                     // This is a validation error, so we throw a custom error to be caught for a retry.
-                    throw new LlmQuerierError("LLM returned no response.", 'CUSTOM_ERROR');
+                    throw new LlmQuerierError("LLM returned no response content.", 'CUSTOM_ERROR');
                 }
 
-                const finalConversation = [...messages, { role: 'assistant', content: llmResponseString }] as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+                const finalConversation = [...currentMessages, { role: 'assistant', content: llmResponseString }] as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 
                 const info: LlmResponseInfo = {
                     mode,
@@ -139,7 +135,7 @@ export class LlmReQuerier {
             } catch (error: any) {
                 if (error instanceof LlmQuerierError) {
                     // This is a recoverable error, so we'll create a detailed attempt error and continue the loop.
-                    const conversationForError = [...messages];
+                    const conversationForError = [...currentMessages];
                     if (error.rawResponse) {
                         conversationForError.push({ role: 'assistant', content: error.rawResponse });
                     }
