@@ -153,7 +153,7 @@ batchprompt generate \
     2,Zahnarztpraxis
     ...
     ```
-2.  **Prompt:** [examples/image/prompt.md](examples/image/prompt.md)
+2.  **Prompt:** [examples/image/prompt.md](examples/image/prompt/1_prompt.md)
     ```text
     Erstelle ein echtes, reales {{industry}} Bild, dass exakt zu folgender Branche passt: {{industry}}...
     ```
