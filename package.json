@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test-data specified\" && exit 1",
-    "start": "tsx src/index.ts",
+    "start-json-schema": "tsx src/index.ts generate test-data/json-schema/data.csv test-data/json-schema/prompt.md --output out/character_{{id}}.json --system test-data/json-schema/system.md --schema test-data/json-schema/schema.json --model x-ai/grok-4.1-fast",
     "build": "tsc",
     "release": "bash scripts/release.sh"
   },
@@ -27,6 +27,7 @@
   "dependencies": {
     "@keyv/redis": "^4.4.1",
     "@keyv/sqlite": "^4.0.6",
+    "ajv": "^8.17.1",
     "cache-manager": "^6.4.3",
     "cacheable": "^1.9.0",
     "commander": "^14.0.2",

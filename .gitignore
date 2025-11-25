@@ -4,3 +4,5 @@ tmp
 cache.sqlite
 .aider*
 dist
+out
+output

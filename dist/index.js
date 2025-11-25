@@ -14,6 +14,7 @@ program.command('generate')
     .option('--aspect-ratio <ratio>', 'Aspect ratio for image generation (e.g., "3:2"). If provided, requests image generation.')
     .option('-m, --model <model>', 'Model to use for generation')
     .option('-s, --system <file>', 'Path to the system prompt template text file')
+    .option('-S, --schema <file>', 'Path to the JSON Schema file for validation')
     .action(async (dataFilePath, templateFilePaths, options) => {
     if ((!templateFilePaths || templateFilePaths.length === 0) && !options.system) {
         console.error('Error: You must provide either template files or a system prompt.');
@@ -28,7 +29,8 @@ program.command('generate')
         concurrency,
         aspectRatio: options.aspectRatio,
         model: options.model,
-        system: options.system
+        system: options.system,
+        schema: options.schema
     };
     try {
         await runAction(dataFilePath, templateFilePaths, options.output, actionOptions);

@@ -7,10 +7,34 @@ import { getConfig } from "./getConfig.js";
 import { z } from 'zod';
 import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
+import { LlmReQuerier, LlmQuerierError } from './llmReQuerier.js';
+import Ajv from 'ajv';
 // Helper to ensure directory exists
 async function ensureDir(filePath) {
     const dir = path.dirname(filePath);
     await fsPromises.mkdir(dir, { recursive: true });
+}
+// Helper to read prompt input (file or directory)
+async function readPromptInput(inputPath) {
+    const stats = await fsPromises.stat(inputPath);
+    if (stats.isDirectory()) {
+        const files = await fsPromises.readdir(inputPath);
+        files.sort();
+        const contents = await Promise.all(files.map(async (file) => {
+            if (file.startsWith('.'))
+                return null;
+            const filePath = path.join(inputPath, file);
+            const fileStats = await fsPromises.stat(filePath);
+            if (fileStats.isFile()) {
+                return fsPromises.readFile(filePath, 'utf-8');
+            }
+            return null;
+        }));
+        return contents.filter((c) => c !== null).join('\n\n');
+    }
+    else {
+        return fsPromises.readFile(inputPath, 'utf-8');
+    }
 }
 // Response schema to extract image URL
 const responseSchema = z.object({
@@ -61,8 +85,14 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
     console.log(`Initializing with concurrency: ${concurrency}`);
     const { ask } = await getConfig({ concurrency });
     // 2. Read Template Files
-    const userTemplates = await Promise.all(templateFilePaths.map(p => fsPromises.readFile(p, 'utf-8')));
-    const systemTemplate = options.system ? await fsPromises.readFile(options.system, 'utf-8') : null;
+    const userTemplates = await Promise.all(templateFilePaths.map(p => readPromptInput(p)));
+    const systemTemplate = options.system ? await readPromptInput(options.system) : null;
+    // Load Schema if provided
+    if (options.schema) {
+        console.log(`Loading JSON Schema from: ${options.schema}`);
+        const schemaContent = await fsPromises.readFile(options.schema, 'utf-8');
+        options.jsonSchema = JSON.parse(schemaContent);
+    }
     // Compile Handlebars templates
     // noEscape: true ensures we don't HTML-escape characters in the prompt or path
     const userDelegates = userTemplates.map(t => Handlebars.compile(t, { noEscape: true }));
@@ -115,70 +145,122 @@ const handleUnifiedGeneration = async (ask, systemPrompt, userPrompts, baseOutpu
     const messages = [];
     if (systemPrompt) {
         messages.push({ role: 'system', content: systemPrompt });
+        if (options.jsonSchema) {
+            messages.push({ role: 'system', content: `You must output valid JSON that matches the following schema: ${JSON.stringify(options.jsonSchema)}` });
+        }
+    }
+    // Compile validator if schema is present
+    let validate = null;
+    if (options.jsonSchema) {
+        // @ts-ignore
+        const ajv = new Ajv({ strict: false });
+        validate = ajv.compile(options.jsonSchema);
     }
     for (let i = 0; i < userPrompts.length; i++) {
         const prompt = userPrompts[i];
         messages.push({ role: 'user', content: prompt });
-        const askOptions = {
-            messages: [...messages]
-        };
-        if (options.model) {
-            askOptions.model = options.model;
-        }
-        // If aspect ratio is provided, we assume the user might want images and the model supports it via modalities.
-        if (options.aspectRatio) {
-            askOptions.modalities = ['image', 'text'];
-            askOptions.image_config = {
-                aspect_ratio: options.aspectRatio
-            };
-        }
-        const response = await ask(askOptions);
-        const parsed = responseSchema.parse(response);
-        const message = parsed.choices[0].message;
-        const textContent = message.content;
-        const images = message.images;
-        const currentOutputPath = getIndexedPath(baseOutputPath, i + 1, userPrompts.length);
-        // Handle Text
-        if (textContent) {
-            await ensureDir(currentOutputPath);
-            await fsPromises.writeFile(currentOutputPath, textContent);
-            console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Text saved to ${currentOutputPath}`);
-        }
-        // Handle Images
-        if (images && images.length > 0) {
-            const imageUrl = images[0].image_url.url;
-            let buffer;
-            if (imageUrl.startsWith('http')) {
-                const imgRes = await fetch(imageUrl);
-                const arrayBuffer = await imgRes.arrayBuffer();
-                buffer = Buffer.from(arrayBuffer);
+        let currentOutputPath = getIndexedPath(baseOutputPath, i + 1, userPrompts.length);
+        if (options.jsonSchema) {
+            // --- JSON Schema Mode (using LlmReQuerier) ---
+            const querier = new LlmReQuerier(ask);
+            // Force .json extension
+            const ext = path.extname(currentOutputPath);
+            if (ext !== '.json') {
+                currentOutputPath = currentOutputPath.slice(0, -ext.length) + '.json';
             }
-            else {
-                const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-                buffer = Buffer.from(base64Data, 'base64');
+            try {
+                const validatedData = await querier.query([...messages], // Pass a copy of the conversation history
+                async (responseString, info) => {
+                    let data;
+                    try {
+                        data = JSON.parse(responseString);
+                    }
+                    catch (e) {
+                        throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
+                    }
+                    const valid = validate(data);
+                    if (!valid) {
+                        const errors = validate.errors?.map((e) => `${e.instancePath} ${e.message}`).join(', ');
+                        throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', validate.errors, responseString);
+                    }
+                    return data;
+                }, {
+                    model: options.model,
+                    response_format: { type: "json_object" }
+                });
+                await ensureDir(currentOutputPath);
+                await fsPromises.writeFile(currentOutputPath, JSON.stringify(validatedData, null, 2));
+                console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Validated JSON saved to ${currentOutputPath}`);
+                // Update history with the valid JSON string
+                messages.push({ role: 'assistant', content: JSON.stringify(validatedData) });
             }
-            // Determine image path (swap extension to .png if it's not an image extension)
-            let imagePath = currentOutputPath;
-            const ext = path.extname(imagePath).toLowerCase();
-            if (!['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext)) {
-                imagePath = path.join(path.dirname(imagePath), path.basename(imagePath, ext) + '.png');
+            catch (error) {
+                console.error(`[Row ${index}] Step ${i + 1} Failed to generate valid JSON after retries:`, error);
+                throw error;
             }
-            await ensureDir(imagePath);
-            await fsPromises.writeFile(imagePath, buffer);
-            console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Image saved to ${imagePath}`);
-        }
-        if (!textContent && (!images || images.length === 0)) {
-            console.warn(`[Row ${index}] Step ${i + 1} No content returned.`);
-        }
-        // Update history
-        if (textContent) {
-            messages.push({ role: 'assistant', content: textContent });
-        }
-        else if (images && images.length > 0) {
-            messages.push({ role: 'assistant', content: "Image generated." });
         }
         else {
-            messages.push({ role: 'assistant', content: "" });
+            // --- Standard Mode (Text/Image) ---
+            const askOptions = {
+                messages: [...messages]
+            };
+            if (options.model) {
+                askOptions.model = options.model;
+            }
+            // If aspect ratio is provided, we assume the user might want images and the model supports it via modalities.
+            if (options.aspectRatio) {
+                askOptions.modalities = ['image', 'text'];
+                askOptions.image_config = {
+                    aspect_ratio: options.aspectRatio
+                };
+            }
+            const response = await ask(askOptions);
+            const parsed = responseSchema.parse(response);
+            const message = parsed.choices[0].message;
+            const textContent = message.content;
+            const images = message.images;
+            // Handle Text
+            if (textContent) {
+                await ensureDir(currentOutputPath);
+                await fsPromises.writeFile(currentOutputPath, textContent);
+                console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Text saved to ${currentOutputPath}`);
+            }
+            // Handle Images
+            if (images && images.length > 0) {
+                const imageUrl = images[0].image_url.url;
+                let buffer;
+                if (imageUrl.startsWith('http')) {
+                    const imgRes = await fetch(imageUrl);
+                    const arrayBuffer = await imgRes.arrayBuffer();
+                    buffer = Buffer.from(arrayBuffer);
+                }
+                else {
+                    const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+                    buffer = Buffer.from(base64Data, 'base64');
+                }
+                // Determine image path (swap extension to .png if it's not an image extension)
+                let imagePath = currentOutputPath;
+                const ext = path.extname(imagePath).toLowerCase();
+                if (!['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext)) {
+                    imagePath = path.join(path.dirname(imagePath), path.basename(imagePath, ext) + '.png');
+                }
+                await ensureDir(imagePath);
+                await fsPromises.writeFile(imagePath, buffer);
+                console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Image saved to ${imagePath}`);
+            }
+            if (!textContent && (!images || images.length === 0)) {
+                console.warn(`[Row ${index}] Step ${i + 1} No content returned.`);
+            }
+            // Update history
+            if (textContent) {
+                messages.push({ role: 'assistant', content: textContent });
+            }
+            else if (images && images.length > 0) {
+                messages.push({ role: 'assistant', content: "Image generated." });
+            }
+            else {
+                messages.push({ role: 'assistant', content: "" });
+            }
         }
     }
 };
