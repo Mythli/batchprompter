@@ -9,32 +9,90 @@ import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
 import { LlmReQuerier, LlmQuerierError } from './llmReQuerier.js';
 import Ajv from 'ajv';
+import { exec } from 'child_process';
+import util from 'util';
+const execPromise = util.promisify(exec);
 // Helper to ensure directory exists
 async function ensureDir(filePath) {
     const dir = path.dirname(filePath);
     await fsPromises.mkdir(dir, { recursive: true });
 }
-// Helper to read prompt input (file or directory)
+function getPartType(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext))
+        return 'image';
+    if (['.mp3', '.wav'].includes(ext))
+        return 'audio';
+    return 'text';
+}
+// Helper to read prompt input (file or directory) and return Content Parts
 async function readPromptInput(inputPath) {
     const stats = await fsPromises.stat(inputPath);
+    let filePaths = [];
     if (stats.isDirectory()) {
         const files = await fsPromises.readdir(inputPath);
         files.sort();
-        const contents = await Promise.all(files.map(async (file) => {
-            if (file.startsWith('.'))
-                return null;
-            const filePath = path.join(inputPath, file);
-            const fileStats = await fsPromises.stat(filePath);
-            if (fileStats.isFile()) {
-                return fsPromises.readFile(filePath, 'utf-8');
-            }
-            return null;
-        }));
-        return contents.filter((c) => c !== null).join('\n\n');
+        filePaths = files
+            .filter(f => !f.startsWith('.'))
+            .map(f => path.join(inputPath, f));
     }
     else {
-        return fsPromises.readFile(inputPath, 'utf-8');
+        filePaths = [inputPath];
     }
+    const parts = [];
+    let currentTextBuffer = [];
+    const flushText = () => {
+        if (currentTextBuffer.length > 0) {
+            parts.push({ type: 'text', text: currentTextBuffer.join('\n\n') });
+            currentTextBuffer = [];
+        }
+    };
+    for (const filePath of filePaths) {
+        // If we are processing a directory, we need to stat each file.
+        // If inputPath was a file, we already stat-ed it, but doing it again is cheap and safe.
+        const fileStats = await fsPromises.stat(filePath);
+        if (!fileStats.isFile())
+            continue;
+        const type = getPartType(filePath);
+        if (type === 'text') {
+            const content = await fsPromises.readFile(filePath, 'utf-8');
+            if (content.trim().length > 0) {
+                currentTextBuffer.push(content);
+            }
+        }
+        else {
+            flushText(); // Push any accumulated text before this binary part
+            const buffer = await fsPromises.readFile(filePath);
+            const base64 = buffer.toString('base64');
+            const ext = path.extname(filePath).toLowerCase();
+            if (type === 'image') {
+                let mime = 'image/jpeg';
+                if (ext === '.png')
+                    mime = 'image/png';
+                if (ext === '.gif')
+                    mime = 'image/gif';
+                if (ext === '.webp')
+                    mime = 'image/webp';
+                parts.push({
+                    type: 'image_url',
+                    image_url: { url: `data:${mime};base64,${base64}` }
+                });
+            }
+            else if (type === 'audio') {
+                const format = ext === '.mp3' ? 'mp3' : 'wav';
+                parts.push({
+                    type: 'input_audio',
+                    input_audio: { data: base64, format }
+                });
+            }
+        }
+    }
+    flushText();
+    // If empty, return empty text part
+    if (parts.length === 0) {
+        return [{ type: 'text', text: '' }];
+    }
+    return parts;
 }
 // Response schema to extract image URL
 const responseSchema = z.object({
@@ -105,14 +163,18 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
         if (validatorCache.has(filePath)) {
             return validatorCache.get(filePath);
         }
-        const content = await getFileContent(filePath);
+        const parts = await getFileContent(filePath);
+        // Extract text from parts for schema parsing
+        const content = parts
+            .filter(p => p.type === 'text')
+            .map(p => p.text)
+            .join('\n\n');
         const schemaObj = JSON.parse(content);
         const validator = ajv.compile(schemaObj);
         validatorCache.set(filePath, validator);
         return validator;
     };
-    // Compile Output Template (this is usually static relative to row data, but we compile it once per row anyway in the loop logic below to be safe, or we can compile it here if we assume output path structure is static template)
-    // Actually, outputTemplate is a string like "out/{{id}}/file.txt". We compile it once.
+    // Compile Output Template
     const outputDelegate = Handlebars.compile(outputTemplate, { noEscape: true });
     // 3. Read Data (CSV or JSON)
     const rows = await loadData(dataFilePath);
@@ -127,16 +189,26 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
                 if (templateFilePaths.length > 0) {
                     for (const tPath of templateFilePaths) {
                         const resolvedPath = renderPath(tPath, row);
-                        const content = await getFileContent(resolvedPath);
-                        const rendered = Handlebars.compile(content, { noEscape: true })(row);
-                        userPrompts.push(rendered);
+                        const parts = await getFileContent(resolvedPath);
+                        // Render Handlebars only for text parts
+                        const renderedParts = parts.map(part => {
+                            if (part.type === 'text') {
+                                return {
+                                    type: 'text',
+                                    text: Handlebars.compile(part.text, { noEscape: true })(row)
+                                };
+                            }
+                            return part;
+                        });
+                        userPrompts.push(renderedParts);
                     }
                 }
                 // 2. Global System Prompt
                 let globalSystemPrompt = null;
                 if (options.system) {
                     const resolvedPath = renderPath(options.system, row);
-                    const content = await getFileContent(resolvedPath);
+                    const parts = await getFileContent(resolvedPath);
+                    const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
                     globalSystemPrompt = Handlebars.compile(content, { noEscape: true })(row);
                 }
                 // 3. Prepare Row-Specific Options and Validators
@@ -148,7 +220,8 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
                 // Global Schema
                 if (options.schema) {
                     const resolvedPath = renderPath(options.schema, row);
-                    const content = await getFileContent(resolvedPath);
+                    const parts = await getFileContent(resolvedPath);
+                    const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
                     rowOptions.jsonSchema = JSON.parse(content);
                     rowValidators['global'] = await getValidator(resolvedPath);
                 }
@@ -161,15 +234,15 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
                         // Step System Prompt
                         if (config.system) {
                             const resolvedPath = renderPath(config.system, row);
-                            const content = await getFileContent(resolvedPath);
+                            const parts = await getFileContent(resolvedPath);
+                            const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
                             stepSystemPrompts[step] = Handlebars.compile(content, { noEscape: true })(row);
-                            // We don't update newConfig.system content here, as it's used for path. 
-                            // The handler receives the rendered string via `renderedSystemPrompts`.
                         }
                         // Step Schema
                         if (config.schema) {
                             const resolvedPath = renderPath(config.schema, row);
-                            const content = await getFileContent(resolvedPath);
+                            const parts = await getFileContent(resolvedPath);
+                            const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
                             newConfig.jsonSchema = JSON.parse(content);
                             rowValidators[stepStr] = await getValidator(resolvedPath);
                         }
@@ -184,7 +257,7 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
                 };
                 // Fallback for User Prompts if none provided
                 if (userPrompts.length === 0) {
-                    userPrompts = [JSON.stringify(row, null, 2)];
+                    userPrompts = [[{ type: 'text', text: JSON.stringify(row, null, 2) }]];
                 }
                 // Interpolate Output Path (Sanitized)
                 const sanitizedRow = {};
@@ -210,7 +283,7 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
     const persistentHistory = [];
     for (let i = 0; i < userPrompts.length; i++) {
         const stepIndex = i + 1;
-        const prompt = userPrompts[i];
+        const promptParts = userPrompts[i];
         let currentOutputPath = getIndexedPath(baseOutputPath, stepIndex, userPrompts.length);
         // Determine Configuration for this step
         const stepOverride = options.stepOverrides?.[stepIndex];
@@ -226,6 +299,8 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
             currentValidator = validators['global'];
             currentSchemaObj = options.jsonSchema;
         }
+        // Verify Command
+        const currentVerifyCommand = stepOverride?.verifyCommand || options.verifyCommand;
         // Construct Messages for this API call
         const apiMessages = [];
         // 1. System Prompt (with Schema instruction if needed)
@@ -241,16 +316,20 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
         // 2. History
         apiMessages.push(...persistentHistory);
         // 3. Current User Prompt
-        apiMessages.push({ role: 'user', content: prompt });
-        if (currentSchemaObj) {
-            // --- JSON Schema Mode (using LlmReQuerier) ---
-            const querier = new LlmReQuerier(ask);
-            try {
-                const validatedData = await querier.query([...apiMessages], // Pass a copy of the conversation history
-                async (responseString, info) => {
-                    let data;
+        apiMessages.push({ role: 'user', content: promptParts });
+        // --- Unified Generation & Validation Loop ---
+        // We use LlmReQuerier if we have ANY validation requirements (Schema OR Verify Command)
+        // OR if we just want to use the standard retry mechanism for robustness.
+        const querier = new LlmReQuerier(ask);
+        try {
+            const result = await querier.query([...apiMessages], async (responseString, info) => {
+                let data = responseString;
+                let contentToWrite = responseString;
+                // 1. JSON Parsing & Schema Validation
+                if (currentSchemaObj) {
                     try {
                         data = JSON.parse(responseString);
+                        contentToWrite = JSON.stringify(data, null, 2); // Normalize formatting
                     }
                     catch (e) {
                         throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
@@ -260,80 +339,106 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
                         const errors = currentValidator.errors?.map((e) => `${e.instancePath} ${e.message}`).join(', ');
                         throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, responseString);
                     }
-                    return data;
-                }, {
-                    model: options.model,
-                    response_format: { type: "json_object" }
-                });
-                await ensureDir(currentOutputPath);
-                await fsPromises.writeFile(currentOutputPath, JSON.stringify(validatedData, null, 2));
-                console.log(`[Row ${index}] Step ${stepIndex} Validated JSON saved to ${currentOutputPath}`);
-                // Update History
-                persistentHistory.push({ role: 'user', content: prompt });
-                persistentHistory.push({ role: 'assistant', content: JSON.stringify(validatedData) });
-            }
-            catch (error) {
-                console.error(`[Row ${index}] Step ${stepIndex} Failed to generate valid JSON after retries:`, error);
-                throw error;
-            }
-        }
-        else {
-            // --- Standard Mode (Text/Image) ---
-            const askOptions = {
-                messages: [...apiMessages]
-            };
-            if (options.model) {
-                askOptions.model = options.model;
-            }
-            // If aspect ratio is provided, we assume the user might want images and the model supports it via modalities.
-            if (options.aspectRatio) {
-                askOptions.modalities = ['image', 'text'];
-                askOptions.image_config = {
-                    aspect_ratio: options.aspectRatio
-                };
-            }
-            const response = await ask(askOptions);
-            const parsed = responseSchema.parse(response);
-            const message = parsed.choices[0].message;
-            const textContent = message.content;
-            const images = message.images;
-            // Handle Text
-            if (textContent) {
-                await ensureDir(currentOutputPath);
-                await fsPromises.writeFile(currentOutputPath, textContent);
-                console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${currentOutputPath}`);
-            }
-            // Handle Images
-            if (images && images.length > 0) {
-                const imageUrl = images[0].image_url.url;
-                let buffer;
-                if (imageUrl.startsWith('http')) {
-                    const imgRes = await fetch(imageUrl);
-                    const arrayBuffer = await imgRes.arrayBuffer();
-                    buffer = Buffer.from(arrayBuffer);
                 }
-                else {
-                    const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-                    buffer = Buffer.from(base64Data, 'base64');
+                // 2. Verify Command Validation
+                if (currentVerifyCommand) {
+                    // Write to temp file (or actual output path) to verify
+                    await ensureDir(currentOutputPath);
+                    await fsPromises.writeFile(currentOutputPath, contentToWrite);
+                    const cmd = currentVerifyCommand.replace('{{file}}', currentOutputPath);
+                    try {
+                        await execPromise(cmd);
+                    }
+                    catch (error) {
+                        // Command failed (non-zero exit code)
+                        const stderr = error.stderr || error.stdout || error.message;
+                        throw new LlmQuerierError(`Verification command failed:\n${stderr}\n\nPlease fix the content based on this error.`, 'CUSTOM_ERROR', null, responseString);
+                    }
                 }
+                return { data, contentToWrite };
+            }, {
+                model: options.model,
+                response_format: currentSchemaObj ? { type: "json_object" } : undefined,
+                // If aspect ratio is provided, we assume image generation is desired if no schema is present
+                modalities: (!currentSchemaObj && options.aspectRatio) ? ['image', 'text'] : undefined,
+                image_config: (!currentSchemaObj && options.aspectRatio) ? { aspect_ratio: options.aspectRatio } : undefined
+            });
+            // If we didn't write it during verification (or if verification wasn't run), write it now.
+            // Note: If verification ran, we already wrote it, but writing again ensures consistency.
+            // Special handling for Image Generation (which returns a different structure if not using JSON mode)
+            // However, LlmReQuerier currently assumes text response. 
+            // If we are in Image Mode (no schema, aspect ratio set), the responseString passed to callback is text.
+            // But `ask` returns a full object. LlmReQuerier extracts content.
+            // If the model returns images, content might be null or empty string in standard OpenAI response, 
+            // but our `ask` wrapper returns the full response object.
+            // Wait, LlmReQuerier extracts `completion.choices[0]?.message?.content`.
+            // If we are doing image generation, we need to handle that.
+            // Current LlmReQuerier logic:
+            // const llmResponseString = completion.choices[0]?.message?.content;
+            // If we are doing pure image generation (no text), content is null.
+            // LlmReQuerier throws "LLM returned no response content."
+            // FIX: If we are in image generation mode, we shouldn't use LlmReQuerier validation loop 
+            // UNLESS we want to validate the image (which is hard).
+            // For now, if aspect ratio is set AND no schema/verify command, we skip LlmReQuerier?
+            // But the user might want to verify the image file exists?
+            // Let's stick to the logic: If schema OR verify command is present, use LlmReQuerier.
+            // Otherwise, use standard flow (which handles images).
+            if (currentSchemaObj || currentVerifyCommand) {
+                // We are in Text/JSON mode
                 await ensureDir(currentOutputPath);
-                await fsPromises.writeFile(currentOutputPath, buffer);
-                console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
-            }
-            if (!textContent && (!images || images.length === 0)) {
-                console.warn(`[Row ${index}] Step ${stepIndex} No content returned.`);
-            }
-            // Update history
-            persistentHistory.push({ role: 'user', content: prompt });
-            if (textContent) {
-                persistentHistory.push({ role: 'assistant', content: textContent });
-            }
-            else if (images && images.length > 0) {
-                persistentHistory.push({ role: 'assistant', content: "Image generated." });
+                await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
+                console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
+                persistentHistory.push({ role: 'user', content: promptParts });
+                persistentHistory.push({ role: 'assistant', content: result.contentToWrite });
             }
             else {
-                persistentHistory.push({ role: 'assistant', content: "" });
+                // Standard Mode (Text or Image without verification)
+                // We fall back to the original logic for Images/Simple Text to avoid breaking Image Gen
+                const askOptions = {
+                    messages: [...apiMessages]
+                };
+                if (options.model)
+                    askOptions.model = options.model;
+                if (options.aspectRatio) {
+                    askOptions.modalities = ['image', 'text'];
+                    askOptions.image_config = { aspect_ratio: options.aspectRatio };
+                }
+                const response = await ask(askOptions);
+                const parsed = responseSchema.parse(response);
+                const message = parsed.choices[0].message;
+                const textContent = message.content;
+                const images = message.images;
+                if (textContent) {
+                    await ensureDir(currentOutputPath);
+                    await fsPromises.writeFile(currentOutputPath, textContent);
+                    console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${currentOutputPath}`);
+                }
+                if (images && images.length > 0) {
+                    const imageUrl = images[0].image_url.url;
+                    let buffer;
+                    if (imageUrl.startsWith('http')) {
+                        const imgRes = await fetch(imageUrl);
+                        const arrayBuffer = await imgRes.arrayBuffer();
+                        buffer = Buffer.from(arrayBuffer);
+                    }
+                    else {
+                        const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+                        buffer = Buffer.from(base64Data, 'base64');
+                    }
+                    await ensureDir(currentOutputPath);
+                    await fsPromises.writeFile(currentOutputPath, buffer);
+                    console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
+                }
+                persistentHistory.push({ role: 'user', content: promptParts });
+                if (textContent)
+                    persistentHistory.push({ role: 'assistant', content: textContent });
+                else if (images && images.length > 0)
+                    persistentHistory.push({ role: 'assistant', content: "Image generated." });
             }
+        }
+        catch (error) {
+            console.error(`[Row ${index}] Step ${stepIndex} Failed after retries:`, error);
+            throw error;
         }
     }
 };
