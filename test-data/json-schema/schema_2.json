@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "weaponName": {
+      "type": "string",
+      "description": "The name of the weapon"
+    },
+    "type": {
+      "type": "string",
+      "description": "The type of weapon (e.g. Sword, Staff, Bolter)"
+    },
+    "damage": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "attributes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "maxItems": 3
+    },
+    "lore": {
+      "type": "string",
+      "description": "A brief history or lore about the weapon"
+    }
+  },
+  "required": ["weaponName", "type", "damage", "attributes", "lore"],
+  "additionalProperties": false
+}
