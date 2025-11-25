@@ -225,6 +225,30 @@ batchprompt generate \
 
 ---
 
+### Scenario 5: Using Directories for Prompts
+**Goal:** Organize complex prompts by splitting them into multiple files within a folder.
+
+**The Input:**
+*   **Prompt Directory:** `prompts/blog-post/`
+    *   `01_intro.md`
+    *   `02_body.md`
+    *   `03_conclusion.md`
+
+**Run this command:**
+```bash
+batchprompt generate \
+  data.csv \
+  prompts/blog-post/ \
+  --output "output/{{id}}.txt"
+```
+
+**What happens here?**
+*   BatchPrompt detects that `prompts/blog-post/` is a directory.
+*   It reads all files inside, sorts them alphabetically, and concatenates them into **one single prompt**.
+*   This works for both **User Prompts** and **System Prompts** (`--system`).
+
+---
+
 ## 5. Command Flags Reference
 
 Here is an explanation of the flags used above.
@@ -232,9 +256,9 @@ Here is an explanation of the flags used above.
 | Flag / Argument | Example | Description |
 | :--- | :--- | :--- |
 | **Argument 1** | `data.csv` | **Required.** The path to your data file (CSV or JSON). The first row of a CSV must be headers (e.g., `id,name`). |
-| **Argument 2+** | `prompt.md` | **Optional.** One or more text files containing your prompt templates. Use `{{header_name}}` to insert data from your CSV. |
+| **Argument 2+** | `prompt.md` or `prompt_dir/` | **Optional.** One or more text files (or directories) containing your prompt templates. If a directory is provided, all files inside are combined. |
 | `-o` / `--output` | `out/{{id}}.txt` | **Required.** The output path template. You can use `{{variable}}` here to dynamically name folders or files based on CSV data. |
-| `-s` / `--system` | `system.md` | The path to a system prompt file (sets the AI behavior/persona). |
+| `-s` / `--system` | `system.md` or `sys_dir/` | The path to a system prompt file or directory (sets the AI behavior/persona). |
 | `-S` / `--schema` | `schema.json` | Path to a JSON Schema file. Enforces valid JSON output and enables auto-retry on validation failure. |
 | `--system-prompt-N` | `sys_2.md` | Override the system prompt for a specific step (e.g., `--system-prompt-2` for the 2nd prompt file). |
 | `--json-schema-N` | `schema_2.json` | Override the JSON Schema for a specific step (e.g., `--json-schema-2` for the 2nd prompt file). |
