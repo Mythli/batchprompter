@@ -18,11 +18,12 @@ program.command('generate')
     .option('-m, --model <model>', 'Model to use for generation')
     .option('-s, --system <file>', 'Path to the system prompt template text file')
     .option('-S, --schema <file>', 'Path to the JSON Schema file for validation')
+    .option('--verify-command <cmd>', 'Shell command to verify output. Use {{file}} as placeholder for the file path.')
     .allowUnknownOption()
     .action(async (dataFilePath, templateFilePaths, options, command) => {
         // Parse dynamic options from process.argv manually
-        // We look for --system-prompt-N and --json-schema-N
-        const stepOverrides: Record<number, { system?: string, schema?: string }> = {};
+        // We look for --system-prompt-N, --json-schema-N, and --verify-command-N
+        const stepOverrides: Record<number, { system?: string, schema?: string, verifyCommand?: string }> = {};
         const argv = process.argv;
         
         for (let i = 0; i < argv.length; i++) {
@@ -48,6 +49,16 @@ program.command('generate')
                     stepOverrides[index].schema = argv[i+1];
                 }
             }
+
+            // Check for --verify-command-N
+            const verifyMatch = arg.match(/^--verify-command-(\d+)$/);
+            if (verifyMatch) {
+                const index = parseInt(verifyMatch[1], 10);
+                if (i + 1 < argv.length && !argv[i+1].startsWith('-')) {
+                    if (!stepOverrides[index]) stepOverrides[index] = {};
+                    stepOverrides[index].verifyCommand = argv[i+1];
+                }
+            }
         }
 
         // Check validation logic
@@ -70,6 +81,7 @@ program.command('generate')
             model: options.model,
             system: options.system,
             schema: options.schema,
+            verifyCommand: options.verifyCommand,
             stepOverrides
         };
 

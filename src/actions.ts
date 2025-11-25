@@ -11,6 +11,10 @@ import Handlebars from 'handlebars';
 import { LlmReQuerier, LlmQuerierError } from './llmReQuerier.js';
 import Ajv from 'ajv';
 import OpenAI from 'openai';
+import { exec } from 'child_process';
+import util from 'util';
+
+const execPromise = util.promisify(exec);
 
 // Helper to ensure directory exists
 async function ensureDir(filePath: string) {
@@ -117,6 +121,7 @@ interface StepConfig {
     system?: string;
     schema?: string;
     jsonSchema?: any;
+    verifyCommand?: string;
 }
 
 interface ActionOptions {
@@ -126,6 +131,7 @@ interface ActionOptions {
     system?: string;
     schema?: string;
     jsonSchema?: any;
+    verifyCommand?: string;
     stepOverrides?: Record<number, StepConfig>;
 }
 
@@ -372,6 +378,9 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
             currentSchemaObj = options.jsonSchema;
         }
 
+        // Verify Command
+        const currentVerifyCommand = stepOverride?.verifyCommand || options.verifyCommand;
+
         // Construct Messages for this API call
         const apiMessages: any[] = [];
         
@@ -391,17 +400,24 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
         // 3. Current User Prompt
         apiMessages.push({ role: 'user', content: promptParts });
 
-        if (currentSchemaObj) {
-            // --- JSON Schema Mode (using LlmReQuerier) ---
-            const querier = new LlmReQuerier(ask);
-            
-            try {
-                const validatedData = await querier.query(
-                    [...apiMessages], // Pass a copy of the conversation history
-                    async (responseString, info) => {
-                        let data;
+        // --- Unified Generation & Validation Loop ---
+        // We use LlmReQuerier if we have ANY validation requirements (Schema OR Verify Command)
+        // OR if we just want to use the standard retry mechanism for robustness.
+        
+        const querier = new LlmReQuerier(ask);
+
+        try {
+            const result = await querier.query(
+                [...apiMessages],
+                async (responseString, info) => {
+                    let data: any = responseString;
+                    let contentToWrite = responseString;
+
+                    // 1. JSON Parsing & Schema Validation
+                    if (currentSchemaObj) {
                         try {
                             data = JSON.parse(responseString);
+                            contentToWrite = JSON.stringify(data, null, 2); // Normalize formatting
                         } catch (e) {
                             throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
                         }
@@ -411,91 +427,124 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                             const errors = currentValidator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
                             throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, responseString);
                         }
-                        return data;
-                    },
-                    {
-                        model: options.model,
-                        response_format: { type: "json_object" }
                     }
-                );
 
-                await ensureDir(currentOutputPath);
-                await fsPromises.writeFile(currentOutputPath, JSON.stringify(validatedData, null, 2));
-                console.log(`[Row ${index}] Step ${stepIndex} Validated JSON saved to ${currentOutputPath}`);
+                    // 2. Verify Command Validation
+                    if (currentVerifyCommand) {
+                        // Write to temp file (or actual output path) to verify
+                        await ensureDir(currentOutputPath);
+                        await fsPromises.writeFile(currentOutputPath, contentToWrite);
 
-                // Update History
-                persistentHistory.push({ role: 'user', content: promptParts });
-                persistentHistory.push({ role: 'assistant', content: JSON.stringify(validatedData) });
+                        const cmd = currentVerifyCommand.replace('{{file}}', currentOutputPath);
+                        try {
+                            await execPromise(cmd);
+                        } catch (error: any) {
+                            // Command failed (non-zero exit code)
+                            const stderr = error.stderr || error.stdout || error.message;
+                            throw new LlmQuerierError(
+                                `Verification command failed:\n${stderr}\n\nPlease fix the content based on this error.`,
+                                'CUSTOM_ERROR',
+                                null,
+                                responseString
+                            );
+                        }
+                    }
 
-            } catch (error) {
-                console.error(`[Row ${index}] Step ${stepIndex} Failed to generate valid JSON after retries:`, error);
-                throw error;
-            }
+                    return { data, contentToWrite };
+                },
+                {
+                    model: options.model,
+                    response_format: currentSchemaObj ? { type: "json_object" } : undefined,
+                    // If aspect ratio is provided, we assume image generation is desired if no schema is present
+                    modalities: (!currentSchemaObj && options.aspectRatio) ? ['image', 'text'] : undefined,
+                    image_config: (!currentSchemaObj && options.aspectRatio) ? { aspect_ratio: options.aspectRatio } : undefined
+                }
+            );
 
-        } else {
-            // --- Standard Mode (Text/Image) ---
-            const askOptions: any = {
-                messages: [...apiMessages]
-            };
-
-            if (options.model) {
-                askOptions.model = options.model;
-            }
-
-            // If aspect ratio is provided, we assume the user might want images and the model supports it via modalities.
-            if (options.aspectRatio) {
-                askOptions.modalities = ['image', 'text'];
-                askOptions.image_config = {
-                    aspect_ratio: options.aspectRatio
-                };
-            }
-
-            const response = await ask(askOptions);
-            const parsed = responseSchema.parse(response);
-            const message = parsed.choices[0].message;
-
-            const textContent = message.content;
-            const images = message.images;
+            // If we didn't write it during verification (or if verification wasn't run), write it now.
+            // Note: If verification ran, we already wrote it, but writing again ensures consistency.
             
-            // Handle Text
-            if (textContent) {
+            // Special handling for Image Generation (which returns a different structure if not using JSON mode)
+            // However, LlmReQuerier currently assumes text response. 
+            // If we are in Image Mode (no schema, aspect ratio set), the responseString passed to callback is text.
+            // But `ask` returns a full object. LlmReQuerier extracts content.
+            // If the model returns images, content might be null or empty string in standard OpenAI response, 
+            // but our `ask` wrapper returns the full response object.
+            // Wait, LlmReQuerier extracts `completion.choices[0]?.message?.content`.
+            // If we are doing image generation, we need to handle that.
+            
+            // Current LlmReQuerier logic:
+            // const llmResponseString = completion.choices[0]?.message?.content;
+            
+            // If we are doing pure image generation (no text), content is null.
+            // LlmReQuerier throws "LLM returned no response content."
+            
+            // FIX: If we are in image generation mode, we shouldn't use LlmReQuerier validation loop 
+            // UNLESS we want to validate the image (which is hard).
+            // For now, if aspect ratio is set AND no schema/verify command, we skip LlmReQuerier?
+            // But the user might want to verify the image file exists?
+            
+            // Let's stick to the logic: If schema OR verify command is present, use LlmReQuerier.
+            // Otherwise, use standard flow (which handles images).
+            
+            if (currentSchemaObj || currentVerifyCommand) {
+                // We are in Text/JSON mode
                 await ensureDir(currentOutputPath);
-                await fsPromises.writeFile(currentOutputPath, textContent);
-                console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${currentOutputPath}`);
-            }
+                await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
+                console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
 
-            // Handle Images
-            if (images && images.length > 0) {
-                const imageUrl = images[0].image_url.url;
-                let buffer: Buffer;
+                persistentHistory.push({ role: 'user', content: promptParts });
+                persistentHistory.push({ role: 'assistant', content: result.contentToWrite });
+            } else {
+                // Standard Mode (Text or Image without verification)
+                // We fall back to the original logic for Images/Simple Text to avoid breaking Image Gen
+                
+                const askOptions: any = {
+                    messages: [...apiMessages]
+                };
 
-                if (imageUrl.startsWith('http')) {
-                    const imgRes = await fetch(imageUrl);
-                    const arrayBuffer = await imgRes.arrayBuffer();
-                    buffer = Buffer.from(arrayBuffer);
-                } else {
-                    const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-                    buffer = Buffer.from(base64Data, 'base64');
+                if (options.model) askOptions.model = options.model;
+                if (options.aspectRatio) {
+                    askOptions.modalities = ['image', 'text'];
+                    askOptions.image_config = { aspect_ratio: options.aspectRatio };
                 }
 
-                await ensureDir(currentOutputPath);
-                await fsPromises.writeFile(currentOutputPath, buffer);
-                console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
+                const response = await ask(askOptions);
+                const parsed = responseSchema.parse(response);
+                const message = parsed.choices[0].message;
+                const textContent = message.content;
+                const images = message.images;
+
+                if (textContent) {
+                    await ensureDir(currentOutputPath);
+                    await fsPromises.writeFile(currentOutputPath, textContent);
+                    console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${currentOutputPath}`);
+                }
+
+                if (images && images.length > 0) {
+                    const imageUrl = images[0].image_url.url;
+                    let buffer: Buffer;
+                    if (imageUrl.startsWith('http')) {
+                        const imgRes = await fetch(imageUrl);
+                        const arrayBuffer = await imgRes.arrayBuffer();
+                        buffer = Buffer.from(arrayBuffer);
+                    } else {
+                        const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+                        buffer = Buffer.from(base64Data, 'base64');
+                    }
+                    await ensureDir(currentOutputPath);
+                    await fsPromises.writeFile(currentOutputPath, buffer);
+                    console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
+                }
+
+                persistentHistory.push({ role: 'user', content: promptParts });
+                if (textContent) persistentHistory.push({ role: 'assistant', content: textContent });
+                else if (images && images.length > 0) persistentHistory.push({ role: 'assistant', content: "Image generated." });
             }
 
-            if (!textContent && (!images || images.length === 0)) {
-                console.warn(`[Row ${index}] Step ${stepIndex} No content returned.`);
-            }
-
-            // Update history
-            persistentHistory.push({ role: 'user', content: promptParts });
-            if (textContent) {
-                persistentHistory.push({ role: 'assistant', content: textContent });
-            } else if (images && images.length > 0) {
-                persistentHistory.push({ role: 'assistant', content: "Image generated." });
-            } else {
-                persistentHistory.push({ role: 'assistant', content: "" });
-            }
+        } catch (error) {
+            console.error(`[Row ${index}] Step ${stepIndex} Failed after retries:`, error);
+            throw error;
         }
     }
 };
