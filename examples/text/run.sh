@@ -5,9 +5,10 @@
 # 2. Using a system prompt for persona definition
 # 3. Generating text output for each row in the CSV
 
-node dist/index.js generate \
-  test-data/text/data.csv \
-  test-data/text/prompt1.md \
-  test-data/text/prompt2.md \
+npx tsx src/index.ts generate \
+  examples/text/data.csv \
+  examples/text/prompt1.md \
+  examples/text/prompt2.md \
   -o out/text/{{id}}/result.txt \
-  --system test-data/text/system.md
+  --system examples/text/system.md \
+  --model google/gemini-3-pro-preview

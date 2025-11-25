@@ -5,8 +5,9 @@
 # 2. Using a directory of system prompts (system/01_identity.md, system/02_tone.md)
 # 3. Generating text output based on CSV data
 
-node dist/index.js generate \
-  test-data/directory-prompt/data.csv \
-  test-data/directory-prompt/prompt \
+npx tsx src/index.ts generate \
+  examples/directory-prompt/data.csv \
+  examples/directory-prompt/prompt \
   -o out/directory-prompt/{{id}}/result.txt \
-  --system test-data/directory-prompt/system
+  --system examples/directory-prompt/system \
+  --model google/gemini-3-pro-preview

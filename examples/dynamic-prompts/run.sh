@@ -4,8 +4,9 @@
 # 1. Using a dynamic path for the prompt file based on CSV data ({{segment}})
 # 2. Loading different prompt templates for different rows
 
-node dist/index.js generate \
+npx tsx src/index.ts generate \
   examples/dynamic-prompts/data.csv \
   "examples/dynamic-prompts/prompts/{{segment}}.md" \
   -o out/dynamic-prompts/{{id}}_{{segment}}.txt \
-  --system examples/dynamic-prompts/system.md
+  --system examples/dynamic-prompts/system.md \
+  --model google/gemini-3-pro-preview

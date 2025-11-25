@@ -97,24 +97,24 @@ BatchPrompt looks for variables in this order. If you have existing OpenAI varia
 
 ## 4. Usage Examples
 
-We will use the files located in the `test-data` folder to demonstrate how this works.
+We will use the files located in the `examples` folder to demonstrate how this works.
 
 ### Scenario 1: Generating Blog Content (Text)
 **Goal:** Generate a blog post. We will chain two prompts: first to generate headlines, then to write an intro.
 
 **The Input Files:**
 
-1.  **Data:** [test-data/text/data.csv](examples/text/data.csv)
+1.  **Data:** [examples/text/data.csv](examples/text/data.csv)
     ```csv
     id,industry
     1,Dachdecker
     ...
     ```
-2.  **Prompt 1 (Headlines):** [test-data/text/prompt1.md](examples/text/prompt1.md)
+2.  **Prompt 1 (Headlines):** [examples/text/prompt1.md](examples/text/prompt1.md)
     ```text
     Schreibe 5 creative und klickstarke Überschriften für einen Blogartikel über das Thema: {{industry}}.
     ```
-3.  **Prompt 2 (Intro):** [test-data/text/prompt2.md](examples/text/prompt2.md)
+3.  **Prompt 2 (Intro):** [examples/text/prompt2.md](examples/text/prompt2.md)
     ```text
     Wähle die beste Überschrift aus und schreibe dazu eine fesselnde Einleitung...
     ```
@@ -123,12 +123,13 @@ We will use the files located in the `test-data` folder to demonstrate how this 
 
 ```bash
 batchprompt generate \
-  test-data/text/data.csv \
-  test-data/text/prompt1.md \
-  test-data/text/prompt2.md \
-  --system test-data/text/system.md \
+  examples/text/data.csv \
+  examples/text/prompt1.md \
+  examples/text/prompt2.md \
+  --system examples/text/system.md \
   --output "output/text/{{industry}}/blog_draft.md" \
-  --concurrency 5
+  --concurrency 5 \
+  --model google/gemini-3-pro-preview
 ```
 
 **What happens here?**
@@ -145,14 +146,14 @@ batchprompt generate \
 
 **The Input Files:**
 
-1.  **Data:** [test-data/image/data.csv](examples/image/data.csv)
+1.  **Data:** [examples/image/data.csv](examples/image/data.csv)
     ```csv
     id,industry
     1,Dachdecker
     2,Zahnarztpraxis
     ...
     ```
-2.  **Prompt:** [test-data/image/prompt.md](examples/image/prompt.md)
+2.  **Prompt:** [examples/image/prompt.md](examples/image/prompt.md)
     ```text
     Erstelle ein echtes, reales {{industry}} Bild, dass exakt zu folgender Branche passt: {{industry}}...
     ```
@@ -161,8 +162,8 @@ batchprompt generate \
 
 ```bash
 batchprompt generate \
-  test-data/image/data.csv \
-  test-data/image/prompt.md \
+  examples/image/data.csv \
+  examples/image/prompt.md \
   --output "output/images/{{id}}_{{industry}}.png" \
   --aspect-ratio 1:1 \
   --model google/gemini-3-pro-image-preview
@@ -191,7 +192,8 @@ batchprompt generate \
   data.csv \
   prompt.md \
   --output "output/json/{{id}}.json" \
-  --schema schema.json
+  --schema schema.json \
+  --model google/gemini-3-pro-preview
 ```
 
 **What happens here?**
@@ -214,7 +216,8 @@ batchprompt generate \
   --system "system_general.md" \
   --schema "schema_char.json" \
   --system-prompt-2 "system_weaponsmith.md" \
-  --json-schema-2 "schema_weapon.json"
+  --json-schema-2 "schema_weapon.json" \
+  --model google/gemini-3-pro-preview
 ```
 
 **What happens here?**
@@ -239,7 +242,8 @@ batchprompt generate \
 batchprompt generate \
   data.csv \
   prompts/blog-post/ \
-  --output "output/{{id}}.txt"
+  --output "output/{{id}}.txt" \
+  --model google/gemini-3-pro-preview
 ```
 
 **What happens here?**
@@ -261,7 +265,8 @@ batchprompt generate \
 batchprompt generate \
   data.csv \
   "prompts/{{segment}}.md" \
-  --output "output/{{id}}.txt"
+  --output "output/{{id}}.txt" \
+  --model google/gemini-3-pro-preview
 ```
 
 **What happens here?**
