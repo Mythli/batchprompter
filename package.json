@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "test": "echo \"Error: no examples specified\" && exit 1",
-    "start-json-schema": "tsx src/index.ts generate examples/json-schema/data.csv examples/json-schema/prompt.md --output out/character_{{id}}.json --system examples/json-schema/system.md --schema examples/json-schema/schema.json --model x-ai/grok-4.1-fast",
+    "start-json-schema": "tsx src/index.ts generate examples/5-json-schema/data.csv examples/5-json-schema/prompt.md --output out/character_{{id}}.json --system examples/5-json-schema/system.md --schema examples/5-json-schema/schema.json --model x-ai/grok-4.1-fast",
     "build": "tsc",
     "release": "bash scripts/release.sh"
   },
