@@ -344,10 +344,3 @@ Here is an explanation of the flags used above.
 | `-c` / `--concurrency` | `10` | How many items to process at once. Defaults to 10. Lower this if you hit Rate Limits. |
 | `-m` / `--model` | `google/gemini-3...` | Which AI model to use. **Note:** For images, you must use a unified text+image model (e.g., Gemini 3, Nano Banana). Standalone DALL-E is not supported. |
 | `--aspect-ratio` | `16:9` | Triggers **Text+Image mode**. Common values: `1:1`, `16:9`, `3:2`. |
-
-### Dynamic File Naming
-You can use any column header from your CSV in the output path argument (`--output`).
-
-*   **CSV Headers**: `id`, `category`, `country`
-*   **Output Flag**: `-o "results/{{country}}/{{category}}/item_{{id}}.txt"`
-*   **Result**: `results/Germany/Food/item_5.txt`
