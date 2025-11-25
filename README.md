@@ -1,6 +1,19 @@
 # BatchPrompt
 
-BatchPrompt is a command-line tool that lets you generate text and images in bulk using AI. You feed it a data file (CSV or JSON) and a template, and it produces output for every row in your data.
+BatchPrompt is a command-line tool that lets you generate text and images in bulk using AI.
+
+## ⚠️ The Core Concept: Data-Driven Generation
+
+BatchPrompt is designed for bulk operations. It **requires** a data file (CSV or JSON) to function. You cannot run it without one.
+
+*   **The Data File (Mandatory):** You provide a CSV file where every row represents one task.
+*   **Variables:** The column headers in your CSV (e.g., `id`, `topic`, `name`) become variables you can use in your prompts (`{{topic}}`) and output filenames (`output/{{id}}.txt`).
+*   **One Row = One Output:** The tool iterates through every row in your CSV and generates a unique result for it.
+
+**Example:**
+If your CSV has 50 rows of products, BatchPrompt will generate 50 product descriptions.
+
+---
 
 ## 1. Prerequisite: Installing Node.js (For Beginners)
 
