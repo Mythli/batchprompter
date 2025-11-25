@@ -7,8 +7,20 @@ BatchPrompt is a command-line tool that lets you generate text and images in bul
 BatchPrompt is designed for bulk operations. It **requires** a data file (CSV or JSON) to function. You cannot run it without one.
 
 *   **The Data File (Mandatory):** You provide a CSV file where every row represents one task.
-*   **Variables:** The column headers in your CSV (e.g., `id`, `topic`, `name`) become variables you can use in your prompts (`{{topic}}`) and output filenames (`output/{{id}}.txt`).
+*   **Variables:** The column headers in your CSV (e.g., `id`, `topic`, `name`) become variables (placeholders) available throughout the process.
 *   **One Row = One Output:** The tool iterates through every row in your CSV and generates a unique result for it.
+
+### Where can I use these variables?
+You can use `{{variable_name}}` placeholders in almost every argument and file content:
+
+1.  **Inside Prompt Files:** Dynamically insert data into your text prompts.
+    *   *Example:* `Write a blog post about {{topic}}.`
+2.  **Inside System Prompts:** Customize the AI persona per row.
+    *   *Example:* `You are an expert in {{industry}}.`
+3.  **In File Paths:** Dynamically select which prompt or schema file to load.
+    *   *Example:* `prompts/{{language}}/intro.md`
+4.  **In Output Paths:** Organize your results into folders.
+    *   *Example:* `output/{{category}}/{{id}}.txt`
 
 **Example:**
 If your CSV has 50 rows of products, BatchPrompt will generate 50 product descriptions.
