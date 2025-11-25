@@ -7,7 +7,7 @@
 
 npx tsx src/index.ts generate \
   examples/image/data.csv \
-  examples/image/prompt.md \
+  examples/image/prompt \
   -o out/image/{{id}}/image.png \
   --aspect-ratio 1:1 \
   --model google/gemini-3-pro-image-preview
