@@ -2,6 +2,7 @@ node_modules
 .env
 tmp
 cache.sqlite
+.cache.sqlite
 .aider*
 dist
 out
