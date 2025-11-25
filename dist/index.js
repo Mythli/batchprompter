@@ -15,8 +15,40 @@ program.command('generate')
     .option('-m, --model <model>', 'Model to use for generation')
     .option('-s, --system <file>', 'Path to the system prompt template text file')
     .option('-S, --schema <file>', 'Path to the JSON Schema file for validation')
-    .action(async (dataFilePath, templateFilePaths, options) => {
-    if ((!templateFilePaths || templateFilePaths.length === 0) && !options.system) {
+    .allowUnknownOption()
+    .action(async (dataFilePath, templateFilePaths, options, command) => {
+    // Parse dynamic options from process.argv manually
+    // We look for --system-prompt-N and --json-schema-N
+    const stepOverrides = {};
+    const argv = process.argv;
+    for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i];
+        // Check for --system-prompt-N
+        const sysMatch = arg.match(/^--system-prompt-(\d+)$/);
+        if (sysMatch) {
+            const index = parseInt(sysMatch[1], 10);
+            // The next argument should be the value
+            if (i + 1 < argv.length && !argv[i + 1].startsWith('-')) {
+                if (!stepOverrides[index])
+                    stepOverrides[index] = {};
+                stepOverrides[index].system = argv[i + 1];
+            }
+        }
+        // Check for --json-schema-N
+        const schemaMatch = arg.match(/^--json-schema-(\d+)$/);
+        if (schemaMatch) {
+            const index = parseInt(schemaMatch[1], 10);
+            if (i + 1 < argv.length && !argv[i + 1].startsWith('-')) {
+                if (!stepOverrides[index])
+                    stepOverrides[index] = {};
+                stepOverrides[index].schema = argv[i + 1];
+            }
+        }
+    }
+    // Check validation logic
+    // If we have overrides, we might be okay without global system, but usually user templates are required.
+    const hasOverrides = Object.keys(stepOverrides).length > 0;
+    if ((!templateFilePaths || templateFilePaths.length === 0) && !options.system && !hasOverrides) {
         console.error('Error: You must provide either template files or a system prompt.');
         process.exit(1);
     }
@@ -30,7 +62,8 @@ program.command('generate')
         aspectRatio: options.aspectRatio,
         model: options.model,
         system: options.system,
-        schema: options.schema
+        schema: options.schema,
+        stepOverrides
     };
     try {
         await runAction(dataFilePath, templateFilePaths, options.output, actionOptions);
