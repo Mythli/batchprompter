@@ -9,11 +9,11 @@
   },
   "files": [
     "dist",
-    "test-data"
+    "examples"
   ],
   "scripts": {
-    "test": "echo \"Error: no test-data specified\" && exit 1",
-    "start-json-schema": "tsx src/index.ts generate test-data/json-schema/data.csv test-data/json-schema/prompt.md --output out/character_{{id}}.json --system test-data/json-schema/system.md --schema test-data/json-schema/schema.json --model x-ai/grok-4.1-fast",
+    "test": "echo \"Error: no examples specified\" && exit 1",
+    "start-json-schema": "tsx src/index.ts generate examples/json-schema/data.csv examples/json-schema/prompt.md --output out/character_{{id}}.json --system examples/json-schema/system.md --schema examples/json-schema/schema.json --model x-ai/grok-4.1-fast",
     "build": "tsc",
     "release": "bash scripts/release.sh"
   },

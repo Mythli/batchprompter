@@ -104,17 +104,17 @@ We will use the files located in the `test-data` folder to demonstrate how this 
 
 **The Input Files:**
 
-1.  **Data:** [test-data/text/data.csv](test-data/text/data.csv)
+1.  **Data:** [test-data/text/data.csv](examples/text/data.csv)
     ```csv
     id,industry
     1,Dachdecker
     ...
     ```
-2.  **Prompt 1 (Headlines):** [test-data/text/prompt1.md](test-data/text/prompt1.md)
+2.  **Prompt 1 (Headlines):** [test-data/text/prompt1.md](examples/text/prompt1.md)
     ```text
     Schreibe 5 creative und klickstarke Überschriften für einen Blogartikel über das Thema: {{industry}}.
     ```
-3.  **Prompt 2 (Intro):** [test-data/text/prompt2.md](test-data/text/prompt2.md)
+3.  **Prompt 2 (Intro):** [test-data/text/prompt2.md](examples/text/prompt2.md)
     ```text
     Wähle die beste Überschrift aus und schreibe dazu eine fesselnde Einleitung...
     ```
@@ -145,14 +145,14 @@ batchprompt generate \
 
 **The Input Files:**
 
-1.  **Data:** [test-data/image/data.csv](test-data/image/data.csv)
+1.  **Data:** [test-data/image/data.csv](examples/image/data.csv)
     ```csv
     id,industry
     1,Dachdecker
     2,Zahnarztpraxis
     ...
     ```
-2.  **Prompt:** [test-data/image/prompt.md](test-data/image/prompt.md)
+2.  **Prompt:** [test-data/image/prompt.md](examples/image/prompt.md)
     ```text
     Erstelle ein echtes, reales {{industry}} Bild, dass exakt zu folgender Branche passt: {{industry}}...
     ```
