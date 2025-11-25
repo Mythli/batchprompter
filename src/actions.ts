@@ -195,7 +195,8 @@ const handleUnifiedGeneration: RowHandler = async (ask, systemPrompt, userPrompt
     // Compile validator if schema is present
     let validate: any = null;
     if (options.jsonSchema) {
-        const ajv = new Ajv();
+        // @ts-ignore
+        const ajv = new Ajv({ strict: false });
         validate = ajv.compile(options.jsonSchema);
     }
 
