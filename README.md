@@ -17,8 +17,8 @@ You can use `{{variable_name}}` placeholders in almost every argument and file c
     *   *Example:* `Write a blog post about {{topic}}.`
 2.  **Inside System Prompts:** Customize the AI persona per row.
     *   *Example:* `You are an expert in {{industry}}.`
-3.  **In File Paths:** Dynamically select which prompt or schema file to load.
-    *   *Example:* `prompts/{{language}}/intro.md`
+3.  **In Prompt File Paths:** Dynamically choose which prompt file to load based on the data.
+    *   *Example:* `prompts/{{type}}.md` (If type is "vip", it loads `prompts/vip.md`).
 4.  **In Output Paths:** Organize your results into folders.
     *   *Example:* `output/{{category}}/{{id}}.txt`
 
