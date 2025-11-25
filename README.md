@@ -249,6 +249,27 @@ batchprompt generate \
 
 ---
 
+### Scenario 6: Dynamic Prompt Paths
+**Goal:** Use different prompt files for different rows based on data (e.g., customer segments).
+
+**The Input:**
+*   **Data:** `data.csv` (contains `segment` column: "vip", "new", etc.)
+*   **Prompts:** `prompts/vip.md`, `prompts/new.md`...
+
+**Run this command:**
+```bash
+batchprompt generate \
+  data.csv \
+  "prompts/{{segment}}.md" \
+  --output "output/{{id}}.txt"
+```
+
+**What happens here?**
+*   For a row where `segment` is "vip", BatchPrompt loads `prompts/vip.md`.
+*   For a row where `segment` is "new", it loads `prompts/new.md`.
+
+---
+
 ## 5. Command Flags Reference
 
 Here is an explanation of the flags used above.
