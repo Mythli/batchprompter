@@ -15,6 +15,29 @@ async function ensureDir(filePath: string) {
     await fsPromises.mkdir(dir, { recursive: true });
 }
 
+// Helper to read prompt input (file or directory)
+async function readPromptInput(inputPath: string): Promise<string> {
+    const stats = await fsPromises.stat(inputPath);
+    if (stats.isDirectory()) {
+        const files = await fsPromises.readdir(inputPath);
+        files.sort();
+        
+        const contents = await Promise.all(files.map(async (file) => {
+            if (file.startsWith('.')) return null;
+            const filePath = path.join(inputPath, file);
+            const fileStats = await fsPromises.stat(filePath);
+            if (fileStats.isFile()) {
+                return fsPromises.readFile(filePath, 'utf-8');
+            }
+            return null;
+        }));
+        
+        return contents.filter((c): c is string => c !== null).join('\n\n');
+    } else {
+        return fsPromises.readFile(inputPath, 'utf-8');
+    }
+}
+
 // Response schema to extract image URL
 const responseSchema = z.object({
     choices: z.array(z.object({
@@ -89,8 +112,8 @@ async function processBatch(
     const { ask } = await getConfig({ concurrency });
 
     // 2. Read Template Files
-    const userTemplates = await Promise.all(templateFilePaths.map(p => fsPromises.readFile(p, 'utf-8')));
-    const systemTemplate = options.system ? await fsPromises.readFile(options.system, 'utf-8') : null;
+    const userTemplates = await Promise.all(templateFilePaths.map(p => readPromptInput(p)));
+    const systemTemplate = options.system ? await readPromptInput(options.system) : null;
 
     // Compile Handlebars templates
     // noEscape: true ensures we don't HTML-escape characters in the prompt or path
