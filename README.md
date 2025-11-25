@@ -104,17 +104,17 @@ We will use the files located in the `examples` folder to demonstrate how this w
 
 **The Input Files:**
 
-1.  **Data:** [examples/text/data.csv](examples/1-text/data.csv)
+1.  **Data:** [examples/1-text/data.csv](examples/1-text/data.csv)
     ```csv
     id,industry
     1,Dachdecker
     ...
     ```
-2.  **Prompt 1 (Headlines):** [examples/text/prompt1.md](examples/1-text/prompt1.md)
+2.  **Prompt 1 (Headlines):** [examples/1-text/prompt1.md](examples/1-text/prompt1.md)
     ```text
     Schreibe 5 creative und klickstarke Überschriften für einen Blogartikel über das Thema: {{industry}}.
     ```
-3.  **Prompt 2 (Intro):** [examples/text/prompt2.md](examples/1-text/prompt2.md)
+3.  **Prompt 2 (Intro):** [examples/1-text/prompt2.md](examples/1-text/prompt2.md)
     ```text
     Wähle die beste Überschrift aus und schreibe dazu eine fesselnde Einleitung...
     ```
@@ -123,10 +123,10 @@ We will use the files located in the `examples` folder to demonstrate how this w
 
 ```bash
 batchprompt generate \
-  examples/text/data.csv \
-  examples/text/prompt1.md \
-  examples/text/prompt2.md \
-  --system examples/text/system.md \
+  examples/1-text/data.csv \
+  examples/1-text/prompt1.md \
+  examples/1-text/prompt2.md \
+  --system examples/1-text/system.md \
   --output "output/text/{{industry}}/blog_draft.md" \
   --concurrency 5 \
   --model google/gemini-3-pro-preview
@@ -141,28 +141,75 @@ batchprompt generate \
 
 ---
 
-### Scenario 2: Generating Images (Unified Models)
+### Scenario 2: Dynamic Prompt Paths
+**Goal:** Use different prompt files for different rows based on data (e.g., customer segments).
+
+**The Input:**
+*   **Data:** `examples/2-dynamic-prompts/data.csv` (contains `segment` column: "vip", "new", etc.)
+*   **Prompts:** `examples/2-dynamic-prompts/prompts/vip.md`, `examples/2-dynamic-prompts/prompts/new.md`...
+
+**Run this command:**
+```bash
+batchprompt generate \
+  examples/2-dynamic-prompts/data.csv \
+  "examples/2-dynamic-prompts/prompts/{{segment}}.md" \
+  --output "output/dynamic-prompts/{{id}}.txt" \
+  --model google/gemini-3-pro-preview
+```
+
+**What happens here?**
+*   For a row where `segment` is "vip", BatchPrompt loads `examples/2-dynamic-prompts/prompts/vip.md`.
+*   For a row where `segment` is "new", it loads `examples/2-dynamic-prompts/prompts/new.md`.
+
+---
+
+### Scenario 3: Using Directories for Prompts
+**Goal:** Organize complex prompts by splitting them into multiple files within a folder.
+
+**The Input:**
+*   **Prompt Directory:** `examples/3-directory-prompt/prompt/`
+    *   `01_instruction.md`
+    *   `02_details.md`
+
+**Run this command:**
+```bash
+batchprompt generate \
+  examples/3-directory-prompt/data.csv \
+  examples/3-directory-prompt/prompt/ \
+  --system examples/3-directory-prompt/system/ \
+  --output "output/directory-prompt/{{id}}.txt" \
+  --model google/gemini-3-pro-preview
+```
+
+**What happens here?**
+*   BatchPrompt detects that `examples/3-directory-prompt/prompt/` is a directory.
+*   It reads all files inside, sorts them alphabetically, and concatenates them into **one single prompt**.
+*   This works for both **User Prompts** and **System Prompts** (`--system`).
+
+---
+
+### Scenario 4: Generating Images (Unified Models)
 **Goal:** Create realistic stock photos using a model that supports text-to-image output via chat (e.g., Gemini 3).
 
 **The Input Files:**
 
-1.  **Data:** [examples/image/data.csv](examples/4-image/data.csv)
+1.  **Data:** [examples/4-image/data.csv](examples/4-image/data.csv)
     ```csv
     id,industry
     1,Dachdecker
     2,Zahnarztpraxis
     ...
     ```
-2.  **Prompt Directory:** `examples/image/prompt/`
-    *   `1_person.jpg` (Reference image)
+2.  **Prompt Directory:** `examples/4-image/prompt/`
+    *   `2_person.jpg` (Reference image)
     *   `2_prompt.md` (Text prompt)
 
 **Run this command:**
 
 ```bash
 batchprompt generate \
-  examples/image/data.csv \
-  examples/image/prompt \
+  examples/4-image/data.csv \
+  examples/4-image/prompt \
   --output "output/images/{{id}}_{{industry}}.png" \
   --aspect-ratio 1:1 \
   --model google/gemini-3-pro-image-preview
@@ -171,28 +218,28 @@ batchprompt generate \
 **What happens here?**
 1.  **`--model google/gemini-3-pro-image-preview`**: We specifically request a model known on OpenRouter to support text+image generation.
 2.  **`--aspect-ratio 1:1`**: This flag signals BatchPrompt to use the `modalities: ['image', 'text']` feature.
-3.  **Prompt Directory**: The tool reads the directory `examples/image/prompt`. It finds the image file and the text file, combines them into a multimodal prompt, and sends them to the AI. This allows you to use reference images for consistent character generation.
+3.  **Prompt Directory**: The tool reads the directory `examples/4-image/prompt`. It finds the image file and the text file, combines them into a multimodal prompt, and sends them to the AI. This allows you to use reference images for consistent character generation.
 4.  **Dynamic Output (`--output`)**: We use **two** placeholders in the filename for organization.
     *   Row 1 Output -> `output/images/1_Dachdecker.png`
     *   Row 2 Output -> `output/images/2_Zahnarztpraxis.png`
 
 ---
 
-### Scenario 3: Structured Data (JSON Schema)
+### Scenario 5: Structured Data (JSON Schema)
 **Goal:** Generate strictly valid JSON output (e.g., for an API or database import).
 
 **The Input Files:**
-1.  **Data:** `data.csv`
-2.  **Prompt:** `prompt.md` ("Create a character profile...")
-3.  **Schema:** `schema.json` (A standard JSON Schema definition)
+1.  **Data:** `examples/5-json-schema/data.csv`
+2.  **Prompt:** `examples/5-json-schema/prompt.md` ("Create a character profile...")
+3.  **Schema:** `examples/5-json-schema/schema.json` (A standard JSON Schema definition)
 
 **Run this command:**
 ```bash
 batchprompt generate \
-  data.csv \
-  prompt.md \
-  --output "output/json/{{id}}.json" \
-  --schema schema.json \
+  examples/5-json-schema/data.csv \
+  examples/5-json-schema/prompt.md \
+  --output "output/json-schema/{{id}}.json" \
+  --schema examples/5-json-schema/schema.json \
   --model google/gemini-3-pro-preview
 ```
 
@@ -203,75 +250,28 @@ batchprompt generate \
 
 ---
 
-### Scenario 4: Multi-Step Workflows with Overrides
+### Scenario 6: Multi-Step Workflows with Overrides
 **Goal:** A complex chain where Step 1 generates a Character (JSON) and Step 2 generates a Weapon (JSON) with different rules.
 
 **Run this command:**
 ```bash
 batchprompt generate \
-  data.csv \
-  prompt_char.md \
-  prompt_weapon.md \
-  --output "output/rpg/{{id}}/result.json" \
-  --system "system_general.md" \
-  --schema "schema_char.json" \
-  --system-prompt-2 "system_weaponsmith.md" \
-  --json-schema-2 "schema_weapon.json" \
+  examples/5-json-schema/data.csv \
+  examples/5-json-schema/prompt.md \
+  examples/5-json-schema/prompt_2.md \
+  --output "output/json-schema-multistep/{{id}}/result.json" \
+  --system examples/5-json-schema/system.md \
+  --schema examples/5-json-schema/schema.json \
+  --system-prompt-2 examples/5-json-schema/system_2.md \
+  --json-schema-2 examples/5-json-schema/schema_2.json \
   --model google/gemini-3-pro-preview
 ```
 
 **What happens here?**
-1.  **Step 1 (Character)**: Uses `prompt_char.md`, `system_general.md`, and validates against `schema_char.json`.
-2.  **Step 2 (Weapon)**: Uses `prompt_weapon.md`.
-    *   **Overrides System**: Instead of the general system prompt, it uses `system_weaponsmith.md`.
-    *   **Overrides Schema**: Instead of the character schema, it validates against `schema_weapon.json`.
-
----
-
-### Scenario 5: Using Directories for Prompts
-**Goal:** Organize complex prompts by splitting them into multiple files within a folder.
-
-**The Input:**
-*   **Prompt Directory:** `prompts/blog-post/`
-    *   `01_intro.md`
-    *   `02_body.md`
-    *   `03_conclusion.md`
-
-**Run this command:**
-```bash
-batchprompt generate \
-  data.csv \
-  prompts/blog-post/ \
-  --output "output/{{id}}.txt" \
-  --model google/gemini-3-pro-preview
-```
-
-**What happens here?**
-*   BatchPrompt detects that `prompts/blog-post/` is a directory.
-*   It reads all files inside, sorts them alphabetically, and concatenates them into **one single prompt**.
-*   This works for both **User Prompts** and **System Prompts** (`--system`).
-
----
-
-### Scenario 6: Dynamic Prompt Paths
-**Goal:** Use different prompt files for different rows based on data (e.g., customer segments).
-
-**The Input:**
-*   **Data:** `data.csv` (contains `segment` column: "vip", "new", etc.)
-*   **Prompts:** `prompts/vip.md`, `prompts/new.md`...
-
-**Run this command:**
-```bash
-batchprompt generate \
-  data.csv \
-  "prompts/{{segment}}.md" \
-  --output "output/{{id}}.txt" \
-  --model google/gemini-3-pro-preview
-```
-
-**What happens here?**
-*   For a row where `segment` is "vip", BatchPrompt loads `prompts/vip.md`.
-*   For a row where `segment` is "new", it loads `prompts/new.md`.
+1.  **Step 1 (Character)**: Uses `prompt.md`, `system.md`, and validates against `schema.json`.
+2.  **Step 2 (Weapon)**: Uses `prompt_2.md`.
+    *   **Overrides System**: Instead of the general system prompt, it uses `system_2.md`.
+    *   **Overrides Schema**: Instead of the character schema, it validates against `schema_2.json`.
 
 ---
 
@@ -279,23 +279,23 @@ batchprompt generate \
 **Goal:** Generate code and verify it runs correctly. If it fails, feed the error back to the AI to fix it.
 
 **The Input:**
-*   **Data:** `data.csv`
-*   **Prompt:** `prompt.md` ("Write a script...")
-*   **Verify Script:** `verify.sh` (Checks syntax or runs the code)
+*   **Data:** `examples/6-verify-command/data.csv`
+*   **Prompt:** `examples/6-verify-command/prompt.md` ("Write a script...")
+*   **Verify Script:** `examples/6-verify-command/verify.sh` (Checks syntax or runs the code)
 
 **Run this command:**
 ```bash
 batchprompt generate \
-  data.csv \
-  prompt.md \
-  --output "output/code/{{id}}/script.js" \
-  --verify-command "./verify.sh {{file}}" \
+  examples/6-verify-command/data.csv \
+  examples/6-verify-command/prompt.md \
+  --output "output/verify-command/{{id}}/script.js" \
+  --verify-command "examples/6-verify-command/verify.sh {{file}}" \
   --model google/gemini-3-pro-preview
 ```
 
 **What happens here?**
 1.  **Generate**: The AI generates the code.
-2.  **Verify**: BatchPrompt runs `./verify.sh output/code/1/script.js`.
+2.  **Verify**: BatchPrompt runs `verify.sh output/verify-command/1/script.js`.
 3.  **Self-Heal**: If `verify.sh` exits with an error (non-zero code), BatchPrompt takes the error output (stderr/stdout), sends it back to the AI ("Your code failed with: ..."), and asks for a fix.
 4.  **Retry**: This repeats up to 3 times until the verification passes.
 
