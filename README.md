@@ -153,17 +153,16 @@ batchprompt generate \
     2,Zahnarztpraxis
     ...
     ```
-2.  **Prompt:** [examples/image/prompt.md](examples/image/prompt/1_prompt.md)
-    ```text
-    Erstelle ein echtes, reales {{industry}} Bild, dass exakt zu folgender Branche passt: {{industry}}...
-    ```
+2.  **Prompt Directory:** `examples/image/prompt/`
+    *   `1_person.jpg` (Reference image)
+    *   `2_prompt.md` (Text prompt)
 
 **Run this command:**
 
 ```bash
 batchprompt generate \
   examples/image/data.csv \
-  examples/image/prompt.md \
+  examples/image/prompt \
   --output "output/images/{{id}}_{{industry}}.png" \
   --aspect-ratio 1:1 \
   --model google/gemini-3-pro-image-preview
@@ -172,7 +171,8 @@ batchprompt generate \
 **What happens here?**
 1.  **`--model google/gemini-3-pro-image-preview`**: We specifically request a model known on OpenRouter to support text+image generation.
 2.  **`--aspect-ratio 1:1`**: This flag signals BatchPrompt to use the `modalities: ['image', 'text']` feature.
-3.  **Dynamic Output (`--output`)**: We use **two** placeholders in the filename for organization.
+3.  **Prompt Directory**: The tool reads the directory `examples/image/prompt`. It finds the image file and the text file, combines them into a multimodal prompt, and sends them to the AI. This allows you to use reference images for consistent character generation.
+4.  **Dynamic Output (`--output`)**: We use **two** placeholders in the filename for organization.
     *   Row 1 Output -> `output/images/1_Dachdecker.png`
     *   Row 2 Output -> `output/images/2_Zahnarztpraxis.png`
 
@@ -275,6 +275,32 @@ batchprompt generate \
 
 ---
 
+### Scenario 7: Command Verification (Self-Healing Code)
+**Goal:** Generate code and verify it runs correctly. If it fails, feed the error back to the AI to fix it.
+
+**The Input:**
+*   **Data:** `data.csv`
+*   **Prompt:** `prompt.md` ("Write a script...")
+*   **Verify Script:** `verify.sh` (Checks syntax or runs the code)
+
+**Run this command:**
+```bash
+batchprompt generate \
+  data.csv \
+  prompt.md \
+  --output "output/code/{{id}}/script.js" \
+  --verify-command "./verify.sh {{file}}" \
+  --model google/gemini-3-pro-preview
+```
+
+**What happens here?**
+1.  **Generate**: The AI generates the code.
+2.  **Verify**: BatchPrompt runs `./verify.sh output/code/1/script.js`.
+3.  **Self-Heal**: If `verify.sh` exits with an error (non-zero code), BatchPrompt takes the error output (stderr/stdout), sends it back to the AI ("Your code failed with: ..."), and asks for a fix.
+4.  **Retry**: This repeats up to 3 times until the verification passes.
+
+---
+
 ## 5. Command Flags Reference
 
 Here is an explanation of the flags used above.
@@ -286,8 +312,10 @@ Here is an explanation of the flags used above.
 | `-o` / `--output` | `out/{{id}}.txt` | **Required.** The output path template. You can use `{{variable}}` here to dynamically name folders or files based on CSV data. |
 | `-s` / `--system` | `system.md` or `sys_dir/` | The path to a system prompt file or directory (sets the AI behavior/persona). |
 | `-S` / `--schema` | `schema.json` | Path to a JSON Schema file. Enforces valid JSON output and enables auto-retry on validation failure. |
+| `--verify-command` | `"node {{file}}"` | A shell command to verify the output. Use `{{file}}` as a placeholder. Enables auto-retry on failure. |
 | `--system-prompt-N` | `sys_2.md` | Override the system prompt for a specific step (e.g., `--system-prompt-2` for the 2nd prompt file). |
 | `--json-schema-N` | `schema_2.json` | Override the JSON Schema for a specific step (e.g., `--json-schema-2` for the 2nd prompt file). |
+| `--verify-command-N` | `"test.sh"` | Override the verification command for a specific step. |
 | `-c` / `--concurrency` | `10` | How many items to process at once. Defaults to 10. Lower this if you hit Rate Limits. |
 | `-m` / `--model` | `google/gemini-3...` | Which AI model to use. **Note:** For images, you must use a unified text+image model (e.g., Gemini 3, Nano Banana). Standalone DALL-E is not supported. |
 | `--aspect-ratio` | `16:9` | Triggers **Text+Image mode**. Common values: `1:1`, `16:9`, `3:2`. |
