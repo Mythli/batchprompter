@@ -104,17 +104,17 @@ We will use the files located in the `examples` folder to demonstrate how this w
 
 **The Input Files:**
 
-1.  **Data:** [examples/text/data.csv](examples/text/data.csv)
+1.  **Data:** [examples/text/data.csv](examples/1-text/data.csv)
     ```csv
     id,industry
     1,Dachdecker
     ...
     ```
-2.  **Prompt 1 (Headlines):** [examples/text/prompt1.md](examples/text/prompt1.md)
+2.  **Prompt 1 (Headlines):** [examples/text/prompt1.md](examples/1-text/prompt1.md)
     ```text
     Schreibe 5 creative und klickstarke Überschriften für einen Blogartikel über das Thema: {{industry}}.
     ```
-3.  **Prompt 2 (Intro):** [examples/text/prompt2.md](examples/text/prompt2.md)
+3.  **Prompt 2 (Intro):** [examples/text/prompt2.md](examples/1-text/prompt2.md)
     ```text
     Wähle die beste Überschrift aus und schreibe dazu eine fesselnde Einleitung...
     ```
@@ -146,7 +146,7 @@ batchprompt generate \
 
 **The Input Files:**
 
-1.  **Data:** [examples/image/data.csv](examples/image/data.csv)
+1.  **Data:** [examples/image/data.csv](examples/4-image/data.csv)
     ```csv
     id,industry
     1,Dachdecker
