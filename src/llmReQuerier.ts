@@ -60,17 +60,106 @@ export class LlmReQuerier {
     }
 
     private _constructLlmMessages(
-        baseMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        mainInstruction: string,
+        userMessagePayload: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         attemptNumber: number,
         previousError?: LlmAttemptError
     ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
         if (attemptNumber === 0) {
             // First attempt
-            return baseMessages;
+            return [
+                { role: "system", content: mainInstruction },
+                { role: "user", content: userMessagePayload }
+            ];
         }
 
         if (!previousError) {
             // Should not happen for attempt > 0, but as a safeguard...
             throw new Error("Invariant violation: previousError is missing for a retry attempt.");
         }
-        const cause = previousError.
+        const cause = previousError.cause;
+
+        if (!(cause instanceof LlmQuerierError)) {
+            throw Error('cause must be an instanceof LlmQuerierError')
+        }
+
+        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [...previousError.conversation];
+
+        messages.push({ role: "user", content: cause.message });
+
+        return messages;
+    }
+
+    public async query<T>(
+        mainInstruction: string,
+        userMessagePayload: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        processResponse: (response: string, info: LlmResponseInfo) => Promise<T>,
+        options?: LlmReQuerierOptions
+    ): Promise<T> {
+        const maxRetries = options?.maxRetries || 3;
+        let lastError: LlmAttemptError | undefined;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            const useFallback = !!this.fallbackAsk && attempt > 0;
+            const currentAsk = useFallback ? this.fallbackAsk! : this.ask;
+            const mode = useFallback ? 'fallback' : 'main';
+
+            const messages = this._constructLlmMessages(
+                mainInstruction,
+                userMessagePayload,
+                attempt,
+                lastError
+            );
+
+            const { maxRetries: _maxRetries, ...restOptions } = options || {};
+
+            try {
+                const llmResponseString = await currentAsk({
+                    messages: messages,
+                    ...restOptions,
+                });
+
+                if (!llmResponseString) {
+                    // This is a validation error, so we throw a custom error to be caught for a retry.
+                    throw new LlmQuerierError("LLM returned no response.", 'CUSTOM_ERROR');
+                }
+
+                const finalConversation = [...messages, { role: 'assistant', content: llmResponseString }] as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+
+                const info: LlmResponseInfo = {
+                    mode,
+                    conversation: finalConversation,
+                    attemptNumber: attempt,
+                };
+
+                // processResponse is expected to throw LlmQuerierError for validation failures.
+                const result = await processResponse(llmResponseString, info);
+                return result; // Success
+
+            } catch (error: any) {
+                if (error instanceof LlmQuerierError) {
+                    // This is a recoverable error, so we'll create a detailed attempt error and continue the loop.
+                    const conversationForError = [...messages];
+                    if (error.rawResponse) {
+                        conversationForError.push({ role: 'assistant', content: error.rawResponse });
+                    }
+                    lastError = new LlmAttemptError(
+                        `Attempt ${attempt + 1} failed.`,
+                        mode,
+                        conversationForError, // The conversation including the assistant's (failed) reply
+                        attempt,
+                        { cause: error }
+                    );
+                } else {
+                    // This is a non-recoverable error (e.g., network, API key), so we re-throw it immediately.
+                    throw error;
+                }
+            }
+        }
+
+        throw new LlmRequeryExhaustedError(
+            `Operation failed after ${maxRetries + 1} attempts.`,
+            { cause: lastError }
+        );
+    }
+}
