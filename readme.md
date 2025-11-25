@@ -177,6 +177,54 @@ batchprompt generate \
 
 ---
 
+### Scenario 3: Structured Data (JSON Schema)
+**Goal:** Generate strictly valid JSON output (e.g., for an API or database import).
+
+**The Input Files:**
+1.  **Data:** `data.csv`
+2.  **Prompt:** `prompt.md` ("Create a character profile...")
+3.  **Schema:** `schema.json` (A standard JSON Schema definition)
+
+**Run this command:**
+```bash
+batchprompt generate \
+  data.csv \
+  prompt.md \
+  --output "output/json/{{id}}.json" \
+  --schema schema.json
+```
+
+**What happens here?**
+*   **Validation**: The tool forces the AI to output JSON matching `schema.json`.
+*   **Auto-Retry**: If the AI generates invalid JSON, BatchPrompt automatically feeds the error back to the AI and retries (up to 3 times).
+*   **Output**: The result is saved as a `.json` file.
+
+---
+
+### Scenario 4: Multi-Step Workflows with Overrides
+**Goal:** A complex chain where Step 1 generates a Character (JSON) and Step 2 generates a Weapon (JSON) with different rules.
+
+**Run this command:**
+```bash
+batchprompt generate \
+  data.csv \
+  prompt_char.md \
+  prompt_weapon.md \
+  --output "output/rpg/{{id}}/result.json" \
+  --system "system_general.md" \
+  --schema "schema_char.json" \
+  --system-prompt-2 "system_weaponsmith.md" \
+  --json-schema-2 "schema_weapon.json"
+```
+
+**What happens here?**
+1.  **Step 1 (Character)**: Uses `prompt_char.md`, `system_general.md`, and validates against `schema_char.json`.
+2.  **Step 2 (Weapon)**: Uses `prompt_weapon.md`.
+    *   **Overrides System**: Instead of the general system prompt, it uses `system_weaponsmith.md`.
+    *   **Overrides Schema**: Instead of the character schema, it validates against `schema_weapon.json`.
+
+---
+
 ## 5. Command Flags Reference
 
 Here is an explanation of the flags used above.
@@ -187,6 +235,9 @@ Here is an explanation of the flags used above.
 | **Argument 2+** | `prompt.md` | **Optional.** One or more text files containing your prompt templates. Use `{{header_name}}` to insert data from your CSV. |
 | `-o` / `--output` | `out/{{id}}.txt` | **Required.** The output path template. You can use `{{variable}}` here to dynamically name folders or files based on CSV data. |
 | `-s` / `--system` | `system.md` | The path to a system prompt file (sets the AI behavior/persona). |
+| `-S` / `--schema` | `schema.json` | Path to a JSON Schema file. Enforces valid JSON output and enables auto-retry on validation failure. |
+| `--system-prompt-N` | `sys_2.md` | Override the system prompt for a specific step (e.g., `--system-prompt-2` for the 2nd prompt file). |
+| `--json-schema-N` | `schema_2.json` | Override the JSON Schema for a specific step (e.g., `--json-schema-2` for the 2nd prompt file). |
 | `-c` / `--concurrency` | `10` | How many items to process at once. Defaults to 10. Lower this if you hit Rate Limits. |
 | `-m` / `--model` | `google/gemini-3...` | Which AI model to use. **Note:** For images, you must use a unified text+image model (e.g., Gemini 3, Nano Banana). Standalone DALL-E is not supported. |
 | `--aspect-ratio` | `16:9` | Triggers **Text+Image mode**. Common values: `1:1`, `16:9`, `3:2`. |
