@@ -11,7 +11,7 @@ program
 program.command('generate')
     .description('Generate content (text and/or images) from data file')
     .argument('<data-file>', 'Path to the CSV or JSON file')
-    .argument('[template-files...]', 'Path to the prompt template text files')
+    .argument('[template-files...]', 'Path to the prompt template files (text, image, audio, or directory)')
     .requiredOption('-o, --output <path>', 'Template path for the output (e.g., "out/{{id}}/result.txt")')
     .option('-c, --concurrency <number>', 'Number of concurrent requests', '10')
     .option('--aspect-ratio <ratio>', 'Aspect ratio for image generation (e.g., "3:2"). If provided, requests image generation.')

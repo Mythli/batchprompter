@@ -51,6 +51,8 @@ async function readPromptInput(inputPath: string): Promise<OpenAI.Chat.Completio
     };
 
     for (const filePath of filePaths) {
+        // If we are processing a directory, we need to stat each file.
+        // If inputPath was a file, we already stat-ed it, but doing it again is cheap and safe.
         const fileStats = await fsPromises.stat(filePath);
         if (!fileStats.isFile()) continue;
 
