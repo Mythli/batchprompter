@@ -10,6 +10,7 @@ import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
 import { LlmReQuerier, LlmQuerierError } from './llmReQuerier.js';
 import Ajv from 'ajv';
+import OpenAI from 'openai';
 
 // Helper to ensure directory exists
 async function ensureDir(filePath: string) {
@@ -17,27 +18,83 @@ async function ensureDir(filePath: string) {
     await fsPromises.mkdir(dir, { recursive: true });
 }
 
-// Helper to read prompt input (file or directory)
-async function readPromptInput(inputPath: string): Promise<string> {
+function getPartType(filePath: string): 'text' | 'image' | 'audio' {
+    const ext = path.extname(filePath).toLowerCase();
+    if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext)) return 'image';
+    if (['.mp3', '.wav'].includes(ext)) return 'audio';
+    return 'text';
+}
+
+// Helper to read prompt input (file or directory) and return Content Parts
+async function readPromptInput(inputPath: string): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
     const stats = await fsPromises.stat(inputPath);
+    let filePaths: string[] = [];
+
     if (stats.isDirectory()) {
         const files = await fsPromises.readdir(inputPath);
         files.sort();
-        
-        const contents = await Promise.all(files.map(async (file) => {
-            if (file.startsWith('.')) return null;
-            const filePath = path.join(inputPath, file);
-            const fileStats = await fsPromises.stat(filePath);
-            if (fileStats.isFile()) {
-                return fsPromises.readFile(filePath, 'utf-8');
-            }
-            return null;
-        }));
-        
-        return contents.filter((c): c is string => c !== null).join('\n\n');
+        filePaths = files
+            .filter(f => !f.startsWith('.'))
+            .map(f => path.join(inputPath, f));
     } else {
-        return fsPromises.readFile(inputPath, 'utf-8');
+        filePaths = [inputPath];
     }
+
+    const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+    let currentTextBuffer: string[] = [];
+
+    const flushText = () => {
+        if (currentTextBuffer.length > 0) {
+            parts.push({ type: 'text', text: currentTextBuffer.join('\n\n') });
+            currentTextBuffer = [];
+        }
+    };
+
+    for (const filePath of filePaths) {
+        const fileStats = await fsPromises.stat(filePath);
+        if (!fileStats.isFile()) continue;
+
+        const type = getPartType(filePath);
+        
+        if (type === 'text') {
+            const content = await fsPromises.readFile(filePath, 'utf-8');
+            if (content.trim().length > 0) {
+                currentTextBuffer.push(content);
+            }
+        } else {
+            flushText(); // Push any accumulated text before this binary part
+            
+            const buffer = await fsPromises.readFile(filePath);
+            const base64 = buffer.toString('base64');
+            const ext = path.extname(filePath).toLowerCase();
+
+            if (type === 'image') {
+                let mime = 'image/jpeg';
+                if (ext === '.png') mime = 'image/png';
+                if (ext === '.gif') mime = 'image/gif';
+                if (ext === '.webp') mime = 'image/webp';
+                
+                parts.push({
+                    type: 'image_url',
+                    image_url: { url: `data:${mime};base64,${base64}` }
+                });
+            } else if (type === 'audio') {
+                const format = ext === '.mp3' ? 'mp3' : 'wav';
+                parts.push({
+                    type: 'input_audio',
+                    input_audio: { data: base64, format }
+                });
+            }
+        }
+    }
+    flushText();
+
+    // If empty, return empty text part
+    if (parts.length === 0) {
+        return [{ type: 'text', text: '' }];
+    }
+
+    return parts;
 }
 
 // Response schema to extract image URL
@@ -73,7 +130,7 @@ interface ActionOptions {
 type RowHandler = (
     ask: AskGptFunction,
     renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
-    userPrompts: string[],
+    userPrompts: OpenAI.Chat.Completions.ChatCompletionContentPart[][],
     baseOutputPath: string,
     index: number,
     options: ActionOptions,
@@ -129,12 +186,12 @@ async function processBatch(
     const { ask } = await getConfig({ concurrency });
 
     // 2. Initialize Caches and Validators
-    const fileCache = new Map<string, string>();
+    const fileCache = new Map<string, OpenAI.Chat.Completions.ChatCompletionContentPart[]>();
     const validatorCache = new Map<string, any>();
     // @ts-ignore
     const ajv = new Ajv({ strict: false });
 
-    const getFileContent = async (filePath: string): Promise<string> => {
+    const getFileContent = async (filePath: string): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> => {
         if (fileCache.has(filePath)) {
             return fileCache.get(filePath)!;
         }
@@ -147,15 +204,20 @@ async function processBatch(
         if (validatorCache.has(filePath)) {
             return validatorCache.get(filePath);
         }
-        const content = await getFileContent(filePath);
+        const parts = await getFileContent(filePath);
+        // Extract text from parts for schema parsing
+        const content = parts
+            .filter(p => p.type === 'text')
+            .map(p => p.text)
+            .join('\n\n');
+
         const schemaObj = JSON.parse(content);
         const validator = ajv.compile(schemaObj);
         validatorCache.set(filePath, validator);
         return validator;
     };
 
-    // Compile Output Template (this is usually static relative to row data, but we compile it once per row anyway in the loop logic below to be safe, or we can compile it here if we assume output path structure is static template)
-    // Actually, outputTemplate is a string like "out/{{id}}/file.txt". We compile it once.
+    // Compile Output Template
     const outputDelegate = Handlebars.compile(outputTemplate, { noEscape: true });
 
     // 3. Read Data (CSV or JSON)
@@ -171,13 +233,23 @@ async function processBatch(
                 // --- Resolve Paths and Load Content per Row ---
 
                 // 1. User Prompts
-                let userPrompts: string[] = [];
+                let userPrompts: OpenAI.Chat.Completions.ChatCompletionContentPart[][] = [];
                 if (templateFilePaths.length > 0) {
                     for (const tPath of templateFilePaths) {
                         const resolvedPath = renderPath(tPath, row);
-                        const content = await getFileContent(resolvedPath);
-                        const rendered = Handlebars.compile(content, { noEscape: true })(row);
-                        userPrompts.push(rendered);
+                        const parts = await getFileContent(resolvedPath);
+                        
+                        // Render Handlebars only for text parts
+                        const renderedParts = parts.map(part => {
+                            if (part.type === 'text') {
+                                return { 
+                                    type: 'text' as const, 
+                                    text: Handlebars.compile(part.text, { noEscape: true })(row) 
+                                };
+                            }
+                            return part;
+                        });
+                        userPrompts.push(renderedParts);
                     }
                 }
 
@@ -185,7 +257,8 @@ async function processBatch(
                 let globalSystemPrompt: string | null = null;
                 if (options.system) {
                     const resolvedPath = renderPath(options.system, row);
-                    const content = await getFileContent(resolvedPath);
+                    const parts = await getFileContent(resolvedPath);
+                    const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
                     globalSystemPrompt = Handlebars.compile(content, { noEscape: true })(row);
                 }
 
@@ -199,7 +272,8 @@ async function processBatch(
                 // Global Schema
                 if (options.schema) {
                     const resolvedPath = renderPath(options.schema, row);
-                    const content = await getFileContent(resolvedPath);
+                    const parts = await getFileContent(resolvedPath);
+                    const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
                     rowOptions.jsonSchema = JSON.parse(content);
                     rowValidators['global'] = await getValidator(resolvedPath);
                 }
@@ -215,16 +289,16 @@ async function processBatch(
                         // Step System Prompt
                         if (config.system) {
                             const resolvedPath = renderPath(config.system, row);
-                            const content = await getFileContent(resolvedPath);
+                            const parts = await getFileContent(resolvedPath);
+                            const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
                             stepSystemPrompts[step] = Handlebars.compile(content, { noEscape: true })(row);
-                            // We don't update newConfig.system content here, as it's used for path. 
-                            // The handler receives the rendered string via `renderedSystemPrompts`.
                         }
 
                         // Step Schema
                         if (config.schema) {
                             const resolvedPath = renderPath(config.schema, row);
-                            const content = await getFileContent(resolvedPath);
+                            const parts = await getFileContent(resolvedPath);
+                            const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
                             newConfig.jsonSchema = JSON.parse(content);
                             rowValidators[stepStr] = await getValidator(resolvedPath);
                         }
@@ -242,7 +316,7 @@ async function processBatch(
 
                 // Fallback for User Prompts if none provided
                 if (userPrompts.length === 0) {
-                    userPrompts = [JSON.stringify(row, null, 2)];
+                    userPrompts = [[{ type: 'text', text: JSON.stringify(row, null, 2) }]];
                 }
 
                 // Interpolate Output Path (Sanitized)
@@ -274,7 +348,7 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
 
     for (let i = 0; i < userPrompts.length; i++) {
         const stepIndex = i + 1;
-        const prompt = userPrompts[i];
+        const promptParts = userPrompts[i];
         
         let currentOutputPath = getIndexedPath(baseOutputPath, stepIndex, userPrompts.length);
 
@@ -313,7 +387,7 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
         apiMessages.push(...persistentHistory);
 
         // 3. Current User Prompt
-        apiMessages.push({ role: 'user', content: prompt });
+        apiMessages.push({ role: 'user', content: promptParts });
 
         if (currentSchemaObj) {
             // --- JSON Schema Mode (using LlmReQuerier) ---
@@ -348,7 +422,7 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                 console.log(`[Row ${index}] Step ${stepIndex} Validated JSON saved to ${currentOutputPath}`);
 
                 // Update History
-                persistentHistory.push({ role: 'user', content: prompt });
+                persistentHistory.push({ role: 'user', content: promptParts });
                 persistentHistory.push({ role: 'assistant', content: JSON.stringify(validatedData) });
 
             } catch (error) {
@@ -412,7 +486,7 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
             }
 
             // Update history
-            persistentHistory.push({ role: 'user', content: prompt });
+            persistentHistory.push({ role: 'user', content: promptParts });
             if (textContent) {
                 persistentHistory.push({ role: 'assistant', content: textContent });
             } else if (images && images.length > 0) {
