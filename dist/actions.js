@@ -79,60 +79,41 @@ async function loadData(filePath) {
         return rows;
     }
 }
+function renderPath(pathTemplate, context) {
+    const delegate = Handlebars.compile(pathTemplate, { noEscape: true });
+    return delegate(context);
+}
 async function processBatch(dataFilePath, templateFilePaths, outputTemplate, options, handler) {
     const concurrency = options.concurrency;
     // 1. Initialize Config with Concurrency
     console.log(`Initializing with concurrency: ${concurrency}`);
     const { ask } = await getConfig({ concurrency });
-    // 2. Read Template Files
-    const userTemplates = await Promise.all(templateFilePaths.map(p => readPromptInput(p)));
-    const systemTemplate = options.system ? await readPromptInput(options.system) : null;
-    // Load Global Schema if provided
-    if (options.schema) {
-        console.log(`Loading JSON Schema from: ${options.schema}`);
-        const schemaContent = await fsPromises.readFile(options.schema, 'utf-8');
-        options.jsonSchema = JSON.parse(schemaContent);
-    }
-    // Load Step Overrides
-    if (options.stepOverrides) {
-        for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
-            const step = parseInt(stepStr, 10);
-            if (config.system) {
-                config.system = await readPromptInput(config.system);
-            }
-            if (config.schema) {
-                console.log(`Loading Step ${step} JSON Schema from: ${config.schema}`);
-                const content = await fsPromises.readFile(config.schema, 'utf-8');
-                config.jsonSchema = JSON.parse(content);
-            }
-        }
-    }
-    // Compile Handlebars templates
-    const userDelegates = userTemplates.map(t => Handlebars.compile(t, { noEscape: true }));
-    const systemDelegate = systemTemplate ? Handlebars.compile(systemTemplate, { noEscape: true }) : null;
-    const outputDelegate = Handlebars.compile(outputTemplate, { noEscape: true });
-    const stepSystemDelegates = {};
-    if (options.stepOverrides) {
-        for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
-            if (config.system) {
-                stepSystemDelegates[parseInt(stepStr)] = Handlebars.compile(config.system, { noEscape: true });
-            }
-        }
-    }
-    // Compile Validators
+    // 2. Initialize Caches and Validators
+    const fileCache = new Map();
+    const validatorCache = new Map();
     // @ts-ignore
     const ajv = new Ajv({ strict: false });
-    const validators = {};
-    if (options.jsonSchema) {
-        validators['global'] = ajv.compile(options.jsonSchema);
-    }
-    if (options.stepOverrides) {
-        for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
-            if (config.jsonSchema) {
-                validators[stepStr] = ajv.compile(config.jsonSchema);
-            }
+    const getFileContent = async (filePath) => {
+        if (fileCache.has(filePath)) {
+            return fileCache.get(filePath);
         }
-    }
+        const content = await readPromptInput(filePath);
+        fileCache.set(filePath, content);
+        return content;
+    };
+    const getValidator = async (filePath) => {
+        if (validatorCache.has(filePath)) {
+            return validatorCache.get(filePath);
+        }
+        const content = await getFileContent(filePath);
+        const schemaObj = JSON.parse(content);
+        const validator = ajv.compile(schemaObj);
+        validatorCache.set(filePath, validator);
+        return validator;
+    };
+    // Compile Output Template (this is usually static relative to row data, but we compile it once per row anyway in the loop logic below to be safe, or we can compile it here if we assume output path structure is static template)
+    // Actually, outputTemplate is a string like "out/{{id}}/file.txt". We compile it once.
+    const outputDelegate = Handlebars.compile(outputTemplate, { noEscape: true });
     // 3. Read Data (CSV or JSON)
     const rows = await loadData(dataFilePath);
     console.log(`Found ${rows.length} rows to process.`);
@@ -140,31 +121,72 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
     const tasks = rows.map((row, index) => {
         return queue.add(async () => {
             try {
-                // Prepare System Prompts (Rendered)
-                const globalSystemPrompt = systemDelegate ? systemDelegate(row) : null;
+                // --- Resolve Paths and Load Content per Row ---
+                // 1. User Prompts
+                let userPrompts = [];
+                if (templateFilePaths.length > 0) {
+                    for (const tPath of templateFilePaths) {
+                        const resolvedPath = renderPath(tPath, row);
+                        const content = await getFileContent(resolvedPath);
+                        const rendered = Handlebars.compile(content, { noEscape: true })(row);
+                        userPrompts.push(rendered);
+                    }
+                }
+                // 2. Global System Prompt
+                let globalSystemPrompt = null;
+                if (options.system) {
+                    const resolvedPath = renderPath(options.system, row);
+                    const content = await getFileContent(resolvedPath);
+                    globalSystemPrompt = Handlebars.compile(content, { noEscape: true })(row);
+                }
+                // 3. Prepare Row-Specific Options and Validators
+                const rowValidators = {};
+                const rowOptions = {
+                    ...options,
+                    stepOverrides: {}
+                };
+                // Global Schema
+                if (options.schema) {
+                    const resolvedPath = renderPath(options.schema, row);
+                    const content = await getFileContent(resolvedPath);
+                    rowOptions.jsonSchema = JSON.parse(content);
+                    rowValidators['global'] = await getValidator(resolvedPath);
+                }
+                // Step Overrides
                 const stepSystemPrompts = {};
-                for (const [step, delegate] of Object.entries(stepSystemDelegates)) {
-                    stepSystemPrompts[parseInt(step)] = delegate(row);
+                if (options.stepOverrides) {
+                    for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
+                        const step = parseInt(stepStr, 10);
+                        const newConfig = { ...config };
+                        // Step System Prompt
+                        if (config.system) {
+                            const resolvedPath = renderPath(config.system, row);
+                            const content = await getFileContent(resolvedPath);
+                            stepSystemPrompts[step] = Handlebars.compile(content, { noEscape: true })(row);
+                            // We don't update newConfig.system content here, as it's used for path. 
+                            // The handler receives the rendered string via `renderedSystemPrompts`.
+                        }
+                        // Step Schema
+                        if (config.schema) {
+                            const resolvedPath = renderPath(config.schema, row);
+                            const content = await getFileContent(resolvedPath);
+                            newConfig.jsonSchema = JSON.parse(content);
+                            rowValidators[stepStr] = await getValidator(resolvedPath);
+                        }
+                        if (rowOptions.stepOverrides) {
+                            rowOptions.stepOverrides[step] = newConfig;
+                        }
+                    }
                 }
                 const renderedSystemPrompts = {
                     global: globalSystemPrompt,
                     steps: stepSystemPrompts
                 };
-                // Prepare User Prompts
-                let userPrompts = [];
-                if (userDelegates.length > 0) {
-                    userPrompts = userDelegates.map(d => d(row));
-                }
-                else if (globalSystemPrompt) {
-                    // Default to JSON row if system prompt exists but no user templates
+                // Fallback for User Prompts if none provided
+                if (userPrompts.length === 0) {
                     userPrompts = [JSON.stringify(row, null, 2)];
                 }
-                else {
-                    // Fallback if no user templates and no global system prompt, 
-                    // but maybe we have step overrides?
-                    userPrompts = [JSON.stringify(row, null, 2)];
-                }
-                // Interpolate Path (Sanitized)
+                // Interpolate Output Path (Sanitized)
                 const sanitizedRow = {};
                 for (const [key, val] of Object.entries(row)) {
                     const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
@@ -173,7 +195,7 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
                 }
                 const baseOutputPath = outputDelegate(sanitizedRow);
                 console.log(`[Row ${index}] Processing...`);
-                await handler(ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, options, validators);
+                await handler(ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators);
             }
             catch (err) {
                 console.error(`[Row ${index}] Error:`, err);
