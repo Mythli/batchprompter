@@ -54,6 +54,12 @@ const responseSchema = z.object({
     })).min(1)
 });
 
+interface StepConfig {
+    system?: string;
+    schema?: string;
+    jsonSchema?: any;
+}
+
 interface ActionOptions {
     concurrency: number;
     aspectRatio?: string;
@@ -61,15 +67,17 @@ interface ActionOptions {
     system?: string;
     schema?: string;
     jsonSchema?: any;
+    stepOverrides?: Record<number, StepConfig>;
 }
 
 type RowHandler = (
     ask: AskGptFunction,
-    systemPrompt: string | null,
+    renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
     userPrompts: string[],
     baseOutputPath: string,
     index: number,
-    options: ActionOptions
+    options: ActionOptions,
+    validators: Record<string, any>
 ) => Promise<void>;
 
 function getIndexedPath(basePath: string, stepIndex: number, totalSteps: number): string {
@@ -119,18 +127,57 @@ async function processBatch(
     const userTemplates = await Promise.all(templateFilePaths.map(p => readPromptInput(p)));
     const systemTemplate = options.system ? await readPromptInput(options.system) : null;
 
-    // Load Schema if provided
+    // Load Global Schema if provided
     if (options.schema) {
         console.log(`Loading JSON Schema from: ${options.schema}`);
         const schemaContent = await fsPromises.readFile(options.schema, 'utf-8');
         options.jsonSchema = JSON.parse(schemaContent);
     }
 
+    // Load Step Overrides
+    if (options.stepOverrides) {
+        for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
+            const step = parseInt(stepStr, 10);
+            if (config.system) {
+                config.system = await readPromptInput(config.system);
+            }
+            if (config.schema) {
+                console.log(`Loading Step ${step} JSON Schema from: ${config.schema}`);
+                const content = await fsPromises.readFile(config.schema, 'utf-8');
+                config.jsonSchema = JSON.parse(content);
+            }
+        }
+    }
+
     // Compile Handlebars templates
-    // noEscape: true ensures we don't HTML-escape characters in the prompt or path
     const userDelegates = userTemplates.map(t => Handlebars.compile(t, { noEscape: true }));
     const systemDelegate = systemTemplate ? Handlebars.compile(systemTemplate, { noEscape: true }) : null;
     const outputDelegate = Handlebars.compile(outputTemplate, { noEscape: true });
+
+    const stepSystemDelegates: Record<number, Handlebars.TemplateDelegate> = {};
+    if (options.stepOverrides) {
+        for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
+             if (config.system) {
+                 stepSystemDelegates[parseInt(stepStr)] = Handlebars.compile(config.system, { noEscape: true });
+             }
+        }
+    }
+
+    // Compile Validators
+    // @ts-ignore
+    const ajv = new Ajv({ strict: false });
+    const validators: Record<string, any> = {};
+    
+    if (options.jsonSchema) {
+        validators['global'] = ajv.compile(options.jsonSchema);
+    }
+    if (options.stepOverrides) {
+        for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
+            if (config.jsonSchema) {
+                validators[stepStr] = ajv.compile(config.jsonSchema);
+            }
+        }
+    }
 
     // 3. Read Data (CSV or JSON)
     const rows = await loadData(dataFilePath);
@@ -142,26 +189,34 @@ async function processBatch(
     const tasks = rows.map((row, index) => {
         return queue.add(async () => {
             try {
-                // Prepare System Prompt
-                const systemPrompt = systemDelegate ? systemDelegate(row) : null;
+                // Prepare System Prompts (Rendered)
+                const globalSystemPrompt = systemDelegate ? systemDelegate(row) : null;
+                const stepSystemPrompts: Record<number, string> = {};
+                for (const [step, delegate] of Object.entries(stepSystemDelegates)) {
+                    stepSystemPrompts[parseInt(step)] = delegate(row);
+                }
+
+                const renderedSystemPrompts = {
+                    global: globalSystemPrompt,
+                    steps: stepSystemPrompts
+                };
 
                 // Prepare User Prompts
                 let userPrompts: string[] = [];
                 if (userDelegates.length > 0) {
                     userPrompts = userDelegates.map(d => d(row));
-                } else if (systemPrompt) {
+                } else if (globalSystemPrompt) {
                     // Default to JSON row if system prompt exists but no user templates
                     userPrompts = [JSON.stringify(row, null, 2)];
                 } else {
-                    throw new Error("No user templates provided and no system template provided.");
+                    // Fallback if no user templates and no global system prompt, 
+                    // but maybe we have step overrides?
+                    userPrompts = [JSON.stringify(row, null, 2)];
                 }
 
                 // Interpolate Path (Sanitized)
-                // We create a sanitized version of the row data for the filename generation
-                // to ensure no invalid characters or overly long filenames are generated.
                 const sanitizedRow: Record<string, string> = {};
                 for (const [key, val] of Object.entries(row)) {
-                    // Ensure val is a string for sanitization
                     const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
                     const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
                     sanitizedRow[key] = sanitized.substring(0, 50);
@@ -170,7 +225,7 @@ async function processBatch(
 
                 console.log(`[Row ${index}] Processing...`);
 
-                await handler(ask, systemPrompt, userPrompts, baseOutputPath, index, options);
+                await handler(ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, options, validators);
 
             } catch (err) {
                 console.error(`[Row ${index}] Error:`, err);
@@ -182,31 +237,54 @@ async function processBatch(
     console.log("All tasks completed.");
 }
 
-const handleUnifiedGeneration: RowHandler = async (ask, systemPrompt, userPrompts, baseOutputPath, index, options) => {
-    const messages: any[] = [];
-
-    if (systemPrompt) {
-        messages.push({ role: 'system', content: systemPrompt });
-        if (options.jsonSchema) {
-            messages.push({ role: 'system', content: `You must output valid JSON that matches the following schema: ${JSON.stringify(options.jsonSchema)}` });
-        }
-    }
-
-    // Compile validator if schema is present
-    let validate: any = null;
-    if (options.jsonSchema) {
-        // @ts-ignore
-        const ajv = new Ajv({ strict: false });
-        validate = ajv.compile(options.jsonSchema);
-    }
+const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, options, validators) => {
+    // History of conversation (User + Assistant only)
+    const persistentHistory: any[] = [];
 
     for (let i = 0; i < userPrompts.length; i++) {
+        const stepIndex = i + 1;
         const prompt = userPrompts[i];
-        messages.push({ role: 'user', content: prompt });
+        
+        let currentOutputPath = getIndexedPath(baseOutputPath, stepIndex, userPrompts.length);
 
-        let currentOutputPath = getIndexedPath(baseOutputPath, i + 1, userPrompts.length);
+        // Determine Configuration for this step
+        const stepOverride = options.stepOverrides?.[stepIndex];
+        
+        // System Prompt
+        let currentSystemPrompt = renderedSystemPrompts.steps[stepIndex];
+        if (currentSystemPrompt === undefined) {
+            currentSystemPrompt = renderedSystemPrompts.global || null;
+        }
 
-        if (options.jsonSchema) {
+        // Schema / Validator
+        let currentValidator = validators[stepIndex];
+        let currentSchemaObj = stepOverride?.jsonSchema;
+
+        if (!currentValidator && !currentSchemaObj) {
+            currentValidator = validators['global'];
+            currentSchemaObj = options.jsonSchema;
+        }
+
+        // Construct Messages for this API call
+        const apiMessages: any[] = [];
+        
+        // 1. System Prompt (with Schema instruction if needed)
+        if (currentSystemPrompt || currentSchemaObj) {
+            let content = currentSystemPrompt || "";
+            if (currentSchemaObj) {
+                if (content) content += "\n\n";
+                content += `You must output valid JSON that matches the following schema: ${JSON.stringify(currentSchemaObj)}`;
+            }
+            apiMessages.push({ role: 'system', content });
+        }
+
+        // 2. History
+        apiMessages.push(...persistentHistory);
+
+        // 3. Current User Prompt
+        apiMessages.push({ role: 'user', content: prompt });
+
+        if (currentSchemaObj) {
             // --- JSON Schema Mode (using LlmReQuerier) ---
             const querier = new LlmReQuerier(ask);
             
@@ -218,7 +296,7 @@ const handleUnifiedGeneration: RowHandler = async (ask, systemPrompt, userPrompt
 
             try {
                 const validatedData = await querier.query(
-                    [...messages], // Pass a copy of the conversation history
+                    [...apiMessages], // Pass a copy of the conversation history
                     async (responseString, info) => {
                         let data;
                         try {
@@ -227,10 +305,10 @@ const handleUnifiedGeneration: RowHandler = async (ask, systemPrompt, userPrompt
                             throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
                         }
 
-                        const valid = validate(data);
+                        const valid = currentValidator(data);
                         if (!valid) {
-                            const errors = validate.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
-                            throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', validate.errors, responseString);
+                            const errors = currentValidator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
+                            throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, responseString);
                         }
                         return data;
                     },
@@ -242,20 +320,21 @@ const handleUnifiedGeneration: RowHandler = async (ask, systemPrompt, userPrompt
 
                 await ensureDir(currentOutputPath);
                 await fsPromises.writeFile(currentOutputPath, JSON.stringify(validatedData, null, 2));
-                console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Validated JSON saved to ${currentOutputPath}`);
+                console.log(`[Row ${index}] Step ${stepIndex} Validated JSON saved to ${currentOutputPath}`);
 
-                // Update history with the valid JSON string
-                messages.push({ role: 'assistant', content: JSON.stringify(validatedData) });
+                // Update History
+                persistentHistory.push({ role: 'user', content: prompt });
+                persistentHistory.push({ role: 'assistant', content: JSON.stringify(validatedData) });
 
             } catch (error) {
-                console.error(`[Row ${index}] Step ${i + 1} Failed to generate valid JSON after retries:`, error);
+                console.error(`[Row ${index}] Step ${stepIndex} Failed to generate valid JSON after retries:`, error);
                 throw error;
             }
 
         } else {
             // --- Standard Mode (Text/Image) ---
             const askOptions: any = {
-                messages: [...messages]
+                messages: [...apiMessages]
             };
 
             if (options.model) {
@@ -281,7 +360,7 @@ const handleUnifiedGeneration: RowHandler = async (ask, systemPrompt, userPrompt
             if (textContent) {
                 await ensureDir(currentOutputPath);
                 await fsPromises.writeFile(currentOutputPath, textContent);
-                console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Text saved to ${currentOutputPath}`);
+                console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${currentOutputPath}`);
             }
 
             // Handle Images
@@ -307,20 +386,21 @@ const handleUnifiedGeneration: RowHandler = async (ask, systemPrompt, userPrompt
 
                 await ensureDir(imagePath);
                 await fsPromises.writeFile(imagePath, buffer);
-                console.log(`[Row ${index}] Step ${i + 1}/${userPrompts.length} Image saved to ${imagePath}`);
+                console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${imagePath}`);
             }
 
             if (!textContent && (!images || images.length === 0)) {
-                console.warn(`[Row ${index}] Step ${i + 1} No content returned.`);
+                console.warn(`[Row ${index}] Step ${stepIndex} No content returned.`);
             }
 
             // Update history
+            persistentHistory.push({ role: 'user', content: prompt });
             if (textContent) {
-                messages.push({ role: 'assistant', content: textContent });
+                persistentHistory.push({ role: 'assistant', content: textContent });
             } else if (images && images.length > 0) {
-                messages.push({ role: 'assistant', content: "Image generated." });
+                persistentHistory.push({ role: 'assistant', content: "Image generated." });
             } else {
-                messages.push({ role: 'assistant', content: "" });
+                persistentHistory.push({ role: 'assistant', content: "" });
             }
         }
     }
