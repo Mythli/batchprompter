@@ -319,12 +319,6 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
             // --- JSON Schema Mode (using LlmReQuerier) ---
             const querier = new LlmReQuerier(ask);
             
-            // Force .json extension
-            const ext = path.extname(currentOutputPath);
-            if (ext !== '.json') {
-                currentOutputPath = currentOutputPath.slice(0, -ext.length) + '.json';
-            }
-
             try {
                 const validatedData = await querier.query(
                     [...apiMessages], // Pass a copy of the conversation history
@@ -408,16 +402,9 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                     buffer = Buffer.from(base64Data, 'base64');
                 }
 
-                // Determine image path (swap extension to .png if it's not an image extension)
-                let imagePath = currentOutputPath;
-                const ext = path.extname(imagePath).toLowerCase();
-                if (!['.png', '.jpg', '.jpeg', '.webp', '.gif'].includes(ext)) {
-                    imagePath = path.join(path.dirname(imagePath), path.basename(imagePath, ext) + '.png');
-                }
-
-                await ensureDir(imagePath);
-                await fsPromises.writeFile(imagePath, buffer);
-                console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${imagePath}`);
+                await ensureDir(currentOutputPath);
+                await fsPromises.writeFile(currentOutputPath, buffer);
+                console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
             }
 
             if (!textContent && (!images || images.length === 0)) {
