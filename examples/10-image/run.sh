@@ -2,12 +2,12 @@
 # Master script to run all 3 image generation tasks sequentially
 
 echo "Running 1-real..."
-(cd 1-real && ./run.sh)
+./run_1_real.sh
 
 echo "Running 2-software..."
-(cd 2-software && ./run.sh)
+./run_2_software.sh
 
 echo "Running 3-icon..."
-(cd 3-icon && ./run.sh)
+./run_3_icon.sh
 
 echo "All done."
