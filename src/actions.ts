@@ -122,6 +122,7 @@ interface StepConfig {
     schema?: string;
     jsonSchema?: any;
     verifyCommand?: string;
+    aspectRatio?: string;
 }
 
 interface ActionOptions {
@@ -381,6 +382,9 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
         // Verify Command
         const currentVerifyCommand = stepOverride?.verifyCommand || options.verifyCommand;
 
+        // Aspect Ratio
+        const currentAspectRatio = stepOverride?.aspectRatio || options.aspectRatio;
+
         // Construct Messages for this API call
         const apiMessages: any[] = [];
         
@@ -482,9 +486,9 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                 };
 
                 if (options.model) askOptions.model = options.model;
-                if (options.aspectRatio) {
+                if (currentAspectRatio) {
                     askOptions.modalities = ['image', 'text'];
-                    askOptions.image_config = { aspect_ratio: options.aspectRatio };
+                    askOptions.image_config = { aspect_ratio: currentAspectRatio };
                 }
 
                 const response = await ask(askOptions);

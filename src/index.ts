@@ -22,41 +22,32 @@ program.command('generate')
     .allowUnknownOption()
     .action(async (dataFilePath, templateFilePaths, options, command) => {
         // Parse dynamic options from process.argv manually
-        // We look for --system-prompt-N, --json-schema-N, and --verify-command-N
-        const stepOverrides: Record<number, { system?: string, schema?: string, verifyCommand?: string }> = {};
+        // We look for --system-prompt-N, --json-schema-N, --verify-command-N, and --aspect-ratio-N
+        const stepOverrides: Record<number, { system?: string, schema?: string, verifyCommand?: string, aspectRatio?: string }> = {};
         const argv = process.argv;
+
+        const dynamicArgs = [
+            { prefix: '--system-prompt-', key: 'system' },
+            { prefix: '--json-schema-', key: 'schema' },
+            { prefix: '--verify-command-', key: 'verifyCommand' },
+            { prefix: '--aspect-ratio-', key: 'aspectRatio' }
+        ] as const;
         
         for (let i = 0; i < argv.length; i++) {
             const arg = argv[i];
             
-            // Check for --system-prompt-N
-            const sysMatch = arg.match(/^--system-prompt-(\d+)$/);
-            if (sysMatch) {
-                const index = parseInt(sysMatch[1], 10);
-                // The next argument should be the value
-                if (i + 1 < argv.length && !argv[i+1].startsWith('-')) {
-                    if (!stepOverrides[index]) stepOverrides[index] = {};
-                    stepOverrides[index].system = argv[i+1];
-                }
-            }
-
-            // Check for --json-schema-N
-            const schemaMatch = arg.match(/^--json-schema-(\d+)$/);
-            if (schemaMatch) {
-                const index = parseInt(schemaMatch[1], 10);
-                if (i + 1 < argv.length && !argv[i+1].startsWith('-')) {
-                    if (!stepOverrides[index]) stepOverrides[index] = {};
-                    stepOverrides[index].schema = argv[i+1];
-                }
-            }
-
-            // Check for --verify-command-N
-            const verifyMatch = arg.match(/^--verify-command-(\d+)$/);
-            if (verifyMatch) {
-                const index = parseInt(verifyMatch[1], 10);
-                if (i + 1 < argv.length && !argv[i+1].startsWith('-')) {
-                    if (!stepOverrides[index]) stepOverrides[index] = {};
-                    stepOverrides[index].verifyCommand = argv[i+1];
+            for (const { prefix, key } of dynamicArgs) {
+                if (arg.startsWith(prefix)) {
+                    const suffix = arg.slice(prefix.length);
+                    if (/^\d+$/.test(suffix)) {
+                        const index = parseInt(suffix, 10);
+                        // The next argument should be the value
+                        if (i + 1 < argv.length && !argv[i+1].startsWith('-')) {
+                            if (!stepOverrides[index]) stepOverrides[index] = {};
+                            // @ts-ignore
+                            stepOverrides[index][key] = argv[i+1];
+                        }
+                    }
                 }
             }
         }
