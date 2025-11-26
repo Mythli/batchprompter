@@ -410,7 +410,11 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
         }
 
         // Determine Output Column
-        const currentOutputColumn = stepOverride?.outputColumn || options.outputColumn;
+        let currentOutputColumn = stepOverride?.outputColumn || options.outputColumn;
+        if (currentOutputColumn) {
+            const delegate = Handlebars.compile(currentOutputColumn, { noEscape: true });
+            currentOutputColumn = delegate(row);
+        }
         
         // System Prompt
         let currentSystemPrompt: string | null = (renderedSystemPrompts.steps[stepIndex] as string | undefined) ?? null;
