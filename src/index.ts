@@ -33,6 +33,9 @@ program.command('generate')
             { prefix: '--aspect-ratio-', key: 'aspectRatio' }
         ] as const;
 
+        // Track consumed values to filter them out of templateFilePaths later
+        const consumedValues = new Set<string>();
+
         for (let i = 0; i < argv.length; i++) {
             const arg = argv[i];
 
@@ -46,16 +49,20 @@ program.command('generate')
                             if (!stepOverrides[index]) stepOverrides[index] = {};
                             // @ts-ignore
                             stepOverrides[index][key] = argv[i+1];
+                            consumedValues.add(argv[i+1]);
                         }
                     }
                 }
             }
         }
 
+        // Filter templateFilePaths to exclude flags and consumed values
+        const filteredTemplateFilePaths = templateFilePaths.filter(p => !p.startsWith('-') && !consumedValues.has(p));
+
         // Check validation logic
         // If we have overrides, we might be okay without global system, but usually user templates are required.
         const hasOverrides = Object.keys(stepOverrides).length > 0;
-        if ((!templateFilePaths || templateFilePaths.length === 0) && !options.system && !hasOverrides) {
+        if ((!filteredTemplateFilePaths || filteredTemplateFilePaths.length === 0) && !options.system && !hasOverrides) {
             console.error('Error: You must provide either template files or a system prompt.');
             process.exit(1);
         }
@@ -77,7 +84,7 @@ program.command('generate')
         };
 
         try {
-            await runAction(dataFilePath, templateFilePaths, options.output, actionOptions);
+            await runAction(dataFilePath, filteredTemplateFilePaths, options.output, actionOptions);
             process.exit(0);
         } catch (e) {
             console.error(e);
