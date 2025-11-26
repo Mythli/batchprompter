@@ -401,104 +401,82 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
         apiMessages.push({ role: 'user', content: promptParts });
 
         // --- Unified Generation & Validation Loop ---
-        // We use LlmReQuerier if we have ANY validation requirements (Schema OR Verify Command)
-        // OR if we just want to use the standard retry mechanism for robustness.
         
-        const querier = new LlmReQuerier(ask);
+        if (currentSchemaObj || currentVerifyCommand) {
+            // We use LlmReQuerier ONLY if we have validation requirements (Schema OR Verify Command)
+            const querier = new LlmReQuerier(ask);
 
-        try {
-            const result = await querier.query(
-                [...apiMessages],
-                async (responseString, info) => {
-                    let data: any = responseString;
-                    let contentToWrite = responseString;
+            try {
+                const result = await querier.query(
+                    [...apiMessages],
+                    async (responseString, info) => {
+                        let data: any = responseString;
+                        let contentToWrite = responseString;
 
-                    // 1. JSON Parsing & Schema Validation
-                    if (currentSchemaObj) {
-                        try {
-                            data = JSON.parse(responseString);
-                            contentToWrite = JSON.stringify(data, null, 2); // Normalize formatting
-                        } catch (e) {
-                            throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
+                        // 1. JSON Parsing & Schema Validation
+                        if (currentSchemaObj) {
+                            try {
+                                data = JSON.parse(responseString);
+                                contentToWrite = JSON.stringify(data, null, 2); // Normalize formatting
+                            } catch (e) {
+                                throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
+                            }
+
+                            const valid = currentValidator(data);
+                            if (!valid) {
+                                const errors = currentValidator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
+                                throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, responseString);
+                            }
                         }
 
-                        const valid = currentValidator(data);
-                        if (!valid) {
-                            const errors = currentValidator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
-                            throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, responseString);
+                        // 2. Verify Command Validation
+                        if (currentVerifyCommand) {
+                            // Write to temp file (or actual output path) to verify
+                            await ensureDir(currentOutputPath);
+                            await fsPromises.writeFile(currentOutputPath, contentToWrite);
+
+                            const cmd = currentVerifyCommand.replace('{{file}}', currentOutputPath);
+                            try {
+                                await execPromise(cmd);
+                            } catch (error: any) {
+                                // Command failed (non-zero exit code)
+                                const stderr = error.stderr || error.stdout || error.message;
+                                throw new LlmQuerierError(
+                                    `Verification command failed:\n${stderr}\n\nPlease fix the content based on this error.`,
+                                    'CUSTOM_ERROR',
+                                    null,
+                                    responseString
+                                );
+                            }
                         }
+
+                        return { data, contentToWrite };
+                    },
+                    {
+                        model: options.model,
+                        response_format: currentSchemaObj ? { type: "json_object" } : undefined,
+                        // No modalities/image_config here because we are in validation mode (Text/JSON)
                     }
+                );
 
-                    // 2. Verify Command Validation
-                    if (currentVerifyCommand) {
-                        // Write to temp file (or actual output path) to verify
-                        await ensureDir(currentOutputPath);
-                        await fsPromises.writeFile(currentOutputPath, contentToWrite);
-
-                        const cmd = currentVerifyCommand.replace('{{file}}', currentOutputPath);
-                        try {
-                            await execPromise(cmd);
-                        } catch (error: any) {
-                            // Command failed (non-zero exit code)
-                            const stderr = error.stderr || error.stdout || error.message;
-                            throw new LlmQuerierError(
-                                `Verification command failed:\n${stderr}\n\nPlease fix the content based on this error.`,
-                                'CUSTOM_ERROR',
-                                null,
-                                responseString
-                            );
-                        }
-                    }
-
-                    return { data, contentToWrite };
-                },
-                {
-                    model: options.model,
-                    response_format: currentSchemaObj ? { type: "json_object" } : undefined,
-                    // If aspect ratio is provided, we assume image generation is desired if no schema is present
-                    modalities: (!currentSchemaObj && options.aspectRatio) ? ['image', 'text'] : undefined,
-                    image_config: (!currentSchemaObj && options.aspectRatio) ? { aspect_ratio: options.aspectRatio } : undefined
-                }
-            );
-
-            // If we didn't write it during verification (or if verification wasn't run), write it now.
-            // Note: If verification ran, we already wrote it, but writing again ensures consistency.
-            
-            // Special handling for Image Generation (which returns a different structure if not using JSON mode)
-            // However, LlmReQuerier currently assumes text response. 
-            // If we are in Image Mode (no schema, aspect ratio set), the responseString passed to callback is text.
-            // But `ask` returns a full object. LlmReQuerier extracts content.
-            // If the model returns images, content might be null or empty string in standard OpenAI response, 
-            // but our `ask` wrapper returns the full response object.
-            // Wait, LlmReQuerier extracts `completion.choices[0]?.message?.content`.
-            // If we are doing image generation, we need to handle that.
-            
-            // Current LlmReQuerier logic:
-            // const llmResponseString = completion.choices[0]?.message?.content;
-            
-            // If we are doing pure image generation (no text), content is null.
-            // LlmReQuerier throws "LLM returned no response content."
-            
-            // FIX: If we are in image generation mode, we shouldn't use LlmReQuerier validation loop 
-            // UNLESS we want to validate the image (which is hard).
-            // For now, if aspect ratio is set AND no schema/verify command, we skip LlmReQuerier?
-            // But the user might want to verify the image file exists?
-            
-            // Let's stick to the logic: If schema OR verify command is present, use LlmReQuerier.
-            // Otherwise, use standard flow (which handles images).
-            
-            if (currentSchemaObj || currentVerifyCommand) {
-                // We are in Text/JSON mode
+                // If we didn't write it during verification (or if verification wasn't run), write it now.
+                // Note: If verification ran, we already wrote it, but writing again ensures consistency.
                 await ensureDir(currentOutputPath);
                 await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
                 console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
 
                 persistentHistory.push({ role: 'user', content: promptParts });
                 persistentHistory.push({ role: 'assistant', content: result.contentToWrite });
-            } else {
-                // Standard Mode (Text or Image without verification)
-                // We fall back to the original logic for Images/Simple Text to avoid breaking Image Gen
-                
+
+            } catch (error) {
+                console.error(`[Row ${index}] Step ${stepIndex} Failed after retries:`, error);
+                throw error;
+            }
+        } else {
+            // Standard Mode (Text or Image without verification)
+            // We use ask() directly to support Images and simple Text without validation loops.
+            
+            try {
                 const askOptions: any = {
                     messages: [...apiMessages]
                 };
@@ -540,11 +518,10 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                 persistentHistory.push({ role: 'user', content: promptParts });
                 if (textContent) persistentHistory.push({ role: 'assistant', content: textContent });
                 else if (images && images.length > 0) persistentHistory.push({ role: 'assistant', content: "Image generated." });
+            } catch (error) {
+                console.error(`[Row ${index}] Step ${stepIndex} Failed:`, error);
+                throw error;
             }
-
-        } catch (error) {
-            console.error(`[Row ${index}] Step ${stepIndex} Failed after retries:`, error);
-            throw error;
         }
     }
 };
