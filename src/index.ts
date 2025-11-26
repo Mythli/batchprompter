@@ -13,7 +13,7 @@ program.command('generate')
     .argument('<data-file>', 'Path to the CSV or JSON file')
     .argument('[template-files...]', 'Path to the prompt template files (text, image, audio, or directory)')
     .requiredOption('-o, --output <path>', 'Template path for the output (e.g., "out/{{id}}/result.txt")')
-    .option('-c, --concurrency <number>', 'Number of concurrent requests', '10')
+    .option('-c, --concurrency <number>', 'Number of concurrent requests', '20')
     .option('--aspect-ratio <ratio>', 'Aspect ratio for image generation (e.g., "3:2"). If provided, requests image generation.')
     .option('-m, --model <model>', 'Model to use for generation')
     .option('-s, --system <file>', 'Path to the system prompt template text file')
@@ -32,10 +32,10 @@ program.command('generate')
             { prefix: '--verify-command-', key: 'verifyCommand' },
             { prefix: '--aspect-ratio-', key: 'aspectRatio' }
         ] as const;
-        
+
         for (let i = 0; i < argv.length; i++) {
             const arg = argv[i];
-            
+
             for (const { prefix, key } of dynamicArgs) {
                 if (arg.startsWith(prefix)) {
                     const suffix = arg.slice(prefix.length);
