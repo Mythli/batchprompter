@@ -1,6 +1,9 @@
 #!/bin/bash
 # Master script to run all 3 image generation tasks sequentially
 
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+cd "$SCRIPT_DIR"
+
 echo "Running 1-real..."
 ./run_1_real.sh
 
