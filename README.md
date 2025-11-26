@@ -9,6 +9,8 @@ BatchPrompt is designed for bulk operations. It **requires** a data file (CSV or
 *   **The Data File (Mandatory):** You provide a CSV file where every row represents one task.
 *   **Variables:** The column headers in your CSV (e.g., `id`, `topic`, `name`) become variables (placeholders) available throughout the process.
 *   **One Row = One Output:** The tool iterates through every row in your CSV and generates a unique result for it.
+    *   **File Output:** Save each result as a separate file (e.g., `out/1.txt`).
+    *   **Column Output:** Write the result back into the CSV as a new column.
 
 ### Where can I use these variables?
 You can use `{{variable_name}}` placeholders in almost every argument and file content:
@@ -118,6 +120,15 @@ BatchPrompt looks for variables in this order. If you have existing OpenAI varia
 | **API Key** | `BATCHPROMPT_OPENAI_API_KEY` | `OPENAI_API_KEY` | `AI_API_KEY` |
 | **Model** | `BATCHPROMPT_OPENAI_MODEL` | `OPENAI_MODEL` | `MODEL` |
 
+### Advanced Configuration (Environment Variables)
+You can further configure BatchPrompt using these environment variables:
+
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `CACHE_ENABLED` | `true` | Set to `false` to disable caching of API responses. |
+| `SQLITE_PATH` | `.cache.sqlite` | Path to the SQLite file used for caching. |
+| `GPT_MAX_CONVERSATION_CHARS` | (None) | Limit the number of characters in the conversation history (truncates older messages). |
+
 ---
 
 ## 4. Usage Examples
@@ -213,7 +224,7 @@ batchprompt generate \
 
 ---
 
-### Scenario 4: Generating Images (Unified Models)
+### Scenario 4: Generating Images & Multimodal Inputs
 **Goal:** Create realistic stock photos using a model that supports text-to-image output via chat (e.g., Gemini 3).
 
 **The Input Files:**
@@ -228,6 +239,8 @@ batchprompt generate \
 2.  **Prompt Directory:** `examples/4-image/prompt/`
     *   `2_person.jpg` (Reference image)
     *   `2_prompt.md` (Text prompt)
+
+**Note on Inputs:** You can include **Images** (`.jpg`, `.png`) and **Audio** (`.mp3`, `.wav`) files in your prompt directory. BatchPrompt will send them to the model (if the model supports multimodal input).
 
 **Run this command:**
 
@@ -326,6 +339,30 @@ batchprompt generate \
 
 ---
 
+### Scenario 8: Enriching Data (Column Output)
+**Goal:** Instead of creating hundreds of text files, you want to add a "summary" column to your existing CSV.
+
+**The Input:**
+*   **Data:** `products.csv` (Columns: `id`, `description`)
+*   **Prompt:** `prompt.md` ("Summarize this description in 10 words: {{description}}")
+
+**Run this command:**
+```bash
+batchprompt generate \
+  products.csv \
+  prompt.md \
+  --output-column "summary" \
+  --data-output "products_with_summary.csv" \
+  --model google/gemini-3-pro-preview
+```
+
+**What happens here?**
+1.  **Generate**: The AI generates a summary for each row.
+2.  **Update**: It adds a new column named `summary` to the data.
+3.  **Save**: It saves the new CSV file to `products_with_summary.csv`.
+
+---
+
 ## 5. Command Flags Reference
 
 Here is an explanation of the flags used above.
@@ -333,14 +370,25 @@ Here is an explanation of the flags used above.
 | Flag / Argument | Example | Description |
 | :--- | :--- | :--- |
 | **Argument 1** | `data.csv` | **Required.** The path to your data file (CSV or JSON). The first row of a CSV must be headers (e.g., `id,name`). |
-| **Argument 2+** | `prompt.md` or `prompt_dir/` | **Optional.** One or more text files (or directories) containing your prompt templates. If a directory is provided, all files inside are combined. |
-| `-o` / `--output` | `out/{{id}}.txt` | **Required.** The output path template. You can use `{{variable}}` here to dynamically name folders or files based on CSV data. |
-| `-s` / `--system` | `system.md` or `sys_dir/` | The path to a system prompt file or directory (sets the AI behavior/persona). |
+| **Argument 2+** | `prompt.md` | **Optional.** One or more text files (or directories) containing your prompt templates. Directories can contain Text, Images, or Audio. |
+| `-o` / `--output` | `out/{{id}}.txt` | Template for saving results to individual files. |
+| `--output-column` | `summary` | Save the result into a specific column in the data file instead of separate files. |
+| `--data-output` | `data_new.csv` | Path to save the processed data file (used with `--output-column`). Defaults to `*_processed.csv`. |
+| `-s` / `--system` | `system.md` | The path to a system prompt file or directory (sets the AI behavior/persona). |
 | `-S` / `--schema` | `schema.json` | Path to a JSON Schema file. Enforces valid JSON output and enables auto-retry on validation failure. |
 | `--verify-command` | `"node {{file}}"` | A shell command to verify the output. Use `{{file}}` as a placeholder. Enables auto-retry on failure. |
-| `--system-prompt-N` | `sys_2.md` | Override the system prompt for a specific step (e.g., `--system-prompt-2` for the 2nd prompt file). |
-| `--json-schema-N` | `schema_2.json` | Override the JSON Schema for a specific step (e.g., `--json-schema-2` for the 2nd prompt file). |
-| `--verify-command-N` | `"test.sh"` | Override the verification command for a specific step. |
-| `-c` / `--concurrency` | `10` | How many items to process at once. Defaults to 10. Lower this if you hit Rate Limits. |
-| `-m` / `--model` | `google/gemini-3...` | Which AI model to use. **Note:** For images, you must use a unified text+image model (e.g., Gemini 3, Nano Banana). Standalone DALL-E is not supported. |
+| `-c` / `--concurrency` | `10` | How many items to process at once. Defaults to 20. Lower this if you hit Rate Limits. |
+| `-m` / `--model` | `google/gemini...` | Which AI model to use. **Note:** For images, you must use a unified text+image model. |
 | `--aspect-ratio` | `16:9` | Triggers **Text+Image mode**. Common values: `1:1`, `16:9`, `3:2`. |
+
+### Step-Specific Overrides
+If you provide multiple prompt files (steps), you can override settings for each step (N = 1, 2, 3...):
+
+| Flag | Description |
+| :--- | :--- |
+| `--system-prompt-N` | Override system prompt for step N. |
+| `--json-schema-N` | Override JSON Schema for step N. |
+| `--verify-command-N` | Override verification command for step N. |
+| `--output-N` | Override output file path for step N. |
+| `--output-column-N` | Override output column for step N. |
+| `--aspect-ratio-N` | Override aspect ratio for step N. |
