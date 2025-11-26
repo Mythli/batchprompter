@@ -137,6 +137,7 @@ interface ActionOptions {
     jsonSchema?: any;
     verifyCommand?: string;
     outputColumn?: string;
+    dataOutput?: string;
     stepOverrides?: Record<number, StepConfig>;
 }
 
@@ -360,8 +361,18 @@ async function processBatch(
 
     // Save updated data
     const ext = path.extname(dataFilePath);
-    const basename = path.basename(dataFilePath, ext);
-    const outputDataPath = path.join(path.dirname(dataFilePath), `${basename}_processed${ext}`);
+    const isColumnMode = !!options.outputColumn || 
+        (!!options.stepOverrides && Object.values(options.stepOverrides).some(s => !!s.outputColumn));
+
+    let outputDataPath: string;
+    if (options.dataOutput) {
+        outputDataPath = options.dataOutput;
+    } else if (isColumnMode) {
+        outputDataPath = dataFilePath;
+    } else {
+        const basename = path.basename(dataFilePath, ext);
+        outputDataPath = path.join(path.dirname(dataFilePath), `${basename}_processed${ext}`);
+    }
 
     if (ext === '.json') {
         await fsPromises.writeFile(outputDataPath, JSON.stringify(rows, null, 2));

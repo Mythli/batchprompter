@@ -14,6 +14,7 @@ const generateCmd = program.command('generate')
     .argument('[template-files...]', 'Path to the prompt template files (text, image, audio, or directory)')
     .option('-o, --output <path>', 'Template path for the output (e.g., "out/{{id}}/result.txt")')
     .option('--output-column <column>', 'Column name to write output to in the data file')
+    .option('--data-output <path>', 'Path to save the processed data file')
     .option('-c, --concurrency <number>', 'Number of concurrent requests', '20')
     .option('--aspect-ratio <ratio>', 'Aspect ratio for image generation (e.g., "3:2"). If provided, requests image generation.')
     .option('-m, --model <model>', 'Model to use for generation')
@@ -80,6 +81,7 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         schema: options.schema,
         verifyCommand: options.verifyCommand,
         outputColumn: options.outputColumn,
+        dataOutput: options.dataOutput,
         stepOverrides
     };
 
