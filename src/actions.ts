@@ -13,6 +13,7 @@ import Ajv from 'ajv';
 import OpenAI from 'openai';
 import { exec } from 'child_process';
 import util from 'util';
+import { Parser } from 'json2csv';
 
 const execPromise = util.promisify(exec);
 
@@ -123,6 +124,8 @@ interface StepConfig {
     jsonSchema?: any;
     verifyCommand?: string;
     aspectRatio?: string;
+    outputTemplate?: string;
+    outputColumn?: string;
 }
 
 interface ActionOptions {
@@ -133,6 +136,7 @@ interface ActionOptions {
     schema?: string;
     jsonSchema?: any;
     verifyCommand?: string;
+    outputColumn?: string;
     stepOverrides?: Record<number, StepConfig>;
 }
 
@@ -143,7 +147,8 @@ type RowHandler = (
     baseOutputPath: string,
     index: number,
     options: ActionOptions,
-    validators: Record<string, any>
+    validators: Record<string, any>,
+    row: Record<string, any>
 ) => Promise<void>;
 
 function getIndexedPath(basePath: string, stepIndex: number, totalSteps: number): string {
@@ -184,7 +189,7 @@ function renderPath(pathTemplate: string, context: any): string {
 async function processBatch(
     dataFilePath: string,
     templateFilePaths: string[],
-    outputTemplate: string,
+    outputTemplate: string | undefined,
     options: ActionOptions,
     handler: RowHandler
 ) {
@@ -226,8 +231,8 @@ async function processBatch(
         return validator;
     };
 
-    // Compile Output Template
-    const outputDelegate = Handlebars.compile(outputTemplate, { noEscape: true });
+    // Compile Output Template (Global)
+    const outputDelegate = outputTemplate ? Handlebars.compile(outputTemplate, { noEscape: true }) : null;
 
     // 3. Read Data (CSV or JSON)
     const rows = await loadData(dataFilePath);
@@ -329,17 +334,20 @@ async function processBatch(
                 }
 
                 // Interpolate Output Path (Sanitized)
-                const sanitizedRow: Record<string, string> = {};
-                for (const [key, val] of Object.entries(row)) {
-                    const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                    const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
-                    sanitizedRow[key] = sanitized.substring(0, 50);
+                let baseOutputPath: string = '';
+                if (outputDelegate) {
+                    const sanitizedRow: Record<string, string> = {};
+                    for (const [key, val] of Object.entries(row)) {
+                        const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                        const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
+                        sanitizedRow[key] = sanitized.substring(0, 50);
+                    }
+                    baseOutputPath = outputDelegate(sanitizedRow);
                 }
-                const baseOutputPath = outputDelegate(sanitizedRow);
 
                 console.log(`[Row ${index}] Processing...`);
 
-                await handler(ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators);
+                await handler(ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
 
             } catch (err) {
                 console.error(`[Row ${index}] Error:`, err);
@@ -349,9 +357,28 @@ async function processBatch(
 
     await Promise.all(tasks);
     console.log("All tasks completed.");
+
+    // Save updated data
+    const ext = path.extname(dataFilePath);
+    const basename = path.basename(dataFilePath, ext);
+    const outputDataPath = path.join(path.dirname(dataFilePath), `${basename}_processed${ext}`);
+
+    if (ext === '.json') {
+        await fsPromises.writeFile(outputDataPath, JSON.stringify(rows, null, 2));
+    } else {
+        // Assume CSV
+        try {
+            const parser = new Parser();
+            const csv = parser.parse(rows);
+            await fsPromises.writeFile(outputDataPath, csv);
+        } catch (e) {
+            console.error("Failed to write CSV output. Ensure json2csv is installed.", e);
+        }
+    }
+    console.log(`Updated data saved to ${outputDataPath}`);
 }
 
-const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, options, validators) => {
+const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, options, validators, row) => {
     // History of conversation (User + Assistant only)
     const persistentHistory: any[] = [];
 
@@ -359,10 +386,31 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
         const stepIndex = i + 1;
         const promptParts = userPrompts[i];
         
-        let currentOutputPath = getIndexedPath(baseOutputPath, stepIndex, userPrompts.length);
-
         // Determine Configuration for this step
         const stepOverride = options.stepOverrides?.[stepIndex];
+
+        // Determine Output Path
+        let currentOutputPath: string | null = null;
+
+        // 1. Check Step Override
+        if (stepOverride?.outputTemplate) {
+             const delegate = Handlebars.compile(stepOverride.outputTemplate, { noEscape: true });
+             // Sanitize row for path generation
+             const sanitizedRow: Record<string, string> = {};
+             for (const [key, val] of Object.entries(row)) {
+                 const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                 const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
+                 sanitizedRow[key] = sanitized.substring(0, 50);
+             }
+             currentOutputPath = delegate(sanitizedRow);
+        } 
+        // 2. Fallback to Global
+        else if (baseOutputPath) {
+            currentOutputPath = getIndexedPath(baseOutputPath, stepIndex, userPrompts.length);
+        }
+
+        // Determine Output Column
+        const currentOutputColumn = stepOverride?.outputColumn || options.outputColumn;
         
         // System Prompt
         let currentSystemPrompt: string | null = (renderedSystemPrompts.steps[stepIndex] as string | undefined) ?? null;
@@ -406,6 +454,8 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
 
         // --- Unified Generation & Validation Loop ---
         
+        let contentForColumn: string | null = null;
+
         if (currentSchemaObj || currentVerifyCommand) {
             // We use LlmReQuerier ONLY if we have validation requirements (Schema OR Verify Command)
             const querier = new LlmReQuerier(ask);
@@ -436,10 +486,13 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                         // 2. Verify Command Validation
                         if (currentVerifyCommand) {
                             // Write to temp file (or actual output path) to verify
-                            await ensureDir(currentOutputPath);
-                            await fsPromises.writeFile(currentOutputPath, contentToWrite);
+                            // If no output path is defined, we create a temp one
+                            const verifyPath = currentOutputPath || path.join(path.dirname(baseOutputPath || '.'), `temp_verify_${index}_${stepIndex}.txt`);
+                            
+                            await ensureDir(verifyPath);
+                            await fsPromises.writeFile(verifyPath, contentToWrite);
 
-                            const cmd = currentVerifyCommand.replace('{{file}}', currentOutputPath);
+                            const cmd = currentVerifyCommand.replace('{{file}}', verifyPath);
                             try {
                                 await execPromise(cmd);
                             } catch (error: any) {
@@ -452,6 +505,9 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                                     responseString
                                 );
                             }
+                            
+                            // If we used a temp path and didn't want to save it, we should probably clean up?
+                            // But for now, we leave it or let the OS handle it.
                         }
 
                         return { data, contentToWrite };
@@ -463,11 +519,14 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                     }
                 );
 
+                contentForColumn = result.contentToWrite;
+
                 // If we didn't write it during verification (or if verification wasn't run), write it now.
-                // Note: If verification ran, we already wrote it, but writing again ensures consistency.
-                await ensureDir(currentOutputPath);
-                await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
-                console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
+                if (currentOutputPath) {
+                    await ensureDir(currentOutputPath);
+                    await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
+                    console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
+                }
 
                 persistentHistory.push({ role: 'user', content: promptParts });
                 persistentHistory.push({ role: 'assistant', content: result.contentToWrite });
@@ -498,25 +557,32 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                 const images = message.images;
 
                 if (textContent) {
-                    await ensureDir(currentOutputPath);
-                    await fsPromises.writeFile(currentOutputPath, textContent);
-                    console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${currentOutputPath}`);
+                    contentForColumn = textContent;
+                    if (currentOutputPath) {
+                        await ensureDir(currentOutputPath);
+                        await fsPromises.writeFile(currentOutputPath, textContent);
+                        console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${currentOutputPath}`);
+                    }
                 }
 
                 if (images && images.length > 0) {
                     const imageUrl = images[0].image_url.url;
-                    let buffer: Buffer;
-                    if (imageUrl.startsWith('http')) {
-                        const imgRes = await fetch(imageUrl);
-                        const arrayBuffer = await imgRes.arrayBuffer();
-                        buffer = Buffer.from(arrayBuffer);
-                    } else {
-                        const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-                        buffer = Buffer.from(base64Data, 'base64');
+                    contentForColumn = imageUrl;
+                    
+                    if (currentOutputPath) {
+                        let buffer: Buffer;
+                        if (imageUrl.startsWith('http')) {
+                            const imgRes = await fetch(imageUrl);
+                            const arrayBuffer = await imgRes.arrayBuffer();
+                            buffer = Buffer.from(arrayBuffer);
+                        } else {
+                            const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+                            buffer = Buffer.from(base64Data, 'base64');
+                        }
+                        await ensureDir(currentOutputPath);
+                        await fsPromises.writeFile(currentOutputPath, buffer);
+                        console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
                     }
-                    await ensureDir(currentOutputPath);
-                    await fsPromises.writeFile(currentOutputPath, buffer);
-                    console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
                 }
 
                 persistentHistory.push({ role: 'user', content: promptParts });
@@ -527,13 +593,17 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                 throw error;
             }
         }
+
+        if (currentOutputColumn && contentForColumn) {
+            row[currentOutputColumn] = contentForColumn;
+        }
     }
 };
 
 export async function runAction(
     dataFilePath: string,
     templateFilePaths: string[],
-    outputTemplate: string,
+    outputTemplate: string | undefined,
     options: ActionOptions
 ) {
     try {
