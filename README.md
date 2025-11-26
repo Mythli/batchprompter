@@ -381,14 +381,17 @@ Here is an explanation of the flags used above.
 | `-m` / `--model` | `google/gemini...` | Which AI model to use. **Note:** For images, you must use a unified text+image model. |
 | `--aspect-ratio` | `16:9` | Triggers **Text+Image mode**. Common values: `1:1`, `16:9`, `3:2`. |
 
-### Step-Specific Overrides
-If you provide multiple prompt files (steps), you can override settings for each step (N = 1, 2, 3...):
+### Step-Specific Overrides (Flags ending in -N)
+When running a multi-step generation (by providing multiple prompt files), you can configure each step individually.
+BatchPrompt supports overrides for steps 1 through 10. Simply append the step number to the flag.
 
-| Flag | Description |
-| :--- | :--- |
-| `--system-prompt-N` | Override system prompt for step N. |
-| `--json-schema-N` | Override JSON Schema for step N. |
-| `--verify-command-N` | Override verification command for step N. |
-| `--output-N` | Override output file path for step N. |
-| `--output-column-N` | Override output column for step N. |
-| `--aspect-ratio-N` | Override aspect ratio for step N. |
+**Available flags (replace `N` with `1`, `2`, ... `10`):**
+
+| Flag Pattern | Example | Description |
+| :--- | :--- | :--- |
+| `--system-prompt-N` | `--system-prompt-2` | Override system prompt for step N. |
+| `--json-schema-N` | `--json-schema-2` | Override JSON Schema for step N. |
+| `--verify-command-N` | `--verify-command-2` | Override verification command for step N. |
+| `--output-N` | `--output-2` | Override output file path for step N. |
+| `--output-column-N` | `--output-column-2` | Override output column for step N. |
+| `--aspect-ratio-N` | `--aspect-ratio-2` | Override aspect ratio for step N. |
