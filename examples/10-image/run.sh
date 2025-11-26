@@ -1,6 +1,9 @@
 #!/bin/bash
-# Master script to run all 3 image generation tasks sequentially
+# Master script to run all image generation tasks sequentially
 # Assumes execution from project root
+
+echo "Running 0-prompt-gen..."
+./examples/10-image/run_0_prompt_gen.sh
 
 echo "Running 1-real..."
 ./examples/10-image/run_1_real.sh
