@@ -11,6 +11,7 @@ import { LlmReQuerier, LlmQuerierError } from './llmReQuerier.js';
 import Ajv from 'ajv';
 import { exec } from 'child_process';
 import util from 'util';
+import { Parser } from 'json2csv';
 const execPromise = util.promisify(exec);
 // Helper to ensure directory exists
 async function ensureDir(filePath) {
@@ -174,8 +175,8 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
         validatorCache.set(filePath, validator);
         return validator;
     };
-    // Compile Output Template
-    const outputDelegate = Handlebars.compile(outputTemplate, { noEscape: true });
+    // Compile Output Template (Global)
+    const outputDelegate = outputTemplate ? Handlebars.compile(outputTemplate, { noEscape: true }) : null;
     // 3. Read Data (CSV or JSON)
     const rows = await loadData(dataFilePath);
     console.log(`Found ${rows.length} rows to process.`);
@@ -260,15 +261,18 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
                     userPrompts = [[{ type: 'text', text: JSON.stringify(row, null, 2) }]];
                 }
                 // Interpolate Output Path (Sanitized)
-                const sanitizedRow = {};
-                for (const [key, val] of Object.entries(row)) {
-                    const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                    const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
-                    sanitizedRow[key] = sanitized.substring(0, 50);
+                let baseOutputPath = '';
+                if (outputDelegate) {
+                    const sanitizedRow = {};
+                    for (const [key, val] of Object.entries(row)) {
+                        const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                        const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
+                        sanitizedRow[key] = sanitized.substring(0, 50);
+                    }
+                    baseOutputPath = outputDelegate(sanitizedRow);
                 }
-                const baseOutputPath = outputDelegate(sanitizedRow);
                 console.log(`[Row ${index}] Processing...`);
-                await handler(ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators);
+                await handler(ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
             }
             catch (err) {
                 console.error(`[Row ${index}] Error:`, err);
@@ -277,16 +281,69 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
     });
     await Promise.all(tasks);
     console.log("All tasks completed.");
+    // Save updated data
+    const ext = path.extname(dataFilePath);
+    const isColumnMode = !!options.outputColumn ||
+        (!!options.stepOverrides && Object.values(options.stepOverrides).some(s => !!s.outputColumn));
+    let outputDataPath;
+    if (options.dataOutput) {
+        outputDataPath = options.dataOutput;
+    }
+    else if (isColumnMode) {
+        outputDataPath = dataFilePath;
+    }
+    else {
+        const basename = path.basename(dataFilePath, ext);
+        outputDataPath = path.join(path.dirname(dataFilePath), `${basename}_processed${ext}`);
+    }
+    if (ext === '.json') {
+        await fsPromises.writeFile(outputDataPath, JSON.stringify(rows, null, 2));
+    }
+    else {
+        // Assume CSV
+        try {
+            const parser = new Parser();
+            const csv = parser.parse(rows);
+            await fsPromises.writeFile(outputDataPath, csv);
+        }
+        catch (e) {
+            console.error("Failed to write CSV output. Ensure json2csv is installed.", e);
+        }
+    }
+    console.log(`Updated data saved to ${outputDataPath}`);
 }
-const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, options, validators) => {
+const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, options, validators, row) => {
     // History of conversation (User + Assistant only)
     const persistentHistory = [];
     for (let i = 0; i < userPrompts.length; i++) {
         const stepIndex = i + 1;
         const promptParts = userPrompts[i];
-        let currentOutputPath = getIndexedPath(baseOutputPath, stepIndex, userPrompts.length);
         // Determine Configuration for this step
         const stepOverride = options.stepOverrides?.[stepIndex];
+        // Determine Output Path
+        let currentOutputPath = null;
+        // 1. Check Step Override
+        if (stepOverride?.outputTemplate) {
+            const delegate = Handlebars.compile(stepOverride.outputTemplate, { noEscape: true });
+            // Sanitize row for path generation
+            const sanitizedRow = {};
+            for (const [key, val] of Object.entries(row)) {
+                const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
+                sanitizedRow[key] = sanitized.substring(0, 50);
+            }
+            currentOutputPath = delegate(sanitizedRow);
+        }
+        // 2. Fallback to Global
+        else if (baseOutputPath) {
+            currentOutputPath = getIndexedPath(baseOutputPath, stepIndex, userPrompts.length);
+        }
+        // Determine Output Column
+        let currentOutputColumn = stepOverride?.outputColumn || options.outputColumn;
+        if (currentOutputColumn) {
+            const delegate = Handlebars.compile(currentOutputColumn, { noEscape: true });
+            currentOutputColumn = delegate(row);
+        }
         // System Prompt
         let currentSystemPrompt = renderedSystemPrompts.steps[stepIndex] ?? null;
         if (currentSystemPrompt === null) {
@@ -301,6 +358,8 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
         }
         // Verify Command
         const currentVerifyCommand = stepOverride?.verifyCommand || options.verifyCommand;
+        // Aspect Ratio
+        const currentAspectRatio = stepOverride?.aspectRatio || options.aspectRatio;
         // Construct Messages for this API call
         const apiMessages = [];
         // 1. System Prompt (with Schema instruction if needed)
@@ -318,90 +377,81 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
         // 3. Current User Prompt
         apiMessages.push({ role: 'user', content: promptParts });
         // --- Unified Generation & Validation Loop ---
-        // We use LlmReQuerier if we have ANY validation requirements (Schema OR Verify Command)
-        // OR if we just want to use the standard retry mechanism for robustness.
-        const querier = new LlmReQuerier(ask);
-        try {
-            const result = await querier.query([...apiMessages], async (responseString, info) => {
-                let data = responseString;
-                let contentToWrite = responseString;
-                // 1. JSON Parsing & Schema Validation
-                if (currentSchemaObj) {
-                    try {
-                        data = JSON.parse(responseString);
-                        contentToWrite = JSON.stringify(data, null, 2); // Normalize formatting
+        let contentForColumn = null;
+        if (currentSchemaObj || currentVerifyCommand) {
+            // We use LlmReQuerier ONLY if we have validation requirements (Schema OR Verify Command)
+            const querier = new LlmReQuerier(ask);
+            try {
+                const result = await querier.query([...apiMessages], async (responseString, info) => {
+                    let data = responseString;
+                    let contentToWrite = responseString;
+                    // 1. JSON Parsing & Schema Validation
+                    if (currentSchemaObj) {
+                        try {
+                            data = JSON.parse(responseString);
+                            contentToWrite = JSON.stringify(data, null, 2); // Normalize formatting
+                        }
+                        catch (e) {
+                            throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
+                        }
+                        const valid = currentValidator(data);
+                        if (!valid) {
+                            const errors = currentValidator.errors?.map((e) => `${e.instancePath} ${e.message}`).join(', ');
+                            throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, responseString);
+                        }
                     }
-                    catch (e) {
-                        throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
+                    // 2. Verify Command Validation
+                    if (currentVerifyCommand) {
+                        // Write to temp file (or actual output path) to verify
+                        // If no output path is defined, we create a temp one
+                        const verifyPath = currentOutputPath || path.join(path.dirname(baseOutputPath || '.'), `temp_verify_${index}_${stepIndex}.txt`);
+                        await ensureDir(verifyPath);
+                        await fsPromises.writeFile(verifyPath, contentToWrite);
+                        const cmd = currentVerifyCommand.replace('{{file}}', verifyPath);
+                        try {
+                            await execPromise(cmd);
+                        }
+                        catch (error) {
+                            // Command failed (non-zero exit code)
+                            const stderr = error.stderr || error.stdout || error.message;
+                            throw new LlmQuerierError(`Verification command failed:\n${stderr}\n\nPlease fix the content based on this error.`, 'CUSTOM_ERROR', null, responseString);
+                        }
+                        // If we used a temp path and didn't want to save it, we should probably clean up?
+                        // But for now, we leave it or let the OS handle it.
                     }
-                    const valid = currentValidator(data);
-                    if (!valid) {
-                        const errors = currentValidator.errors?.map((e) => `${e.instancePath} ${e.message}`).join(', ');
-                        throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, responseString);
-                    }
-                }
-                // 2. Verify Command Validation
-                if (currentVerifyCommand) {
-                    // Write to temp file (or actual output path) to verify
+                    return { data, contentToWrite };
+                }, {
+                    model: options.model,
+                    response_format: currentSchemaObj ? { type: "json_object" } : undefined,
+                    // No modalities/image_config here because we are in validation mode (Text/JSON)
+                });
+                contentForColumn = result.contentToWrite;
+                // If we didn't write it during verification (or if verification wasn't run), write it now.
+                if (currentOutputPath) {
                     await ensureDir(currentOutputPath);
-                    await fsPromises.writeFile(currentOutputPath, contentToWrite);
-                    const cmd = currentVerifyCommand.replace('{{file}}', currentOutputPath);
-                    try {
-                        await execPromise(cmd);
-                    }
-                    catch (error) {
-                        // Command failed (non-zero exit code)
-                        const stderr = error.stderr || error.stdout || error.message;
-                        throw new LlmQuerierError(`Verification command failed:\n${stderr}\n\nPlease fix the content based on this error.`, 'CUSTOM_ERROR', null, responseString);
-                    }
+                    await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
+                    console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
                 }
-                return { data, contentToWrite };
-            }, {
-                model: options.model,
-                response_format: currentSchemaObj ? { type: "json_object" } : undefined,
-                // If aspect ratio is provided, we assume image generation is desired if no schema is present
-                modalities: (!currentSchemaObj && options.aspectRatio) ? ['image', 'text'] : undefined,
-                image_config: (!currentSchemaObj && options.aspectRatio) ? { aspect_ratio: options.aspectRatio } : undefined
-            });
-            // If we didn't write it during verification (or if verification wasn't run), write it now.
-            // Note: If verification ran, we already wrote it, but writing again ensures consistency.
-            // Special handling for Image Generation (which returns a different structure if not using JSON mode)
-            // However, LlmReQuerier currently assumes text response. 
-            // If we are in Image Mode (no schema, aspect ratio set), the responseString passed to callback is text.
-            // But `ask` returns a full object. LlmReQuerier extracts content.
-            // If the model returns images, content might be null or empty string in standard OpenAI response, 
-            // but our `ask` wrapper returns the full response object.
-            // Wait, LlmReQuerier extracts `completion.choices[0]?.message?.content`.
-            // If we are doing image generation, we need to handle that.
-            // Current LlmReQuerier logic:
-            // const llmResponseString = completion.choices[0]?.message?.content;
-            // If we are doing pure image generation (no text), content is null.
-            // LlmReQuerier throws "LLM returned no response content."
-            // FIX: If we are in image generation mode, we shouldn't use LlmReQuerier validation loop 
-            // UNLESS we want to validate the image (which is hard).
-            // For now, if aspect ratio is set AND no schema/verify command, we skip LlmReQuerier?
-            // But the user might want to verify the image file exists?
-            // Let's stick to the logic: If schema OR verify command is present, use LlmReQuerier.
-            // Otherwise, use standard flow (which handles images).
-            if (currentSchemaObj || currentVerifyCommand) {
-                // We are in Text/JSON mode
-                await ensureDir(currentOutputPath);
-                await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
-                console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
                 persistentHistory.push({ role: 'user', content: promptParts });
                 persistentHistory.push({ role: 'assistant', content: result.contentToWrite });
             }
-            else {
-                // Standard Mode (Text or Image without verification)
-                // We fall back to the original logic for Images/Simple Text to avoid breaking Image Gen
+            catch (error) {
+                console.error(`[Row ${index}] Step ${stepIndex} Failed after retries:`, error);
+                throw error;
+            }
+        }
+        else {
+            // Standard Mode (Text or Image without verification)
+            // We use ask() directly to support Images and simple Text without validation loops.
+            try {
                 const askOptions = {
                     messages: [...apiMessages]
                 };
                 if (options.model)
                     askOptions.model = options.model;
-                if (options.aspectRatio) {
+                if (currentAspectRatio) {
                     askOptions.modalities = ['image', 'text'];
-                    askOptions.image_config = { aspect_ratio: options.aspectRatio };
+                    askOptions.image_config = { aspect_ratio: currentAspectRatio };
                 }
                 const response = await ask(askOptions);
                 const parsed = responseSchema.parse(response);
@@ -409,25 +459,31 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
                 const textContent = message.content;
                 const images = message.images;
                 if (textContent) {
-                    await ensureDir(currentOutputPath);
-                    await fsPromises.writeFile(currentOutputPath, textContent);
-                    console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${currentOutputPath}`);
+                    contentForColumn = textContent;
+                    if (currentOutputPath) {
+                        await ensureDir(currentOutputPath);
+                        await fsPromises.writeFile(currentOutputPath, textContent);
+                        console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${currentOutputPath}`);
+                    }
                 }
                 if (images && images.length > 0) {
                     const imageUrl = images[0].image_url.url;
-                    let buffer;
-                    if (imageUrl.startsWith('http')) {
-                        const imgRes = await fetch(imageUrl);
-                        const arrayBuffer = await imgRes.arrayBuffer();
-                        buffer = Buffer.from(arrayBuffer);
+                    contentForColumn = imageUrl;
+                    if (currentOutputPath) {
+                        let buffer;
+                        if (imageUrl.startsWith('http')) {
+                            const imgRes = await fetch(imageUrl);
+                            const arrayBuffer = await imgRes.arrayBuffer();
+                            buffer = Buffer.from(arrayBuffer);
+                        }
+                        else {
+                            const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+                            buffer = Buffer.from(base64Data, 'base64');
+                        }
+                        await ensureDir(currentOutputPath);
+                        await fsPromises.writeFile(currentOutputPath, buffer);
+                        console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
                     }
-                    else {
-                        const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-                        buffer = Buffer.from(base64Data, 'base64');
-                    }
-                    await ensureDir(currentOutputPath);
-                    await fsPromises.writeFile(currentOutputPath, buffer);
-                    console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
                 }
                 persistentHistory.push({ role: 'user', content: promptParts });
                 if (textContent)
@@ -435,10 +491,13 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
                 else if (images && images.length > 0)
                     persistentHistory.push({ role: 'assistant', content: "Image generated." });
             }
+            catch (error) {
+                console.error(`[Row ${index}] Step ${stepIndex} Failed:`, error);
+                throw error;
+            }
         }
-        catch (error) {
-            console.error(`[Row ${index}] Step ${stepIndex} Failed after retries:`, error);
-            throw error;
+        if (currentOutputColumn && contentForColumn) {
+            row[currentOutputColumn] = contentForColumn;
         }
     }
 };

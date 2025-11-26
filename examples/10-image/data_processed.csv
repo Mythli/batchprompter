@@ -1,0 +1,120 @@
+"id","industry","color","software_prompt","real_scene_prompt"
+"1","Alpaka Wanderungen","#9C6ADE","""Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro hält. Der Fokus liegt gestochen scharf auf dem Display.
+
+Hintergrund (Atmosphäre):
+Ein unscharfer, aber erkennbarer Hintergrund (Bokeh), der eine authentische Umgebung für Alpaka Wanderungen zeigt: eine sonnendurchflutete, grüne Weide mit einem rustikalen Holzzaun, dahinter schemenhaft zwei flauschige Alpakas in natürlichen Farben (Weiß und Braun), die entspannt grasen. Natürliches Licht.
+
+Das UI-Design auf dem Display (Muss exakt generiert werden):
+Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
+1. **Header:** Oben links Logo 'Butlerapp' (Text dunkelblau + buntes Unendlich-Icon). Oben rechts Hamburger-Menü (=).
+2. **Status:** Ein dunkelblauer Kreis mit der '1', daneben Text 'Veranstaltung auswählen'.
+3. **Headline:** Groß und fett in der Mitte: 'Alpaka Wanderung ""Sunset"" 49,00 €'.
+4. **Sub-Infos:** Klein darunter: 'Ort: Weideglück Hof' und 'Zeit: 18:00 Uhr'.
+5. **Buchungsmaske (3 Felder):**
+   - Feld 1 (Datum): Label 'Veranstaltung*', Inhalt 'Samstag, 24. Aug 2024'. Pfeil nach unten Icon.
+   - Feld 2 (Menge): Label 'Teilnehmer*', Inhalt '1 Person'. Pfeil nach unten Icon.
+   - Feld 3 (Preis): Label 'Wert*', Inhalt '49,00 € Standardpreis'. Pfeil nach unten Icon.
+6. **Footer:** Unten fixiert: Links '← Zurück', Rechts Button 'Weiter →'.
+
+Stil:
+High-End Produktfotografie, 8k, perfekt lesbarer Text auf dem Screen, absolut fotorealistisch.""","""Ein authentisches Foto aus dem echten Leben (Shutterstock-Stil). Es zeigt eine ca. 35-jährige Frau deutscher Herkunft (helle Haut, dunkelblondes, windzerzaustes Haar) während einer Alpaka-Wanderung. Sie trägt funktionale, wetterfeste Outdoor-Kleidung (eine dunkelgrüne Fleecejacke und Wanderhose) und führt ein hellbraunes, flauschiges Alpaka an einem Halfter. Die Frau bemerkt die Kamera nicht; ihr Blick ist ruhig und introspektiv auf den Weg oder das Tier gerichtet, was einen Moment der stillen Zufriedenheit und Achtsamkeit einfängt. Ihr Gesicht ist komplett ungeschminkt, jede Pore, Hautunebenheit und feine Linie ist sichtbar und natürlich.
+Hintergrund: Ein unscharfer Waldweg in einer deutschen Mittelgebirgslandschaft, herbstliches Laub, Farne und weiches Moos.
+Lichtstimmung: Natürliches Licht, diffuses Tageslicht, das sanft durch die Baumkronen fällt und reale Schatten wirft, ohne künstliche Aufhellung.
+Technische Details: Canon EOS 5D Mark IV, 50mm f/1.8, hoher Detailgrad, unretuschierte Hauttextur, keine Filter. --no makeup, filter, airbrushing, photoshop, artificial effects, animation, illustration, text --ar 1:1 --style raw"""
+"2","Backschulen","#F4A936","""Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro hält. Der Fokus liegt gestochen scharf auf dem Display.
+
+Hintergrund (Atmosphäre):
+Ein unscharfer, aber erkennbarer Hintergrund (Bokeh), der eine authentische Umgebung für Backschulen zeigt: Eine rustikale Holzwerkbank, leicht mit Mehl bestäubt, im Hintergrund unscharf eine Küchenmaschine, Gärkörbchen und warme Bäckerei-Beleuchtung. Natürliches Licht.
+
+Das UI-Design auf dem Display (Muss exakt generiert werden):
+Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
+1. **Header:** Oben links Logo 'Butlerapp' (Text dunkelblau + buntes Unendlich-Icon). Oben rechts Hamburger-Menü (=).
+2. **Status:** Ein dunkelblauer Kreis mit der '1', daneben Text 'Veranstaltung auswählen'.
+3. **Headline:** Groß und fett in der Mitte: 'Sauerteig Meisterkurs 119,00 €'.
+4. **Sub-Infos:** Klein darunter: 'Ort: Hamburg' und 'Zeit: 10:00 - 16:00 Uhr'.
+5. **Buchungsmaske (3 Felder):**
+   - Feld 1 (Datum): Label 'Veranstaltung*', Inhalt 'Samstag, 12. Okt'. Pfeil nach unten Icon.
+   - Feld 2 (Menge): Label 'Teilnehmer*', Inhalt '1 Person'. Pfeil nach unten Icon.
+   - Feld 3 (Preis): Label 'Wert*', Inhalt '119,00 € Standardpreis'. Pfeil nach unten Icon.
+6. **Footer:** Unten fixiert: Links '← Zurück', Rechts Button 'Weiter →'.
+
+Stil:
+High-End Produktfotografie, 8k, perfekt lesbarer Text auf dem Screen, absolut fotorealistisch.""","""Ein authentisches Foto aus dem echten Leben (Shutterstock-Stil). Es zeigt eine Kursteilnehmerin (deutsche Ethnie, helle Hautfarbe, ca. 40 Jahre alt) mitten in einem Backkurs, die vollkommen in ihre handwerkliche Tätigkeit vertieft ist. Sie knetet mit beiden Händen kraftvoll und konzentriert einen rustikalen Brotteig auf einer bemehlten Holzarbeitsfläche. Sie trägt eine einfache, leicht mit Mehl bestäubte Schürze über normaler Kleidung. Ihr Blick ist gesenkt und auf den Teig gerichtet, sie bemerkt die Kamera nicht. Ihr Gesichtsausdruck strahlt tiefe innere Ruhe und handwerkliche Konzentration aus, kein künstliches Lächeln, sondern stille Zufriedenheit. Hautporen, feine Strähnen ihres zurückgebundenen hellbraunen Haares und die Textur des klebrigen Teigs an ihren Fingern sind gestochen scharf sichtbar.
+
+Hintergrund: Eine professionell ausgestattete Backschule mit unscharfen Edelstahlöfen, Gärkörbchen in Regalen und anderen Kursteilnehmern im Bokeh-Hintergrund, die ebenfalls beschäftigt sind.
+
+Lichtstimmung: Natürliches, weiches Seitenlicht, das durch ein Fenster fällt und feinen Mehlstaub in der Luft sichtbar macht, atmosphärisch und warm.
+
+Technische Details: Canon EOS 5D Mark IV, 50mm f/1.8, hoher Detailgrad, unretuschierte Hauttextur, keine Filter. --no makeup, filter, airbrushing, photoshop, artificial effects, animation, illustration, text --ar 1:1 --style raw"""
+"3","Barista Kurse","#985428","""Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro hält. Der Fokus liegt gestochen scharf auf dem Display.
+
+Hintergrund (Atmosphäre):
+Ein unscharfer, aber erkennbarer Hintergrund (Bokeh), der eine authentische Umgebung für Barista Kurse zeigt: Eine glänzende, professionelle Siebträgermaschine aus Chrom, aufsteigender Dampf und verstreute Kaffeebohnen auf einer rustikalen Holztheke in einer modernen Rösterei. Natürliches, warmes Licht.
+
+Das UI-Design auf dem Display (Muss exakt generiert werden):
+Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
+1. **Header:** Oben links Logo 'Butlerapp' (Text dunkelblau + buntes Unendlich-Icon). Oben rechts Hamburger-Menü (=).
+2. **Status:** Ein dunkelblauer Kreis mit der '1', daneben Text 'Veranstaltung auswählen'.
+3. **Headline:** Groß und fett in der Mitte: 'Latte Art Masterclass 129,00 €'.
+4. **Sub-Infos:** Klein darunter: 'Ort: Kaffeemanufaktur Berlin' und 'Zeit: 10:00 - 14:00'.
+5. **Buchungsmaske (3 Felder):**
+   - Feld 1 (Datum): Label 'Veranstaltung*', Inhalt 'Sa, 26. Okt 2024'. Pfeil nach unten Icon.
+   - Feld 2 (Menge): Label 'Teilnehmer*', Inhalt '1 Person'. Pfeil nach unten Icon.
+   - Feld 3 (Preis): Label 'Wert*', Inhalt '129,00 € Standardpreis'. Pfeil nach unten Icon.
+6. **Footer:** Unten fixiert: Links '← Zurück', Rechts Button 'Weiter →'.
+
+Stil:
+High-End Produktfotografie, 8k, perfekt lesbarer Text auf dem Screen, absolut fotorealistisch.""","""Ein authentisches Foto aus dem echten Leben (Shutterstock-Stil). Es zeigt eine Kursteilnehmerin (weiblich, ca. 28 Jahre alt, weiße Hautfarbe, typisch deutsche Ethnie) während eines professionellen Barista-Workshops. Sie trägt eine robuste, leicht mit Kaffeepulver bestäubte Schürze über einem schlichten Pullover und ist vollkommen in den Moment vertieft. Sie hält ein Milchkännchen aus Edelstahl und gießt mit höchster Präzision und ruhiger Hand Milchschaum in eine dickwandige Cappuccino-Tasse, um Latte Art zu üben. Ihr Gesichtsausdruck ist ernsthaft, introspektiv und ruhig konzentriert, ohne Lächeln, den Blick starr auf die Tasse gerichtet. Neben ihr steht unscharf ein männlicher Kursleiter (weiße Hautfarbe, deutsche Ethnie), der den Vorgang still beobachtet.
+
+Hintergrund: Ein authentisches Café-Setting oder Schulungsraum mit einer professionellen Siebträgermaschine aus Chrom im Bokeh, Holzregale mit Kaffeebohnentüten, eine leicht unordentliche Arbeitsfläche mit gemahlenem Kaffee und Tüchern, was die Realität des Lernprozesses unterstreicht.
+
+Lichtstimmung: Natürliches Licht, das weich durch ein großes Fenster von der Seite einfällt und die Textur des aufsteigenden Dampfes sowie die Hautstruktur der Frau betont, sanfte Schattenwürfe für Tiefe.
+
+Technische Details: Canon EOS 5D Mark IV, 50mm f/1.8, hoher Detailgrad, unretuschierte Hauttextur, sichtbare Poren, feine Härchen und natürliche Hautunreinheiten, keine Filter. --no makeup, filter, airbrushing, photoshop, artificial effects, animation, illustration, text --ar 1:1 --style raw"""
+"4","Bierbraukurse","#F77F32","""Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro hält. Der Fokus liegt gestochen scharf auf dem Display.
+
+Hintergrund (Atmosphäre):
+Ein unscharfer, aber erkennbarer Hintergrund (Bokeh), der eine authentische Umgebung für Bierbraukurse zeigt: Ein rustikaler Brauerei-Innenraum mit glänzenden, kupfernen Sudkesseln, großen Edelstahltanks und warmem, goldenen Licht, das sich im Metall spiegelt. Natürliches Licht.
+
+Das UI-Design auf dem Display (Muss exakt generiert werden):
+Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
+1. **Header:** Oben links Logo 'Butlerapp' (Text dunkelblau + buntes Unendlich-Icon). Oben rechts Hamburger-Menü (=).
+2. **Status:** Ein dunkelblauer Kreis mit der '1', daneben Text 'Veranstaltung auswählen'.
+3. **Headline:** Groß und fett in der Mitte: 'Craft Beer Braukurs 99,00 €'.
+4. **Sub-Infos:** Klein darunter: 'Ort: Hops Brauerei München' und 'Zeit: 10:00 Uhr'.
+5. **Buchungsmaske (3 Felder):**
+   - Feld 1 (Datum): Label 'Veranstaltung*', Inhalt 'Sa, 24. Okt 2024'. Pfeil nach unten Icon.
+   - Feld 2 (Menge): Label 'Teilnehmer*', Inhalt '1 Person'. Pfeil nach unten Icon.
+   - Feld 3 (Preis): Label 'Wert*', Inhalt '99,00 € Standardticket'. Pfeil nach unten Icon.
+6. **Footer:** Unten fixiert: Links '← Zurück', Rechts Button 'Weiter →'.
+
+Stil:
+High-End Produktfotografie, 8k, perfekt lesbarer Text auf dem Screen, absolut fotorealistisch.""","""Ein authentisches Foto aus dem echten Leben (Shutterstock-Stil). Es zeigt einen deutschen Mann mittleren Alters (ca. 45 Jahre, weiße Hautfarbe, typisch mitteleuropäisches Aussehen) als Teilnehmer eines Bierbraukurses. Er steht leicht vornübergebeugt an einem offenen Edelstahl-Braukessel und riecht prüfend und voll konzentrierter Hingabe am aufsteigenden Dampf der Maische. Er trägt ein einfaches, kariertes Hemd und eine robuste, dunkelblaue Latzschürze, die leichte Gebrauchsspuren aufweist. Sein Gesichtsausdruck ist ruhig, tiefenentspannt und introspektiv, ein Moment stiller Zufriedenheit und Fokus auf das Handwerk. Man sieht deutlich die natürliche Hauttextur, Bartstoppeln, Poren und feine Linien um die Augen; er wirkt ungeschminkt und völlig natürlich. Die Hände halten fachmännisch einen hölzernen Braulöffel.
+
+Hintergrund: Eine authentische, etwas unscharfe Mikrobrauerei-Umgebung mit Kupfkesseln, Säcken voller Malz im Regal und einer rustikalen Ziegelwand.
+
+Lichtstimmung: Natürliches Licht, das weich durch ein seitliches Industriefenster fällt, den Dampf der Maische atmosphärisch beleuchtet und authentische Schatten im Gesicht erzeugt.
+
+Technische Details: Canon EOS 5D Mark IV, 50mm f/1.8, hoher Detailgrad, unretuschierte Hauttextur, keine Filter. --no makeup, filter, airbrushing, photoshop, artificial effects, animation, illustration, text --ar 1:1 --style raw"""
+"5","Boulderhallen","#EE5354","""Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro hält. Der Fokus liegt gestochen scharf auf dem Display.
+
+Hintergrund (Atmosphäre):
+Ein unscharfer, aber erkennbarer Hintergrund (Bokeh), der eine authentische Umgebung für Boulderhallen zeigt: Bunte, griffige Kletterelemente an einer texturierten Wand, weiche Fallschutzmatten am Boden, dynamisches Hallenlicht mit leichtem Chalk-Staub in der Luft. Natürliches Licht.
+
+Das UI-Design auf dem Display (Muss exakt generiert werden):
+Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
+1. **Header:** Oben links Logo 'Butlerapp' (Text dunkelblau + buntes Unendlich-Icon). Oben rechts Hamburger-Menü (=).
+2. **Status:** Ein dunkelblauer Kreis mit der '1', daneben Text 'Veranstaltung auswählen'.
+3. **Headline:** Groß und fett in der Mitte: 'Einsteigerkurs Bouldern 29,00 €'.
+4. **Sub-Infos:** Klein darunter: 'Ort: Berlin' und 'Zeit: 10:00 Uhr'.
+5. **Buchungsmaske (3 Felder):**
+   - Feld 1 (Datum): Label 'Veranstaltung*', Inhalt 'Sa, 14. Okt'. Pfeil nach unten Icon.
+   - Feld 2 (Menge): Label 'Teilnehmer*', Inhalt '1 Person'. Pfeil nach unten Icon.
+   - Feld 3 (Preis): Label 'Wert*', Inhalt '29,00 € Standardpreis'. Pfeil nach unten Icon.
+6. **Footer:** Unten fixiert: Links '← Zurück', Rechts Button 'Weiter →'.
+
+Stil:
+High-End Produktfotografie, 8k, perfekt lesbarer Text auf dem Screen, absolut fotorealistisch.""","""Ein authentisches Foto aus dem echten Leben (Shutterstock-Stil). Es zeigt einen Mann (ca. 30 Jahre alt, weiße Hautfarbe, typisch deutsches Aussehen) in einer Boulderhalle, der einen Moment der Ruhe vor dem Klettern erlebt. Er steht leicht seitlich zur Kamera und greift gerade in seinen Chalkbag am Rücken, wobei feiner weißer Magnesiumstaub in der Luft sichtbar ist. Sein Gesichtsausdruck ist introspektiv, ruhig und zeigt tiefe innere Konzentration, während er die Route an der Wand studiert. Er trägt ein einfaches, leicht verschwitztes T-Shirt mit Kreidespuren und funktionale Kletterhosen. Die Hauttextur ist hyper-realistisch: sichtbare Poren, feine Linien, echte Bartstoppeln und natürlicher Glanz ohne Make-up. Die Szene wirkt absolut ungestellt, wie eine zufällige Beobachtung.
+Hintergrund: Eine texturierte Holzwand einer modernen Boulderhalle mit bunten, unscharfen Klettergriffen und Volumen, typische Hallenatmosphäre.
+Lichtstimmung: Natürliches Licht, das weich durch große Industriefenster fällt, authentische Schatten, keine künstliche Ausleuchtung.
+Technische Details: Canon EOS 5D Mark IV, 50mm f/1.8, hoher Detailgrad, unretuschierte Hauttextur, keine Filter. --no makeup, filter, airbrushing, photoshop, artificial effects, animation, illustration, text --ar 1:1 --style raw"""
