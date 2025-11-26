@@ -6,9 +6,9 @@
 # 3. Generating text output for each row in the CSV
 
 npx tsx src/index.ts generate \
-  examples/text/data.csv \
-  examples/text/prompt1.md \
-  examples/text/prompt2.md \
-  -o out/text/{{id}}/result.txt \
-  --system examples/text/system.md \
+  examples/1-text/data.csv \
+  examples/1-text/prompt1.md \
+  examples/1-text/prompt2.md \
+  -o out/1-text/{{id}}/result.txt \
+  --system examples/1-text/system.md \
   --model google/gemini-3-pro-preview

@@ -6,8 +6,8 @@
 # 3. Generating text output based on CSV data
 
 npx tsx src/index.ts generate \
-  examples/directory-prompt/data.csv \
-  examples/directory-prompt/prompt \
-  -o out/directory-prompt/{{id}}/result.txt \
-  --system examples/directory-prompt/system \
+  examples/3-directory-prompt/data.csv \
+  examples/3-directory-prompt/prompt \
+  -o out/3-directory-prompt/{{id}}/result.txt \
+  --system examples/3-directory-prompt/system \
   --model google/gemini-3-pro-preview
