@@ -1,5 +1,7 @@
 #!/bin/bash
 
+TARGET_COLOR="#4A4A4A"
+
 for i in {1..3}
 do
   # Create a temporary seed file to ensure the prompt is unique for each attempt,
@@ -9,7 +11,8 @@ do
   npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/prompt-4-industry-icon \
     --output "out/10-image/{{industry}}/01_MenuBarIcon-$i.png" \
     --aspect-ratio "1:1" \
-    --model "google/gemini-3-pro-image-preview"
+    --model "google/gemini-3-pro-image-preview" \
+    --command "magick '{{file}}' -fuzz 90% -transparent white -fill '$TARGET_COLOR' -colorize 100% '{{file}}' && pngquant 2 --nofs --force --output '{{file}}' '{{file}}'"
 done
 
 rm examples/10-image/prompt-4-industry-icon/seed.txt
