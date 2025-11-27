@@ -312,7 +312,6 @@ class BookingFormDrawer {
     getSvg(): string {
         return `
         <svg width="${this.width}" height="${this.height}" viewBox="0 0 ${this.width} ${this.height}" xmlns="http://www.w3.org/2000/svg">
-            <rect width="100%" height="100%" fill="white" />
             ${this.elements.join('\n')}
         </svg>
         `;
