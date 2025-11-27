@@ -160,12 +160,14 @@ class BookingFormDrawer {
     private height: number;
     private elements: string[] = [];
     private scale: number;
+    private logoData?: { base64: string, width: number, height: number };
 
-    constructor(width: number, height: number) {
+    constructor(width: number, height: number, logoData?: { base64: string, width: number, height: number }) {
         this.width = width;
         this.height = height;
         // Base scale on a reference width of ~375px (typical mobile width)
         this.scale = width / 375;
+        this.logoData = logoData;
     }
 
     // Helper to scale values
@@ -175,16 +177,17 @@ class BookingFormDrawer {
 
     drawHeader() {
         const y = this.s(30);
-        const iconSize = this.s(24);
         
-        // Logo Icon (Simplified abstract shape: Orange/Teal bowtie/infinity)
-        // Orange part (Left triangle-ish)
-        this.elements.push(`<path d="M${this.s(20)} ${y} L${this.s(20)} ${y+iconSize} L${this.s(35)} ${y+iconSize/2} Z" fill="none" stroke="#FF6B6B" stroke-width="${this.s(4)}" stroke-linejoin="round" stroke-linecap="round"/>`);
-        // Teal part (Right triangle-ish)
-        this.elements.push(`<path d="M${this.s(45)} ${y} L${this.s(45)} ${y+iconSize} L${this.s(30)} ${y+iconSize/2} Z" fill="none" stroke="#4ECDC4" stroke-width="${this.s(4)}" stroke-linejoin="round" stroke-linecap="round"/>`);
-
-        // Logo Text
-        this.elements.push(`<text x="${this.s(55)}" y="${y + this.s(19)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22)}" fill="#333">Butlerapp</text>`);
+        if (this.logoData) {
+            const targetHeight = this.s(28);
+            const aspectRatio = this.logoData.width / this.logoData.height;
+            const targetWidth = targetHeight * aspectRatio;
+            
+            this.elements.push(`<image href="${this.logoData.base64}" x="${this.s(20)}" y="${y}" width="${targetWidth}" height="${targetHeight}" />`);
+        } else {
+            // Fallback text if logo not loaded
+            this.elements.push(`<text x="${this.s(20)}" y="${y + this.s(19)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22)}" fill="#333">Butlerapp</text>`);
+        }
 
         // Hamburger Menu
         const menuX = this.width - this.s(40);
@@ -268,23 +271,10 @@ class BookingFormDrawer {
         this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(14)}" fill="#8E8E93">← Zurück</text>`);
 
         // Next
-        this.elements.push(`<text x="${xRight}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${this.s(14)}" fill="#000">Weiter →</text>`);
-        
-        // Arrow circle for next? The image shows text "Weiter ->" with a circle arrow icon maybe? 
-        // The image shows "Weiter (arrow-in-circle)". Let's approximate with just text and arrow for now as per prompt "draws the seen booking form".
-        // Actually, looking closely at the crop, it's "Weiter (arrow-right-circle-icon)".
-        const arrowIconSize = this.s(14);
-        const arrowX = xRight + this.s(5); // Adjust if needed, but text-anchor end handles text.
-        // Let's just append a circle icon after the text.
-        // Since text is end-anchored, we need to shift it left to make room for icon, or draw icon at xRight and text before it.
-        
         // Redoing "Weiter" to include icon
         const iconR = this.s(8);
         const iconCx = xRight - iconR;
         const iconCy = y - this.s(4);
-        
-        // Remove previous text
-        this.elements.pop();
         
         // Draw text
         this.elements.push(`<text x="${iconCx - iconR - this.s(5)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${this.s(14)}" fill="#000">Weiter</text>`);
@@ -319,7 +309,25 @@ class BookingFormDrawer {
 }
 
 async function drawBookingForm(inputPath: string, outputPath: string, rect: Rectangle) {
-    const drawer = new BookingFormDrawer(rect.width, rect.height);
+    // Load logo
+    let logoData;
+    try {
+        const logoPath = 'test/logo.png';
+        const logoImage = sharp(logoPath);
+        const metadata = await logoImage.metadata();
+        const buffer = await logoImage.toBuffer();
+        if (metadata.width && metadata.height) {
+            logoData = {
+                base64: `data:image/png;base64,${buffer.toString('base64')}`,
+                width: metadata.width,
+                height: metadata.height
+            };
+        }
+    } catch (error) {
+        console.warn("Failed to load logo image:", error);
+    }
+
+    const drawer = new BookingFormDrawer(rect.width, rect.height, logoData);
     drawer.render();
     const svgContent = drawer.getSvg();
 
