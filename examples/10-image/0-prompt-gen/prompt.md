@@ -8,7 +8,7 @@ Du weißt, dass Butlerapp ein mächtiges Buchungssystem ist für:
 4. **Features:** Es bietet 24/7 Online-Buchung, Wartelisten, Gutscheine, Ratenzahlung und automatische Rechnungen.
 
 DEINE AUFGABE:
-Erstelle einen **hochspezifischen, deutschen Bild-Prompt** für DALL-E 3, der ein iPhone zeigt, auf dem genau diese Software läuft, für die Branche: {{industry}}.
+Erstelle einen **hochspezifischen, deutschen Bild-Prompt** der ein iPhone zeigt, auf dem genau diese Software läuft, für die Branche: {{industry}}.
 
 LOGIK ZUR ERSTELLUNG DES INHALTS:
 1. **Analysiere das Angebot:** Entscheide, ob es ein *Ticket* (Escape Room), ein *Kurs* (Erste Hilfe), eine *Dienstleistung* (Coaching) oder ein *Event* (Alpaka) ist.
