@@ -19,7 +19,7 @@ LOGIK ZUR ERSTELLUNG DES INHALTS:
    - [DATUM]: Ein realistisches Datum **Ende 2025**.
    - [ORT]: Eine typische deutsche Stadt oder Region.
    - [TYP_LABEL]: Wähle den passenden Begriff für das Angebot (z.B. "Kurs", "Seminar", "Veranstaltung", "Termin", "Ticket").
-4. **Visualisiere den Background:** Der Hintergrund zeigt eine typische Arbeitsfläche passend zur Branche, aber sehr aufgeräumt. **WICHTIG:** Du musst im Prompt explizit zwei Dinge definieren: 1. Was ist zu sehen (Materialien, Oberflächen)? 2. Was ist NICHT zu sehen (Keine Menschen, keine Maschinen, keine komplexen Gegenstände). Der Hintergrund darf nur leicht unscharf sein (Soft Focus), damit man die Umgebung noch erahnt.
+4. **Visualisiere den Background:** Der Hintergrund zeigt eine typische Arbeitsfläche passend zur Branche, aber sehr aufgeräumt. **WICHTIG:** Du musst im Prompt explizit zwei Dinge definieren: 1. Was ist zu sehen (Materialien, Oberflächen)? 2. Was ist NICHT zu sehen (Denke dir spezifische Dinge aus, die zur Branche passen und NICHT im Bild sein sollen). Der Hintergrund darf nur leicht unscharf sein (Soft Focus), damit man die Umgebung noch erahnt.
 
 OUTPUT-STRUKTUR (Halte dich exakt an diese Vorlage. GIB NUR DEN PROMPT ZURÜCK. KEINE EINLEITUNG, KEIN "HIER IST DER PROMPT"):
 
@@ -28,7 +28,7 @@ OUTPUT-STRUKTUR (Halte dich exakt an diese Vorlage. GIB NUR DEN PROMPT ZURÜCK. 
 Hintergrund (Atmosphäre):
 [BESCHREIBE HIER DEN HINTERGRUND: Eine typische Arbeitsfläche für {{industry}}.
 1. WAS IST ZU SEHEN: Beschreibe Materialien (z.B. Holz, Edelstahl, Stein) und Lichtstimmung. Nutze "Soft Focus" (leicht unscharf), nicht extrem verschwommen.
-2. WAS IST NICHT ZU SEHEN: Schreibe explizit: "Es sind KEINE Menschen, KEINE Maschinen und KEINE komplexen Gegenstände zu sehen." Der Fokus liegt auf Ruhe und Ordnung.]
+2. WAS IST NICHT ZU SEHEN: Denke dir passend zur Branche {{industry}} spezifische Dinge aus, die NICHT zu sehen sind. Schreibe explizit: "Es sind KEINE Menschen, KEINE [spezifisches Objekt] und KEINE [anderes Objekt] zu sehen." Der Fokus liegt auf Ruhe und Ordnung.]
 
 Das UI-Design auf dem Display (Muss exakt generiert werden):
 **WICHTIG: Das Bild der Buchungsseite auf dem Telefon muss zu 100% vom beigefügten Referenzbild übernommen werden.**
