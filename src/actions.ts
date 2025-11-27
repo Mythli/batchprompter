@@ -476,36 +476,84 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
             const querier = new LlmReQuerier(ask);
 
             try {
+                const queryOptions: any = {
+                    model: options.model,
+                    response_format: currentSchemaObj ? { type: "json_object" } : undefined,
+                };
+
+                // Pass image options if needed
+                if (currentAspectRatio) {
+                    queryOptions.modalities = ['image', 'text'];
+                    queryOptions.image_config = { aspect_ratio: currentAspectRatio };
+                }
+
                 const result = await querier.query(
                     [...apiMessages],
-                    async (responseString, info) => {
-                        let data: any = responseString;
-                        let contentToWrite = responseString;
+                    async (message: any, info) => {
+                        let data: any = message.content;
+                        let contentToWrite = message.content;
+                        const images = message.images;
 
-                        // 1. JSON Parsing & Schema Validation
+                        // 1. JSON Parsing & Schema Validation (Only if content is present)
                         if (currentSchemaObj) {
+                            if (!contentToWrite) {
+                                throw new LlmQuerierError("Expected JSON response but got empty content (maybe an image?).", 'CUSTOM_ERROR', null, null);
+                            }
                             try {
-                                data = JSON.parse(responseString);
+                                data = JSON.parse(contentToWrite);
                                 contentToWrite = JSON.stringify(data, null, 2); // Normalize formatting
                             } catch (e) {
-                                throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
+                                throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, contentToWrite);
                             }
 
                             const valid = currentValidator(data);
                             if (!valid) {
                                 const errors = currentValidator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
-                                throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, responseString);
+                                throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, contentToWrite);
                             }
                         }
 
-                        // 2. Verify Command Validation
+                        // 2. Image Handling (if images are present)
+                        if (images && images.length > 0) {
+                            const imageUrl = images[0].image_url.url;
+                            contentToWrite = imageUrl; // For column output
+                            
+                            // If we have an output path, we need to save the image there (or to a temp file for verification)
+                            if (currentOutputPath || currentVerifyCommand) {
+                                let buffer: Buffer;
+                                if (imageUrl.startsWith('http')) {
+                                    const imgRes = await fetch(imageUrl);
+                                    const arrayBuffer = await imgRes.arrayBuffer();
+                                    buffer = Buffer.from(arrayBuffer);
+                                } else {
+                                    const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+                                    buffer = Buffer.from(base64Data, 'base64');
+                                }
+
+                                // If verification is needed, we MUST save to a file now
+                                const savePath = currentOutputPath || path.join(path.dirname(baseOutputPath || '.'), `temp_verify_${index}_${stepIndex}.png`);
+                                await ensureDir(savePath);
+                                await fsPromises.writeFile(savePath, buffer);
+                                
+                                // If we just saved to a temp path for verification, we might want to track that
+                                if (!currentOutputPath) {
+                                    // It's a temp file, effectively
+                                }
+                            }
+                        }
+
+                        // 3. Verify Command Validation
                         if (currentVerifyCommand) {
                             // Write to temp file (or actual output path) to verify
                             // If no output path is defined, we create a temp one
-                            const verifyPath = currentOutputPath || path.join(path.dirname(baseOutputPath || '.'), `temp_verify_${index}_${stepIndex}.txt`);
+                            // Note: For images, we already saved it above. For text, we save it here.
                             
-                            await ensureDir(verifyPath);
-                            await fsPromises.writeFile(verifyPath, contentToWrite);
+                            const verifyPath = currentOutputPath || path.join(path.dirname(baseOutputPath || '.'), `temp_verify_${index}_${stepIndex}.${images ? 'png' : 'txt'}`);
+                            
+                            if (!images) {
+                                await ensureDir(verifyPath);
+                                await fsPromises.writeFile(verifyPath, contentToWrite);
+                            }
 
                             const cmd = currentVerifyCommand.replace('{{file}}', verifyPath);
                             
@@ -544,34 +592,55 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                                     `Verification command failed:\n${feedback}\n\nPlease fix the content based on this error.`,
                                     'CUSTOM_ERROR',
                                     null,
-                                    responseString
+                                    contentToWrite
                                 );
                             }
-                            
-                            // If we used a temp path and didn't want to save it, we should probably clean up?
-                            // But for now, we leave it or let the OS handle it.
                         }
 
                         return { data, contentToWrite };
                     },
-                    {
-                        model: options.model,
-                        response_format: currentSchemaObj ? { type: "json_object" } : undefined,
-                        // No modalities/image_config here because we are in validation mode (Text/JSON)
-                    }
+                    queryOptions
                 );
 
                 contentForColumn = result.contentToWrite;
 
                 // If we didn't write it during verification (or if verification wasn't run), write it now.
-                if (currentOutputPath) {
-                    await ensureDir(currentOutputPath);
-                    await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
-                    console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
+                // Note: For images, we might have already written it during the verification block logic above.
+                // But if verification wasn't run, we need to write it here.
+                if (currentOutputPath && !currentVerifyCommand) {
+                    // If it's an image, we need to re-download/save? 
+                    // Or we can optimize. For now, let's keep it simple and consistent with the "Standard Mode" logic below.
+                    // Actually, result.contentToWrite for images is the URL.
+                    
+                    if (result.contentToWrite && (result.contentToWrite.startsWith('http') || result.contentToWrite.startsWith('data:image'))) {
+                         // It's likely an image URL
+                         let buffer: Buffer;
+                         if (result.contentToWrite.startsWith('http')) {
+                             const imgRes = await fetch(result.contentToWrite);
+                             const arrayBuffer = await imgRes.arrayBuffer();
+                             buffer = Buffer.from(arrayBuffer);
+                         } else {
+                             const base64Data = result.contentToWrite.replace(/^data:image\/\w+;base64,/, "");
+                             buffer = Buffer.from(base64Data, 'base64');
+                         }
+                         await ensureDir(currentOutputPath);
+                         await fsPromises.writeFile(currentOutputPath, buffer);
+                         console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
+                    } else {
+                        await ensureDir(currentOutputPath);
+                        await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
+                        console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
+                    }
                 }
 
                 persistentHistory.push({ role: 'user', content: promptParts });
-                persistentHistory.push({ role: 'assistant', content: result.contentToWrite });
+                
+                // Add assistant response to history
+                // If it was an image, we use a placeholder or the content if available
+                // Note: LlmReQuerier already adds the successful response to its internal history for retries,
+                // but we need to update our `persistentHistory` for the NEXT step in the loop.
+                const historyContent = (typeof result.data === 'string' ? result.data : JSON.stringify(result.data)) || "Image generated.";
+                persistentHistory.push({ role: 'assistant', content: historyContent });
 
             } catch (error) {
                 console.error(`[Row ${index}] Step ${stepIndex} Failed after retries:`, error);

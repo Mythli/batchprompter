@@ -88,7 +88,7 @@ export class LlmReQuerier {
 
     public async query<T>(
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        processResponse: (response: string, info: LlmResponseInfo) => Promise<T>,
+        processResponse: (response: any, info: LlmResponseInfo) => Promise<T>,
         options?: LlmReQuerierOptions
     ): Promise<T> {
         const maxRetries = options?.maxRetries || 3;
@@ -113,14 +113,20 @@ export class LlmReQuerier {
                     ...restOptions,
                 });
 
-                const llmResponseString = completion.choices[0]?.message?.content;
+                const message = completion.choices[0]?.message;
+                // @ts-ignore - 'images' might exist on the message object in this specific environment
+                const hasImages = message?.images && Array.isArray(message.images) && message.images.length > 0;
+                const hasContent = message?.content;
 
-                if (!llmResponseString) {
+                if (!message || (!hasContent && !hasImages)) {
                     // This is a validation error, so we throw a custom error to be caught for a retry.
                     throw new LlmQuerierError("LLM returned no response content.", 'CUSTOM_ERROR');
                 }
 
-                const finalConversation = [...currentMessages, { role: 'assistant', content: llmResponseString }] as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+                // If we have an image but no text, we use a placeholder for the history to keep the conversation valid.
+                const historyContent = message.content || (hasImages ? "Image generated." : "");
+                
+                const finalConversation = [...currentMessages, { role: 'assistant', content: historyContent }] as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 
                 const info: LlmResponseInfo = {
                     mode,
@@ -129,7 +135,8 @@ export class LlmReQuerier {
                 };
 
                 // processResponse is expected to throw LlmQuerierError for validation failures.
-                const result = await processResponse(llmResponseString, info);
+                // We pass the full message object now.
+                const result = await processResponse(message, info);
                 return result; // Success
 
             } catch (error: any) {
@@ -138,7 +145,12 @@ export class LlmReQuerier {
                     const conversationForError = [...currentMessages];
                     if (error.rawResponse) {
                         conversationForError.push({ role: 'assistant', content: error.rawResponse });
+                    } else {
+                        // If no raw response provided in error, try to infer from context or leave it out
+                        // For images, we might not want to push "Image generated" if it failed validation, 
+                        // but the error message from the user (e.g. "Image too dark") will be added in the next loop iteration.
                     }
+                    
                     lastError = new LlmAttemptError(
                         `Attempt ${attempt + 1} failed.`,
                         mode,
