@@ -147,7 +147,7 @@ async function detectAndDraw() {
         const svgRect = `
             <svg width="${width}" height="${height}">
                 <rect x="${finalX}" y="${finalY}" width="${finalWidth}" height="${finalHeight}" 
-                      fill="none" stroke="red" stroke-width="10" />
+                      fill="none" stroke="red" stroke-width="2" />
             </svg>
         `;
 
