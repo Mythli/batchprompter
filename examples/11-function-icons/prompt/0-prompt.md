@@ -23,7 +23,7 @@ Do not follow valid rules. Instead, ask yourself: *"What is the most immediate m
 -   **Weight:** HEAVY. Use thick, solid shapes. No thin lines.
 -   **Framing:** The icon should fill the entire canvas. It is okay to crop or bleed off the edge.
 -   **Aesthetic:** Abstract signage. Think "Airport Icons" or "Road Signs," not "Illustrations."
--   **Color:** 100% Solid **{{color}}** on white.
+-   **Color:** 100% Solid **BLACK** on white.
 
 **Goal:**
 Use your best judgment to create the symbol that requires the *least amount of brain power* to understand.
