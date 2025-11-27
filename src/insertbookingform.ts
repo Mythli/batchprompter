@@ -133,10 +133,10 @@ async function detectAndDraw() {
 
         console.log(`Detected area: x=${rectX}, y=${rectY}, w=${rectWidth}, h=${rectHeight}`);
 
-        // Adjust rectangle: 3% margin on sides/bottom, larger margin on top for camera
-        const marginX = rectWidth * 0.03;
-        const marginBottom = rectHeight * 0.03;
-        const marginTop = rectHeight * 0.06; // Extra space for camera
+        // Adjust rectangle: 4% margin on sides/bottom, larger margin on top for camera
+        const marginX = rectWidth * 0.04;
+        const marginBottom = rectHeight * 0.04;
+        const marginTop = rectHeight * 0.07; // Extra space for camera
 
         const finalX = rectX + marginX;
         const finalY = rectY + marginTop;
