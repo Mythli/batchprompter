@@ -9,24 +9,33 @@ TARGET_COLOR="$2"
 # Get the base path without extension (e.g., "out/icon")
 BASE_NAME="${INPUT_FILE%.*}"
 
-# 1. Remove White Background & Colorize with Edge Smoothing
-# We use an alpha mask approach instead of simple transparency to preserve anti-aliasing.
-# Steps:
-# 1. Load image, convert to gray, negate (Black->White/Opaque, White->Black/Transparent).
-# 2. Blur the mask slightly (0x1) to smooth jagged edges.
-# 3. Level (20%,100%) to clean up background noise (ensure white bg becomes fully transparent).
-# 4. Create a solid color layer of TARGET_COLOR.
-# 5. Apply the mask to the color layer.
+# 1. Create the Alpha Mask
+# Input: Black Icon on White BG.
+# We want: White Icon (Opaque) on Black BG (Transparent).
+# -colorspace gray: Ensure it's grayscale.
+# -negate: Invert colors (Black->White, White->Black).
+# -blur 0x1: Smooth the edges.
+# -level 50%,100%: Increase contrast to clean up the background.
 magick "$INPUT_FILE" \
     -colorspace gray \
     -negate \
     -blur 0x1 \
-    -level 20%,100% \
+    -level 50%,100% \
+    "${BASE_NAME}-mask.png"
+
+# 2. Apply Mask to Color
+# We create a solid color image and apply the mask to its alpha channel.
+# -colorspace sRGB ensures we output a colored image, not grayscale.
+magick "${BASE_NAME}-mask.png" \
+    -colorspace sRGB \
     \( +clone -fill "$TARGET_COLOR" -colorize 100% \) \
     +swap \
     -alpha off -compose CopyOpacity -composite \
     "${BASE_NAME}-transparent.png"
 
-# 2. Compress the Transparent Image
+# 3. Compress the Transparent Image
 # Saves as: out/icon-transparent-compressed.png
 pngquant 2 --nofs --force --output "${BASE_NAME}-transparent-compressed.png" "${BASE_NAME}-transparent.png"
+
+# Cleanup intermediate mask
+rm "${BASE_NAME}-mask.png"
