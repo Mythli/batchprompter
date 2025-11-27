@@ -133,10 +133,20 @@ async function detectAndDraw() {
 
         console.log(`Detected area: x=${rectX}, y=${rectY}, w=${rectWidth}, h=${rectHeight}`);
 
+        // Adjust rectangle: 5% margin on sides/bottom, larger margin on top for camera
+        const marginX = rectWidth * 0.05;
+        const marginBottom = rectHeight * 0.05;
+        const marginTop = rectHeight * 0.12; // Extra space for camera
+
+        const finalX = rectX + marginX;
+        const finalY = rectY + marginTop;
+        const finalWidth = rectWidth - (2 * marginX);
+        const finalHeight = rectHeight - (marginTop + marginBottom);
+
         // Create an SVG rectangle to overlay
         const svgRect = `
             <svg width="${width}" height="${height}">
-                <rect x="${rectX}" y="${rectY}" width="${rectWidth}" height="${rectHeight}" 
+                <rect x="${finalX}" y="${finalY}" width="${finalWidth}" height="${finalHeight}" 
                       fill="none" stroke="red" stroke-width="10" />
             </svg>
         `;
