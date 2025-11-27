@@ -12,20 +12,21 @@ Erstelle einen **hochspezifischen, deutschen Bild-Prompt** der ein iPhone zeigt,
 
 LOGIK ZUR ERSTELLUNG DES INHALTS:
 1. **Analysiere das Angebot:** Entscheide, ob es ein *Ticket* (Escape Room), ein *Kurs* (Erste Hilfe), eine *Dienstleistung* (Coaching) oder ein *Event* (Alpaka) ist.
-2. **Erfinde den Screen-Content:**
+2. **Analysiere die Zielgruppe:** Wer bucht das? (Alter, Stil, Vibe).
+3. **Erfinde den Screen-Content:**
    - [TITEL]: Ein realistischer Name (z.B. "SKS Praxistörn" oder "Intensiv-Coaching").
    - [PREIS]: Ein realistischer Preis (z.B. "89,00 €").
    - [DATUM]: Ein realistisches Datum **Ende 2025**.
    - [ORT]: Eine typische deutsche Stadt oder Region.
    - [TYP_LABEL]: Wähle den passenden Begriff für das Angebot (z.B. "Kurs", "Seminar", "Veranstaltung", "Termin", "Ticket").
-3. **Visualisiere den Background:** Wähle einen extrem minimalistischen Hintergrund passend zur Branche (nur Farben/Licht, keine Objekte).
+4. **Visualisiere den Background:** Beschreibe einen Hintergrund, der zur Zielgruppe und dem Angebot passt. Er muss extrem unscharf (Bokeh) sein, darf aber subtile Andeutungen von passenden Texturen oder Farben enthalten.
 
-OUTPUT-STRUKTUR (Halte dich exakt an diese Vorlage für den Prompt, gib nur den Prompt zurück):
+OUTPUT-STRUKTUR (Nutze diese Struktur, aber formuliere die Beschreibungen lebendig und passend):
 
 "Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro **perfekt gerade und frontal** hält. Der Fokus liegt gestochen scharf auf dem Display.
 
 Hintergrund (Atmosphäre):
-Ein extrem unscharfer, minimalistischer Hintergrund (starkes Bokeh), der eine authentische Umgebung für {{industry}} nur durch Farben und Licht andeutet. **Keine komplexen Objekte, keine Details, sehr ruhig und clean.** Natürliches Licht.
+[BESCHREIBE HIER DEN HINTERGRUND: Extrem unscharf (Bokeh), passend zu {{industry}} und der Zielgruppe. Nutze Farben, Licht und subtile Andeutungen von Umgebung, aber halte es clean und ruhig. Keine ablenkenden Objekte.]
 
 Das UI-Design auf dem Display (Muss exakt generiert werden):
 Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
