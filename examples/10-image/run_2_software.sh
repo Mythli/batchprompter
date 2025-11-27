@@ -10,7 +10,7 @@ do
     --output-1 "out/10-image/{{industry}}/$i-software.png" \
     --aspect-ratio-1 "1:1" \
     --model "google/gemini-3-pro-image-preview" \
-    --verify-command "npx tsx src/insertbookingform.ts {{file}} test/form_data.json examples/10-image/logo.png {{file}}.tmp && mv {{file}}.tmp {{file}}"
+    --verify-command "npx tsx src/insertbookingform.ts '{{file}}' 'out/10-image/{{industry}}/form_data.json' 'examples/10-image/logo.png' '{{file}}.tmp' && mv '{{file}}.tmp' '{{file}}'"
 done
 
 rm seed.txt

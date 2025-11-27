@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "properties": {
+    "header": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Titel des Angebots, z.B. 'Alpaka Wanderung' oder 'Erste Hilfe Kurs'" },
+        "subtitle": { "type": "string", "description": "Dauer und Preis, z.B. '(9 UE) 59,00 €' oder 'ab 29,00 €'" },
+        "details": { 
+          "type": "array", 
+          "items": { "type": "string" },
+          "description": "Ort und Zeit, z.B. ['Ort: Berlin', 'Zeit: 14:00 Uhr']"
+        }
+      },
+      "required": ["title", "subtitle", "details"]
+    },
+    "stepper": {
+      "type": "object",
+      "properties": {
+        "step1": { "type": "string", "description": "Name des ersten Schritts, z.B. 'Termin wählen' oder 'Ticket wählen'" },
+        "step2": { "type": "string", "default": "2" },
+        "step3": { "type": "string", "default": "3" }
+      },
+      "required": ["step1", "step2", "step3"]
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "label": { "type": "string", "description": "Label des Eingabefelds, z.B. 'Datum*', 'Teilnehmer*'" },
+          "value": { "type": "string", "description": "Beispielwert, z.B. '15. Nov. 2025', '2 Personen'" }
+        },
+        "required": ["label", "value"]
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "footer": {
+      "type": "object",
+      "properties": {
+        "backText": { "type": "string", "default": "Zurück" },
+        "nextText": { "type": "string", "default": "Weiter" }
+      },
+      "required": ["backText", "nextText"]
+    }
+  },
+  "required": ["header", "stepper", "inputs", "footer"]
+}

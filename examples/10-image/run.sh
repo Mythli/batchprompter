@@ -11,6 +11,9 @@ echo "Running 0b-prompt-gen (Real Scene)..."
 echo "Running 1-real..."
 ./examples/10-image/run_1_real.sh
 
+echo "Running 1b-json-gen..."
+./examples/10-image/run_1b_json_gen.sh
+
 echo "Running 2-software..."
 ./examples/10-image/run_2_software.sh
 

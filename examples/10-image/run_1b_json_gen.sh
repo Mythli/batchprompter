@@ -1,0 +1,5 @@
+#!/bin/bash
+npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/prompt-3-json-data/prompt.md \
+  --schema examples/10-image/prompt-3-json-data/schema.json \
+  --output "out/10-image/{{industry}}/form_data.json" \
+  --model "google/gemini-3-pro-preview"
