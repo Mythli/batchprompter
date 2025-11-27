@@ -203,26 +203,29 @@ class BookingFormDrawer {
 
     drawStepper(y: number) {
         const startX = this.s(20);
-        const circleSize = this.s(24);
-        const fontSize = this.s(12);
+        // Increased size by ~30% (24 -> 32, 12 -> 16)
+        const circleSize = this.s(32);
+        const fontSize = this.s(16);
+        const textOffsetY = this.s(6);
         
         // Step 1 (Active)
         this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#1D1D1F" />`);
-        this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + this.s(4)}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
+        this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
         
         // Text
-        this.elements.push(`<text x="${startX + circleSize + this.s(10)}" y="${y + circleSize/2 + this.s(4)}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">Kurstermin auswählen</text>`);
+        this.elements.push(`<text x="${startX + circleSize + this.s(10)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">Kurstermin auswählen</text>`);
 
         // Step 3 (Inactive) - Right aligned
         const step3X = this.width - this.s(20) - circleSize;
+        // Darker text color for inactive: #444444
         this.elements.push(`<circle cx="${step3X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#C7C7CC" />`);
-        this.elements.push(`<text x="${step3X + circleSize/2}" y="${y + circleSize/2 + this.s(4)}" text-anchor="middle" fill="#8E8E93" font-size="${fontSize}" font-family="Arial">3</text>`);
+        this.elements.push(`<text x="${step3X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">3</text>`);
 
         // Step 2 (Inactive) - Left of Step 3
         const gap = this.s(8);
         const step2X = step3X - gap - circleSize;
         this.elements.push(`<circle cx="${step2X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#C7C7CC" />`);
-        this.elements.push(`<text x="${step2X + circleSize/2}" y="${y + circleSize/2 + this.s(4)}" text-anchor="middle" fill="#8E8E93" font-size="${fontSize}" font-family="Arial">2</text>`);
+        this.elements.push(`<text x="${step2X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">2</text>`);
     }
 
     drawInfoSection(y: number) {
