@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+set -x
 
 # The input file path passed by BatchPrompt (e.g., "out/icon.png")
 INPUT_FILE="$1"
@@ -9,7 +10,7 @@ BASE_NAME="${INPUT_FILE%.*}"
 
 # 1. Remove White Background
 # Saves as: out/icon-transparent.png
-magick "$INPUT_FILE" -fuzz 90% -transparent white "${BASE_NAME}-transparent.png"
+magick "$INPUT_FILE" -fuzz 40% -transparent white "${BASE_NAME}-transparent.png"
 
 # 2. Compress the Transparent Image
 # Saves as: out/icon-transparent-compressed.png
