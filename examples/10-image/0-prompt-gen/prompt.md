@@ -17,14 +17,14 @@ LOGIK ZUR ERSTELLUNG DES INHALTS:
    - [PREIS]: Ein realistischer Preis (z.B. "89,00 €").
    - [DATUM]: Ein realistisches Datum in der Zukunft.
    - [ORT]: Eine typische deutsche Stadt oder Region.
-3. **Visualisiere den Background:** Wähle einen authentischen, ungestellten Hintergrund passend zur Branche (ohne posierende Menschen).
+3. **Visualisiere den Background:** Wähle einen extrem minimalistischen Hintergrund passend zur Branche (nur Farben/Licht, keine Objekte).
 
 OUTPUT-STRUKTUR (Halte dich exakt an diese Vorlage für den Prompt, gib nur den Prompt zurück):
 
-"Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro hält. Der Fokus liegt gestochen scharf auf dem Display.
+"Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro **perfekt gerade und frontal** hält. Der Fokus liegt gestochen scharf auf dem Display.
 
 Hintergrund (Atmosphäre):
-Ein unscharfer, aber erkennbarer Hintergrund (Bokeh), der eine authentische Umgebung für {{industry}} zeigt: [BESCHREIBUNG DES HINTERGRUNDS]. Natürliches Licht.
+Ein extrem unscharfer, minimalistischer Hintergrund (starkes Bokeh), der eine authentische Umgebung für {{industry}} nur durch Farben und Licht andeutet. **Keine komplexen Objekte, keine Details, sehr ruhig und clean.** Natürliches Licht.
 
 Das UI-Design auf dem Display (Muss exakt generiert werden):
 Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
