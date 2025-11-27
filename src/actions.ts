@@ -566,7 +566,9 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                                 await fsPromises.writeFile(verifyPath, contentToWrite);
                             }
 
-                            const cmd = currentVerifyCommand.replace('{{file}}', verifyPath);
+                            // Compile the command template with Handlebars to resolve variables like {{color}}
+                            const cmdTemplate = Handlebars.compile(currentVerifyCommand, { noEscape: true });
+                            const cmd = cmdTemplate({ ...row, file: verifyPath });
                             
                             console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying with command: ${cmd}`);
 
