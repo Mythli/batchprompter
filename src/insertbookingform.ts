@@ -1,4 +1,6 @@
 import sharp from 'sharp';
+import fs from 'fs';
+import path from 'path';
 
 interface Rectangle {
     x: number;
@@ -12,6 +14,27 @@ interface Margins {
     right: number;
     bottom: number;
     left: number;
+}
+
+interface BookingFormData {
+    header: {
+        title: string;
+        subtitle: string;
+        details: string[];
+    };
+    stepper: {
+        step1: string;
+        step2: string;
+        step3: string;
+    };
+    inputs: {
+        label: string;
+        value: string;
+    }[];
+    footer: {
+        backText: string;
+        nextText: string;
+    };
 }
 
 async function detectScreenArea(inputPath: string, margins: Margins = { top: 0, right: 0, bottom: 0, left: 0 }): Promise<Rectangle> {
@@ -161,13 +184,15 @@ class BookingFormDrawer {
     private elements: string[] = [];
     private scale: number;
     private logoData?: { base64: string, width: number, height: number };
+    private formData: BookingFormData;
 
-    constructor(width: number, height: number, logoData?: { base64: string, width: number, height: number }) {
+    constructor(width: number, height: number, formData: BookingFormData, logoData?: { base64: string, width: number, height: number }) {
         this.width = width;
         this.height = height;
         // Base scale on a reference width of ~375px (typical mobile width)
         this.scale = width / 375;
         this.logoData = logoData;
+        this.formData = formData;
     }
 
     // Helper to scale values
@@ -218,7 +243,7 @@ class BookingFormDrawer {
         this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
         
         // Text
-        this.elements.push(`<text x="${startX + circleSize + this.s(10)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">Kurstermin auswählen</text>`);
+        this.elements.push(`<text x="${startX + circleSize + this.s(10)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
 
         // Step 3 (Inactive) - Right aligned
         const step3X = this.width - this.s(20) - circleSize;
@@ -238,14 +263,16 @@ class BookingFormDrawer {
         const lineHeight = this.s(34);
         
         // Title
-        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">Reanimationskurs</text>`);
-        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">(9 UE) 59,00 €</text>`);
+        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">${this.formData.header.title}</text>`);
+        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">${this.formData.header.subtitle}</text>`);
 
         // Details
         const detailY = y + lineHeight * 2 + this.s(10);
         const detailLineHeight = this.s(18);
-        this.elements.push(`<text x="${x}" y="${detailY}" font-family="Arial" font-size="${this.s(14)}" fill="#333">Ort: DRK Zentrum Berlin</text>`);
-        this.elements.push(`<text x="${x}" y="${detailY + detailLineHeight}" font-family="Arial" font-size="${this.s(14)}" fill="#333">Zeit: 09:00 - 16:30 Uhr</text>`);
+        
+        this.formData.header.details.forEach((detail, index) => {
+            this.elements.push(`<text x="${x}" y="${detailY + (index * detailLineHeight)}" font-family="Arial" font-size="${this.s(14)}" fill="#333">${detail}</text>`);
+        });
     }
 
     drawInput(y: number, label: string, value: string) {
@@ -277,7 +304,7 @@ class BookingFormDrawer {
         const xRight = this.width - this.s(20);
 
         // Back
-        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(16)}" fill="#8E8E93">← Zurück</text>`);
+        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(16)}" fill="#8E8E93">← ${this.formData.footer.backText}</text>`);
 
         // Next
         const fontSize = this.s(22);
@@ -289,7 +316,7 @@ class BookingFormDrawer {
         const iconCx = xRight - iconR;
         
         // Draw text
-        this.elements.push(`<text x="${iconCx - iconR - this.s(10)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">Weiter</text>`);
+        this.elements.push(`<text x="${iconCx - iconR - this.s(10)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">${this.formData.footer.nextText}</text>`);
         
         // Draw Icon Circle
         this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(2)}" />`);
@@ -312,9 +339,9 @@ class BookingFormDrawer {
         let inputY = this.s(310);
         const inputGap = this.s(85);
         
-        this.drawInput(inputY, "Kurstermin*", "15. Nov. 2025");
-        this.drawInput(inputY + inputGap, "Teilnehmeranzahl*", "1 Person");
-        this.drawInput(inputY + inputGap * 2, "Tarifwahl*", "59,00 € Führerschein-Paket");
+        this.formData.inputs.forEach((input, index) => {
+            this.drawInput(inputY + (inputGap * index), input.label, input.value);
+        });
         
         this.drawFooter();
     }
@@ -328,11 +355,10 @@ class BookingFormDrawer {
     }
 }
 
-async function drawBookingForm(inputPath: string, outputPath: string, rect: Rectangle) {
+async function drawBookingForm(inputPath: string, outputPath: string, rect: Rectangle, formData: BookingFormData, logoPath: string) {
     // Load logo
     let logoData;
     try {
-        const logoPath = 'test/logo.png';
         const logoImage = sharp(logoPath);
         const metadata = await logoImage.metadata();
         const buffer = await logoImage.toBuffer();
@@ -344,10 +370,10 @@ async function drawBookingForm(inputPath: string, outputPath: string, rect: Rect
             };
         }
     } catch (error) {
-        console.warn("Failed to load logo image:", error);
+        console.warn(`Failed to load logo image from ${logoPath}:`, error);
     }
 
-    const drawer = new BookingFormDrawer(rect.width, rect.height, logoData);
+    const drawer = new BookingFormDrawer(rect.width, rect.height, formData, logoData);
     drawer.render();
     const svgContent = drawer.getSvg();
 
@@ -366,10 +392,25 @@ async function drawBookingForm(inputPath: string, outputPath: string, rect: Rect
 }
 
 async function main() {
-    const inputPath = 'test/input.png';
-    const outputPath = 'test/output_with_form.png';
+    // Parse arguments
+    const args = process.argv.slice(2);
+    
+    if (args.length < 3) {
+        console.error('Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> [output_image]');
+        console.log('Example: ts-node src/insertbookingform.ts test/input.png test/form_data.json test/logo.png');
+        process.exit(1);
+    }
+
+    const inputPath = args[0];
+    const jsonPath = args[1];
+    const logoPath = args[2];
+    const outputPath = args[3] || 'test/output_with_form.png';
 
     try {
+        // Load JSON data
+        const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
+        const formData: BookingFormData = JSON.parse(jsonContent);
+
         // Margins: 4% sides/bottom, 7% top
         const margins: Margins = {
             top: 0.07,
@@ -381,7 +422,7 @@ async function main() {
         const rect = await detectScreenArea(inputPath, margins);
         console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
         
-        await drawBookingForm(inputPath, outputPath, rect);
+        await drawBookingForm(inputPath, outputPath, rect, formData, logoPath);
 
     } catch (error) {
         console.error('Error processing image:', error);

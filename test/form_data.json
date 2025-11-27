@@ -1,0 +1,33 @@
+{
+  "header": {
+    "title": "Reanimationskurs",
+    "subtitle": "(9 UE) 59,00 €",
+    "details": [
+      "Ort: DRK Zentrum Berlin",
+      "Zeit: 09:00 - 16:30 Uhr"
+    ]
+  },
+  "stepper": {
+    "step1": "Kurstermin auswählen",
+    "step2": "2",
+    "step3": "3"
+  },
+  "inputs": [
+    {
+      "label": "Kurstermin*",
+      "value": "15. Nov. 2025"
+    },
+    {
+      "label": "Teilnehmeranzahl*",
+      "value": "1 Person"
+    },
+    {
+      "label": "Tarifwahl*",
+      "value": "59,00 € Führerschein-Paket"
+    }
+  ],
+  "footer": {
+    "backText": "Zurück",
+    "nextText": "Weiter"
+  }
+}
