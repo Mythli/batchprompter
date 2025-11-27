@@ -264,25 +264,36 @@ class BookingFormDrawer {
     }
 
     drawFooter() {
-        const y = this.height - this.s(30);
+        const y = this.height - this.s(35);
         const xLeft = this.s(20);
         const xRight = this.width - this.s(20);
 
         // Back
-        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(14)}" fill="#8E8E93">← Zurück</text>`);
+        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(16)}" fill="#8E8E93">← Zurück</text>`);
 
         // Next
-        // Redoing "Weiter" to include icon
-        const iconR = this.s(8);
+        const fontSize = this.s(22);
+        const iconR = this.s(12);
+        
+        // Center icon vertically relative to text baseline approx
+        // Baseline is y. Cap height ~0.7em. Center ~ y - 0.35em.
+        const iconCy = y - (fontSize * 0.35);
         const iconCx = xRight - iconR;
-        const iconCy = y - this.s(4);
         
         // Draw text
-        this.elements.push(`<text x="${iconCx - iconR - this.s(5)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${this.s(14)}" fill="#000">Weiter</text>`);
+        this.elements.push(`<text x="${iconCx - iconR - this.s(10)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">Weiter</text>`);
         
-        // Draw Icon
-        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(1.5)}" />`);
-        this.elements.push(`<path d="M${iconCx - this.s(2)} ${iconCy} L${iconCx + this.s(2)} ${iconCy} M${iconCx} ${iconCy - this.s(2)} L${iconCx + this.s(2)} ${iconCy} L${iconCx} ${iconCy + this.s(2)}" fill="none" stroke="#000" stroke-width="${this.s(1.5)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        // Draw Icon Circle
+        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(2)}" />`);
+        
+        // Draw Arrow
+        const arrowLen = this.s(10);
+        const arrowHead = this.s(4);
+        
+        // Line
+        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="#000" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        // Head
+        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="#000" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
     render() {
