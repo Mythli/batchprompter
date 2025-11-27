@@ -264,6 +264,7 @@ class BookingFormDrawer {
         
         // Title
         this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">${this.formData.header.title}</text>`);
+        // Subtitle - Increased font size to match title (26)
         this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">${this.formData.header.subtitle}</text>`);
 
         // Details
