@@ -155,25 +155,184 @@ async function detectScreenArea(inputPath: string, margins: Margins = { top: 0, 
     };
 }
 
-async function drawDebugRectangle(inputPath: string, outputPath: string, rect: Rectangle) {
-    const image = sharp(inputPath);
-    const metadata = await image.metadata();
-    
-    if (!metadata.width || !metadata.height) {
-        throw new Error('Unable to retrieve image metadata for drawing');
+class BookingFormDrawer {
+    private width: number;
+    private height: number;
+    private elements: string[] = [];
+    private scale: number;
+
+    constructor(width: number, height: number) {
+        this.width = width;
+        this.height = height;
+        // Base scale on a reference width of ~375px (typical mobile width)
+        this.scale = width / 375;
     }
 
-    // Create an SVG rectangle to overlay
-    const svgRect = `
-        <svg width="${metadata.width}" height="${metadata.height}">
-            <rect x="${rect.x}" y="${rect.y}" width="${rect.width}" height="${rect.height}" 
-                  fill="none" stroke="red" stroke-width="2" />
-        </svg>
-    `;
+    // Helper to scale values
+    private s(val: number): number {
+        return val * this.scale;
+    }
 
-    // Create a fresh sharp instance for the output
+    drawHeader() {
+        const y = this.s(30);
+        const iconSize = this.s(24);
+        
+        // Logo Icon (Simplified abstract shape: Orange/Teal bowtie/infinity)
+        // Orange part (Left triangle-ish)
+        this.elements.push(`<path d="M${this.s(20)} ${y} L${this.s(20)} ${y+iconSize} L${this.s(35)} ${y+iconSize/2} Z" fill="none" stroke="#FF6B6B" stroke-width="${this.s(4)}" stroke-linejoin="round" stroke-linecap="round"/>`);
+        // Teal part (Right triangle-ish)
+        this.elements.push(`<path d="M${this.s(45)} ${y} L${this.s(45)} ${y+iconSize} L${this.s(30)} ${y+iconSize/2} Z" fill="none" stroke="#4ECDC4" stroke-width="${this.s(4)}" stroke-linejoin="round" stroke-linecap="round"/>`);
+
+        // Logo Text
+        this.elements.push(`<text x="${this.s(55)}" y="${y + this.s(19)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22)}" fill="#333">Butlerapp</text>`);
+
+        // Hamburger Menu
+        const menuX = this.width - this.s(40);
+        const menuY = y + this.s(4);
+        const barH = this.s(3);
+        const barW = this.s(20);
+        const gap = this.s(6);
+        
+        this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(1.5)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(1.5)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(1.5)}" />`);
+    }
+
+    drawStepper(y: number) {
+        const startX = this.s(20);
+        const circleSize = this.s(24);
+        const fontSize = this.s(12);
+        
+        // Step 1 (Active)
+        this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#1D1D1F" />`);
+        this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + this.s(4)}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
+        
+        // Text
+        this.elements.push(`<text x="${startX + circleSize + this.s(10)}" y="${y + circleSize/2 + this.s(4)}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">Kurstermin auswählen</text>`);
+
+        // Step 2 (Inactive)
+        const step2X = startX + this.s(180);
+        this.elements.push(`<circle cx="${step2X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#E5E5EA" />`);
+        this.elements.push(`<text x="${step2X + circleSize/2}" y="${y + circleSize/2 + this.s(4)}" text-anchor="middle" fill="#8E8E93" font-size="${fontSize}" font-family="Arial">2</text>`);
+
+        // Step 3 (Inactive)
+        const step3X = step2X + this.s(40);
+        this.elements.push(`<circle cx="${step3X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#E5E5EA" />`);
+        this.elements.push(`<text x="${step3X + circleSize/2}" y="${y + circleSize/2 + this.s(4)}" text-anchor="middle" fill="#8E8E93" font-size="${fontSize}" font-family="Arial">3</text>`);
+    }
+
+    drawInfoSection(y: number) {
+        const x = this.s(20);
+        const lineHeight = this.s(26);
+        
+        // Title
+        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(20)}" fill="#000">Reanimationskurs</text>`);
+        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(20)}" fill="#000">(9 UE) 59,00 €</text>`);
+
+        // Details
+        const detailY = y + lineHeight * 2 + this.s(10);
+        const detailLineHeight = this.s(18);
+        this.elements.push(`<text x="${x}" y="${detailY}" font-family="Arial" font-size="${this.s(14)}" fill="#333">Ort: DRK Zentrum Berlin</text>`);
+        this.elements.push(`<text x="${x}" y="${detailY + detailLineHeight}" font-family="Arial" font-size="${this.s(14)}" fill="#333">Zeit: 09:00 - 16:30 Uhr</text>`);
+    }
+
+    drawInput(y: number, label: string, value: string) {
+        const x = this.s(20);
+        const w = this.width - this.s(40);
+        const h = this.s(44);
+        const radius = this.s(6);
+
+        // Label
+        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-size="${this.s(12)}" fill="#333">${label}</text>`);
+
+        // Input Box
+        const boxY = y + this.s(8);
+        this.elements.push(`<rect x="${x}" y="${boxY}" width="${w}" height="${h}" rx="${radius}" fill="#F2F2F7" />`);
+
+        // Value
+        this.elements.push(`<text x="${x + this.s(12)}" y="${boxY + h/2 + this.s(5)}" font-family="Arial" font-size="${this.s(14)}" fill="#000">${value}</text>`);
+
+        // Chevron Icon
+        const iconSize = this.s(10);
+        const iconX = x + w - this.s(24);
+        const iconY = boxY + h/2 - iconSize/2;
+        this.elements.push(`<path d="M${iconX} ${iconY} L${iconX + iconSize/2} ${iconY + iconSize/2} L${iconX + iconSize} ${iconY}" fill="none" stroke="#999" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
+
+    drawFooter() {
+        const y = this.height - this.s(30);
+        const xLeft = this.s(20);
+        const xRight = this.width - this.s(20);
+
+        // Back
+        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(14)}" fill="#8E8E93">← Zurück</text>`);
+
+        // Next
+        this.elements.push(`<text x="${xRight}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${this.s(14)}" fill="#000">Weiter →</text>`);
+        
+        // Arrow circle for next? The image shows text "Weiter ->" with a circle arrow icon maybe? 
+        // The image shows "Weiter (arrow-in-circle)". Let's approximate with just text and arrow for now as per prompt "draws the seen booking form".
+        // Actually, looking closely at the crop, it's "Weiter (arrow-right-circle-icon)".
+        const arrowIconSize = this.s(14);
+        const arrowX = xRight + this.s(5); // Adjust if needed, but text-anchor end handles text.
+        // Let's just append a circle icon after the text.
+        // Since text is end-anchored, we need to shift it left to make room for icon, or draw icon at xRight and text before it.
+        
+        // Redoing "Weiter" to include icon
+        const iconR = this.s(8);
+        const iconCx = xRight - iconR;
+        const iconCy = y - this.s(4);
+        
+        // Remove previous text
+        this.elements.pop();
+        
+        // Draw text
+        this.elements.push(`<text x="${iconCx - iconR - this.s(5)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${this.s(14)}" fill="#000">Weiter</text>`);
+        
+        // Draw Icon
+        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(1.5)}" />`);
+        this.elements.push(`<path d="M${iconCx - this.s(2)} ${iconCy} L${iconCx + this.s(2)} ${iconCy} M${iconCx} ${iconCy - this.s(2)} L${iconCx + this.s(2)} ${iconCy} L${iconCx} ${iconCy + this.s(2)}" fill="none" stroke="#000" stroke-width="${this.s(1.5)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+    }
+
+    render() {
+        this.drawHeader();
+        this.drawStepper(this.s(80));
+        this.drawInfoSection(this.s(140));
+        
+        let inputY = this.s(250);
+        const inputGap = this.s(70);
+        
+        this.drawInput(inputY, "Kurstermin*", "15. Nov. 2025");
+        this.drawInput(inputY + inputGap, "Teilnehmeranzahl*", "1 Person");
+        this.drawInput(inputY + inputGap * 2, "Tarifwahl*", "59,00 € Führerschein-Paket");
+        
+        this.drawFooter();
+    }
+
+    getSvg(): string {
+        return `
+        <svg width="${this.width}" height="${this.height}" viewBox="0 0 ${this.width} ${this.height}" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100%" height="100%" fill="white" />
+            ${this.elements.join('\n')}
+        </svg>
+        `;
+    }
+}
+
+async function drawBookingForm(inputPath: string, outputPath: string, rect: Rectangle) {
+    const drawer = new BookingFormDrawer(rect.width, rect.height);
+    drawer.render();
+    const svgContent = drawer.getSvg();
+
+    const image = sharp(inputPath);
+    
+    // Composite the SVG onto the image
     await image
-        .composite([{ input: Buffer.from(svgRect), top: 0, left: 0 }])
+        .composite([{ 
+            input: Buffer.from(svgContent), 
+            top: Math.round(rect.y), 
+            left: Math.round(rect.x) 
+        }])
         .toFile(outputPath);
 
     console.log(`Processed image saved to ${outputPath}`);
@@ -181,7 +340,7 @@ async function drawDebugRectangle(inputPath: string, outputPath: string, rect: R
 
 async function main() {
     const inputPath = 'test/input.png';
-    const outputPath = 'test/output_with_rect.png';
+    const outputPath = 'test/output_with_form.png';
 
     try {
         // Margins: 4% sides/bottom, 7% top
@@ -195,7 +354,7 @@ async function main() {
         const rect = await detectScreenArea(inputPath, margins);
         console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
         
-        await drawDebugRectangle(inputPath, outputPath, rect);
+        await drawBookingForm(inputPath, outputPath, rect);
 
     } catch (error) {
         console.error('Error processing image:', error);
