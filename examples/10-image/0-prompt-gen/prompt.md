@@ -19,14 +19,14 @@ LOGIK ZUR ERSTELLUNG DES INHALTS:
    - [DATUM]: Ein realistisches Datum **Ende 2025**.
    - [ORT]: Eine typische deutsche Stadt oder Region.
    - [TYP_LABEL]: Wähle den passenden Begriff für das Angebot (z.B. "Kurs", "Seminar", "Veranstaltung", "Termin", "Ticket").
-4. **Visualisiere den Background:** Beschreibe einen Hintergrund, der zur Zielgruppe und dem Angebot passt. Er muss extrem unscharf (Bokeh) sein, darf aber subtile Andeutungen von passenden Texturen oder Farben enthalten.
+4. **Visualisiere den Background:** Beschreibe einen Hintergrund, der zur Zielgruppe und dem Angebot passt. Er muss extrem unscharf (Bokeh) sein. **WICHTIG: Keine komplexen Objekte (wie Maschinen, Möbel, Menschen). Nur Farben, Licht und abstrakte Texturen.**
 
-OUTPUT-STRUKTUR (Nutze diese Struktur, aber formuliere die Beschreibungen lebendig und passend):
+OUTPUT-STRUKTUR (Halte dich exakt an diese Vorlage. GIB NUR DEN PROMPT ZURÜCK. KEINE EINLEITUNG, KEIN "HIER IST DER PROMPT"):
 
 "Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro **perfekt gerade und frontal** hält. Der Fokus liegt gestochen scharf auf dem Display.
 
 Hintergrund (Atmosphäre):
-[BESCHREIBE HIER DEN HINTERGRUND: Extrem unscharf (Bokeh), passend zu {{industry}} und der Zielgruppe. Nutze Farben, Licht und subtile Andeutungen von Umgebung, aber halte es clean und ruhig. Keine ablenkenden Objekte.]
+[BESCHREIBE HIER DEN HINTERGRUND: Extrem unscharf (Bokeh), passend zu {{industry}}. Nutze NUR Farben, Licht und abstrakte Texturen. VERBOTEN: Konkrete Objekte, Maschinen, Menschen, Möbel. Es muss extrem clean und ruhig sein.]
 
 Das UI-Design auf dem Display (Muss exakt generiert werden):
 Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
