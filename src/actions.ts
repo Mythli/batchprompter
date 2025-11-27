@@ -508,13 +508,40 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
                             await fsPromises.writeFile(verifyPath, contentToWrite);
 
                             const cmd = currentVerifyCommand.replace('{{file}}', verifyPath);
+                            
+                            console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying with command: ${cmd}`);
+
                             try {
-                                await execPromise(cmd);
+                                const { stdout, stderr } = await execPromise(cmd);
+                                
+                                if (stdout && stdout.trim()) {
+                                    console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
+                                }
+                                if (stderr && stderr.trim()) {
+                                    console.log(`[Row ${index}] Step ${stepIndex} 🟡 Verify STDERR:\n${stderr.trim()}`);
+                                }
+                                
                             } catch (error: any) {
                                 // Command failed (non-zero exit code)
-                                const stderr = error.stderr || error.stdout || error.message;
+                                const stdout = error.stdout;
+                                const stderr = error.stderr;
+                                const message = error.message;
+
+                                console.error(`[Row ${index}] Step ${stepIndex} 🔴 Verify Failed!`);
+                                if (stdout && stdout.trim()) {
+                                    console.log(`[Row ${index}] Step ${stepIndex} 🔴 Verify STDOUT:\n${stdout.trim()}`);
+                                }
+                                if (stderr && stderr.trim()) {
+                                    console.error(`[Row ${index}] Step ${stepIndex} 🔴 Verify STDERR:\n${stderr.trim()}`);
+                                } else if (message) {
+                                    console.error(`[Row ${index}] Step ${stepIndex} 🔴 Verify Error Message:\n${message}`);
+                                }
+
+                                // Construct feedback for LLM
+                                const feedback = stderr || stdout || message;
+
                                 throw new LlmQuerierError(
-                                    `Verification command failed:\n${stderr}\n\nPlease fix the content based on this error.`,
+                                    `Verification command failed:\n${feedback}\n\nPlease fix the content based on this error.`,
                                     'CUSTOM_ERROR',
                                     null,
                                     responseString
