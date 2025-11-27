@@ -187,6 +187,17 @@ function renderPath(pathTemplate: string, context: any): string {
     return delegate(context);
 }
 
+function aggressiveSanitize(input: string): string {
+    // 1. Remove anything that is NOT a-z, A-Z, 0-9, -, or _
+    let sanitized = input.replace(/[^a-zA-Z0-9\-_]/g, '');
+    
+    // 2. Remove leading numbers
+    sanitized = sanitized.replace(/^[0-9]+/, '');
+    
+    // 3. Truncate to 50 chars
+    return sanitized.substring(0, 50);
+}
+
 async function processBatch(
     dataFilePath: string,
     templateFilePaths: string[],
@@ -340,8 +351,8 @@ async function processBatch(
                     const sanitizedRow: Record<string, string> = {};
                     for (const [key, val] of Object.entries(row)) {
                         const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                        const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
-                        sanitizedRow[key] = sanitized.substring(0, 50);
+                        const sanitized = aggressiveSanitize(stringVal);
+                        sanitizedRow[key] = sanitized;
                     }
                     baseOutputPath = outputDelegate(sanitizedRow);
                 }
@@ -410,8 +421,8 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
              const sanitizedRow: Record<string, string> = {};
              for (const [key, val] of Object.entries(row)) {
                  const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                 const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
-                 sanitizedRow[key] = sanitized.substring(0, 50);
+                 const sanitized = aggressiveSanitize(stringVal);
+                 sanitizedRow[key] = sanitized;
              }
              currentOutputPath = delegate(sanitizedRow);
         } 
