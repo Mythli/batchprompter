@@ -179,7 +179,7 @@ class BookingFormDrawer {
         const y = this.s(30);
         
         if (this.logoData) {
-            const targetHeight = this.s(28);
+            const targetHeight = this.s(42); // Increased by 50%
             const aspectRatio = this.logoData.width / this.logoData.height;
             const targetWidth = targetHeight * aspectRatio;
             
@@ -190,15 +190,20 @@ class BookingFormDrawer {
         }
 
         // Hamburger Menu
-        const menuX = this.width - this.s(40);
-        const menuY = y + this.s(4);
-        const barH = this.s(3);
-        const barW = this.s(20);
-        const gap = this.s(6);
+        // Increased size and thickness
+        const barW = this.s(30); // 20 * 1.5
+        const barH = this.s(5);  // Thicker
+        const gap = this.s(9);   // 6 * 1.5
         
-        this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(1.5)}" />`);
-        this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(1.5)}" />`);
-        this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(1.5)}" />`);
+        const menuX = this.width - this.s(50); // Maintain ~20px right margin (20 + 30 = 50)
+        
+        // Center vertically with logo (Logo Y=30, H=42 -> Center=51)
+        // Menu H = 3*5 + 2*9 = 33. Center offset = 16.5. Top = 51 - 16.5 = 34.5
+        const menuY = this.s(34.5);
+        
+        this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
     }
 
     drawStepper(y: number) {
