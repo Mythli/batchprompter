@@ -123,6 +123,7 @@ interface StepConfig {
     schema?: string;
     jsonSchema?: any;
     verifyCommand?: string;
+    postProcessCommand?: string;
     aspectRatio?: string;
     outputTemplate?: string;
     outputColumn?: string;
@@ -136,6 +137,7 @@ interface ActionOptions {
     schema?: string;
     jsonSchema?: any;
     verifyCommand?: string;
+    postProcessCommand?: string;
     outputColumn?: string;
     dataOutput?: string;
     stepOverrides?: Record<number, StepConfig>;
@@ -455,6 +457,8 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
 
         // Verify Command
         const currentVerifyCommand = stepOverride?.verifyCommand || options.verifyCommand;
+        // Post Process Command
+        const currentPostProcessCommand = stepOverride?.postProcessCommand || options.postProcessCommand;
 
         // Aspect Ratio
         const currentAspectRatio = stepOverride?.aspectRatio || options.aspectRatio;
@@ -715,6 +719,58 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
             } catch (error) {
                 console.error(`[Row ${index}] Step ${stepIndex} Failed:`, error);
                 throw error;
+            }
+        }
+
+        // 4. Post-Process Command
+        if (currentPostProcessCommand) {
+            let filePathForCommand = currentOutputPath;
+            let isTemp = false;
+
+            // If we don't have a file path yet (because output was only to column), create a temp one
+            if (!filePathForCommand && contentForColumn) {
+                isTemp = true;
+                const ext = (contentForColumn.startsWith('http') || contentForColumn.startsWith('data:')) ? '.png' : '.txt';
+                filePathForCommand = path.join(path.dirname(baseOutputPath || '.'), `temp_post_${index}_${stepIndex}${ext}`);
+                
+                // Write content
+                if (contentForColumn.startsWith('http') || contentForColumn.startsWith('data:')) {
+                     let buffer: Buffer;
+                     if (contentForColumn.startsWith('http')) {
+                         const imgRes = await fetch(contentForColumn);
+                         const arrayBuffer = await imgRes.arrayBuffer();
+                         buffer = Buffer.from(arrayBuffer);
+                     } else {
+                         const base64Data = contentForColumn.replace(/^data:image\/\w+;base64,/, "");
+                         buffer = Buffer.from(base64Data, 'base64');
+                     }
+                     await ensureDir(filePathForCommand);
+                     await fsPromises.writeFile(filePathForCommand, buffer);
+                } else {
+                    await ensureDir(filePathForCommand);
+                    await fsPromises.writeFile(filePathForCommand, contentForColumn);
+                }
+            }
+
+            if (filePathForCommand) {
+                const cmdTemplate = Handlebars.compile(currentPostProcessCommand, { noEscape: true });
+                // We pass the row data AND the file path
+                const cmd = cmdTemplate({ ...row, file: filePathForCommand });
+                
+                console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running command: ${cmd}`);
+                
+                try {
+                    const { stdout, stderr } = await execPromise(cmd);
+                    if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
+                    if (stderr && stderr.trim()) console.error(`[Row ${index}] Step ${stepIndex} STDERR:\n${stderr.trim()}`);
+                } catch (error: any) {
+                    console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error.message);
+                    if (error.stderr) console.error(`[Row ${index}] Step ${stepIndex} STDERR:\n${error.stderr.trim()}`);
+                }
+
+                if (isTemp) {
+                    try { await fsPromises.unlink(filePathForCommand); } catch (e) {}
+                }
             }
         }
 
