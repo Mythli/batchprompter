@@ -29,9 +29,10 @@ Hintergrund (Atmosphäre):
 [BESCHREIBE HIER DEN HINTERGRUND: Extrem unscharf (Bokeh). Beschreibe die Lichtstimmung und Farben passend zu {{industry}}. SCHREIBE EXPLIZIT: "Der Hintergrund ist leer. Es sind KEINE [Objekte die man erwarten würde, z.B. Maschinen, Regale] zu sehen." Nutze Begriffe wie "minimalistisch", "abstrakt", "reine Farbfläche".]
 
 Das UI-Design auf dem Display (Muss exakt generiert werden):
+**WICHTIG: Das Bild der Buchungsseite auf dem Telefon muss zu 100% vom beigefügten Referenzbild übernommen werden.**
 Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
 1. **Header:** Oben links Logo 'Butlerapp' (Text dunkelblau + buntes Unendlich-Icon). Oben rechts Hamburger-Menü (=).
-2. **Status:** Ein dunkelblauer Kreis mit der '1', daneben Text '[TYP_LABEL] auswählen'.
+2. **Status:** Ein dunkelblauer Kreis mit der '1', daneben Text '[TYP_LABEL] auswählen'. Rechts daneben sind 3 kleine graue Punkte für die weiteren Schritte.
 3. **Headline:** Groß und fett in der Mitte: '[TITEL DES ANGEBOTS] [PREIS] €'.
 4. **Sub-Infos:** Klein darunter: 'Ort: [ORT]' und 'Zeit: [UHRZEIT]'.
 5. **Buchungsmaske (3 Felder):**
