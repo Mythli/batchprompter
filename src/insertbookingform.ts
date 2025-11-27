@@ -230,11 +230,11 @@ class BookingFormDrawer {
 
     drawInfoSection(y: number) {
         const x = this.s(20);
-        const lineHeight = this.s(26);
+        const lineHeight = this.s(34);
         
         // Title
-        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(20)}" fill="#000">Reanimationskurs</text>`);
-        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(20)}" fill="#000">(9 UE) 59,00 €</text>`);
+        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">Reanimationskurs</text>`);
+        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">(9 UE) 59,00 €</text>`);
 
         // Details
         const detailY = y + lineHeight * 2 + this.s(10);
