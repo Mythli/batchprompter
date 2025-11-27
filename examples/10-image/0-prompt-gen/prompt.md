@@ -15,8 +15,9 @@ LOGIK ZUR ERSTELLUNG DES INHALTS:
 2. **Erfinde den Screen-Content:**
    - [TITEL]: Ein realistischer Name (z.B. "SKS Praxistörn" oder "Intensiv-Coaching").
    - [PREIS]: Ein realistischer Preis (z.B. "89,00 €").
-   - [DATUM]: Ein realistisches Datum in der Zukunft.
+   - [DATUM]: Ein realistisches Datum **Ende 2025**.
    - [ORT]: Eine typische deutsche Stadt oder Region.
+   - [TYP_LABEL]: Wähle den passenden Begriff für das Angebot (z.B. "Kurs", "Seminar", "Veranstaltung", "Termin", "Ticket").
 3. **Visualisiere den Background:** Wähle einen extrem minimalistischen Hintergrund passend zur Branche (nur Farben/Licht, keine Objekte).
 
 OUTPUT-STRUKTUR (Halte dich exakt an diese Vorlage für den Prompt, gib nur den Prompt zurück):
@@ -29,11 +30,11 @@ Ein extrem unscharfer, minimalistischer Hintergrund (starkes Bokeh), der eine au
 Das UI-Design auf dem Display (Muss exakt generiert werden):
 Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
 1. **Header:** Oben links Logo 'Butlerapp' (Text dunkelblau + buntes Unendlich-Icon). Oben rechts Hamburger-Menü (=).
-2. **Status:** Ein dunkelblauer Kreis mit der '1', daneben Text 'Veranstaltung auswählen'.
+2. **Status:** Ein dunkelblauer Kreis mit der '1', daneben Text '[TYP_LABEL] auswählen'.
 3. **Headline:** Groß und fett in der Mitte: '[TITEL DES ANGEBOTS] [PREIS] €'.
 4. **Sub-Infos:** Klein darunter: 'Ort: [ORT]' und 'Zeit: [UHRZEIT]'.
 5. **Buchungsmaske (3 Felder):**
-   - Feld 1 (Datum): Label 'Veranstaltung*', Inhalt '[DATUM]'. Pfeil nach unten Icon.
+   - Feld 1 (Datum): Label '[TYP_LABEL]*', Inhalt '[DATUM]'. Pfeil nach unten Icon.
    - Feld 2 (Menge): Label 'Teilnehmer*', Inhalt '1 Person'. Pfeil nach unten Icon.
    - Feld 3 (Preis): Label 'Wert*', Inhalt '[PREIS] € Standardpreis'. Pfeil nach unten Icon.
 6. **Footer:** Unten fixiert: Links '← Zurück', Rechts Button 'Weiter →'.
