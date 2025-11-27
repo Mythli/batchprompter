@@ -19,14 +19,14 @@ LOGIK ZUR ERSTELLUNG DES INHALTS:
    - [DATUM]: Ein realistisches Datum **Ende 2025**.
    - [ORT]: Eine typische deutsche Stadt oder Region.
    - [TYP_LABEL]: Wähle den passenden Begriff für das Angebot (z.B. "Kurs", "Seminar", "Veranstaltung", "Termin", "Ticket").
-4. **Visualisiere den Background:** Beschreibe einen Hintergrund, der zur Zielgruppe und dem Angebot passt. Er muss extrem unscharf (Bokeh) sein. **WICHTIG: Keine komplexen Objekte (wie Maschinen, Möbel, Menschen). Nur Farben, Licht und abstrakte Texturen.**
+4. **Visualisiere den Background:** Der Hintergrund muss extrem ruhig und clean sein, damit der Fokus auf dem Handy bleibt. Beschreibe eine Atmosphäre aus Licht und Farben, die zur Branche passt. **WICHTIG:** Schreibe explizit in den Prompt, dass der Hintergrund frei von komplexen Objekten, Maschinen oder Menschen ist. Nutze Begriffe wie 'minimalistisch', 'abstrakt', 'unscharf'.
 
 OUTPUT-STRUKTUR (Halte dich exakt an diese Vorlage. GIB NUR DEN PROMPT ZURÜCK. KEINE EINLEITUNG, KEIN "HIER IST DER PROMPT"):
 
 "Ein fotorealistisches Makro-Foto einer Hand, die ein iPhone 14 Pro **perfekt gerade und frontal** hält. Der Fokus liegt gestochen scharf auf dem Display.
 
 Hintergrund (Atmosphäre):
-[BESCHREIBE HIER DEN HINTERGRUND: Extrem unscharf (Bokeh), passend zu {{industry}}. Nutze NUR Farben, Licht und abstrakte Texturen. VERBOTEN: Konkrete Objekte, Maschinen, Menschen, Möbel. Es muss extrem clean und ruhig sein.]
+[BESCHREIBE HIER DEN HINTERGRUND: Extrem unscharf (Bokeh). Beschreibe die Lichtstimmung und Farben passend zu {{industry}}. Formuliere explizit, dass keine ablenkenden Details, Maschinen oder Möbel zu sehen sind. Der Hintergrund dient nur der Atmosphäre.]
 
 Das UI-Design auf dem Display (Muss exakt generiert werden):
 Das Display zeigt die mobile Buchungsseite von 'Butlerapp' (weißes, cleanes Design, dunkelblaue Schrift):
