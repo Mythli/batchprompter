@@ -313,13 +313,13 @@ async function detectScreenArea(
     }
 
     // 4. Generate Debug Image if requested
-    if (debugOutputPath) {
-        const svg = createDebugSvg(width, height, grid, blockSize, rawRect);
-        await sharp(inputPath)
-            .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
-            .toFile(debugOutputPath);
-        console.log(`Debug image saved to ${debugOutputPath}`);
-    }
+    // if (debugOutputPath) {
+    //     const svg = createDebugSvg(width, height, grid, blockSize, rawRect);
+    //     await sharp(inputPath)
+    //         .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+    //         .toFile(debugOutputPath);
+    //     console.log(`Debug image saved to ${debugOutputPath}`);
+    // }
 
     // 5. Apply Margins
     const marginXLeft = rawRect.width * options.margins.left;
@@ -509,8 +509,8 @@ class BookingFormDrawer {
         this.drawFooter();
 
         // Draw green border around the detected area (changed from red)
-        const borderW = this.s(4);
-        this.elements.push(`<rect x="${borderW/2}" y="${borderW/2}" width="${this.width - borderW}" height="${this.height - borderW}" fill="none" stroke="#00FF00" stroke-width="${borderW}" />`);
+        // const borderW = this.s(4);
+        // this.elements.push(`<rect x="${borderW/2}" y="${borderW/2}" width="${this.width - borderW}" height="${this.height - borderW}" fill="none" stroke="#00FF00" stroke-width="${borderW}" />`);
     }
 
     getSvg(): string {
@@ -577,7 +577,8 @@ async function main() {
     const ext = path.extname(outputPath);
     const base = path.basename(outputPath, ext);
     const dir = path.dirname(outputPath);
-    const debugOutputPath = path.join(dir, `${base}_debug${ext}`);
+    // Force .png extension for debug file to ensure it can be opened even if outputPath is .tmp
+    const debugOutputPath = path.join(dir, `${base}_debug.png`);
 
     try {
         // Load JSON data
