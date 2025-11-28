@@ -1,7 +1,7 @@
 #!/bin/bash
 npx tsx src/index.ts generate examples/10-image/data.csv \
   examples/10-image/prompt-1-industry-image \
-  examples/10-image/prompt-2-butlerapp-software \
+  examples/10-image/prompt-4-booking-form \
   --model "google/gemini-3-pro-image-preview" \
   --output-1 "out/10-image/{{industry}}/{{industry}}-real.png" \
   --aspect-ratio-1 "3:2" \
