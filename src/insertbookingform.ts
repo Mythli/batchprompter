@@ -16,6 +16,12 @@ interface Margins {
     left: number;
 }
 
+interface DetectionOptions {
+    targetColor: string;
+    threshold: number;
+    margins: Margins;
+}
+
 interface BookingFormData {
     header: {
         title: string;
@@ -73,7 +79,7 @@ function normalizeFormData(data: BookingFormData): BookingFormData {
     };
 }
 
-async function detectScreenArea(inputPath: string, margins: Margins = { top: 0, right: 0, bottom: 0, left: 0 }): Promise<Rectangle> {
+async function detectScreenArea(inputPath: string, options: DetectionOptions): Promise<Rectangle> {
     // 1. Analyze image
     const image = sharp(inputPath);
     const metadata = await image.metadata();
@@ -94,23 +100,27 @@ async function detectScreenArea(inputPath: string, margins: Margins = { top: 0, 
     const visited = new Uint8Array(width * height); // 0 = unvisited, 1 = visited
     const components: { x: number, y: number, w: number, h: number, size: number }[] = [];
 
+    // Parse target color
+    const hex = options.targetColor.replace(/^#/, '');
+    const targetR = parseInt(hex.substring(0, 2), 16);
+    const targetG = parseInt(hex.substring(2, 4), 16);
+    const targetB = parseInt(hex.substring(4, 6), 16);
+    
+    // Use squared threshold to avoid sqrt in loop
+    const thresholdSq = options.threshold * options.threshold;
+
     const isScreenPixel = (x: number, y: number) => {
         const offset = (y * width + x) * 4;
         const r = data[offset];
         const g = data[offset + 1];
         const b = data[offset + 2];
 
-        // Brightness
-        const brightness = (r + g + b) / 3;
-        // Saturation
-        const maxC = Math.max(r, g, b);
-        const minC = Math.min(r, g, b);
-        const saturation = maxC - minC;
+        // Calculate Euclidean distance squared
+        const distSq = Math.pow(r - targetR, 2) + 
+                       Math.pow(g - targetG, 2) + 
+                       Math.pow(b - targetB, 2);
 
-        // Thresholds: 
-        // Screen is light (brightness > 200) 
-        // Screen is neutral color (saturation < 30)
-        return brightness > 200 && saturation < 30;
+        return distSq <= thresholdSq;
     };
 
     // Find connected components using flood fill
@@ -171,7 +181,7 @@ async function detectScreenArea(inputPath: string, margins: Margins = { top: 0, 
     }
 
     if (components.length === 0) {
-        throw new Error('No screen area detected based on thresholds.');
+        throw new Error(`No screen area detected matching color ${options.targetColor} with threshold ${options.threshold}.`);
     }
 
     // Heuristic: The screen is likely the component closest to the center of the image
@@ -196,10 +206,10 @@ async function detectScreenArea(inputPath: string, margins: Margins = { top: 0, 
     const { x: rectX, y: rectY, w: rectWidth, h: rectHeight } = bestComponent;
 
     // Apply margins
-    const marginXLeft = rectWidth * margins.left;
-    const marginXRight = rectWidth * margins.right;
-    const marginTop = rectHeight * margins.top;
-    const marginBottom = rectHeight * margins.bottom;
+    const marginXLeft = rectWidth * options.margins.left;
+    const marginXRight = rectWidth * options.margins.right;
+    const marginTop = rectHeight * options.margins.top;
+    const marginBottom = rectHeight * options.margins.bottom;
 
     const finalX = rectX + marginXLeft;
     const finalY = rectY + marginTop;
@@ -451,15 +461,19 @@ async function main() {
         // Normalize data (escape XML characters)
         const formData = normalizeFormData(rawFormData);
 
-        // Margins: 4% sides/bottom, 7% top
-        const margins: Margins = {
-            top: 0.07,
-            right: 0.04,
-            bottom: 0.04,
-            left: 0.04
+        // Configuration
+        const detectionOptions: DetectionOptions = {
+            targetColor: '#E4E7EF',
+            threshold: 45, // Allow for some lighting variation
+            margins: {
+                top: 0.07,
+                right: 0.04,
+                bottom: 0.04,
+                left: 0.04
+            }
         };
 
-        const rect = await detectScreenArea(inputPath, margins);
+        const rect = await detectScreenArea(inputPath, detectionOptions);
         console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
         
         await drawBookingForm(inputPath, outputPath, rect, formData, logoPath);
