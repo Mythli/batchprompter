@@ -20,8 +20,6 @@ interface DetectionOptions {
     targetColor: string;
     threshold: number;
     margins: Margins;
-    minSolidPx?: number; // Optional fixed pixel size
-    minSolidRatio?: number; // Optional ratio of image height (default 0.3)
 }
 
 interface BookingFormData {
@@ -81,66 +79,41 @@ function normalizeFormData(data: BookingFormData): BookingFormData {
     };
 }
 
-/**
- * Checks if a candidate rectangle contains a solid block of the target color
- * of size size x size using a Summed Area Table (Integral Image).
- */
-function hasSolidBlock(
-    rect: { x: number, y: number, w: number, h: number },
-    fullWidth: number,
-    isPixelMatch: (x: number, y: number) => boolean,
-    size: number
-): boolean {
-    if (rect.w < size || rect.h < size) return false;
-
-    // 1. Build Summed Area Table (SAT) for the cropped region
-    // sat[y][x] stores the sum of matching pixels in the rectangle from (0,0) to (x-1, y-1)
-    const sat = new Int32Array((rect.w + 1) * (rect.h + 1));
+function createDebugSvg(
+    width: number, 
+    height: number, 
+    grid: boolean[][], 
+    blockSize: number, 
+    foundRect: Rectangle
+): string {
+    const elements: string[] = [];
     
-    const getSat = (x: number, y: number) => sat[y * (rect.w + 1) + x];
-    const setSat = (x: number, y: number, val: number) => { sat[y * (rect.w + 1) + x] = val; };
-
-    for (let y = 0; y < rect.h; y++) {
-        for (let x = 0; x < rect.w; x++) {
-            // Check pixel in global coordinates
-            const match = isPixelMatch(rect.x + x, rect.y + y) ? 1 : 0;
-            
-            // SAT formula: val + left + top - top_left
-            const sum = match 
-                + getSat(x + 1, y) 
-                + getSat(x, y + 1) 
-                - getSat(x, y);
-            
-            setSat(x + 1, y + 1, sum);
+    // Draw grid blocks
+    for (let r = 0; r < grid.length; r++) {
+        for (let c = 0; c < grid[0].length; c++) {
+            const x = c * blockSize;
+            const y = r * blockSize;
+            // Green for match, Red for no match. Semi-transparent.
+            const color = grid[r][c] ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 0, 0, 0.3)';
+            elements.push(`<rect x="${x}" y="${y}" width="${blockSize}" height="${blockSize}" fill="${color}" />`);
         }
     }
 
-    // 2. Sliding Window Check
-    // We want a block of size*size.
-    // Allow a small tolerance (e.g., 98% match) for noise/compression artifacts
-    const requiredCount = Math.floor((size * size) * 0.98);
+    // Draw found rectangle outline in Green
+    elements.push(`<rect x="${foundRect.x}" y="${foundRect.y}" width="${foundRect.width}" height="${foundRect.height}" fill="none" stroke="#00FF00" stroke-width="4" />`);
 
-    for (let y = size; y <= rect.h; y++) {
-        for (let x = size; x <= rect.w; x++) {
-            // Calculate sum of the window ending at (x,y)
-            // Area = D - B - C + A
-            // A(x-size, y-size)  B(x, y-size)
-            // C(x-size, y)       D(x, y)
-            const total = getSat(x, y) 
-                        - getSat(x, y - size) 
-                        - getSat(x - size, y) 
-                        + getSat(x - size, y - size);
-
-            if (total >= requiredCount) {
-                return true;
-            }
-        }
-    }
-
-    return false;
+    return `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+        ${elements.join('\n')}
+    </svg>
+    `;
 }
 
-async function detectScreenArea(inputPath: string, options: DetectionOptions): Promise<Rectangle> {
+async function detectScreenArea(
+    inputPath: string, 
+    options: DetectionOptions,
+    debugOutputPath?: string
+): Promise<Rectangle> {
     // 1. Analyze image
     const image = sharp(inputPath);
     const metadata = await image.metadata();
@@ -158,8 +131,10 @@ async function detectScreenArea(inputPath: string, options: DetectionOptions): P
         .raw()
         .toBuffer({ resolveWithObject: true });
 
-    const visited = new Uint8Array(width * height); // 0 = unvisited, 1 = visited
-    const components: { x: number, y: number, w: number, h: number, size: number }[] = [];
+    const blockSize = 10;
+    const rows = Math.ceil(height / blockSize);
+    const cols = Math.ceil(width / blockSize);
+    const grid: boolean[][] = Array(rows).fill(null).map(() => Array(cols).fill(false));
 
     // Parse target color
     const hex = options.targetColor.replace(/^#/, '');
@@ -167,134 +142,115 @@ async function detectScreenArea(inputPath: string, options: DetectionOptions): P
     const targetG = parseInt(hex.substring(2, 4), 16);
     const targetB = parseInt(hex.substring(4, 6), 16);
     
-    // Use squared threshold to avoid sqrt in loop
     const thresholdSq = options.threshold * options.threshold;
 
-    const isScreenPixel = (x: number, y: number) => {
-        const offset = (y * width + x) * 4;
-        const r = data[offset];
-        const g = data[offset + 1];
-        const b = data[offset + 2];
+    // 2. Build Grid
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            let matchCount = 0;
+            let totalCount = 0;
 
-        // Calculate Euclidean distance squared
-        const distSq = Math.pow(r - targetR, 2) + 
-                       Math.pow(g - targetG, 2) + 
-                       Math.pow(b - targetB, 2);
+            const startY = r * blockSize;
+            const startX = c * blockSize;
+            const endY = Math.min(startY + blockSize, height);
+            const endX = Math.min(startX + blockSize, width);
 
-        return distSq <= thresholdSq;
-    };
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
+                    totalCount++;
+                    const offset = (y * width + x) * 4;
+                    const red = data[offset];
+                    const green = data[offset + 1];
+                    const blue = data[offset + 2];
 
-    // Find connected components using flood fill
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const idx = y * width + x;
-            if (visited[idx]) continue;
-            
-            if (isScreenPixel(x, y)) {
-                // Start flood fill (DFS)
-                let minX = x, maxX = x, minY = y, maxY = y;
-                let count = 0;
-                const stack = [idx];
-                visited[idx] = 1;
+                    const distSq = Math.pow(red - targetR, 2) + 
+                                   Math.pow(green - targetG, 2) + 
+                                   Math.pow(blue - targetB, 2);
 
-                while (stack.length > 0) {
-                    const currIdx = stack.pop()!;
-                    const currX = currIdx % width;
-                    const currY = Math.floor(currIdx / width);
-
-                    count++;
-                    if (currX < minX) minX = currX;
-                    if (currX > maxX) maxX = currX;
-                    if (currY < minY) minY = currY;
-                    if (currY > maxY) maxY = currY;
-
-                    // Check neighbors (4-connectivity)
-                    const neighbors = [
-                        { nx: currX + 1, ny: currY },
-                        { nx: currX - 1, ny: currY },
-                        { nx: currX, ny: currY + 1 },
-                        { nx: currX, ny: currY - 1 }
-                    ];
-
-                    for (const { nx, ny } of neighbors) {
-                        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                            const nIdx = ny * width + nx;
-                            if (!visited[nIdx] && isScreenPixel(nx, ny)) {
-                                visited[nIdx] = 1;
-                                stack.push(nIdx);
-                            }
-                        }
+                    if (distSq <= thresholdSq) {
+                        matchCount++;
                     }
                 }
+            }
 
-                // Store component if it's significant (ignore small noise)
-                if (count > 1000) { 
-                    components.push({
-                        x: minX,
-                        y: minY,
-                        w: maxX - minX,
-                        h: maxY - minY,
-                        size: count
-                    });
-                }
+            // If > 90% pixels match, consider the block a match
+            if (totalCount > 0 && (matchCount / totalCount) > 0.9) {
+                grid[r][c] = true;
             }
         }
     }
 
-    if (components.length === 0) {
-        throw new Error(`No screen area detected matching color ${options.targetColor} with threshold ${options.threshold}.`);
-    }
+    // 3. Find Largest Rectangle of 1s in the grid
+    const heights = new Int32Array(cols).fill(0);
+    let maxArea = 0;
+    let bestRectGrid = { c: 0, r: 0, w: 0, h: 0 };
 
-    // Heuristic: The screen is likely the component closest to the center of the image
-    // that is also reasonably large.
-    const centerX = width / 2;
-    const centerY = height / 2;
-    
-    // Sort components by score: size / distance_from_center
-    const sortedComponents = components.map(comp => {
-        const currCx = comp.x + comp.w / 2;
-        const currCy = comp.y + comp.h / 2;
-        const dist = Math.sqrt(Math.pow(currCx - centerX, 2) + Math.pow(currCy - centerY, 2));
-        const score = comp.size / (dist + 1);
-        return { comp, score };
-    }).sort((a, b) => b.score - a.score); // Descending score
+    for (let r = 0; r < rows; r++) {
+        // Update heights
+        for (let c = 0; c < cols; c++) {
+            if (grid[r][c]) {
+                heights[c]++;
+            } else {
+                heights[c] = 0;
+            }
+        }
 
-    // Determine solid block size
-    let solidSize: number;
-    if (options.minSolidPx !== undefined) {
-        solidSize = options.minSolidPx;
-    } else {
-        const ratio = options.minSolidRatio !== undefined ? options.minSolidRatio : 0.3;
-        solidSize = Math.floor(height * ratio);
-    }
+        // Largest rectangle in histogram
+        const stack: number[] = [];
+        for (let c = 0; c <= cols; c++) {
+            const h = (c === cols) ? 0 : heights[c];
+            while (stack.length > 0 && h < heights[stack[stack.length - 1]]) {
+                const heightVal = heights[stack.pop()!];
+                const widthVal = stack.length === 0 ? c : c - stack[stack.length - 1] - 1;
+                const area = heightVal * widthVal;
 
-    // Iterate through candidates and find the first one that passes the solidity check
-    let bestComponent = null;
-
-    for (const candidate of sortedComponents) {
-        const passes = hasSolidBlock(candidate.comp, width, isScreenPixel, solidSize);
-        if (passes) {
-            bestComponent = candidate.comp;
-            break;
+                if (area > maxArea) {
+                    maxArea = area;
+                    // Top-left corner of this rectangle
+                    // Bottom row is r. Height is heightVal. Top row is r - heightVal + 1.
+                    // Right col is c - 1. Width is widthVal. Left col is c - widthVal.
+                    bestRectGrid = {
+                        c: c - widthVal,
+                        r: r - heightVal + 1,
+                        w: widthVal,
+                        h: heightVal
+                    };
+                }
+            }
+            stack.push(c);
         }
     }
 
-    if (!bestComponent) {
-        throw new Error(`No valid screen area found. Candidates detected but none contained a solid ${solidSize}x${solidSize} block.`);
+    if (maxArea === 0) {
+        throw new Error('No matching screen area found.');
     }
 
-    const { x: rectX, y: rectY, w: rectWidth, h: rectHeight } = bestComponent;
+    const rawRect = {
+        x: bestRectGrid.c * blockSize,
+        y: bestRectGrid.r * blockSize,
+        width: bestRectGrid.w * blockSize,
+        height: bestRectGrid.h * blockSize
+    };
 
-    // Apply margins
-    const marginXLeft = rectWidth * options.margins.left;
-    const marginXRight = rectWidth * options.margins.right;
-    const marginTop = rectHeight * options.margins.top;
-    const marginBottom = rectHeight * options.margins.bottom;
+    // 4. Generate Debug Image if requested
+    if (debugOutputPath) {
+        const svg = createDebugSvg(width, height, grid, blockSize, rawRect);
+        await sharp(inputPath)
+            .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+            .toFile(debugOutputPath);
+        console.log(`Debug image saved to ${debugOutputPath}`);
+    }
 
-    const finalX = rectX + marginXLeft;
-    const finalY = rectY + marginTop;
-    const finalWidth = rectWidth - (marginXLeft + marginXRight);
-    const finalHeight = rectHeight - (marginTop + marginBottom);
+    // 5. Apply Margins
+    const marginXLeft = rawRect.width * options.margins.left;
+    const marginXRight = rawRect.width * options.margins.right;
+    const marginTop = rawRect.height * options.margins.top;
+    const marginBottom = rawRect.height * options.margins.bottom;
+
+    const finalX = rawRect.x + marginXLeft;
+    const finalY = rawRect.y + marginTop;
+    const finalWidth = rawRect.width - (marginXLeft + marginXRight);
+    const finalHeight = rawRect.height - (marginTop + marginBottom);
 
     return {
         x: finalX,
@@ -472,9 +428,9 @@ class BookingFormDrawer {
         
         this.drawFooter();
 
-        // Draw red border around the detected area
+        // Draw green border around the detected area (changed from red)
         const borderW = this.s(4);
-        this.elements.push(`<rect x="${borderW/2}" y="${borderW/2}" width="${this.width - borderW}" height="${this.height - borderW}" fill="none" stroke="red" stroke-width="${borderW}" />`);
+        this.elements.push(`<rect x="${borderW/2}" y="${borderW/2}" width="${this.width - borderW}" height="${this.height - borderW}" fill="none" stroke="#00FF00" stroke-width="${borderW}" />`);
     }
 
     getSvg(): string {
@@ -536,6 +492,12 @@ async function main() {
     const jsonPath = args[1];
     const logoPath = args[2];
     const outputPath = args[3] || 'test/output_with_form.png';
+    
+    // Derive debug output path
+    const ext = path.extname(outputPath);
+    const base = path.basename(outputPath, ext);
+    const dir = path.dirname(outputPath);
+    const debugOutputPath = path.join(dir, `${base}_debug${ext}`);
 
     try {
         // Load JSON data
@@ -554,11 +516,10 @@ async function main() {
                 right: 0.04,
                 bottom: 0.04,
                 left: 0.04
-            },
-            minSolidRatio: 0.3 // Require at least 30% of image height as solid block
+            }
         };
 
-        const rect = await detectScreenArea(inputPath, detectionOptions);
+        const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
         console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
         
         await drawBookingForm(inputPath, outputPath, rect, formData, logoPath);
