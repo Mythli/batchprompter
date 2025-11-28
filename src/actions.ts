@@ -190,8 +190,8 @@ function renderPath(pathTemplate: string, context: any): string {
 }
 
 function aggressiveSanitize(input: string): string {
-    // 1. Remove anything that is NOT a-z, A-Z, 0-9, -, or _
-    let sanitized = input.replace(/[^a-zA-Z0-9\-_]/g, '');
+    // 1. Remove anything that is NOT a-z, A-Z, 0-9
+    let sanitized = input.replace(/[^a-zA-Z0-9]/g, '');
     
     // 2. Remove leading numbers
     sanitized = sanitized.replace(/^[0-9]+/, '');
