@@ -37,6 +37,42 @@ interface BookingFormData {
     };
 }
 
+function escapeXml(unsafe: string): string {
+    return unsafe.replace(/[<>&'"]/g, (c) => {
+        switch (c) {
+            case '<': return '&lt;';
+            case '>': return '&gt;';
+            case '&': return '&amp;';
+            case '\'': return '&apos;';
+            case '"': return '&quot;';
+            default: return c;
+        }
+    });
+}
+
+function normalizeFormData(data: BookingFormData): BookingFormData {
+    return {
+        header: {
+            title: escapeXml(data.header.title),
+            subtitle: escapeXml(data.header.subtitle),
+            details: data.header.details.map(escapeXml)
+        },
+        stepper: {
+            step1: escapeXml(data.stepper.step1),
+            step2: escapeXml(data.stepper.step2),
+            step3: escapeXml(data.stepper.step3)
+        },
+        inputs: data.inputs.map(input => ({
+            label: escapeXml(input.label),
+            value: escapeXml(input.value)
+        })),
+        footer: {
+            backText: escapeXml(data.footer.backText),
+            nextText: escapeXml(data.footer.nextText)
+        }
+    };
+}
+
 async function detectScreenArea(inputPath: string, margins: Margins = { top: 0, right: 0, bottom: 0, left: 0 }): Promise<Rectangle> {
     // 1. Analyze image
     const image = sharp(inputPath);
@@ -410,7 +446,10 @@ async function main() {
     try {
         // Load JSON data
         const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
-        const formData: BookingFormData = JSON.parse(jsonContent);
+        const rawFormData: BookingFormData = JSON.parse(jsonContent);
+        
+        // Normalize data (escape XML characters)
+        const formData = normalizeFormData(rawFormData);
 
         // Margins: 4% sides/bottom, 7% top
         const margins: Margins = {
