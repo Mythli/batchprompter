@@ -232,6 +232,86 @@ async function detectScreenArea(
         height: bestRectGrid.h * blockSize
     };
 
+    // 3.5 Expand rectangle pixel by pixel
+    let expanded = true;
+    while (expanded) {
+        expanded = false;
+        
+        // Try Top
+        if (rawRect.y > 0) {
+            const testY = rawRect.y - 1;
+            let matchCount = 0;
+            for (let x = rawRect.x; x < rawRect.x + rawRect.width; x++) {
+                const offset = (testY * width + x) * 4;
+                const r = data[offset];
+                const g = data[offset + 1];
+                const b = data[offset + 2];
+                const distSq = Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2);
+                if (distSq <= thresholdSq) matchCount++;
+            }
+            if (matchCount / rawRect.width > 0.9) {
+                rawRect.y--;
+                rawRect.height++;
+                expanded = true;
+            }
+        }
+
+        // Try Bottom
+        if (rawRect.y + rawRect.height < height) {
+            const testY = rawRect.y + rawRect.height;
+            let matchCount = 0;
+            for (let x = rawRect.x; x < rawRect.x + rawRect.width; x++) {
+                const offset = (testY * width + x) * 4;
+                const r = data[offset];
+                const g = data[offset + 1];
+                const b = data[offset + 2];
+                const distSq = Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2);
+                if (distSq <= thresholdSq) matchCount++;
+            }
+            if (matchCount / rawRect.width > 0.9) {
+                rawRect.height++;
+                expanded = true;
+            }
+        }
+
+        // Try Left
+        if (rawRect.x > 0) {
+            const testX = rawRect.x - 1;
+            let matchCount = 0;
+            for (let y = rawRect.y; y < rawRect.y + rawRect.height; y++) {
+                const offset = (y * width + testX) * 4;
+                const r = data[offset];
+                const g = data[offset + 1];
+                const b = data[offset + 2];
+                const distSq = Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2);
+                if (distSq <= thresholdSq) matchCount++;
+            }
+            if (matchCount / rawRect.height > 0.9) {
+                rawRect.x--;
+                rawRect.width++;
+                expanded = true;
+            }
+        }
+
+        // Try Right
+        if (rawRect.x + rawRect.width < width) {
+            const testX = rawRect.x + rawRect.width;
+            let matchCount = 0;
+            for (let y = rawRect.y; y < rawRect.y + rawRect.height; y++) {
+                const offset = (y * width + testX) * 4;
+                const r = data[offset];
+                const g = data[offset + 1];
+                const b = data[offset + 2];
+                const distSq = Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2);
+                if (distSq <= thresholdSq) matchCount++;
+            }
+            if (matchCount / rawRect.height > 0.9) {
+                rawRect.width++;
+                expanded = true;
+            }
+        }
+    }
+
     // 4. Generate Debug Image if requested
     if (debugOutputPath) {
         const svg = createDebugSvg(width, height, grid, blockSize, rawRect);
