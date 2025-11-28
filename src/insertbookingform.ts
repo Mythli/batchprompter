@@ -80,14 +80,14 @@ function normalizeFormData(data: BookingFormData): BookingFormData {
 }
 
 function createDebugSvg(
-    width: number, 
-    height: number, 
-    grid: boolean[][], 
-    blockSize: number, 
+    width: number,
+    height: number,
+    grid: boolean[][],
+    blockSize: number,
     foundRect: Rectangle
 ): string {
     const elements: string[] = [];
-    
+
     // Draw grid blocks
     for (let r = 0; r < grid.length; r++) {
         for (let c = 0; c < grid[0].length; c++) {
@@ -110,21 +110,21 @@ function createDebugSvg(
 }
 
 async function detectScreenArea(
-    inputPath: string, 
+    inputPath: string,
     options: DetectionOptions,
     debugOutputPath?: string
 ): Promise<Rectangle> {
     // 1. Analyze image
     const image = sharp(inputPath);
     const metadata = await image.metadata();
-    
+
     if (!metadata.width || !metadata.height) {
         throw new Error('Unable to retrieve image metadata');
     }
 
     const { width, height } = metadata;
 
-    // Get raw pixel data. 
+    // Get raw pixel data.
     const { data } = await image
         .clone()
         .ensureAlpha()
@@ -141,7 +141,7 @@ async function detectScreenArea(
     const targetR = parseInt(hex.substring(0, 2), 16);
     const targetG = parseInt(hex.substring(2, 4), 16);
     const targetB = parseInt(hex.substring(4, 6), 16);
-    
+
     const thresholdSq = options.threshold * options.threshold;
 
     // 2. Build Grid
@@ -163,8 +163,8 @@ async function detectScreenArea(
                     const green = data[offset + 1];
                     const blue = data[offset + 2];
 
-                    const distSq = Math.pow(red - targetR, 2) + 
-                                   Math.pow(green - targetG, 2) + 
+                    const distSq = Math.pow(red - targetR, 2) +
+                                   Math.pow(green - targetG, 2) +
                                    Math.pow(blue - targetB, 2);
 
                     if (distSq <= thresholdSq) {
@@ -236,7 +236,7 @@ async function detectScreenArea(
     let expanded = true;
     while (expanded) {
         expanded = false;
-        
+
         // Try Top
         if (rawRect.y > 0) {
             const testY = rawRect.y - 1;
@@ -364,12 +364,12 @@ class BookingFormDrawer {
 
     drawHeader() {
         const y = this.s(30);
-        
+
         if (this.logoData) {
             const targetHeight = this.s(42); // Increased by 50%
             const aspectRatio = this.logoData.width / this.logoData.height;
             const targetWidth = targetHeight * aspectRatio;
-            
+
             this.elements.push(`<image href="${this.logoData.base64}" x="${this.s(20)}" y="${y}" width="${targetWidth}" height="${targetHeight}" />`);
         } else {
             // Fallback text if logo not loaded
@@ -381,13 +381,13 @@ class BookingFormDrawer {
         const barW = this.s(30); // 20 * 1.5
         const barH = this.s(5);  // Thicker
         const gap = this.s(9);   // 6 * 1.5
-        
+
         const menuX = this.width - this.s(50); // Maintain ~20px right margin (20 + 30 = 50)
-        
+
         // Center vertically with logo (Logo Y=30, H=42 -> Center=51)
         // Menu H = 3*5 + 2*9 = 33. Center offset = 16.5. Top = 51 - 16.5 = 34.5
         const menuY = this.s(34.5);
-        
+
         this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
         this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
         this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
@@ -399,11 +399,11 @@ class BookingFormDrawer {
         const circleSize = this.s(32);
         const fontSize = this.s(16);
         const textOffsetY = this.s(6);
-        
+
         // Step 1 (Active)
         this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#1D1D1F" />`);
         this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
-        
+
         // Text
         this.elements.push(`<text x="${startX + circleSize + this.s(10)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
 
@@ -423,7 +423,7 @@ class BookingFormDrawer {
     drawInfoSection(y: number) {
         const x = this.s(20);
         const lineHeight = this.s(34);
-        
+
         // Title
         this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">${this.formData.header.title}</text>`);
         // Subtitle - Increased font size to match title (26)
@@ -432,7 +432,7 @@ class BookingFormDrawer {
         // Details
         const detailY = y + lineHeight * 2 + this.s(10);
         const detailLineHeight = this.s(18);
-        
+
         this.formData.header.details.forEach((detail, index) => {
             this.elements.push(`<text x="${x}" y="${detailY + (index * detailLineHeight)}" font-family="Arial" font-size="${this.s(14)}" fill="#333">${detail}</text>`);
         });
@@ -472,22 +472,22 @@ class BookingFormDrawer {
         // Next
         const fontSize = this.s(22);
         const iconR = this.s(12);
-        
+
         // Center icon vertically relative to text baseline approx
         // Baseline is y. Cap height ~0.7em. Center ~ y - 0.35em.
         const iconCy = y - (fontSize * 0.35);
         const iconCx = xRight - iconR;
-        
+
         // Draw text
         this.elements.push(`<text x="${iconCx - iconR - this.s(10)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">${this.formData.footer.nextText}</text>`);
-        
+
         // Draw Icon Circle
         this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(2)}" />`);
-        
+
         // Draw Arrow
         const arrowLen = this.s(10);
         const arrowHead = this.s(4);
-        
+
         // Line
         this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="#000" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
         // Head
@@ -498,14 +498,14 @@ class BookingFormDrawer {
         this.drawHeader();
         this.drawStepper(this.s(100));
         this.drawInfoSection(this.s(180));
-        
+
         let inputY = this.s(310);
         const inputGap = this.s(85);
-        
+
         this.formData.inputs.forEach((input, index) => {
             this.drawInput(inputY + (inputGap * index), input.label, input.value);
         });
-        
+
         this.drawFooter();
 
         // Draw green border around the detected area (changed from red)
@@ -545,13 +545,13 @@ async function drawBookingForm(inputPath: string, outputPath: string, rect: Rect
     const svgContent = drawer.getSvg();
 
     const image = sharp(inputPath);
-    
+
     // Composite the SVG onto the image
     await image
-        .composite([{ 
-            input: Buffer.from(svgContent), 
-            top: Math.round(rect.y), 
-            left: Math.round(rect.x) 
+        .composite([{
+            input: Buffer.from(svgContent),
+            top: Math.round(rect.y),
+            left: Math.round(rect.x)
         }])
         .toFile(outputPath);
 
@@ -561,7 +561,7 @@ async function drawBookingForm(inputPath: string, outputPath: string, rect: Rect
 async function main() {
     // Parse arguments
     const args = process.argv.slice(2);
-    
+
     if (args.length < 3) {
         console.error('Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> [output_image]');
         console.log('Example: ts-node src/insertbookingform.ts test/input.png test/form_data.json test/logo.png');
@@ -572,7 +572,7 @@ async function main() {
     const jsonPath = args[1];
     const logoPath = args[2];
     const outputPath = args[3] || 'test/output_with_form.png';
-    
+
     // Derive debug output path
     const ext = path.extname(outputPath);
     const base = path.basename(outputPath, ext);
@@ -583,7 +583,7 @@ async function main() {
         // Load JSON data
         const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
         const rawFormData: BookingFormData = JSON.parse(jsonContent);
-        
+
         // Normalize data (escape XML characters)
         const formData = normalizeFormData(rawFormData);
 
@@ -592,16 +592,16 @@ async function main() {
             targetColor: '#E4E7EF',
             threshold: 45, // Allow for some lighting variation
             margins: {
-                top: 0.07,
-                right: 0.04,
-                bottom: 0.04,
-                left: 0.04
+                top: 0.01,
+                right: 0.01,
+                bottom: 0.00,
+                left: 0.01
             }
         };
 
         const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
         console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
-        
+
         await drawBookingForm(inputPath, outputPath, rect, formData, logoPath);
 
     } catch (error) {
