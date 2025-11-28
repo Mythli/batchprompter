@@ -20,6 +20,7 @@ interface DetectionOptions {
     targetColor: string;
     threshold: number;
     margins: Margins;
+    minSolidPx: number; // New config for sliding window size
 }
 
 interface BookingFormData {
@@ -77,6 +78,65 @@ function normalizeFormData(data: BookingFormData): BookingFormData {
             nextText: escapeXml(data.footer.nextText)
         }
     };
+}
+
+/**
+ * Checks if a candidate rectangle contains a solid block of the target color
+ * of size size x size using a Summed Area Table (Integral Image).
+ */
+function hasSolidBlock(
+    rect: { x: number, y: number, w: number, h: number },
+    fullWidth: number,
+    isPixelMatch: (x: number, y: number) => boolean,
+    size: number
+): boolean {
+    if (rect.w < size || rect.h < size) return false;
+
+    // 1. Build Summed Area Table (SAT) for the cropped region
+    // sat[y][x] stores the sum of matching pixels in the rectangle from (0,0) to (x-1, y-1)
+    const sat = new Int32Array((rect.w + 1) * (rect.h + 1));
+    
+    const getSat = (x: number, y: number) => sat[y * (rect.w + 1) + x];
+    const setSat = (x: number, y: number, val: number) => { sat[y * (rect.w + 1) + x] = val; };
+
+    for (let y = 0; y < rect.h; y++) {
+        for (let x = 0; x < rect.w; x++) {
+            // Check pixel in global coordinates
+            const match = isPixelMatch(rect.x + x, rect.y + y) ? 1 : 0;
+            
+            // SAT formula: val + left + top - top_left
+            const sum = match 
+                + getSat(x + 1, y) 
+                + getSat(x, y + 1) 
+                - getSat(x, y);
+            
+            setSat(x + 1, y + 1, sum);
+        }
+    }
+
+    // 2. Sliding Window Check
+    // We want a block of size*size.
+    // Allow a small tolerance (e.g., 98% match) for noise/compression artifacts
+    const requiredCount = Math.floor((size * size) * 0.98);
+
+    for (let y = size; y <= rect.h; y++) {
+        for (let x = size; x <= rect.w; x++) {
+            // Calculate sum of the window ending at (x,y)
+            // Area = D - B - C + A
+            // A(x-size, y-size)  B(x, y-size)
+            // C(x-size, y)       D(x, y)
+            const total = getSat(x, y) 
+                        - getSat(x, y - size) 
+                        - getSat(x - size, y) 
+                        + getSat(x - size, y - size);
+
+            if (total >= requiredCount) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 async function detectScreenArea(inputPath: string, options: DetectionOptions): Promise<Rectangle> {
@@ -189,19 +249,29 @@ async function detectScreenArea(inputPath: string, options: DetectionOptions): P
     const centerX = width / 2;
     const centerY = height / 2;
     
-    // Calculate a score for each component: size / distance_from_center
-    const bestComponent = components.reduce((best, curr) => {
-        const currCx = curr.x + curr.w / 2;
-        const currCy = curr.y + curr.h / 2;
+    // Sort components by score: size / distance_from_center
+    const sortedComponents = components.map(comp => {
+        const currCx = comp.x + comp.w / 2;
+        const currCy = comp.y + comp.h / 2;
         const dist = Math.sqrt(Math.pow(currCx - centerX, 2) + Math.pow(currCy - centerY, 2));
-        
-        const score = curr.size / (dist + 1);
-        
-        if (!best || score > best.score) {
-            return { comp: curr, score };
+        const score = comp.size / (dist + 1);
+        return { comp, score };
+    }).sort((a, b) => b.score - a.score); // Descending score
+
+    // Iterate through candidates and find the first one that passes the solidity check
+    let bestComponent = null;
+
+    for (const candidate of sortedComponents) {
+        const passes = hasSolidBlock(candidate.comp, width, isScreenPixel, options.minSolidPx);
+        if (passes) {
+            bestComponent = candidate.comp;
+            break;
         }
-        return best;
-    }, { comp: components[0], score: -1 }).comp;
+    }
+
+    if (!bestComponent) {
+        throw new Error(`No valid screen area found. Candidates detected but none contained a solid ${options.minSolidPx}x${options.minSolidPx} block.`);
+    }
 
     const { x: rectX, y: rectY, w: rectWidth, h: rectHeight } = bestComponent;
 
@@ -470,7 +540,8 @@ async function main() {
                 right: 0.04,
                 bottom: 0.04,
                 left: 0.04
-            }
+            },
+            minSolidPx: 100 // Require at least a 100x100 solid block
         };
 
         const rect = await detectScreenArea(inputPath, detectionOptions);
