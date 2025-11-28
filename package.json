@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "test": "echo \"Error: no examples specified\" && exit 1",
-    "start-json-schema": "tsx src/index.ts generate examples/10-image/data.csv examples/10-image/prompt -o out/10-image/{{id}}/image.png --aspect-ratio 1:1 --model google/gemini-3-pro-image-preview",
+    "debug": "examples/11-function-icons/run.sh",
     "build": "tsc",
     "release": "bash scripts/release.sh"
   },
@@ -23,6 +23,7 @@
   "devDependencies": {
     "@types/json2csv": "^5.0.7",
     "@types/node": "^20.11.0",
+    "sharp": "^0.34.5",
     "typescript": "^5.3.3"
   },
   "dependencies": {

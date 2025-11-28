@@ -2,7 +2,6 @@ import fs from 'fs';
 import fsPromises from 'fs/promises';
 import path from 'path';
 import csv from 'csv-parser';
-import sanitize from 'sanitize-filename';
 import { getConfig } from "./getConfig.js";
 import { z } from 'zod';
 import PQueue from 'p-queue';
@@ -142,6 +141,14 @@ function renderPath(pathTemplate, context) {
     const delegate = Handlebars.compile(pathTemplate, { noEscape: true });
     return delegate(context);
 }
+function aggressiveSanitize(input) {
+    // 1. Remove anything that is NOT a-z, A-Z, 0-9
+    let sanitized = input.replace(/[^a-zA-Z0-9]/g, '');
+    // 2. Remove leading numbers
+    sanitized = sanitized.replace(/^[0-9]+/, '');
+    // 3. Truncate to 50 chars
+    return sanitized.substring(0, 50);
+}
 async function processBatch(dataFilePath, templateFilePaths, outputTemplate, options, handler) {
     const concurrency = options.concurrency;
     // 1. Initialize Config with Concurrency
@@ -266,8 +273,8 @@ async function processBatch(dataFilePath, templateFilePaths, outputTemplate, opt
                     const sanitizedRow = {};
                     for (const [key, val] of Object.entries(row)) {
                         const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                        const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
-                        sanitizedRow[key] = sanitized.substring(0, 50);
+                        const sanitized = aggressiveSanitize(stringVal);
+                        sanitizedRow[key] = sanitized;
                     }
                     baseOutputPath = outputDelegate(sanitizedRow);
                 }
@@ -329,8 +336,8 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
             const sanitizedRow = {};
             for (const [key, val] of Object.entries(row)) {
                 const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                const sanitized = sanitize(stringVal).replace(/\s+/g, '_');
-                sanitizedRow[key] = sanitized.substring(0, 50);
+                const sanitized = aggressiveSanitize(stringVal);
+                sanitizedRow[key] = sanitized;
             }
             currentOutputPath = delegate(sanitizedRow);
         }
@@ -358,6 +365,8 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
         }
         // Verify Command
         const currentVerifyCommand = stepOverride?.verifyCommand || options.verifyCommand;
+        // Post Process Command
+        const currentPostProcessCommand = stepOverride?.postProcessCommand || options.postProcessCommand;
         // Aspect Ratio
         const currentAspectRatio = stepOverride?.aspectRatio || options.aspectRatio;
         // Construct Messages for this API call
@@ -382,58 +391,145 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
             // We use LlmReQuerier ONLY if we have validation requirements (Schema OR Verify Command)
             const querier = new LlmReQuerier(ask);
             try {
-                const result = await querier.query([...apiMessages], async (responseString, info) => {
-                    let data = responseString;
-                    let contentToWrite = responseString;
-                    // 1. JSON Parsing & Schema Validation
+                const queryOptions = {
+                    model: options.model,
+                    response_format: currentSchemaObj ? { type: "json_object" } : undefined,
+                };
+                // Pass image options if needed
+                if (currentAspectRatio) {
+                    queryOptions.modalities = ['image', 'text'];
+                    queryOptions.image_config = { aspect_ratio: currentAspectRatio };
+                }
+                const result = await querier.query([...apiMessages], async (message, info) => {
+                    let data = message.content;
+                    let contentToWrite = message.content;
+                    const images = message.images;
+                    // 1. JSON Parsing & Schema Validation (Only if content is present)
                     if (currentSchemaObj) {
+                        if (!contentToWrite) {
+                            throw new LlmQuerierError("Expected JSON response but got empty content (maybe an image?).", 'CUSTOM_ERROR', null, null);
+                        }
                         try {
-                            data = JSON.parse(responseString);
+                            data = JSON.parse(contentToWrite);
                             contentToWrite = JSON.stringify(data, null, 2); // Normalize formatting
                         }
                         catch (e) {
-                            throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, responseString);
+                            throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, contentToWrite);
                         }
                         const valid = currentValidator(data);
                         if (!valid) {
                             const errors = currentValidator.errors?.map((e) => `${e.instancePath} ${e.message}`).join(', ');
-                            throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, responseString);
+                            throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', currentValidator.errors, contentToWrite);
                         }
                     }
-                    // 2. Verify Command Validation
+                    // 2. Image Handling (if images are present)
+                    if (images && images.length > 0) {
+                        const imageUrl = images[0].image_url.url;
+                        contentToWrite = imageUrl; // For column output
+                        // If we have an output path, we need to save the image there (or to a temp file for verification)
+                        if (currentOutputPath || currentVerifyCommand) {
+                            let buffer;
+                            if (imageUrl.startsWith('http')) {
+                                const imgRes = await fetch(imageUrl);
+                                const arrayBuffer = await imgRes.arrayBuffer();
+                                buffer = Buffer.from(arrayBuffer);
+                            }
+                            else {
+                                const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+                                buffer = Buffer.from(base64Data, 'base64');
+                            }
+                            // If verification is needed, we MUST save to a file now
+                            const savePath = currentOutputPath || path.join(path.dirname(baseOutputPath || '.'), `temp_verify_${index}_${stepIndex}.png`);
+                            await ensureDir(savePath);
+                            await fsPromises.writeFile(savePath, buffer);
+                            // If we just saved to a temp path for verification, we might want to track that
+                            if (!currentOutputPath) {
+                                // It's a temp file, effectively
+                            }
+                        }
+                    }
+                    // 3. Verify Command Validation
                     if (currentVerifyCommand) {
                         // Write to temp file (or actual output path) to verify
                         // If no output path is defined, we create a temp one
-                        const verifyPath = currentOutputPath || path.join(path.dirname(baseOutputPath || '.'), `temp_verify_${index}_${stepIndex}.txt`);
-                        await ensureDir(verifyPath);
-                        await fsPromises.writeFile(verifyPath, contentToWrite);
-                        const cmd = currentVerifyCommand.replace('{{file}}', verifyPath);
+                        // Note: For images, we already saved it above. For text, we save it here.
+                        const verifyPath = currentOutputPath || path.join(path.dirname(baseOutputPath || '.'), `temp_verify_${index}_${stepIndex}.${images ? 'png' : 'txt'}`);
+                        if (!images) {
+                            await ensureDir(verifyPath);
+                            await fsPromises.writeFile(verifyPath, contentToWrite);
+                        }
+                        // Compile the command template with Handlebars to resolve variables like {{color}}
+                        const cmdTemplate = Handlebars.compile(currentVerifyCommand, { noEscape: true });
+                        const cmd = cmdTemplate({ ...row, file: verifyPath });
+                        console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying with command: ${cmd}`);
                         try {
-                            await execPromise(cmd);
+                            const { stdout, stderr } = await execPromise(cmd);
+                            if (stdout && stdout.trim()) {
+                                console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
+                            }
+                            if (stderr && stderr.trim()) {
+                                console.log(`[Row ${index}] Step ${stepIndex} 🟡 Verify STDERR:\n${stderr.trim()}`);
+                            }
                         }
                         catch (error) {
                             // Command failed (non-zero exit code)
-                            const stderr = error.stderr || error.stdout || error.message;
-                            throw new LlmQuerierError(`Verification command failed:\n${stderr}\n\nPlease fix the content based on this error.`, 'CUSTOM_ERROR', null, responseString);
+                            const stdout = error.stdout;
+                            const stderr = error.stderr;
+                            const message = error.message;
+                            console.error(`[Row ${index}] Step ${stepIndex} 🔴 Verify Failed!`);
+                            if (stdout && stdout.trim()) {
+                                console.log(`[Row ${index}] Step ${stepIndex} 🔴 Verify STDOUT:\n${stdout.trim()}`);
+                            }
+                            if (stderr && stderr.trim()) {
+                                console.error(`[Row ${index}] Step ${stepIndex} 🔴 Verify STDERR:\n${stderr.trim()}`);
+                            }
+                            else if (message) {
+                                console.error(`[Row ${index}] Step ${stepIndex} 🔴 Verify Error Message:\n${message}`);
+                            }
+                            // Construct feedback for LLM
+                            const feedback = stderr || stdout || message;
+                            throw new LlmQuerierError(`Verification command failed:\n${feedback}\n\nPlease fix the content based on this error.`, 'CUSTOM_ERROR', null, contentToWrite);
                         }
-                        // If we used a temp path and didn't want to save it, we should probably clean up?
-                        // But for now, we leave it or let the OS handle it.
                     }
                     return { data, contentToWrite };
-                }, {
-                    model: options.model,
-                    response_format: currentSchemaObj ? { type: "json_object" } : undefined,
-                    // No modalities/image_config here because we are in validation mode (Text/JSON)
-                });
+                }, queryOptions);
                 contentForColumn = result.contentToWrite;
                 // If we didn't write it during verification (or if verification wasn't run), write it now.
-                if (currentOutputPath) {
-                    await ensureDir(currentOutputPath);
-                    await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
-                    console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
+                // Note: For images, we might have already written it during the verification block logic above.
+                // But if verification wasn't run, we need to write it here.
+                if (currentOutputPath && !currentVerifyCommand) {
+                    // If it's an image, we need to re-download/save? 
+                    // Or we can optimize. For now, let's keep it simple and consistent with the "Standard Mode" logic below.
+                    // Actually, result.contentToWrite for images is the URL.
+                    if (result.contentToWrite && (result.contentToWrite.startsWith('http') || result.contentToWrite.startsWith('data:image'))) {
+                        // It's likely an image URL
+                        let buffer;
+                        if (result.contentToWrite.startsWith('http')) {
+                            const imgRes = await fetch(result.contentToWrite);
+                            const arrayBuffer = await imgRes.arrayBuffer();
+                            buffer = Buffer.from(arrayBuffer);
+                        }
+                        else {
+                            const base64Data = result.contentToWrite.replace(/^data:image\/\w+;base64,/, "");
+                            buffer = Buffer.from(base64Data, 'base64');
+                        }
+                        await ensureDir(currentOutputPath);
+                        await fsPromises.writeFile(currentOutputPath, buffer);
+                        console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${currentOutputPath}`);
+                    }
+                    else {
+                        await ensureDir(currentOutputPath);
+                        await fsPromises.writeFile(currentOutputPath, result.contentToWrite);
+                        console.log(`[Row ${index}] Step ${stepIndex} Saved to ${currentOutputPath}`);
+                    }
                 }
                 persistentHistory.push({ role: 'user', content: promptParts });
-                persistentHistory.push({ role: 'assistant', content: result.contentToWrite });
+                // Add assistant response to history
+                // If it was an image, we use a placeholder or the content if available
+                // Note: LlmReQuerier already adds the successful response to its internal history for retries,
+                // but we need to update our `persistentHistory` for the NEXT step in the loop.
+                const historyContent = (typeof result.data === 'string' ? result.data : JSON.stringify(result.data)) || "Image generated.";
+                persistentHistory.push({ role: 'assistant', content: historyContent });
             }
             catch (error) {
                 console.error(`[Row ${index}] Step ${stepIndex} Failed after retries:`, error);
@@ -494,6 +590,60 @@ const handleUnifiedGeneration = async (ask, renderedSystemPrompts, userPrompts, 
             catch (error) {
                 console.error(`[Row ${index}] Step ${stepIndex} Failed:`, error);
                 throw error;
+            }
+        }
+        // 4. Post-Process Command
+        if (currentPostProcessCommand) {
+            let filePathForCommand = currentOutputPath;
+            let isTemp = false;
+            // If we don't have a file path yet (because output was only to column), create a temp one
+            if (!filePathForCommand && contentForColumn) {
+                isTemp = true;
+                const ext = (contentForColumn.startsWith('http') || contentForColumn.startsWith('data:')) ? '.png' : '.txt';
+                filePathForCommand = path.join(path.dirname(baseOutputPath || '.'), `temp_post_${index}_${stepIndex}${ext}`);
+                // Write content
+                if (contentForColumn.startsWith('http') || contentForColumn.startsWith('data:')) {
+                    let buffer;
+                    if (contentForColumn.startsWith('http')) {
+                        const imgRes = await fetch(contentForColumn);
+                        const arrayBuffer = await imgRes.arrayBuffer();
+                        buffer = Buffer.from(arrayBuffer);
+                    }
+                    else {
+                        const base64Data = contentForColumn.replace(/^data:image\/\w+;base64,/, "");
+                        buffer = Buffer.from(base64Data, 'base64');
+                    }
+                    await ensureDir(filePathForCommand);
+                    await fsPromises.writeFile(filePathForCommand, buffer);
+                }
+                else {
+                    await ensureDir(filePathForCommand);
+                    await fsPromises.writeFile(filePathForCommand, contentForColumn);
+                }
+            }
+            if (filePathForCommand) {
+                const cmdTemplate = Handlebars.compile(currentPostProcessCommand, { noEscape: true });
+                // We pass the row data AND the file path
+                const cmd = cmdTemplate({ ...row, file: filePathForCommand });
+                console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running command: ${cmd}`);
+                try {
+                    const { stdout, stderr } = await execPromise(cmd);
+                    if (stdout && stdout.trim())
+                        console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
+                    if (stderr && stderr.trim())
+                        console.error(`[Row ${index}] Step ${stepIndex} STDERR:\n${stderr.trim()}`);
+                }
+                catch (error) {
+                    console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error.message);
+                    if (error.stderr)
+                        console.error(`[Row ${index}] Step ${stepIndex} STDERR:\n${error.stderr.trim()}`);
+                }
+                if (isTemp) {
+                    try {
+                        await fsPromises.unlink(filePathForCommand);
+                    }
+                    catch (e) { }
+                }
             }
         }
         if (currentOutputColumn && contentForColumn) {

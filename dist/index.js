@@ -17,12 +17,14 @@ const generateCmd = program.command('generate')
     .option('-m, --model <model>', 'Model to use for generation')
     .option('-s, --system <file>', 'Path to the system prompt template text file')
     .option('-S, --schema <file>', 'Path to the JSON Schema file for validation')
-    .option('--verify-command <cmd>', 'Shell command to verify output. Use {{file}} as placeholder for the file path.');
+    .option('--verify-command <cmd>', 'Shell command to verify output. Use {{file}} as placeholder for the file path.')
+    .option('--command <cmd>', 'Shell command to run after generation. Use {{file}} as placeholder.');
 // Add explicit options for steps 1-10
 for (let i = 1; i <= 10; i++) {
     generateCmd.option(`--system-prompt-${i} <file>`, `System prompt for step ${i}`);
     generateCmd.option(`--json-schema-${i} <file>`, `JSON Schema for step ${i}`);
     generateCmd.option(`--verify-command-${i} <cmd>`, `Verify command for step ${i}`);
+    generateCmd.option(`--command-${i} <cmd>`, `Post-process command for step ${i}`);
     generateCmd.option(`--aspect-ratio-${i} <ratio>`, `Aspect ratio for step ${i}`);
     generateCmd.option(`--output-${i} <path>`, `Output path template for step ${i}`);
     generateCmd.option(`--output-column-${i} <column>`, `Output column for step ${i}`);
@@ -34,10 +36,11 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         const sys = options[`systemPrompt${i}`];
         const schema = options[`jsonSchema${i}`];
         const verify = options[`verifyCommand${i}`];
+        const cmd = options[`command${i}`];
         const ar = options[`aspectRatio${i}`];
         const out = options[`output${i}`];
         const col = options[`outputColumn${i}`];
-        if (sys || schema || verify || ar || out || col) {
+        if (sys || schema || verify || cmd || ar || out || col) {
             stepOverrides[i] = {};
             if (sys)
                 stepOverrides[i].system = sys;
@@ -45,6 +48,8 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
                 stepOverrides[i].schema = schema;
             if (verify)
                 stepOverrides[i].verifyCommand = verify;
+            if (cmd)
+                stepOverrides[i].postProcessCommand = cmd;
             if (ar)
                 stepOverrides[i].aspectRatio = ar;
             if (out)
@@ -75,6 +80,7 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         system: options.system,
         schema: options.schema,
         verifyCommand: options.verifyCommand,
+        postProcessCommand: options.command,
         outputColumn: options.outputColumn,
         dataOutput: options.dataOutput,
         stepOverrides

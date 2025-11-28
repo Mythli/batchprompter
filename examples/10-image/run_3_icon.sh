@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for i in {1..3}
+for i in {1..5}
 do
   # Create a temporary seed file to ensure the prompt is unique for each attempt,
   # forcing a fresh generation even with caching enabled.
