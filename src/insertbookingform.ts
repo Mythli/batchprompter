@@ -471,6 +471,10 @@ class BookingFormDrawer {
         });
         
         this.drawFooter();
+
+        // Draw red border around the detected area
+        const borderW = this.s(4);
+        this.elements.push(`<rect x="${borderW/2}" y="${borderW/2}" width="${this.width - borderW}" height="${this.height - borderW}" fill="none" stroke="red" stroke-width="${borderW}" />`);
     }
 
     getSvg(): string {
