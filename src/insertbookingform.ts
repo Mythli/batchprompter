@@ -20,7 +20,8 @@ interface DetectionOptions {
     targetColor: string;
     threshold: number;
     margins: Margins;
-    minSolidPx: number; // New config for sliding window size
+    minSolidPx?: number; // Optional fixed pixel size
+    minSolidRatio?: number; // Optional ratio of image height (default 0.3)
 }
 
 interface BookingFormData {
@@ -258,11 +259,20 @@ async function detectScreenArea(inputPath: string, options: DetectionOptions): P
         return { comp, score };
     }).sort((a, b) => b.score - a.score); // Descending score
 
+    // Determine solid block size
+    let solidSize: number;
+    if (options.minSolidPx !== undefined) {
+        solidSize = options.minSolidPx;
+    } else {
+        const ratio = options.minSolidRatio !== undefined ? options.minSolidRatio : 0.3;
+        solidSize = Math.floor(height * ratio);
+    }
+
     // Iterate through candidates and find the first one that passes the solidity check
     let bestComponent = null;
 
     for (const candidate of sortedComponents) {
-        const passes = hasSolidBlock(candidate.comp, width, isScreenPixel, options.minSolidPx);
+        const passes = hasSolidBlock(candidate.comp, width, isScreenPixel, solidSize);
         if (passes) {
             bestComponent = candidate.comp;
             break;
@@ -270,7 +280,7 @@ async function detectScreenArea(inputPath: string, options: DetectionOptions): P
     }
 
     if (!bestComponent) {
-        throw new Error(`No valid screen area found. Candidates detected but none contained a solid ${options.minSolidPx}x${options.minSolidPx} block.`);
+        throw new Error(`No valid screen area found. Candidates detected but none contained a solid ${solidSize}x${solidSize} block.`);
     }
 
     const { x: rectX, y: rectY, w: rectWidth, h: rectHeight } = bestComponent;
@@ -541,7 +551,7 @@ async function main() {
                 bottom: 0.04,
                 left: 0.04
             },
-            minSolidPx: 100 // Require at least a 100x100 solid block
+            minSolidRatio: 0.3 // Require at least 30% of image height as solid block
         };
 
         const rect = await detectScreenArea(inputPath, detectionOptions);
