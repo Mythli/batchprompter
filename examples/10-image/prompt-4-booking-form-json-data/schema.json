@@ -6,6 +6,11 @@
       "description": "Ein kurzer, symbolischer Firmenname. Maximal 12 Zeichen.",
       "maxLength": 12
     },
+    "primaryColor": {
+      "type": "string",
+      "description": "Ein passender Hex-Farbcode für das Branding der Firma (z.B. #FF5733).",
+      "pattern": "^#[0-9A-Fa-f]{6}$"
+    },
     "header": {
       "type": "object",
       "properties": {
@@ -73,5 +78,5 @@
       "required": ["backText", "nextText"]
     }
   },
-  "required": ["companyName", "header", "stepper", "inputs", "footer"]
+  "required": ["companyName", "primaryColor", "header", "stepper", "inputs", "footer"]
 }

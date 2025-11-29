@@ -25,6 +25,7 @@ interface DetectionOptions {
 
 interface BookingFormData {
     companyName: string;
+    primaryColor: string;
     header: {
         title: string;
         subtitle: string;
@@ -69,6 +70,7 @@ function escapeXml(unsafe: string): string {
 function normalizeFormData(data: BookingFormData): BookingFormData {
     return {
         companyName: escapeXml(data.companyName),
+        primaryColor: data.primaryColor || '#000000',
         header: {
             title: escapeXml(data.header.title),
             subtitle: escapeXml(data.header.subtitle),
@@ -406,10 +408,10 @@ class BookingFormDrawer {
             const fontSize = this.s(20, factor);
             const textY = y + (targetHeight / 2) + (fontSize * 0.35);
             
-            this.elements.push(`<text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="#333">${this.formData.companyName}</text>`);
+            this.elements.push(`<text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.formData.primaryColor}">${this.formData.companyName}</text>`);
         } else {
             // Fallback text if logo not loaded
-            this.elements.push(`<text x="${x}" y="${y + this.s(19, factor)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22, factor)}" fill="#333">${this.formData.companyName || 'Butlerapp'}</text>`);
+            this.elements.push(`<text x="${x}" y="${y + this.s(19, factor)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22, factor)}" fill="${this.formData.primaryColor}">${this.formData.companyName || 'Butlerapp'}</text>`);
         }
 
         // Hamburger Menu
@@ -442,11 +444,11 @@ class BookingFormDrawer {
         const textOffsetY = this.s(6, factor);
 
         // Step 1 (Active)
-        this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#1D1D1F" />`);
+        this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="${this.formData.primaryColor}" />`);
         this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
 
         // Text
-        this.elements.push(`<text x="${startX + circleSize + this.s(10, factor)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
+        this.elements.push(`<text x="${startX + circleSize + this.s(10, factor)}" y="${y + circleSize/2 + textOffsetY}" fill="${this.formData.primaryColor}" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
 
         // Step 3 (Inactive) - Right aligned
         const step3X = this.width - this.getLeftMargin() - circleSize;
@@ -536,19 +538,19 @@ class BookingFormDrawer {
         const iconCx = xRight - iconR;
 
         // Draw text
-        this.elements.push(`<text x="${iconCx - iconR - this.s(10, factor)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">${this.formData.footer.nextText}</text>`);
+        this.elements.push(`<text x="${iconCx - iconR - this.s(10, factor)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="${this.formData.primaryColor}">${this.formData.footer.nextText}</text>`);
 
         // Draw Icon Circle
-        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(2, factor)}" />`);
+        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="${this.formData.primaryColor}" stroke-width="${this.s(2, factor)}" />`);
 
         // Draw Arrow
         const arrowLen = this.s(10, factor);
         const arrowHead = this.s(4, factor);
 
         // Line
-        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="#000" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="${this.formData.primaryColor}" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
         // Head
-        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="#000" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="${this.formData.primaryColor}" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
     render() {
@@ -597,6 +599,12 @@ async function drawBookingForm(
     try {
         const logoImage = sharp(logoPath);
         const metadata = await logoImage.metadata();
+        
+        // Tint the logo with the primary color
+        if (formData.primaryColor) {
+            logoImage.tint(formData.primaryColor);
+        }
+
         // Force PNG conversion for the logo data to ensure it renders correctly in the SVG
         const buffer = await logoImage.png().toBuffer();
         if (metadata.width && metadata.height) {
