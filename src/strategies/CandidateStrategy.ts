@@ -3,6 +3,7 @@ import path from 'path';
 import Handlebars from 'handlebars';
 import util from 'util';
 import { exec } from 'child_process';
+import { z } from 'zod';
 import { LlmClient } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
@@ -133,7 +134,7 @@ export class CandidateStrategy implements GenerationStrategy {
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): Promise<GenerationResult & { candidateIndex: number }> {
         
-        const judgeSystemPrompt = "You are an impartial judge evaluating AI responses. You must select the best response based on the user's original request. Return ONLY the JSON object with the index of the best candidate, like {\"best_candidate_index\": 0}.";
+        const judgeSystemPrompt = "You are an impartial judge evaluating AI responses. You must select the best response based on the user's original request.";
         
         const userPromptText = userPromptParts
             .filter(p => p.type === 'text')
@@ -169,25 +170,19 @@ export class CandidateStrategy implements GenerationStrategy {
             judgeMessageContent.push({ type: 'text', text: "\n\nAnalyze the candidates above and select the best one based on the original request." });
         }
 
-        const response = await this.llm.prompt({
-            model: config.judgeModel!,
-            messages: [
-                { role: 'system', content: judgeSystemPrompt },
-                { role: 'user', content: judgeMessageContent }
-            ],
-            response_format: { type: 'json_object' }
+        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+            { role: 'system', content: judgeSystemPrompt },
+            { role: 'user', content: judgeMessageContent }
+        ];
+
+        const JudgeSchema = z.object({
+            best_candidate_index: z.number().int().min(0).max(candidates.length - 1).describe("The index of the best candidate (0-based)")
         });
 
-        const content = response.choices[0].message.content;
-        if (!content) throw new Error("Judge returned empty response");
+        const result = await this.llm.promptZod(messages, JudgeSchema, {
+            model: config.judgeModel!
+        });
 
-        const parsed = JSON.parse(content);
-        const index = parsed.best_candidate_index;
-
-        if (typeof index !== 'number' || index < 0 || index >= candidates.length) {
-            throw new Error(`Judge returned invalid index: ${index}`);
-        }
-
-        return candidates[index];
+        return candidates[result.best_candidate_index];
     }
 }
