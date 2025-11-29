@@ -24,6 +24,7 @@ interface DetectionOptions {
 }
 
 interface BookingFormData {
+    companyName: string;
     header: {
         title: string;
         subtitle: string;
@@ -67,6 +68,7 @@ function escapeXml(unsafe: string): string {
 
 function normalizeFormData(data: BookingFormData): BookingFormData {
     return {
+        companyName: escapeXml(data.companyName),
         header: {
             title: escapeXml(data.header.title),
             subtitle: escapeXml(data.header.subtitle),
@@ -391,14 +393,23 @@ class BookingFormDrawer {
         const x = this.getLeftMargin();
 
         if (this.logoData) {
-            const targetHeight = this.s(42, factor);
+            // Icon
+            const targetHeight = this.s(32, factor);
             const aspectRatio = this.logoData.width / this.logoData.height;
             const targetWidth = targetHeight * aspectRatio;
 
             this.elements.push(`<image href="${this.logoData.base64}" x="${x}" y="${y}" width="${targetWidth}" height="${targetHeight}" />`);
+            
+            // Company Name Text
+            const textX = x + targetWidth + this.s(10, factor);
+            // Center text vertically relative to icon
+            const fontSize = this.s(20, factor);
+            const textY = y + (targetHeight / 2) + (fontSize * 0.35);
+            
+            this.elements.push(`<text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="#333">${this.formData.companyName}</text>`);
         } else {
             // Fallback text if logo not loaded
-            this.elements.push(`<text x="${x}" y="${y + this.s(19, factor)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22, factor)}" fill="#333">Butlerapp</text>`);
+            this.elements.push(`<text x="${x}" y="${y + this.s(19, factor)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22, factor)}" fill="#333">${this.formData.companyName || 'Butlerapp'}</text>`);
         }
 
         // Hamburger Menu

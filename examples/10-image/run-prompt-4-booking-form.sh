@@ -9,8 +9,8 @@ do
   npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/prompt-4-booking-form \
     --output-1 "out/10-image/{{industry}}/04_AboutCourse-$i.jpg" \
     --aspect-ratio-1 "4:3" \
-    --model "google/gemini-3-pro-image-preview"
-#    --command "npx tsx src/insertbookingform.ts '{{file}}' 'out/10-image/{{industry}}/form_data.json' 'examples/10-image/logo.png' '{{file}}.tmp.jpg' --scale 1 --scale-content 1.6 --supersample 8  && mv '{{file}}.tmp.jpg' '{{file}}' && magick '{{file}}' -resize 800x800 -quality 95 '{{file}}'"
+    --model "google/gemini-3-pro-image-preview" \
+    --command "npx tsx src/insertbookingform.ts '{{file}}' 'out/10-image/{{industry}}/form_data.json' 'out/10-image/{{industry}}/01_MenuBarIcon.svg' '{{file}}.tmp.jpg' --scale 1 --scale-content 1.6 --supersample 8  && mv '{{file}}.tmp.jpg' '{{file}}' && magick '{{file}}' -resize 800x800 -quality 95 '{{file}}'"
 done
 
 rm examples/10-image/prompt-4-booking-form/seed.txt

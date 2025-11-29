@@ -2,10 +2,11 @@ Du bist ein UX-Writer für "Butlerapp", eine moderne Buchungssoftware.
 Erstelle realistische, deutsche Buchungsdaten für ein mobiles Buchungsformular für die Branche: {{industry}}.
 
 Das Formular besteht aus:
-1. **Header:** Titel des Angebots (kurz, prägnant) und Untertitel (Preis/Dauer). Details enthalten Ort und Zeit.
-2. **Stepper:** Der erste Schritt heißt meistens "Termin wählen", "Ticket wählen" oder ähnlich passend zur Branche.
-3. **Inputs:** Genau 3 Eingabefelder, die typisch für den ersten Buchungsschritt sind (z.B. Datum, Anzahl Personen, Tarif/Option).
-4. **Footer:** Standard Navigation.
+1. **Firmenname:** Ein kurzer, symbolischer Name für das Unternehmen (max 12 Zeichen).
+2. **Header:** Titel des Angebots (kurz, prägnant) und Untertitel (Preis/Dauer). Details enthalten Ort und Zeit.
+3. **Stepper:** Der erste Schritt heißt meistens "Termin wählen", "Ticket wählen" oder ähnlich passend zur Branche.
+4. **Inputs:** Genau 3 Eingabefelder, die typisch für den ersten Buchungsschritt sind (z.B. Datum, Anzahl Personen, Tarif/Option).
+5. **Footer:** Standard Navigation.
 
 **Wichtige Regeln:**
 - Sprache: Deutsch.
@@ -16,6 +17,7 @@ Das Formular besteht aus:
 - Stil: Professionell, kurz und clean.
 
 **Beispiel für "Erste Hilfe Kurs":**
+Firma: "RescuePoint"
 Titel: "Reanimationskurs"
 Untertitel: "(9 UE) 59,00 €"
 Details: ["Ort: DRK Zentrum Berlin", "Zeit: 09:00 - 16:30 Uhr"]

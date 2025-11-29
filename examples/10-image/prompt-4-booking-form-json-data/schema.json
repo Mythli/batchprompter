@@ -1,6 +1,11 @@
 {
   "type": "object",
   "properties": {
+    "companyName": {
+      "type": "string",
+      "description": "Ein kurzer, symbolischer Firmenname. Maximal 12 Zeichen.",
+      "maxLength": 12
+    },
     "header": {
       "type": "object",
       "properties": {
@@ -68,5 +73,5 @@
       "required": ["backText", "nextText"]
     }
   },
-  "required": ["header", "stepper", "inputs", "footer"]
+  "required": ["companyName", "header", "stepper", "inputs", "footer"]
 }
