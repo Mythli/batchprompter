@@ -597,7 +597,8 @@ async function drawBookingForm(
     try {
         const logoImage = sharp(logoPath);
         const metadata = await logoImage.metadata();
-        const buffer = await logoImage.toBuffer();
+        // Force PNG conversion for the logo data to ensure it renders correctly in the SVG
+        const buffer = await logoImage.png().toBuffer();
         if (metadata.width && metadata.height) {
             logoData = {
                 base64: `data:image/png;base64,${buffer.toString('base64')}`,
