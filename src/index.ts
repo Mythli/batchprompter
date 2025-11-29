@@ -27,7 +27,7 @@ const generateCmd = program.command('generate')
     .option('--judge-model <model>', 'Model to use for judging candidates')
     .option('--judge-prompt <text>', 'Custom prompt for the judge')
     .option('--candidate-output <template>', 'Template path for candidate files (e.g. "debug/{{id}}_c{{candidate_index}}.png")')
-    .option('--no-candidate-command', 'Do not run verify/post-process commands on candidates, only on the winner');
+    .option('--skip-candidate-command', 'Do not run verify/post-process commands on candidates, only on the winner');
 
 // Add explicit options for steps 1-10
 for (let i = 1; i <= 10; i++) {
@@ -42,7 +42,7 @@ for (let i = 1; i <= 10; i++) {
     generateCmd.option(`--judge-model-${i} <model>`, `Judge model for step ${i}`);
     generateCmd.option(`--judge-prompt-${i} <text>`, `Judge prompt for step ${i}`);
     generateCmd.option(`--candidate-output-${i} <template>`, `Candidate output template for step ${i}`);
-    generateCmd.option(`--no-candidate-command-${i}`, `Disable candidate commands for step ${i}`);
+    generateCmd.option(`--skip-candidate-command-${i}`, `Disable candidate commands for step ${i}`);
 }
 
 generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
@@ -61,9 +61,9 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         const jModel = options[`judgeModel${i}`];
         const jPrompt = options[`judgePrompt${i}`];
         const candOut = options[`candidateOutput${i}`];
-        const noCandCmd = options[`noCandidateCommand${i}`];
+        const skipCandCmd = options[`skipCandidateCommand${i}`];
 
-        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || candOut || noCandCmd !== undefined) {
+        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || candOut || skipCandCmd !== undefined) {
             stepOverrides[i] = {};
             if (sys) stepOverrides[i].system = sys;
             if (schema) stepOverrides[i].schema = schema;
@@ -76,7 +76,7 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
             if (jModel) stepOverrides[i].judgeModel = jModel;
             if (jPrompt) stepOverrides[i].judgePrompt = jPrompt;
             if (candOut) stepOverrides[i].candidateOutputTemplate = candOut;
-            if (noCandCmd !== undefined) stepOverrides[i].noCandidateCommand = noCandCmd;
+            if (skipCandCmd !== undefined) stepOverrides[i].noCandidateCommand = skipCandCmd;
         }
     }
 
@@ -112,7 +112,7 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         judgeModel: options.judgeModel,
         judgePrompt: options.judgePrompt,
         candidateOutputTemplate: options.candidateOutput,
-        noCandidateCommand: options.noCandidateCommand,
+        noCandidateCommand: options.skipCandidateCommand,
         stepOverrides
     };
 
