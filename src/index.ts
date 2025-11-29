@@ -22,7 +22,10 @@ const generateCmd = program.command('generate')
     .option('-s, --system <file>', 'Path to the system prompt template text file')
     .option('-S, --schema <file>', 'Path to the JSON Schema file for validation')
     .option('--verify-command <cmd>', 'Shell command to verify output. Use {{file}} as placeholder for the file path.')
-    .option('--command <cmd>', 'Shell command to run after generation. Use {{file}} as placeholder.');
+    .option('--command <cmd>', 'Shell command to run after generation. Use {{file}} as placeholder.')
+    .option('--candidates <number>', 'Number of candidates to generate per step', '1')
+    .option('--judge-model <model>', 'Model to use for judging candidates')
+    .option('--judge-prompt <text>', 'Custom prompt for the judge');
 
 // Add explicit options for steps 1-10
 for (let i = 1; i <= 10; i++) {
@@ -33,6 +36,9 @@ for (let i = 1; i <= 10; i++) {
     generateCmd.option(`--aspect-ratio-${i} <ratio>`, `Aspect ratio for step ${i}`);
     generateCmd.option(`--output-${i} <path>`, `Output path template for step ${i}`);
     generateCmd.option(`--output-column-${i} <column>`, `Output column for step ${i}`);
+    generateCmd.option(`--candidates-${i} <number>`, `Number of candidates for step ${i}`);
+    generateCmd.option(`--judge-model-${i} <model>`, `Judge model for step ${i}`);
+    generateCmd.option(`--judge-prompt-${i} <text>`, `Judge prompt for step ${i}`);
 }
 
 generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
@@ -47,8 +53,11 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         const ar = options[`aspectRatio${i}`];
         const out = options[`output${i}`];
         const col = options[`outputColumn${i}`];
+        const cand = options[`candidates${i}`];
+        const jModel = options[`judgeModel${i}`];
+        const jPrompt = options[`judgePrompt${i}`];
 
-        if (sys || schema || verify || cmd || ar || out || col) {
+        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt) {
             stepOverrides[i] = {};
             if (sys) stepOverrides[i].system = sys;
             if (schema) stepOverrides[i].schema = schema;
@@ -57,6 +66,9 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
             if (ar) stepOverrides[i].aspectRatio = ar;
             if (out) stepOverrides[i].outputTemplate = out;
             if (col) stepOverrides[i].outputColumn = col;
+            if (cand) stepOverrides[i].candidates = parseInt(cand, 10);
+            if (jModel) stepOverrides[i].judgeModel = jModel;
+            if (jPrompt) stepOverrides[i].judgePrompt = jPrompt;
         }
     }
 
@@ -88,6 +100,9 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         postProcessCommand: options.command,
         outputColumn: options.outputColumn,
         dataOutput: options.dataOutput,
+        candidates: options.candidates ? parseInt(options.candidates, 10) : undefined,
+        judgeModel: options.judgeModel,
+        judgePrompt: options.judgePrompt,
         stepOverrides
     };
 

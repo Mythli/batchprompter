@@ -9,6 +9,9 @@ export interface StepConfig {
     aspectRatio?: string;
     outputTemplate?: string;
     outputColumn?: string;
+    candidates?: number;
+    judgeModel?: string;
+    judgePrompt?: string;
 }
 
 export interface ActionOptions {
@@ -22,5 +25,8 @@ export interface ActionOptions {
     postProcessCommand?: string;
     outputColumn?: string;
     dataOutput?: string;
+    candidates?: number;
+    judgeModel?: string;
+    judgePrompt?: string;
     stepOverrides?: Record<number, StepConfig>;
 }

@@ -194,6 +194,7 @@ export interface GptAskOptions extends Omit<OpenAI.Chat.Completions.ChatCompleti
     image_config?: {
         aspect_ratio?: string;
     };
+    cacheSalt?: string | number; // Used to vary the cache key without affecting the API call parameters
 }
 
 /**
@@ -218,7 +219,7 @@ export function createCachedGptAsk(params: CreateCachedGptAskParams) {
     const { openai, cache: cacheInstance, defaultModel: factoryDefaultModel, eventTracker, maxConversationChars, queue } = params;
 
     const getCompletionParamsAndCacheKey = (options: GptAskOptions) => {
-        const { ttl, model: callSpecificModel, messages, reasoning_effort, retries, ...restApiOptions } = options;
+        const { ttl, model: callSpecificModel, messages, reasoning_effort, retries, cacheSalt, ...restApiOptions } = options;
 
         const finalMessages = maxConversationChars ? truncateMessages(messages, maxConversationChars) : messages;
 
@@ -247,7 +248,9 @@ export function createCachedGptAsk(params: CreateCachedGptAskParams) {
 
         let cacheKey: string | undefined;
         if (cacheInstance) {
-            const cacheKeyString = JSON.stringify(completionParams);
+            // Include cacheSalt in the key generation, but it is NOT in completionParams
+            const cacheKeyObj = { ...completionParams, cacheSalt };
+            const cacheKeyString = JSON.stringify(cacheKeyObj);
             cacheKey = `gptask:${crypto.createHash('md5').update(cacheKeyString).digest('hex')}`;
         }
 

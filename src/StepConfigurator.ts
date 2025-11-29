@@ -12,6 +12,9 @@ export interface ResolvedStepConfig {
     verifyCommand: string | null;
     postProcessCommand: string | null;
     aspectRatio: string | undefined;
+    candidates: number;
+    judgeModel: string | undefined;
+    judgePrompt: string | undefined;
 }
 
 export class StepConfigurator {
@@ -70,6 +73,11 @@ export class StepConfigurator {
         // 6. Aspect Ratio
         const currentAspectRatio = stepOverride?.aspectRatio || options.aspectRatio;
 
+        // 7. Candidates & Judge
+        const currentCandidates = stepOverride?.candidates || options.candidates || 1;
+        const currentJudgeModel = stepOverride?.judgeModel || options.judgeModel;
+        const currentJudgePrompt = stepOverride?.judgePrompt || options.judgePrompt;
+
         return {
             outputPath: currentOutputPath,
             outputColumn: currentOutputColumn || null,
@@ -78,7 +86,10 @@ export class StepConfigurator {
             jsonSchema: currentSchemaObj,
             verifyCommand: currentVerifyCommand || null,
             postProcessCommand: currentPostProcessCommand || null,
-            aspectRatio: currentAspectRatio
+            aspectRatio: currentAspectRatio,
+            candidates: currentCandidates,
+            judgeModel: currentJudgeModel,
+            judgePrompt: currentJudgePrompt
         };
     }
 
