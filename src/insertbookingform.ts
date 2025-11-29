@@ -458,7 +458,8 @@ class BookingFormDrawer {
 
         // Details - Using content scale for details
         const contentFactor = this.scalingOptions.content;
-        const detailY = y + lineHeight * 2 + this.s(10, contentFactor);
+        // Reduced gap before details (was 10)
+        const detailY = y + lineHeight * 2 + this.s(2, contentFactor);
         const detailLineHeight = this.s(18, contentFactor);
         const detailX = this.s(20, contentFactor);
 
@@ -467,7 +468,8 @@ class BookingFormDrawer {
         });
 
         const detailsHeight = this.formData.header.details.length * detailLineHeight;
-        return (lineHeight * 2) + this.s(10, contentFactor) + detailsHeight + this.s(20, contentFactor); // Total height + padding
+        // Reduced bottom padding (was 20)
+        return (lineHeight * 2) + this.s(2, contentFactor) + detailsHeight + this.s(5, contentFactor); 
     }
 
     // Returns height of input
@@ -542,7 +544,8 @@ class BookingFormDrawer {
         currentY += stepperHeight + this.s(20, this.scalingOptions.general); // Add margin
 
         const infoHeight = this.drawInfoSection(currentY);
-        currentY += infoHeight + this.s(20, this.scalingOptions.general); // Add margin
+        // Reduced margin after info section (was 20, now 10 to achieve ~50% gap reduction)
+        currentY += infoHeight + this.s(10, this.scalingOptions.general); 
 
         // Draw inputs sequentially
         this.formData.inputs.forEach((input) => {
