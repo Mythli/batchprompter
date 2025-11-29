@@ -394,9 +394,15 @@ class BookingFormDrawer {
         const y = startY;
         const x = this.getLeftMargin();
 
+        // Calculate Burger Menu Dimensions first to use as reference
+        const barW = this.s(30, factor);
+        const barH = this.s(5, factor);
+        const gap = this.s(9, factor);
+        const burgerHeight = (barH * 3) + (gap * 2);
+
         if (this.logoData) {
-            // Icon
-            const targetHeight = this.s(32, factor);
+            // Icon - Match height to burger menu
+            const targetHeight = burgerHeight;
             const aspectRatio = this.logoData.width / this.logoData.height;
             const targetWidth = targetHeight * aspectRatio;
 
@@ -404,35 +410,35 @@ class BookingFormDrawer {
             
             // Company Name Text
             const textX = x + targetWidth + this.s(10, factor);
-            // Center text vertically relative to icon
-            const fontSize = this.s(20, factor);
-            const textY = y + (targetHeight / 2) + (fontSize * 0.35);
+            
+            // Font size matches burger menu height
+            const fontSize = burgerHeight;
+            
+            // Center text vertically relative to icon/burger menu
+            // Approximate baseline calculation: y + fontSize * 0.85
+            const textY = y + (fontSize * 0.85);
             
             this.elements.push(`<text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.formData.primaryColor}">${this.formData.companyName}</text>`);
         } else {
             // Fallback text if logo not loaded
-            this.elements.push(`<text x="${x}" y="${y + this.s(19, factor)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22, factor)}" fill="${this.formData.primaryColor}">${this.formData.companyName || 'Butlerapp'}</text>`);
+            const fontSize = burgerHeight;
+            const textY = y + (fontSize * 0.85);
+            this.elements.push(`<text x="${x}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.formData.primaryColor}">${this.formData.companyName || 'Butlerapp'}</text>`);
         }
 
         // Hamburger Menu
-        const barW = this.s(30, factor);
-        const barH = this.s(5, factor);
-        const gap = this.s(9, factor);
-
         // Right margin should also be consistent
         const menuX = this.width - this.s(50, 1.0); // Use general scale for positioning
 
-        // Center vertically with logo (Logo Y=30, H=42 -> Center=51)
-        // Menu H = 3*5 + 2*9 = 33. Center offset = 16.5. Top = 51 - 16.5 = 34.5
-        // Adjusting relative to startY
-        const menuY = y + this.s(4.5, factor); // 34.5 - 30 = 4.5 offset from top
+        // Align top with y
+        const menuY = y;
 
         this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
         this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
         this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
 
-        // Return height used (approx 42 + padding)
-        return this.s(60, factor); 
+        // Return height used (burgerHeight + padding)
+        return burgerHeight + this.s(10, factor); 
     }
 
     // Returns height of stepper section
@@ -597,19 +603,37 @@ async function drawBookingForm(
     // Load logo
     let logoData;
     try {
-        const logoImage = sharp(logoPath);
+        const logoImage = sharp(logoPath, { density: 300 }); // High density for SVG
         const metadata = await logoImage.metadata();
         
-        // Tint the logo with the primary color
-        if (formData.primaryColor) {
-            logoImage.tint(formData.primaryColor);
-        }
-
         // Force PNG conversion for the logo data to ensure it renders correctly in the SVG
-        const buffer = await logoImage.png().toBuffer();
-        if (metadata.width && metadata.height) {
+        const logoBuffer = await logoImage.png().toBuffer();
+
+        if (formData.primaryColor && metadata.width && metadata.height) {
+            // Create a solid color image of the same size
+            const solidColor = sharp({
+                create: {
+                    width: metadata.width,
+                    height: metadata.height,
+                    channels: 4,
+                    background: formData.primaryColor
+                }
+            });
+
+            // Use the logo as a mask (dest-in keeps destination where source is opaque)
+            const coloredBuffer = await solidColor
+                .composite([{ input: logoBuffer, blend: 'dest-in' }])
+                .png()
+                .toBuffer();
+            
             logoData = {
-                base64: `data:image/png;base64,${buffer.toString('base64')}`,
+                base64: `data:image/png;base64,${coloredBuffer.toString('base64')}`,
+                width: metadata.width,
+                height: metadata.height
+            };
+        } else if (metadata.width && metadata.height) {
+            logoData = {
+                base64: `data:image/png;base64,${logoBuffer.toString('base64')}`,
                 width: metadata.width,
                 height: metadata.height
             };
