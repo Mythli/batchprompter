@@ -1,5 +1,6 @@
 import Handlebars from 'handlebars';
 import path from 'path';
+import OpenAI from 'openai';
 import { ActionOptions } from './types.js';
 import { aggressiveSanitize } from './utils/fileUtils.js';
 
@@ -14,7 +15,7 @@ export interface ResolvedStepConfig {
     aspectRatio: string | undefined;
     candidates: number;
     judgeModel: string | undefined;
-    judgePrompt: string | undefined;
+    judgePromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
     candidateOutputTemplate: string | undefined;
     noCandidateCommand: boolean;
 }
@@ -27,6 +28,7 @@ export class StepConfigurator {
         options: ActionOptions,
         baseOutputPath: string,
         renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
+        loadedJudgePrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
         validators: Record<string, any>
     ): ResolvedStepConfig {
         const stepOverride = options.stepOverrides?.[stepIndex];
@@ -78,7 +80,25 @@ export class StepConfigurator {
         // 7. Candidates & Judge
         const currentCandidates = stepOverride?.candidates || options.candidates || 1;
         const currentJudgeModel = stepOverride?.judgeModel || options.judgeModel;
-        const currentJudgePrompt = stepOverride?.judgePrompt || options.judgePrompt;
+        
+        // Resolve Judge Prompt Parts (Handlebars rendering)
+        let rawJudgeParts = loadedJudgePrompts.steps[stepIndex];
+        if (!rawJudgeParts && loadedJudgePrompts.global) {
+            rawJudgeParts = loadedJudgePrompts.global;
+        }
+
+        let currentJudgePromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
+        if (rawJudgeParts) {
+            currentJudgePromptParts = rawJudgeParts.map(part => {
+                if (part.type === 'text') {
+                    return {
+                        type: 'text',
+                        text: Handlebars.compile(part.text, { noEscape: true })(row)
+                    };
+                }
+                return part;
+            });
+        }
         
         // 8. Candidate Output & Command Control
         const currentCandidateOutputTemplate = stepOverride?.candidateOutputTemplate || options.candidateOutputTemplate;
@@ -96,7 +116,7 @@ export class StepConfigurator {
             aspectRatio: currentAspectRatio,
             candidates: currentCandidates,
             judgeModel: currentJudgeModel,
-            judgePrompt: currentJudgePrompt,
+            judgePromptParts: currentJudgePromptParts,
             candidateOutputTemplate: currentCandidateOutputTemplate,
             noCandidateCommand: currentNoCandidateCommand
         };

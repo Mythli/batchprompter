@@ -159,8 +159,14 @@ export class CandidateStrategy implements GenerationStrategy {
             }
         }
 
-        const customPrompt = config.judgePrompt || "Analyze the candidates above and select the best one based on the original request.";
-        judgeMessageContent.push({ type: 'text', text: `\n\n${customPrompt}` });
+        // Add the custom judge prompt parts (rendered)
+        if (config.judgePromptParts && config.judgePromptParts.length > 0) {
+            judgeMessageContent.push({ type: 'text', text: '\n\n' });
+            judgeMessageContent.push(...config.judgePromptParts);
+        } else {
+            // Default prompt if none provided
+            judgeMessageContent.push({ type: 'text', text: "\n\nAnalyze the candidates above and select the best one based on the original request." });
+        }
 
         const response = await this.ask({
             model: config.judgeModel!,

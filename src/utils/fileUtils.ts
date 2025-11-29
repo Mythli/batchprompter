@@ -94,3 +94,22 @@ export async function readPromptInput(inputPath: string): Promise<OpenAI.Chat.Co
 
     return parts;
 }
+
+/**
+ * Resolves a prompt input string into an array of content parts.
+ * If the input is a valid file or directory path, it reads the content.
+ * Otherwise, it treats the input as a raw text string.
+ */
+export async function resolvePromptInput(input: string): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+    try {
+        await fsPromises.stat(input);
+        // If stat succeeds, it's a file or directory
+        return await readPromptInput(input);
+    } catch (error: any) {
+        if (error.code === 'ENOENT') {
+            // Not a file/directory, treat as raw text
+            return [{ type: 'text', text: input }];
+        }
+        throw error;
+    }
+}

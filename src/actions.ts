@@ -8,7 +8,7 @@ import Ajv from 'ajv';
 import OpenAI from 'openai';
 import { Parser } from 'json2csv';
 import { ActionOptions, StepConfig } from './types.js';
-import { readPromptInput, aggressiveSanitize } from './utils/fileUtils.js';
+import { resolvePromptInput, aggressiveSanitize } from './utils/fileUtils.js';
 import { loadData } from './utils/dataLoader.js';
 import { StepConfigurator } from './StepConfigurator.js';
 import { StepExecutor } from './StepExecutor.js';
@@ -22,6 +22,7 @@ function renderPath(pathTemplate: string, context: any): string {
 type RowHandler = (
     ask: AskGptFunction,
     renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
+    loadedJudgePrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
     userPrompts: OpenAI.Chat.Completions.ChatCompletionContentPart[][],
     baseOutputPath: string,
     index: number,
@@ -49,12 +50,12 @@ async function processBatch(
     // @ts-ignore
     const ajv = new Ajv({ strict: false });
 
-    const getFileContent = async (filePath: string): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> => {
-        if (fileCache.has(filePath)) {
-            return fileCache.get(filePath)!;
+    const getFileContent = async (input: string): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> => {
+        if (fileCache.has(input)) {
+            return fileCache.get(input)!;
         }
-        const content = await readPromptInput(filePath);
-        fileCache.set(filePath, content);
+        const content = await resolvePromptInput(input);
+        fileCache.set(input, content);
         return content;
     };
 
@@ -120,7 +121,14 @@ async function processBatch(
                     globalSystemPrompt = Handlebars.compile(content, { noEscape: true })(row);
                 }
 
-                // 3. Prepare Row-Specific Options and Validators
+                // 3. Global Judge Prompt
+                let globalJudgePrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null = null;
+                if (options.judgePrompt) {
+                    const resolvedPath = renderPath(options.judgePrompt, row);
+                    globalJudgePrompt = await getFileContent(resolvedPath);
+                }
+
+                // 4. Prepare Row-Specific Options and Validators
                 const rowValidators: Record<string, any> = {};
                 const rowOptions: ActionOptions = { 
                     ...options, 
@@ -138,6 +146,7 @@ async function processBatch(
 
                 // Step Overrides
                 const stepSystemPrompts: Record<number, string> = {};
+                const stepJudgePrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
                 
                 if (options.stepOverrides) {
                     for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
@@ -150,6 +159,12 @@ async function processBatch(
                             const parts = await getFileContent(resolvedPath);
                             const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
                             stepSystemPrompts[step] = Handlebars.compile(content, { noEscape: true })(row);
+                        }
+
+                        // Step Judge Prompt
+                        if (config.judgePrompt) {
+                            const resolvedPath = renderPath(config.judgePrompt, row);
+                            stepJudgePrompts[step] = await getFileContent(resolvedPath);
                         }
 
                         // Step Schema
@@ -172,6 +187,11 @@ async function processBatch(
                     steps: stepSystemPrompts
                 };
 
+                const loadedJudgePrompts = {
+                    global: globalJudgePrompt,
+                    steps: stepJudgePrompts
+                };
+
                 // Fallback for User Prompts if none provided
                 if (userPrompts.length === 0) {
                     userPrompts = [[{ type: 'text', text: JSON.stringify(row, null, 2) }]];
@@ -191,7 +211,7 @@ async function processBatch(
 
                 console.log(`[Row ${index}] Processing...`);
 
-                await handler(ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
+                await handler(ask, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
 
             } catch (err) {
                 console.error(`[Row ${index}] Error:`, err);
@@ -232,7 +252,7 @@ async function processBatch(
     console.log(`Updated data saved to ${outputDataPath}`);
 }
 
-const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, userPrompts, baseOutputPath, index, options, validators, row) => {
+const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, options, validators, row) => {
     // History of conversation (User + Assistant only)
     const persistentHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
     const executor = new StepExecutor(ask, options.model);
@@ -248,6 +268,7 @@ const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, u
             options, 
             baseOutputPath, 
             renderedSystemPrompts, 
+            loadedJudgePrompts,
             validators
         );
 
