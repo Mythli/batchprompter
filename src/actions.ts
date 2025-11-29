@@ -2,7 +2,6 @@ import fsPromises from 'fs/promises';
 import path from 'path';
 import { getConfig } from "./getConfig.js";
 import { LlmClient } from 'llm-fns';
-import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
 import Ajv from 'ajv';
 import OpenAI from 'openai';
@@ -84,139 +83,135 @@ async function processBatch(
 
     console.log(`Found ${rows.length} rows to process.`);
 
-    const queue = new PQueue({ concurrency });
+    const tasks = rows.map(async (row, index) => {
+        try {
+            // --- Resolve Paths and Load Content per Row ---
 
-    const tasks = rows.map((row, index) => {
-        return queue.add(async () => {
-            try {
-                // --- Resolve Paths and Load Content per Row ---
-
-                // 1. User Prompts
-                let userPrompts: OpenAI.Chat.Completions.ChatCompletionContentPart[][] = [];
-                if (templateFilePaths.length > 0) {
-                    for (const tPath of templateFilePaths) {
-                        const resolvedPath = renderPath(tPath, row);
-                        const parts = await getFileContent(resolvedPath);
-                        
-                        // Render Handlebars only for text parts
-                        const renderedParts = parts.map(part => {
-                            if (part.type === 'text') {
-                                return { 
-                                    type: 'text' as const, 
-                                    text: Handlebars.compile(part.text, { noEscape: true })(row) 
-                                };
-                            }
-                            return part;
-                        });
-                        userPrompts.push(renderedParts);
-                    }
-                }
-
-                // 2. Global System Prompt
-                let globalSystemPrompt: string | null = null;
-                if (options.system) {
-                    const resolvedPath = renderPath(options.system, row);
+            // 1. User Prompts
+            let userPrompts: OpenAI.Chat.Completions.ChatCompletionContentPart[][] = [];
+            if (templateFilePaths.length > 0) {
+                for (const tPath of templateFilePaths) {
+                    const resolvedPath = renderPath(tPath, row);
                     const parts = await getFileContent(resolvedPath);
-                    const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
-                    globalSystemPrompt = Handlebars.compile(content, { noEscape: true })(row);
-                }
-
-                // 3. Global Judge Prompt
-                let globalJudgePrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null = null;
-                if (options.judgePrompt) {
-                    const resolvedPath = renderPath(options.judgePrompt, row);
-                    globalJudgePrompt = await getFileContent(resolvedPath);
-                }
-
-                // 4. Prepare Row-Specific Options and Validators
-                const rowValidators: Record<string, any> = {};
-                const rowOptions: ActionOptions = { 
-                    ...options, 
-                    stepOverrides: {} 
-                };
-
-                // Global Schema
-                if (options.schema) {
-                    const resolvedPath = renderPath(options.schema, row);
-                    const parts = await getFileContent(resolvedPath);
-                    const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
-                    rowOptions.jsonSchema = JSON.parse(content);
-                    rowValidators['global'] = await getValidator(resolvedPath);
-                }
-
-                // Step Overrides
-                const stepSystemPrompts: Record<number, string> = {};
-                const stepJudgePrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
-                
-                if (options.stepOverrides) {
-                    for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
-                        const step = parseInt(stepStr, 10);
-                        const newConfig: StepConfig = { ...config };
-
-                        // Step System Prompt
-                        if (config.system) {
-                            const resolvedPath = renderPath(config.system, row);
-                            const parts = await getFileContent(resolvedPath);
-                            const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
-                            stepSystemPrompts[step] = Handlebars.compile(content, { noEscape: true })(row);
+                    
+                    // Render Handlebars only for text parts
+                    const renderedParts = parts.map(part => {
+                        if (part.type === 'text') {
+                            return { 
+                                type: 'text' as const, 
+                                text: Handlebars.compile(part.text, { noEscape: true })(row) 
+                            };
                         }
-
-                        // Step Judge Prompt
-                        if (config.judgePrompt) {
-                            const resolvedPath = renderPath(config.judgePrompt, row);
-                            stepJudgePrompts[step] = await getFileContent(resolvedPath);
-                        }
-
-                        // Step Schema
-                        if (config.schema) {
-                            const resolvedPath = renderPath(config.schema, row);
-                            const parts = await getFileContent(resolvedPath);
-                            const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
-                            newConfig.jsonSchema = JSON.parse(content);
-                            rowValidators[stepStr] = await getValidator(resolvedPath);
-                        }
-
-                        if (rowOptions.stepOverrides) {
-                            rowOptions.stepOverrides[step] = newConfig;
-                        }
-                    }
+                        return part;
+                    });
+                    userPrompts.push(renderedParts);
                 }
-
-                const renderedSystemPrompts = {
-                    global: globalSystemPrompt,
-                    steps: stepSystemPrompts
-                };
-
-                const loadedJudgePrompts = {
-                    global: globalJudgePrompt,
-                    steps: stepJudgePrompts
-                };
-
-                // Fallback for User Prompts if none provided
-                if (userPrompts.length === 0) {
-                    userPrompts = [[{ type: 'text', text: JSON.stringify(row, null, 2) }]];
-                }
-
-                // Interpolate Output Path (Sanitized)
-                let baseOutputPath: string = '';
-                if (outputDelegate) {
-                    const sanitizedRow: Record<string, string> = {};
-                    for (const [key, val] of Object.entries(row)) {
-                        const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                        const sanitized = aggressiveSanitize(stringVal);
-                        sanitizedRow[key] = sanitized;
-                    }
-                    baseOutputPath = outputDelegate(sanitizedRow);
-                }
-
-                console.log(`[Row ${index}] Processing...`);
-
-                await handler(llm, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
-
-            } catch (err) {
-                console.error(`[Row ${index}] Error:`, err);
             }
-        });
+
+            // 2. Global System Prompt
+            let globalSystemPrompt: string | null = null;
+            if (options.system) {
+                const resolvedPath = renderPath(options.system, row);
+                const parts = await getFileContent(resolvedPath);
+                const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
+                globalSystemPrompt = Handlebars.compile(content, { noEscape: true })(row);
+            }
+
+            // 3. Global Judge Prompt
+            let globalJudgePrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null = null;
+            if (options.judgePrompt) {
+                const resolvedPath = renderPath(options.judgePrompt, row);
+                globalJudgePrompt = await getFileContent(resolvedPath);
+            }
+
+            // 4. Prepare Row-Specific Options and Validators
+            const rowValidators: Record<string, any> = {};
+            const rowOptions: ActionOptions = { 
+                ...options, 
+                stepOverrides: {} 
+            };
+
+            // Global Schema
+            if (options.schema) {
+                const resolvedPath = renderPath(options.schema, row);
+                const parts = await getFileContent(resolvedPath);
+                const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
+                rowOptions.jsonSchema = JSON.parse(content);
+                rowValidators['global'] = await getValidator(resolvedPath);
+            }
+
+            // Step Overrides
+            const stepSystemPrompts: Record<number, string> = {};
+            const stepJudgePrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
+            
+            if (options.stepOverrides) {
+                for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
+                    const step = parseInt(stepStr, 10);
+                    const newConfig: StepConfig = { ...config };
+
+                    // Step System Prompt
+                    if (config.system) {
+                        const resolvedPath = renderPath(config.system, row);
+                        const parts = await getFileContent(resolvedPath);
+                        const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
+                        stepSystemPrompts[step] = Handlebars.compile(content, { noEscape: true })(row);
+                    }
+
+                    // Step Judge Prompt
+                    if (config.judgePrompt) {
+                        const resolvedPath = renderPath(config.judgePrompt, row);
+                        stepJudgePrompts[step] = await getFileContent(resolvedPath);
+                    }
+
+                    // Step Schema
+                    if (config.schema) {
+                        const resolvedPath = renderPath(config.schema, row);
+                        const parts = await getFileContent(resolvedPath);
+                        const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
+                        newConfig.jsonSchema = JSON.parse(content);
+                        rowValidators[stepStr] = await getValidator(resolvedPath);
+                    }
+
+                    if (rowOptions.stepOverrides) {
+                        rowOptions.stepOverrides[step] = newConfig;
+                    }
+                }
+            }
+
+            const renderedSystemPrompts = {
+                global: globalSystemPrompt,
+                steps: stepSystemPrompts
+            };
+
+            const loadedJudgePrompts = {
+                global: globalJudgePrompt,
+                steps: stepJudgePrompts
+            };
+
+            // Fallback for User Prompts if none provided
+            if (userPrompts.length === 0) {
+                userPrompts = [[{ type: 'text', text: JSON.stringify(row, null, 2) }]];
+            }
+
+            // Interpolate Output Path (Sanitized)
+            let baseOutputPath: string = '';
+            if (outputDelegate) {
+                const sanitizedRow: Record<string, string> = {};
+                for (const [key, val] of Object.entries(row)) {
+                    const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                    const sanitized = aggressiveSanitize(stringVal);
+                    sanitizedRow[key] = sanitized;
+                }
+                baseOutputPath = outputDelegate(sanitizedRow);
+            }
+
+            console.log(`[Row ${index}] Processing...`);
+
+            await handler(llm, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
+
+        } catch (err) {
+            console.error(`[Row ${index}] Error:`, err);
+        }
     });
 
     await Promise.all(tasks);
