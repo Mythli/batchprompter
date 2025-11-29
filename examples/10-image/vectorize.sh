@@ -37,8 +37,8 @@ echo "Processing $INPUT_FILE -> $OUTPUT_FILE"
 # 1. Upload image to a temporary host (0x0.st)
 # fal.ai requires a public URL for the input image.
 echo "Uploading image to temporary storage..."
-# Using 0x0.st for temporary hosting
-IMAGE_URL=$(curl -s -F "file=@$INPUT_FILE" https://0x0.st)
+# Using 0x0.st for temporary hosting. Added User-Agent to avoid blocking.
+IMAGE_URL=$(curl -s -A "Mozilla/5.0" -F "file=@$INPUT_FILE" https://0x0.st)
 
 if [ -z "$IMAGE_URL" ]; then
     echo "Error: Failed to upload image."
