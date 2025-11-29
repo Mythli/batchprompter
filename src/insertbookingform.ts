@@ -348,11 +348,17 @@ class BookingFormDrawer {
     private logoData?: { base64: string, width: number, height: number };
     private formData: BookingFormData;
 
-    constructor(width: number, height: number, formData: BookingFormData, logoData?: { base64: string, width: number, height: number }) {
+    constructor(
+        width: number, 
+        height: number, 
+        formData: BookingFormData, 
+        logoData?: { base64: string, width: number, height: number },
+        scalingFactor: number = 1.0
+    ) {
         this.width = width;
         this.height = height;
         // Base scale on a reference width of ~375px (typical mobile width)
-        this.scale = width / 375;
+        this.scale = (width / 375) * scalingFactor;
         this.logoData = logoData;
         this.formData = formData;
     }
@@ -528,7 +534,8 @@ async function drawBookingForm(
     rect: Rectangle,
     formData: BookingFormData,
     logoPath: string,
-    superSample: number = 8
+    superSample: number = 8,
+    scalingFactor: number = 1.0
 ) {
     // Load logo
     let logoData;
@@ -548,7 +555,7 @@ async function drawBookingForm(
     }
 
     // Supersample to improve text rendering sharpness
-    const drawer = new BookingFormDrawer(rect.width * superSample, rect.height * superSample, formData, logoData);
+    const drawer = new BookingFormDrawer(rect.width * superSample, rect.height * superSample, formData, logoData, scalingFactor);
     drawer.render();
     const svgContent = drawer.getSvg();
 
@@ -580,11 +587,14 @@ async function main() {
     const superSampleArg = args.find(arg => arg.startsWith('--supersample='));
     const superSample = superSampleArg ? parseInt(superSampleArg.split('=')[1], 10) : 8;
 
+    const scaleArg = args.find(arg => arg.startsWith('--scale='));
+    const scalingFactor = scaleArg ? parseFloat(scaleArg.split('=')[1]) : 1.0;
+
     // Filter out flags to get positional arguments
     const positionalArgs = args.filter(arg => !arg.startsWith('--'));
 
     if (positionalArgs.length < 3) {
-        console.error('Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> [output_image] [--supersample=8]');
+        console.error('Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> [output_image] [--supersample=8] [--scale=1.0]');
         console.log('Example: ts-node src/insertbookingform.ts test/input.png test/form_data.json test/logo.png');
         process.exit(1);
     }
@@ -624,7 +634,7 @@ async function main() {
         const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
         console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
 
-        await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, superSample);
+        await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, superSample, scalingFactor);
 
     } catch (error) {
         console.error('Error processing image:', error);
