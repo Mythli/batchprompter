@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createCache } from 'cache-manager';
 import KeyvSqlite from '@keyv/sqlite';
 import OpenAI from "openai";
-import { createCachedGptAsk } from "./createCachedGptAsk.js";
+import { createLlm } from 'llm-fns';
 import { EventTracker } from "./EventTracker.js";
 import PQueue from 'p-queue';
 
@@ -61,19 +61,27 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Based on request, CLI defaults to 1.
     const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? 1 });
 
-    const gptAskFns = createCachedGptAsk({
+    const llm = createLlm({
         openai: openAi,
         defaultModel: config.MODEL,
         cache: cache,
-        eventTracker,
-        maxConversationChars: config.GPT_MAX_CONVERSATION_CHARS,
         queue: gptQueue,
+        maxConversationChars: config.GPT_MAX_CONVERSATION_CHARS,
     });
+
+    // Wrap llm.prompt to add event tracking
+    const originalPrompt = llm.prompt.bind(llm);
+    // @ts-ignore
+    llm.prompt = async (options: any) => {
+        const model = options.model || config.MODEL;
+        return eventTracker.trackOperation('gpt.ask', { model, prompt: '...' }, async () => {
+            return originalPrompt(options);
+        });
+    };
 
     return {
         config,
-        ask: gptAskFns.ask,
-        isAskCached: gptAskFns.isAskCached,
+        llm,
         eventTracker
     };
 }

@@ -1,7 +1,7 @@
 import fsPromises from 'fs/promises';
 import path from 'path';
 import { getConfig } from "./getConfig.js";
-import { AskGptFunction } from './createCachedGptAsk.js';
+import { LlmClient } from 'llm-fns';
 import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
 import Ajv from 'ajv';
@@ -20,7 +20,7 @@ function renderPath(pathTemplate: string, context: any): string {
 }
 
 type RowHandler = (
-    ask: AskGptFunction,
+    llm: LlmClient,
     renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
     loadedJudgePrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
     userPrompts: OpenAI.Chat.Completions.ChatCompletionContentPart[][],
@@ -42,7 +42,7 @@ async function processBatch(
 
     // 1. Initialize Config with Concurrency
     console.log(`Initializing with concurrency: ${concurrency}`);
-    const { ask } = await getConfig({ concurrency });
+    const { llm } = await getConfig({ concurrency });
 
     // 2. Initialize Caches and Validators
     const fileCache = new Map<string, OpenAI.Chat.Completions.ChatCompletionContentPart[]>();
@@ -211,7 +211,7 @@ async function processBatch(
 
                 console.log(`[Row ${index}] Processing...`);
 
-                await handler(ask, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
+                await handler(llm, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
 
             } catch (err) {
                 console.error(`[Row ${index}] Error:`, err);
@@ -252,10 +252,10 @@ async function processBatch(
     console.log(`Updated data saved to ${outputDataPath}`);
 }
 
-const handleUnifiedGeneration: RowHandler = async (ask, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, options, validators, row) => {
+const handleUnifiedGeneration: RowHandler = async (llm, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, options, validators, row) => {
     // History of conversation (User + Assistant only)
     const persistentHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-    const executor = new StepExecutor(ask, options.model);
+    const executor = new StepExecutor(llm, options.model);
 
     for (let i = 0; i < userPrompts.length; i++) {
         const stepIndex = i + 1;

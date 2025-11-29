@@ -5,10 +5,9 @@ import util from 'util';
 import { exec } from 'child_process';
 import { z } from 'zod';
 import fsPromises from 'fs/promises';
+import { LlmClient, LlmRetryError } from 'llm-fns';
 
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
-import { AskGptFunction } from '../createCachedGptAsk.js';
-import { LlmReQuerier, LlmQuerierError } from '../llmReQuerier.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
 import { ResolvedStepConfig } from '../StepConfigurator.js';
 
@@ -30,7 +29,7 @@ const responseSchema = z.object({
 
 export class StandardStrategy implements GenerationStrategy {
     constructor(
-        private ask: AskGptFunction,
+        private llm: LlmClient,
         private model: string | undefined
     ) {}
 
@@ -69,100 +68,147 @@ export class StandardStrategy implements GenerationStrategy {
 
         // --- Execution Logic ---
         if (config.jsonSchema || config.verifyCommand) {
-            // ReQuery Mode
-            const querier = new LlmReQuerier(this.ask);
-            const queryOptions: any = {
-                model: this.model,
-                response_format: config.jsonSchema ? { type: "json_object" } : undefined,
-                cacheSalt: cacheSalt
-            };
-
+            // ReQuery Mode using llm-fns promptTextRetry
+            
+            // Note: promptTextRetry is primarily for text. If we are generating images (aspectRatio set),
+            // we might need a different approach or assume verifyCommand is for text/json.
+            // If aspectRatio is set, we use a manual loop around llm.prompt to handle image verification if needed.
+            
             if (config.aspectRatio) {
-                queryOptions.modalities = ['image', 'text'];
-                queryOptions.image_config = { aspect_ratio: config.aspectRatio };
-            }
-
-            const result = await querier.query(
-                [...apiMessages],
-                async (message: any, info) => {
-                    let data: any = message.content;
-                    let contentToWrite = message.content;
-                    const images = message.images;
-
-                    // 1. JSON Parsing & Schema Validation
-                    if (config.jsonSchema) {
-                        if (!contentToWrite) {
-                            throw new LlmQuerierError("Expected JSON response but got empty content.", 'CUSTOM_ERROR', null, null);
-                        }
-                        try {
-                            data = JSON.parse(contentToWrite);
-                            contentToWrite = JSON.stringify(data, null, 2);
-                        } catch (e) {
-                            throw new LlmQuerierError("Response was not valid JSON.", 'JSON_PARSE_ERROR', null, contentToWrite);
+                // Image Generation with manual retry loop
+                const maxRetries = 3;
+                let lastError: any;
+                
+                for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                    try {
+                        const currentMessages = [...apiMessages];
+                        if (lastError) {
+                            currentMessages.push({ role: 'user', content: lastError.message });
                         }
 
-                        const valid = config.validator(data);
-                        if (!valid) {
-                            const errors = config.validator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
-                            throw new LlmQuerierError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR', config.validator.errors, contentToWrite);
-                        }
-                    }
+                        const response = await this.llm.prompt({
+                            messages: currentMessages,
+                            model: this.model,
+                            cacheSalt: cacheSalt,
+                            modalities: ['image', 'text'],
+                            image_config: { aspect_ratio: config.aspectRatio }
+                        });
 
-                    // 2. Image Handling
-                    if (images && images.length > 0) {
+                        const parsed = responseSchema.parse(response);
+                        const message = parsed.choices[0].message;
+                        const images = message.images;
+                        
+                        if (!images || images.length === 0) {
+                            throw new Error("No image generated.");
+                        }
+                        
                         const imageUrl = images[0].image_url.url;
-                        contentToWrite = imageUrl;
                         
-                        if (effectiveOutputPath || config.verifyCommand) {
-                            // Save temp for verification or final output
-                            const savePath = effectiveOutputPath || path.join(path.dirname(effectiveOutputPath || '.'), `temp_verify_${index}_${stepIndex}.png`);
-                            await ArtifactSaver.save(imageUrl, savePath);
+                        // Verify Command
+                        if (config.verifyCommand && !skipCommands) {
+                            const verifyPath = effectiveOutputPath || path.join(path.dirname(effectiveOutputPath || '.'), `temp_verify_${index}_${stepIndex}.png`);
+                            await ArtifactSaver.save(imageUrl, verifyPath);
+                            
+                            const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
+                            const cmd = cmdTemplate({ ...row, file: verifyPath });
+                            
+                            console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying Image: ${cmd}`);
+                            
+                            try {
+                                const { stdout } = await execPromise(cmd);
+                                if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
+                            } catch (error: any) {
+                                const feedback = error.stderr || error.stdout || error.message;
+                                throw new Error(`Verification failed: ${feedback}`);
+                            }
                         }
+                        
+                        // Success
+                        contentForColumn = imageUrl;
+                        assistantResponseContent = "Image generated.";
+                        
+                        if (effectiveOutputPath && (!config.verifyCommand || skipCommands)) {
+                            await ArtifactSaver.save(imageUrl, effectiveOutputPath);
+                            console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${effectiveOutputPath}`);
+                        }
+                        
+                        break; // Exit loop
+                        
+                    } catch (error: any) {
+                        lastError = error;
+                        if (attempt === maxRetries) throw error;
+                        console.log(`[Row ${index}] Step ${stepIndex} Image generation/verification failed, retrying... (${error.message})`);
                     }
+                }
+            } else {
+                // Text/JSON Generation with promptTextRetry
+                const resultText = await this.llm.promptTextRetry({
+                    messages: apiMessages,
+                    model: this.model,
+                    cacheSalt: cacheSalt,
+                    response_format: config.jsonSchema ? { type: "json_object" } : undefined,
+                    validate: async (text, info) => {
+                        let content = text;
+                        let data: any;
 
-                    // 3. Verify Command
-                    if (config.verifyCommand && !skipCommands) {
-                        const verifyPath = effectiveOutputPath || path.join(path.dirname(effectiveOutputPath || '.'), `temp_verify_${index}_${stepIndex}.${images ? 'png' : 'txt'}`);
-                        
-                        if (!images) {
-                            await ArtifactSaver.save(contentToWrite, verifyPath);
+                        // 1. JSON Parsing & Schema Validation
+                        if (config.jsonSchema) {
+                            if (!content) {
+                                throw new LlmRetryError("Expected JSON response but got empty content.", 'CUSTOM_ERROR');
+                            }
+                            try {
+                                data = JSON.parse(content);
+                                content = JSON.stringify(data, null, 2);
+                            } catch (e) {
+                                throw new LlmRetryError("Response was not valid JSON.", 'JSON_PARSE_ERROR');
+                            }
+
+                            const valid = config.validator(data);
+                            if (!valid) {
+                                const errors = config.validator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
+                                throw new LlmRetryError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR');
+                            }
                         }
 
-                        const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
-                        const cmd = cmdTemplate({ ...row, file: verifyPath });
-                        
-                        console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying: ${cmd}`);
+                        // 2. Verify Command
+                        if (config.verifyCommand && !skipCommands) {
+                            const verifyPath = effectiveOutputPath || path.join(path.dirname(effectiveOutputPath || '.'), `temp_verify_${index}_${stepIndex}.txt`);
+                            
+                            await ArtifactSaver.save(content, verifyPath);
 
-                        try {
-                            const { stdout, stderr } = await execPromise(cmd);
-                            if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
-                        } catch (error: any) {
-                            const feedback = error.stderr || error.stdout || error.message;
-                            throw new LlmQuerierError(
-                                `Verification command failed:\n${feedback}\n\nPlease fix the content based on this error.`,
-                                'CUSTOM_ERROR',
-                                null,
-                                contentToWrite
-                            );
+                            const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
+                            const cmd = cmdTemplate({ ...row, file: verifyPath });
+                            
+                            console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying: ${cmd}`);
+
+                            try {
+                                const { stdout } = await execPromise(cmd);
+                                if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
+                            } catch (error: any) {
+                                const feedback = error.stderr || error.stdout || error.message;
+                                throw new LlmRetryError(
+                                    `Verification command failed:\n${feedback}\n\nPlease fix the content based on this error.`,
+                                    'CUSTOM_ERROR'
+                                );
+                            }
                         }
+
+                        return content;
                     }
+                });
 
-                    return { data, contentToWrite };
-                },
-                queryOptions
-            );
+                contentForColumn = resultText;
+                assistantResponseContent = resultText;
 
-            contentForColumn = result.contentToWrite;
-            assistantResponseContent = (typeof result.data === 'string' ? result.data : JSON.stringify(result.data)) || "Image generated.";
-
-            // Save Final Output if not already handled by verify logic (or if verify logic used a temp path)
-            if (effectiveOutputPath && (!config.verifyCommand || skipCommands)) {
-                await ArtifactSaver.save(result.contentToWrite, effectiveOutputPath);
-                console.log(`[Row ${index}] Step ${stepIndex} Saved to ${effectiveOutputPath}`);
+                // Save Final Output if not already handled by verify logic (or if verify logic used a temp path)
+                if (effectiveOutputPath && (!config.verifyCommand || skipCommands)) {
+                    await ArtifactSaver.save(resultText, effectiveOutputPath);
+                    console.log(`[Row ${index}] Step ${stepIndex} Saved to ${effectiveOutputPath}`);
+                }
             }
 
         } else {
-            // Standard Mode
+            // Standard Mode (No validation loop)
             const askOptions: any = {
                 messages: [...apiMessages],
                 cacheSalt: cacheSalt
@@ -173,7 +219,7 @@ export class StandardStrategy implements GenerationStrategy {
                 askOptions.image_config = { aspect_ratio: config.aspectRatio };
             }
 
-            const response = await this.ask(askOptions);
+            const response = await this.llm.prompt(askOptions);
             const parsed = responseSchema.parse(response);
             const message = parsed.choices[0].message;
             const textContent = message.content;
@@ -219,7 +265,7 @@ export class StandardStrategy implements GenerationStrategy {
                 console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running command: ${cmd}`);
                 
                 try {
-                    const { stdout, stderr } = await execPromise(cmd);
+                    const { stdout } = await execPromise(cmd);
                     if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
                 } catch (error: any) {
                     console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error.message);

@@ -3,10 +3,10 @@ import path from 'path';
 import Handlebars from 'handlebars';
 import util from 'util';
 import { exec } from 'child_process';
+import { LlmClient } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
 import { ResolvedStepConfig } from '../StepConfigurator.js';
-import { AskGptFunction } from '../createCachedGptAsk.js';
 import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
 
 const execPromise = util.promisify(exec);
@@ -14,7 +14,7 @@ const execPromise = util.promisify(exec);
 export class CandidateStrategy implements GenerationStrategy {
     constructor(
         private standardStrategy: StandardStrategy,
-        private ask: AskGptFunction
+        private llm: LlmClient
     ) {}
 
     async execute(
@@ -109,7 +109,7 @@ export class CandidateStrategy implements GenerationStrategy {
                     console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running deferred command on winner: ${cmd}`);
                     
                     try {
-                        const { stdout, stderr } = await execPromise(cmd);
+                        const { stdout } = await execPromise(cmd);
                         if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
                     } catch (error: any) {
                         console.error(`[Row ${index}] Step ${stepIndex} Deferred command failed:`, error.message);
@@ -169,7 +169,7 @@ export class CandidateStrategy implements GenerationStrategy {
             judgeMessageContent.push({ type: 'text', text: "\n\nAnalyze the candidates above and select the best one based on the original request." });
         }
 
-        const response = await this.ask({
+        const response = await this.llm.prompt({
             model: config.judgeModel!,
             messages: [
                 { role: 'system', content: judgeSystemPrompt },

@@ -1,12 +1,12 @@
 import OpenAI from 'openai';
-import { AskGptFunction } from './createCachedGptAsk.js';
+import { LlmClient } from 'llm-fns';
 import { ResolvedStepConfig } from './StepConfigurator.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 
 export class StepExecutor {
     constructor(
-        private ask: AskGptFunction,
+        private llm: LlmClient,
         private model: string | undefined
     ) {}
 
@@ -19,11 +19,11 @@ export class StepExecutor {
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
     ): Promise<{ role: 'assistant', content: string }> {
         
-        const standardStrategy = new StandardStrategy(this.ask, this.model);
+        const standardStrategy = new StandardStrategy(this.llm, this.model);
         
         let strategy;
         if (config.candidates > 1) {
-            strategy = new CandidateStrategy(standardStrategy, this.ask);
+            strategy = new CandidateStrategy(standardStrategy, this.llm);
         } else {
             strategy = standardStrategy;
         }
