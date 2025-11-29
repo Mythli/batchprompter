@@ -4,6 +4,7 @@
 # Example: ./vectorize.sh mylogo.png mylogo.svg
 
 set -e
+set -x
 
 # Check for API Key
 if [ -z "$FAL_KEY" ]; then
@@ -74,10 +75,10 @@ while true; do
     STATUS_RESPONSE=$(curl -s --request GET \
       --url "https://queue.fal.run/fal-ai/recraft/requests/$REQUEST_ID/status" \
       --header "Authorization: Key $FAL_KEY")
-    
+
     # Extract status
     STATUS=$(echo "$STATUS_RESPONSE" | grep -o '"status": *"[^"]*"' | sed 's/"status": *//; s/"//g')
-    
+
     if [ "$STATUS" == "COMPLETED" ]; then
         break
     elif [ "$STATUS" == "FAILED" ]; then
@@ -85,7 +86,7 @@ while true; do
         echo "Status Response: $STATUS_RESPONSE"
         exit 1
     fi
-    
+
     # Wait a bit before polling again
     sleep 1
     echo -n "."
