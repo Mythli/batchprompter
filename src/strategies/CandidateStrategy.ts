@@ -7,7 +7,7 @@ import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
 import { ResolvedStepConfig } from '../StepConfigurator.js';
 import { AskGptFunction } from '../createCachedGptAsk.js';
-import { aggressiveSanitize } from '../utils/fileUtils.js';
+import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
 
 const execPromise = util.promisify(exec);
 
@@ -97,6 +97,7 @@ export class CandidateStrategy implements GenerationStrategy {
         if (config.outputPath && winner.outputPath) {
             const fs = await import('fs/promises');
             try {
+                await ensureDir(config.outputPath);
                 await fs.copyFile(winner.outputPath, config.outputPath);
                 console.log(`[Row ${index}] Step ${stepIndex} Winner (Candidate ${winner.candidateIndex + 1}) copied to ${config.outputPath}`);
                 
