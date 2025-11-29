@@ -34,11 +34,11 @@ fi
 
 echo "Processing $INPUT_FILE -> $OUTPUT_FILE"
 
-# 1. Upload image to a temporary host (transfer.sh)
+# 1. Upload image to a temporary host (0x0.st)
 # fal.ai requires a public URL for the input image.
 echo "Uploading image to temporary storage..."
-# Using transfer.sh for temporary hosting
-IMAGE_URL=$(curl -s --upload-file "$INPUT_FILE" "https://transfer.sh/$(basename "$INPUT_FILE")")
+# Using 0x0.st for temporary hosting
+IMAGE_URL=$(curl -s -F "file=@$INPUT_FILE" https://0x0.st)
 
 if [ -z "$IMAGE_URL" ]; then
     echo "Error: Failed to upload image."
@@ -47,6 +47,13 @@ fi
 
 # Trim whitespace just in case
 IMAGE_URL=$(echo "$IMAGE_URL" | tr -d '[:space:]')
+
+# Check if we got a valid URL
+if [[ ! "$IMAGE_URL" =~ ^http ]]; then
+    echo "Error: Upload failed. Response: $IMAGE_URL"
+    exit 1
+fi
+
 echo "Image uploaded: $IMAGE_URL"
 
 # 2. Submit request to Fal.ai
