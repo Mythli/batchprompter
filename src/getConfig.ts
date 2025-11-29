@@ -48,9 +48,6 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         cache = createCache({ stores: [sqliteStore as any] });
     }
 
-    const eventTracker = new EventTracker();
-    eventTracker.startPerformanceLogging('GPT-Runner');
-
     const openAi = new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
@@ -60,6 +57,19 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Based on request, CLI defaults to 1.
     const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? 1 });
 
+    gptQueue.on('active', () => {
+        console.log(`[Queue] Active. Pending: ${gptQueue.pending} | Queue: ${gptQueue.size}`);
+    });
+
+    gptQueue.on('completed', (result: any) => {
+        const id = result?.id || 'unknown';
+        console.log(`[Queue] Task completed (ID: ${id}). Pending: ${gptQueue.pending} | Queue: ${gptQueue.size}`);
+    });
+
+    gptQueue.on('error', (error) => {
+        console.error(`[Queue] Task error:`, error);
+    });
+
     const llm = createLlm({
         openai: openAi,
         defaultModel: config.MODEL,
@@ -68,20 +78,9 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         maxConversationChars: config.GPT_MAX_CONVERSATION_CHARS,
     });
 
-    // Wrap llm.prompt to add event tracking
-    const originalPrompt = llm.prompt.bind(llm);
-    // @ts-ignore
-    llm.prompt = async (options: any) => {
-        const model = options.model || config.MODEL;
-        return eventTracker.trackOperation('gpt.ask', { model, prompt: '...' }, async () => {
-            return originalPrompt(options);
-        });
-    };
-
     return {
         config,
-        llm,
-        eventTracker
+        llm
     };
 }
 
