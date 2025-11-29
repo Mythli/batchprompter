@@ -540,16 +540,24 @@ async function drawBookingForm(inputPath: string, outputPath: string, rect: Rect
         console.warn(`Failed to load logo image from ${logoPath}:`, error);
     }
 
-    const drawer = new BookingFormDrawer(rect.width, rect.height, formData, logoData);
+    // Supersample to improve text rendering sharpness
+    const superSample = 2;
+    const drawer = new BookingFormDrawer(rect.width * superSample, rect.height * superSample, formData, logoData);
     drawer.render();
     const svgContent = drawer.getSvg();
+
+    // Render SVG at high resolution then downscale
+    const svgBuffer = await sharp(Buffer.from(svgContent))
+        .resize(Math.round(rect.width), Math.round(rect.height))
+        .png()
+        .toBuffer();
 
     const image = sharp(inputPath);
 
     // Composite the SVG onto the image
     await image
         .composite([{
-            input: Buffer.from(svgContent),
+            input: svgBuffer,
             top: Math.round(rect.y),
             left: Math.round(rect.x)
         }])
