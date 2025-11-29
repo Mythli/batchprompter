@@ -42,7 +42,8 @@ export class StandardStrategy implements GenerationStrategy {
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
-        outputPathOverride?: string
+        outputPathOverride?: string,
+        skipCommands: boolean = false
     ): Promise<GenerationResult> {
         
         // Construct Messages
@@ -120,7 +121,7 @@ export class StandardStrategy implements GenerationStrategy {
                     }
 
                     // 3. Verify Command
-                    if (config.verifyCommand) {
+                    if (config.verifyCommand && !skipCommands) {
                         const verifyPath = effectiveOutputPath || path.join(path.dirname(effectiveOutputPath || '.'), `temp_verify_${index}_${stepIndex}.${images ? 'png' : 'txt'}`);
                         
                         if (!images) {
@@ -155,7 +156,7 @@ export class StandardStrategy implements GenerationStrategy {
             assistantResponseContent = (typeof result.data === 'string' ? result.data : JSON.stringify(result.data)) || "Image generated.";
 
             // Save Final Output if not already handled by verify logic (or if verify logic used a temp path)
-            if (effectiveOutputPath && !config.verifyCommand) {
+            if (effectiveOutputPath && (!config.verifyCommand || skipCommands)) {
                 await ArtifactSaver.save(result.contentToWrite, effectiveOutputPath);
                 console.log(`[Row ${index}] Step ${stepIndex} Saved to ${effectiveOutputPath}`);
             }
@@ -200,7 +201,7 @@ export class StandardStrategy implements GenerationStrategy {
         }
 
         // Post Process
-        if (config.postProcessCommand) {
+        if (config.postProcessCommand && !skipCommands) {
             let filePathForCommand = effectiveOutputPath;
             let isTemp = false;
 

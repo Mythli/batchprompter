@@ -15,6 +15,8 @@ export interface ResolvedStepConfig {
     candidates: number;
     judgeModel: string | undefined;
     judgePrompt: string | undefined;
+    candidateOutputTemplate: string | undefined;
+    noCandidateCommand: boolean;
 }
 
 export class StepConfigurator {
@@ -77,6 +79,11 @@ export class StepConfigurator {
         const currentCandidates = stepOverride?.candidates || options.candidates || 1;
         const currentJudgeModel = stepOverride?.judgeModel || options.judgeModel;
         const currentJudgePrompt = stepOverride?.judgePrompt || options.judgePrompt;
+        
+        // 8. Candidate Output & Command Control
+        const currentCandidateOutputTemplate = stepOverride?.candidateOutputTemplate || options.candidateOutputTemplate;
+        // Boolean flags: check step override first, then global. If undefined, default to false.
+        const currentNoCandidateCommand = stepOverride?.noCandidateCommand ?? options.noCandidateCommand ?? false;
 
         return {
             outputPath: currentOutputPath,
@@ -89,7 +96,9 @@ export class StepConfigurator {
             aspectRatio: currentAspectRatio,
             candidates: currentCandidates,
             judgeModel: currentJudgeModel,
-            judgePrompt: currentJudgePrompt
+            judgePrompt: currentJudgePrompt,
+            candidateOutputTemplate: currentCandidateOutputTemplate,
+            noCandidateCommand: currentNoCandidateCommand
         };
     }
 

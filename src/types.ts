@@ -12,6 +12,8 @@ export interface StepConfig {
     candidates?: number;
     judgeModel?: string;
     judgePrompt?: string;
+    candidateOutputTemplate?: string;
+    noCandidateCommand?: boolean;
 }
 
 export interface ActionOptions {
@@ -28,5 +30,7 @@ export interface ActionOptions {
     candidates?: number;
     judgeModel?: string;
     judgePrompt?: string;
+    candidateOutputTemplate?: string;
+    noCandidateCommand?: boolean;
     stepOverrides?: Record<number, StepConfig>;
 }

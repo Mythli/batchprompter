@@ -15,6 +15,7 @@ export interface GenerationStrategy {
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
-        outputPathOverride?: string
+        outputPathOverride?: string,
+        skipCommands?: boolean
     ): Promise<GenerationResult>;
 }

@@ -1,10 +1,15 @@
 import OpenAI from 'openai';
 import path from 'path';
+import Handlebars from 'handlebars';
+import util from 'util';
+import { exec } from 'child_process';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
 import { ResolvedStepConfig } from '../StepConfigurator.js';
 import { AskGptFunction } from '../createCachedGptAsk.js';
-import { ArtifactSaver } from '../ArtifactSaver.js';
+import { aggressiveSanitize } from '../utils/fileUtils.js';
+
+const execPromise = util.promisify(exec);
 
 export class CandidateStrategy implements GenerationStrategy {
     constructor(
@@ -20,7 +25,8 @@ export class CandidateStrategy implements GenerationStrategy {
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
-        outputPathOverride?: string
+        outputPathOverride?: string,
+        skipCommands?: boolean
     ): Promise<GenerationResult> {
         const candidateCount = config.candidates;
         console.log(`[Row ${index}] Step ${stepIndex} Generating ${candidateCount} candidates...`);
@@ -28,9 +34,24 @@ export class CandidateStrategy implements GenerationStrategy {
         const promises: Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }>[] = [];
 
         for (let i = 0; i < candidateCount; i++) {
-            // Determine a unique output path for this candidate if an output path is configured
+            // Determine a unique output path for this candidate
             let candidateOutputPath: string | null = null;
-            if (config.outputPath) {
+
+            if (config.candidateOutputTemplate) {
+                // Use the custom template if provided
+                const delegate = Handlebars.compile(config.candidateOutputTemplate, { noEscape: true });
+                const sanitizedRow: Record<string, string> = {};
+                for (const [key, val] of Object.entries(row)) {
+                    const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                    const sanitized = aggressiveSanitize(stringVal);
+                    sanitizedRow[key] = sanitized;
+                }
+                // Add candidate index to the context
+                sanitizedRow['candidate_index'] = (i + 1).toString();
+                candidateOutputPath = delegate(sanitizedRow);
+
+            } else if (config.outputPath) {
+                // Default behavior: append _cand_N
                 const ext = path.extname(config.outputPath);
                 const base = path.basename(config.outputPath, ext);
                 const dir = path.dirname(config.outputPath);
@@ -40,9 +61,12 @@ export class CandidateStrategy implements GenerationStrategy {
             // We use the loop index as the cacheSalt to ensure unique generations
             const salt = `${cacheSalt || ''}_cand_${i}`;
 
+            // If noCandidateCommand is true, we skip commands during candidate generation
+            const shouldSkipCommands = config.noCandidateCommand || skipCommands;
+
             promises.push(
                 this.standardStrategy.execute(
-                    row, index, stepIndex, config, userPromptParts, history, salt, candidateOutputPath || undefined
+                    row, index, stepIndex, config, userPromptParts, history, salt, candidateOutputPath || undefined, shouldSkipCommands
                 ).then(res => ({ ...res, candidateIndex: i, outputPath: candidateOutputPath }))
             );
         }
@@ -71,18 +95,26 @@ export class CandidateStrategy implements GenerationStrategy {
 
         // If the winner has an output path (it was saved to _cand_N), we should copy it to the final output path
         if (config.outputPath && winner.outputPath) {
-            // If the content is a URL (image), we might need to re-download or just copy the file if StandardStrategy saved it.
-            // StandardStrategy saves to `effectiveOutputPath`.
-            // So `winner.outputPath` exists on disk.
-            // We copy `winner.outputPath` to `config.outputPath`.
-            
-            // Note: ArtifactSaver handles writing, but here we are doing a file copy.
-            // We can use ArtifactSaver if we have the content, but for images, `columnValue` might be a URL.
-            // If it's a local file copy, let's use fs.
             const fs = await import('fs/promises');
             try {
                 await fs.copyFile(winner.outputPath, config.outputPath);
                 console.log(`[Row ${index}] Step ${stepIndex} Winner (Candidate ${winner.candidateIndex + 1}) copied to ${config.outputPath}`);
+                
+                // If commands were skipped during candidate generation, we MUST run them now on the final file
+                if (config.noCandidateCommand && config.postProcessCommand) {
+                    const cmdTemplate = Handlebars.compile(config.postProcessCommand, { noEscape: true });
+                    const cmd = cmdTemplate({ ...row, file: config.outputPath });
+                    
+                    console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running deferred command on winner: ${cmd}`);
+                    
+                    try {
+                        const { stdout, stderr } = await execPromise(cmd);
+                        if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
+                    } catch (error: any) {
+                        console.error(`[Row ${index}] Step ${stepIndex} Deferred command failed:`, error.message);
+                    }
+                }
+
             } catch (e) {
                 console.error(`[Row ${index}] Step ${stepIndex} Failed to copy winner file to final output:`, e);
             }
