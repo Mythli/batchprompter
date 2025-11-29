@@ -4,6 +4,7 @@
 # Example: ./vectorize.sh mylogo.png mylogo.svg
 
 set -e
+set -x
 
 # Check for API Key
 if [ -z "$FAL_KEY" ]; then
