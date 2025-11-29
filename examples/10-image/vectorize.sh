@@ -28,8 +28,9 @@ fi
 
 # Determine output filename if not provided
 if [ -z "$OUTPUT_FILE" ]; then
+    DIRNAME=$(dirname "$INPUT_FILE")
     FILENAME=$(basename "$INPUT_FILE")
-    OUTPUT_FILE="${FILENAME%.*}.svg"
+    OUTPUT_FILE="${DIRNAME}/${FILENAME%.*}.svg"
 fi
 
 echo "Processing $INPUT_FILE -> $OUTPUT_FILE"
