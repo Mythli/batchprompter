@@ -522,7 +522,14 @@ class BookingFormDrawer {
     }
 }
 
-async function drawBookingForm(inputPath: string, outputPath: string, rect: Rectangle, formData: BookingFormData, logoPath: string) {
+async function drawBookingForm(
+    inputPath: string,
+    outputPath: string,
+    rect: Rectangle,
+    formData: BookingFormData,
+    logoPath: string,
+    superSample: number = 8
+) {
     // Load logo
     let logoData;
     try {
@@ -541,7 +548,6 @@ async function drawBookingForm(inputPath: string, outputPath: string, rect: Rect
     }
 
     // Supersample to improve text rendering sharpness
-    const superSample = 2;
     const drawer = new BookingFormDrawer(rect.width * superSample, rect.height * superSample, formData, logoData);
     drawer.render();
     const svgContent = drawer.getSvg();
@@ -570,16 +576,23 @@ async function main() {
     // Parse arguments
     const args = process.argv.slice(2);
 
-    if (args.length < 3) {
-        console.error('Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> [output_image]');
+    // Extract flags
+    const superSampleArg = args.find(arg => arg.startsWith('--supersample='));
+    const superSample = superSampleArg ? parseInt(superSampleArg.split('=')[1], 10) : 8;
+
+    // Filter out flags to get positional arguments
+    const positionalArgs = args.filter(arg => !arg.startsWith('--'));
+
+    if (positionalArgs.length < 3) {
+        console.error('Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> [output_image] [--supersample=8]');
         console.log('Example: ts-node src/insertbookingform.ts test/input.png test/form_data.json test/logo.png');
         process.exit(1);
     }
 
-    const inputPath = args[0];
-    const jsonPath = args[1];
-    const logoPath = args[2];
-    const outputPath = args[3] || 'test/output_with_form.png';
+    const inputPath = positionalArgs[0];
+    const jsonPath = positionalArgs[1];
+    const logoPath = positionalArgs[2];
+    const outputPath = positionalArgs[3] || 'test/output_with_form.png';
 
     // Derive debug output path
     const ext = path.extname(outputPath);
@@ -611,7 +624,7 @@ async function main() {
         const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
         console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
 
-        await drawBookingForm(inputPath, outputPath, rect, formData, logoPath);
+        await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, superSample);
 
     } catch (error) {
         console.error('Error processing image:', error);
