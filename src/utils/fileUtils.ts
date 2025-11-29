@@ -106,8 +106,11 @@ export async function resolvePromptInput(input: string): Promise<OpenAI.Chat.Com
         // If stat succeeds, it's a file or directory
         return await readPromptInput(input);
     } catch (error: any) {
-        if (error.code === 'ENOENT') {
-            // Not a file/directory, treat as raw text
+        // Treat as raw text if:
+        // - ENOENT: File does not exist
+        // - ENAMETOOLONG: String is too long to be a filename
+        // - EINVAL: String contains invalid characters for a filename
+        if (error.code === 'ENOENT' || error.code === 'ENAMETOOLONG' || error.code === 'EINVAL') {
             return [{ type: 'text', text: input }];
         }
         throw error;
