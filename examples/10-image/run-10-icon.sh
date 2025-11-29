@@ -10,7 +10,7 @@ do
     --output "out/10-image/{{industry}}/01_MenuBarIcon-$i.png" \
     --aspect-ratio "1:1" \
     --model "google/gemini-3-pro-image-preview" \
-    --command "magick '{{file}}' -trim +repage -background none -gravity center -extent '%[fx:max(w,h)]x%[fx:max(w,h)]' -fuzz 90% -transparent white -fill '{{color}}' -colorize 100% '{{file}}' && pngquant 2 --nofs --force --output '{{file}}' '{{file}}' && ./examples/10-image/vectorize.sh '{{file}}'"
+    --command "magick '{{file}}' -trim +repage -background none -gravity center -extent '%[fx:max(w,h)]x%[fx:max(w,h)]' -fuzz 90% -transparent white '{{file}}' && pngquant 2 --nofs --force --output '{{file}}' '{{file}}' && ./examples/10-image/vectorize.sh '{{file}}'"
 done
 
 rm examples/10-image/prompt-10-icon/seed.txt
