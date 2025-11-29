@@ -33,6 +33,31 @@ if [ -z "$OUTPUT_FILE" ]; then
     OUTPUT_FILE="${DIRNAME}/${FILENAME%.*}.svg"
 fi
 
+# --- Caching Logic ---
+CACHE_DIR=".vectorize_cache"
+mkdir -p "$CACHE_DIR"
+
+# Calculate file hash (try sha256sum first, then shasum)
+if command -v sha256sum >/dev/null 2>&1; then
+    FILE_HASH=$(sha256sum "$INPUT_FILE" | awk '{print $1}')
+elif command -v shasum >/dev/null 2>&1; then
+    FILE_HASH=$(shasum -a 256 "$INPUT_FILE" | awk '{print $1}')
+else
+    echo "Warning: Could not calculate hash. Caching disabled."
+    FILE_HASH=""
+fi
+
+CACHE_PATH="$CACHE_DIR/$FILE_HASH.svg"
+
+# Check for cache hit
+if [ -n "$FILE_HASH" ] && [ -f "$CACHE_PATH" ]; then
+    echo "Cache hit! Found existing vector for hash: $FILE_HASH"
+    cp "$CACHE_PATH" "$OUTPUT_FILE"
+    echo "Done! Saved to $OUTPUT_FILE (from cache)"
+    exit 0
+fi
+# ---------------------
+
 echo "Processing $INPUT_FILE -> $OUTPUT_FILE"
 
 # 1. Upload image to a temporary host (catbox.moe)
@@ -118,5 +143,12 @@ fi
 
 echo "Downloading SVG..."
 curl -s -L -o "$OUTPUT_FILE" "$SVG_URL"
+
+# --- Save to Cache ---
+if [ -n "$FILE_HASH" ]; then
+    cp "$OUTPUT_FILE" "$CACHE_PATH"
+    echo "Cached result to $CACHE_PATH"
+fi
+# ---------------------
 
 echo "Done! Saved to $OUTPUT_FILE"
