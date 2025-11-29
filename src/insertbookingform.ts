@@ -1,6 +1,7 @@
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
+import { Command } from 'commander';
 
 interface Rectangle {
     x: number;
@@ -595,92 +596,69 @@ async function drawBookingForm(
 }
 
 async function main() {
-    // Parse arguments
-    const args = process.argv.slice(2);
+    const program = new Command();
 
-    // Extract flags
-    const superSampleArg = args.find(arg => arg.startsWith('--supersample='));
-    const superSample = superSampleArg ? parseInt(superSampleArg.split('=')[1], 10) : 8;
+    program
+        .name('insertbookingform')
+        .description('Insert a booking form into an image')
+        .argument('<input_image>', 'Path to the input image')
+        .argument('<json_data>', 'Path to the JSON data file')
+        .argument('<logo_image>', 'Path to the logo image')
+        .argument('[output_image]', 'Path to the output image', 'test/output_with_form.png')
+        .option('--supersample <n>', 'Supersampling factor', (val) => parseInt(val, 10), 8)
+        .option('--scale <n>', 'General scaling factor', (val) => parseFloat(val), 1.0)
+        .option('--scale-stepper <n>', 'Scaling factor for stepper', (val) => parseFloat(val), 1.0)
+        .option('--scale-header <n>', 'Scaling factor for header', (val) => parseFloat(val), 1.0)
+        .option('--scale-content <n>', 'Scaling factor for content/inputs', (val) => parseFloat(val), 1.0)
+        .option('--scale-footer <n>', 'Scaling factor for footer', (val) => parseFloat(val), 1.0)
+        .action(async (inputPath, jsonPath, logoPath, outputPath, options) => {
+            const scalingOptions: ScalingOptions = {
+                general: options.scale,
+                stepper: options.scaleStepper,
+                header: options.scaleHeader,
+                content: options.scaleContent,
+                footer: options.scaleFooter
+            };
 
-    const scaleArg = args.find(arg => arg.startsWith('--scale='));
-    const generalScale = scaleArg ? parseFloat(scaleArg.split('=')[1]) : 1.0;
+            // Derive debug output path
+            const ext = path.extname(outputPath);
+            const base = path.basename(outputPath, ext);
+            const dir = path.dirname(outputPath);
+            // Force .png extension for debug file to ensure it can be opened even if outputPath is .tmp
+            const debugOutputPath = path.join(dir, `${base}_debug.png`);
 
-    const stepperScaleArg = args.find(arg => arg.startsWith('--scale-stepper='));
-    const stepperScale = stepperScaleArg ? parseFloat(stepperScaleArg.split('=')[1]) : 1.0;
+            try {
+                // Load JSON data
+                const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
+                const rawFormData: BookingFormData = JSON.parse(jsonContent);
 
-    const headerScaleArg = args.find(arg => arg.startsWith('--scale-header='));
-    const headerScale = headerScaleArg ? parseFloat(headerScaleArg.split('=')[1]) : 1.0;
+                // Normalize data (escape XML characters)
+                const formData = normalizeFormData(rawFormData);
 
-    const contentScaleArg = args.find(arg => arg.startsWith('--scale-content='));
-    const contentScale = contentScaleArg ? parseFloat(contentScaleArg.split('=')[1]) : 1.0;
+                // Configuration
+                const detectionOptions: DetectionOptions = {
+                    targetColor: '#E4E7EF',
+                    threshold: 45, // Allow for some lighting variation
+                    margins: {
+                        top: 0.01,
+                        right: 0.01,
+                        bottom: 0.00,
+                        left: 0.01
+                    }
+                };
 
-    const footerScaleArg = args.find(arg => arg.startsWith('--scale-footer='));
-    const footerScale = footerScaleArg ? parseFloat(footerScaleArg.split('=')[1]) : 1.0;
+                const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
+                console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
 
-    const scalingOptions: ScalingOptions = {
-        general: generalScale,
-        stepper: stepperScale,
-        header: headerScale,
-        content: contentScale,
-        footer: footerScale
-    };
+                await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, options.supersample, scalingOptions);
 
-    // Filter out flags to get positional arguments
-    const positionalArgs = args.filter(arg => !arg.startsWith('--'));
-
-    if (positionalArgs.length < 3) {
-        console.error('Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> [output_image] [options]');
-        console.log('Options:');
-        console.log('  --supersample=<n>      Supersampling factor (default: 8)');
-        console.log('  --scale=<n>            General scaling factor (default: 1.0)');
-        console.log('  --scale-stepper=<n>    Scaling factor for stepper (default: 1.0)');
-        console.log('  --scale-header=<n>     Scaling factor for header (default: 1.0)');
-        console.log('  --scale-content=<n>    Scaling factor for content/inputs (default: 1.0)');
-        console.log('  --scale-footer=<n>     Scaling factor for footer (default: 1.0)');
-        console.log('Example: ts-node src/insertbookingform.ts test/input.png test/form_data.json test/logo.png --scale=1.2 --scale-header=1.5');
-        process.exit(1);
-    }
-
-    const inputPath = positionalArgs[0];
-    const jsonPath = positionalArgs[1];
-    const logoPath = positionalArgs[2];
-    const outputPath = positionalArgs[3] || 'test/output_with_form.png';
-
-    // Derive debug output path
-    const ext = path.extname(outputPath);
-    const base = path.basename(outputPath, ext);
-    const dir = path.dirname(outputPath);
-    // Force .png extension for debug file to ensure it can be opened even if outputPath is .tmp
-    const debugOutputPath = path.join(dir, `${base}_debug.png`);
-
-    try {
-        // Load JSON data
-        const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
-        const rawFormData: BookingFormData = JSON.parse(jsonContent);
-
-        // Normalize data (escape XML characters)
-        const formData = normalizeFormData(rawFormData);
-
-        // Configuration
-        const detectionOptions: DetectionOptions = {
-            targetColor: '#E4E7EF',
-            threshold: 45, // Allow for some lighting variation
-            margins: {
-                top: 0.01,
-                right: 0.01,
-                bottom: 0.00,
-                left: 0.01
+            } catch (error) {
+                console.error('Error processing image:', error);
+                process.exit(1);
             }
-        };
+        });
 
-        const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
-        console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
-
-        await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, superSample, scalingOptions);
-
-    } catch (error) {
-        console.error('Error processing image:', error);
-    }
+    program.parse(process.argv);
 }
 
 main();
