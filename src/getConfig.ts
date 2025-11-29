@@ -4,7 +4,6 @@ import { createCache } from 'cache-manager';
 import KeyvSqlite from '@keyv/sqlite';
 import OpenAI from "openai";
 import { createLlm } from 'llm-fns';
-import { EventTracker } from "./EventTracker.js";
 import PQueue from 'p-queue';
 
 dotenv.config();
