@@ -10,7 +10,7 @@ Your task is to rigorously evaluate the provided candidate images and select the
 **SELECTION PRIORITIES:**
 1.  **Photorealism:** The image must look like a high-end photograph. Skin texture, lighting, and materials must be convincing.
 2.  **Atmosphere:** The lighting and depth of field (bokeh) should be cinematic and appropriate for the industry.
-3.  **Prompt Adherence:** The image must accurately represent the requested industry and action.
+3.  **Prompt Adherence:** The image must accurately represent the requested industry ({{industry}}) and action.
 
 **INSTRUCTION:**
 Analyze all candidates. Identify the one with the fewest flaws and the highest degree of realism.
