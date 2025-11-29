@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { runAction } from './actions.js';
+import { ActionOptions } from './types.js';
 
 const program = new Command();
 
@@ -77,7 +78,7 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         process.exit(1);
     }
 
-    const actionOptions = {
+    const actionOptions: ActionOptions = {
         concurrency,
         aspectRatio: options.aspectRatio,
         model: options.model,

@@ -1,0 +1,96 @@
+import fsPromises from 'fs/promises';
+import path from 'path';
+import OpenAI from 'openai';
+
+export async function ensureDir(filePath: string) {
+    const dir = path.dirname(filePath);
+    await fsPromises.mkdir(dir, { recursive: true });
+}
+
+export function getPartType(filePath: string): 'text' | 'image' | 'audio' {
+    const ext = path.extname(filePath).toLowerCase();
+    if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext)) return 'image';
+    if (['.mp3', '.wav'].includes(ext)) return 'audio';
+    return 'text';
+}
+
+export function aggressiveSanitize(input: string): string {
+    // 1. Remove anything that is NOT a-z, A-Z, 0-9
+    let sanitized = input.replace(/[^a-zA-Z0-9]/g, '');
+    
+    // 2. Remove leading numbers
+    sanitized = sanitized.replace(/^[0-9]+/, '');
+    
+    // 3. Truncate to 50 chars
+    return sanitized.substring(0, 50);
+}
+
+export async function readPromptInput(inputPath: string): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+    const stats = await fsPromises.stat(inputPath);
+    let filePaths: string[] = [];
+
+    if (stats.isDirectory()) {
+        const files = await fsPromises.readdir(inputPath);
+        files.sort();
+        filePaths = files
+            .filter(f => !f.startsWith('.'))
+            .map(f => path.join(inputPath, f));
+    } else {
+        filePaths = [inputPath];
+    }
+
+    const parts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+    let currentTextBuffer: string[] = [];
+
+    const flushText = () => {
+        if (currentTextBuffer.length > 0) {
+            parts.push({ type: 'text', text: currentTextBuffer.join('\n\n') });
+            currentTextBuffer = [];
+        }
+    };
+
+    for (const filePath of filePaths) {
+        const fileStats = await fsPromises.stat(filePath);
+        if (!fileStats.isFile()) continue;
+
+        const type = getPartType(filePath);
+        
+        if (type === 'text') {
+            const content = await fsPromises.readFile(filePath, 'utf-8');
+            if (content.trim().length > 0) {
+                currentTextBuffer.push(content);
+            }
+        } else {
+            flushText(); 
+            
+            const buffer = await fsPromises.readFile(filePath);
+            const base64 = buffer.toString('base64');
+            const ext = path.extname(filePath).toLowerCase();
+
+            if (type === 'image') {
+                let mime = 'image/jpeg';
+                if (ext === '.png') mime = 'image/png';
+                if (ext === '.gif') mime = 'image/gif';
+                if (ext === '.webp') mime = 'image/webp';
+                
+                parts.push({
+                    type: 'image_url',
+                    image_url: { url: `data:${mime};base64,${base64}` }
+                });
+            } else if (type === 'audio') {
+                const format = ext === '.mp3' ? 'mp3' : 'wav';
+                parts.push({
+                    type: 'input_audio',
+                    input_audio: { data: base64, format }
+                });
+            }
+        }
+    }
+    flushText();
+
+    if (parts.length === 0) {
+        return [{ type: 'text', text: '' }];
+    }
+
+    return parts;
+}
