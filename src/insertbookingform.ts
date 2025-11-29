@@ -366,46 +366,46 @@ class BookingFormDrawer {
         const y = this.s(30);
 
         if (this.logoData) {
-            const targetHeight = this.s(42); // Increased by 50%
+            const targetHeight = this.s(63); // Increased from 42 (1.5x)
             const aspectRatio = this.logoData.width / this.logoData.height;
             const targetWidth = targetHeight * aspectRatio;
 
             this.elements.push(`<image href="${this.logoData.base64}" x="${this.s(20)}" y="${y}" width="${targetWidth}" height="${targetHeight}" />`);
         } else {
             // Fallback text if logo not loaded
-            this.elements.push(`<text x="${this.s(20)}" y="${y + this.s(19)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22)}" fill="#333">Butlerapp</text>`);
+            this.elements.push(`<text x="${this.s(20)}" y="${y + this.s(28)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(33)}" fill="#333">Butlerapp</text>`);
         }
 
         // Hamburger Menu
         // Increased size and thickness
-        const barW = this.s(30); // 20 * 1.5
-        const barH = this.s(5);  // Thicker
-        const gap = this.s(9);   // 6 * 1.5
+        const barW = this.s(45); // 30 * 1.5
+        const barH = this.s(8);  // 5 * 1.5 approx
+        const gap = this.s(14);   // 9 * 1.5 approx
 
-        const menuX = this.width - this.s(50); // Maintain ~20px right margin (20 + 30 = 50)
+        const menuX = this.width - this.s(65); // Margin 20 + width 45 = 65
 
-        // Center vertically with logo (Logo Y=30, H=42 -> Center=51)
-        // Menu H = 3*5 + 2*9 = 33. Center offset = 16.5. Top = 51 - 16.5 = 34.5
-        const menuY = this.s(34.5);
+        // Center vertically with logo (Logo Y=30, H=63 -> Center=61.5)
+        // Menu H = 3*8 + 2*14 = 24 + 28 = 52. Center offset = 26. Top = 61.5 - 26 = 35.5
+        const menuY = this.s(35.5);
 
-        this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
-        this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
-        this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(4)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(4)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(4)}" />`);
     }
 
     drawStepper(y: number) {
         const startX = this.s(20);
-        // Increased size by ~30% (24 -> 32, 12 -> 16)
-        const circleSize = this.s(32);
-        const fontSize = this.s(16);
-        const textOffsetY = this.s(6);
+        // Increased size by ~50%
+        const circleSize = this.s(48); // 32 * 1.5
+        const fontSize = this.s(24); // 16 * 1.5
+        const textOffsetY = this.s(9); // 6 * 1.5
 
         // Step 1 (Active)
         this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#1D1D1F" />`);
         this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
 
         // Text
-        this.elements.push(`<text x="${startX + circleSize + this.s(10)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
+        this.elements.push(`<text x="${startX + circleSize + this.s(15)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
 
         // Step 3 (Inactive) - Right aligned
         const step3X = this.width - this.s(20) - circleSize;
@@ -414,7 +414,7 @@ class BookingFormDrawer {
         this.elements.push(`<text x="${step3X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">3</text>`);
 
         // Step 2 (Inactive) - Left of Step 3
-        const gap = this.s(16);
+        const gap = this.s(24); // 16 * 1.5
         const step2X = step3X - gap - circleSize;
         this.elements.push(`<circle cx="${step2X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#C7C7CC" />`);
         this.elements.push(`<text x="${step2X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">2</text>`);
@@ -422,56 +422,56 @@ class BookingFormDrawer {
 
     drawInfoSection(y: number) {
         const x = this.s(20);
-        const lineHeight = this.s(34);
+        const lineHeight = this.s(51); // 34 * 1.5
 
         // Title
-        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">${this.formData.header.title}</text>`);
-        // Subtitle - Increased font size to match title (26)
-        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">${this.formData.header.subtitle}</text>`);
+        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(39)}" fill="#000">${this.formData.header.title}</text>`);
+        // Subtitle
+        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(39)}" fill="#000">${this.formData.header.subtitle}</text>`);
 
         // Details
-        const detailY = y + lineHeight * 2 + this.s(10);
-        const detailLineHeight = this.s(18);
+        const detailY = y + lineHeight * 2 + this.s(15); // 10 * 1.5
+        const detailLineHeight = this.s(27); // 18 * 1.5
 
         this.formData.header.details.forEach((detail, index) => {
-            this.elements.push(`<text x="${x}" y="${detailY + (index * detailLineHeight)}" font-family="Arial" font-size="${this.s(14)}" fill="#333">${detail}</text>`);
+            this.elements.push(`<text x="${x}" y="${detailY + (index * detailLineHeight)}" font-family="Arial" font-size="${this.s(21)}" fill="#333">${detail}</text>`);
         });
     }
 
     drawInput(y: number, label: string, value: string) {
         const x = this.s(20);
         const w = this.width - this.s(40);
-        const h = this.s(44);
-        const radius = this.s(6);
+        const h = this.s(66); // 44 * 1.5
+        const radius = this.s(9); // 6 * 1.5
 
         // Label
-        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-size="${this.s(12)}" fill="#333">${label}</text>`);
+        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-size="${this.s(18)}" fill="#333">${label}</text>`);
 
         // Input Box
-        const boxY = y + this.s(8);
+        const boxY = y + this.s(12); // 8 * 1.5
         this.elements.push(`<rect x="${x}" y="${boxY}" width="${w}" height="${h}" rx="${radius}" fill="#F2F2F7" />`);
 
         // Value
-        this.elements.push(`<text x="${x + this.s(12)}" y="${boxY + h/2 + this.s(5)}" font-family="Arial" font-size="${this.s(14)}" fill="#000">${value}</text>`);
+        this.elements.push(`<text x="${x + this.s(18)}" y="${boxY + h/2 + this.s(7)}" font-family="Arial" font-size="${this.s(21)}" fill="#000">${value}</text>`);
 
         // Chevron Icon
-        const iconSize = this.s(10);
-        const iconX = x + w - this.s(24);
+        const iconSize = this.s(15); // 10 * 1.5
+        const iconX = x + w - this.s(36); // 24 * 1.5
         const iconY = boxY + h/2 - iconSize/2;
-        this.elements.push(`<path d="M${iconX} ${iconY} L${iconX + iconSize/2} ${iconY + iconSize/2} L${iconX + iconSize} ${iconY}" fill="none" stroke="#999" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconX} ${iconY} L${iconX + iconSize/2} ${iconY + iconSize/2} L${iconX + iconSize} ${iconY}" fill="none" stroke="#999" stroke-width="${this.s(3)}" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
     drawFooter() {
-        const y = this.height - this.s(35);
+        const y = this.height - this.s(50); // 35 * 1.5 approx
         const xLeft = this.s(20);
         const xRight = this.width - this.s(20);
 
         // Back
-        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(16)}" fill="#8E8E93">← ${this.formData.footer.backText}</text>`);
+        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(24)}" fill="#8E8E93">← ${this.formData.footer.backText}</text>`);
 
         // Next
-        const fontSize = this.s(22);
-        const iconR = this.s(12);
+        const fontSize = this.s(33); // 22 * 1.5
+        const iconR = this.s(18); // 12 * 1.5
 
         // Center icon vertically relative to text baseline approx
         // Baseline is y. Cap height ~0.7em. Center ~ y - 0.35em.
@@ -479,28 +479,28 @@ class BookingFormDrawer {
         const iconCx = xRight - iconR;
 
         // Draw text
-        this.elements.push(`<text x="${iconCx - iconR - this.s(10)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">${this.formData.footer.nextText}</text>`);
+        this.elements.push(`<text x="${iconCx - iconR - this.s(15)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">${this.formData.footer.nextText}</text>`);
 
         // Draw Icon Circle
-        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(2)}" />`);
+        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(3)}" />`);
 
         // Draw Arrow
-        const arrowLen = this.s(10);
-        const arrowHead = this.s(4);
+        const arrowLen = this.s(15); // 10 * 1.5
+        const arrowHead = this.s(6); // 4 * 1.5
 
         // Line
-        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="#000" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="#000" stroke-width="${this.s(3)}" stroke-linecap="round" stroke-linejoin="round"/>`);
         // Head
-        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="#000" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="#000" stroke-width="${this.s(3)}" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
     render() {
         this.drawHeader();
-        this.drawStepper(this.s(100));
-        this.drawInfoSection(this.s(180));
+        this.drawStepper(this.s(120)); // 100 -> 120
+        this.drawInfoSection(this.s(220)); // 180 -> 220
 
-        let inputY = this.s(310);
-        const inputGap = this.s(85);
+        let inputY = this.s(400); // 310 -> 400
+        const inputGap = this.s(120); // 85 -> 120
 
         this.formData.inputs.forEach((input, index) => {
             this.drawInput(inputY + (inputGap * index), input.label, input.value);
