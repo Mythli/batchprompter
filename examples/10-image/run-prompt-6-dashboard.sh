@@ -9,7 +9,8 @@ do
   npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/prompt-6-dashboard \
     --output-1 "out/10-image/{{industry}}/06_YourBenefitsImage-$i.jpg" \
     --aspect-ratio-1 "4:3" \
-    --model "google/gemini-3-pro-image-preview"
+    --model "google/gemini-3-pro-image-preview" \
+    --command "magick '{{file}}' examples/10-image/tablet_in_hands.png -gravity center -composite '{{file}}'"
 #    --command "npx tsx src/insertbookingform.ts '{{file}}' 'out/10-image/{{industry}}/form_data.json' 'examples/10-image/logo.png' '{{file}}.tmp' && mv '{{file}}.tmp' '{{file}}' && magick '{{file}}' -resize 800x800 -quality 85 '{{file}}'"
 done
 
