@@ -379,20 +379,26 @@ class BookingFormDrawer {
         return val * this.baseScale * sectionFactor;
     }
 
+    // Helper to get consistent left margin based on general scale
+    private getLeftMargin(): number {
+        return this.s(20, 1.0); // Always use general scale (factor 1.0 relative to baseScale)
+    }
+
     // Returns the height of the header section
     drawHeader(startY: number): number {
         const factor = this.scalingOptions.header;
         const y = startY;
+        const x = this.getLeftMargin();
 
         if (this.logoData) {
             const targetHeight = this.s(42, factor);
             const aspectRatio = this.logoData.width / this.logoData.height;
             const targetWidth = targetHeight * aspectRatio;
 
-            this.elements.push(`<image href="${this.logoData.base64}" x="${this.s(20, factor)}" y="${y}" width="${targetWidth}" height="${targetHeight}" />`);
+            this.elements.push(`<image href="${this.logoData.base64}" x="${x}" y="${y}" width="${targetWidth}" height="${targetHeight}" />`);
         } else {
             // Fallback text if logo not loaded
-            this.elements.push(`<text x="${this.s(20, factor)}" y="${y + this.s(19, factor)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22, factor)}" fill="#333">Butlerapp</text>`);
+            this.elements.push(`<text x="${x}" y="${y + this.s(19, factor)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22, factor)}" fill="#333">Butlerapp</text>`);
         }
 
         // Hamburger Menu
@@ -400,7 +406,8 @@ class BookingFormDrawer {
         const barH = this.s(5, factor);
         const gap = this.s(9, factor);
 
-        const menuX = this.width - this.s(50, factor); // Maintain ~20px right margin (20 + 30 = 50)
+        // Right margin should also be consistent
+        const menuX = this.width - this.s(50, 1.0); // Use general scale for positioning
 
         // Center vertically with logo (Logo Y=30, H=42 -> Center=51)
         // Menu H = 3*5 + 2*9 = 33. Center offset = 16.5. Top = 51 - 16.5 = 34.5
@@ -418,7 +425,7 @@ class BookingFormDrawer {
     // Returns height of stepper section
     drawStepper(y: number): number {
         const factor = this.scalingOptions.stepper;
-        const startX = this.s(20, factor);
+        const startX = this.getLeftMargin();
         const circleSize = this.s(32, factor);
         const fontSize = this.s(16, factor);
         const textOffsetY = this.s(6, factor);
@@ -431,7 +438,7 @@ class BookingFormDrawer {
         this.elements.push(`<text x="${startX + circleSize + this.s(10, factor)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
 
         // Step 3 (Inactive) - Right aligned
-        const step3X = this.width - this.s(20, factor) - circleSize;
+        const step3X = this.width - this.getLeftMargin() - circleSize;
         // Darker text color for inactive: #444444
         this.elements.push(`<circle cx="${step3X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#C7C7CC" />`);
         this.elements.push(`<text x="${step3X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">3</text>`);
@@ -448,7 +455,7 @@ class BookingFormDrawer {
     // Returns height of info section
     drawInfoSection(y: number): number {
         const factor = this.scalingOptions.header; // Using header scale for title/subtitle
-        const x = this.s(20, factor);
+        const x = this.getLeftMargin();
         const lineHeight = this.s(34, factor);
 
         // Title
@@ -461,7 +468,7 @@ class BookingFormDrawer {
         // Reduced gap before details (was 10)
         const detailY = y + lineHeight * 2 + this.s(2, contentFactor);
         const detailLineHeight = this.s(18, contentFactor);
-        const detailX = this.s(20, contentFactor);
+        const detailX = this.getLeftMargin();
 
         this.formData.header.details.forEach((detail, index) => {
             this.elements.push(`<text x="${detailX}" y="${detailY + (index * detailLineHeight)}" font-family="Arial" font-size="${this.s(14, contentFactor)}" fill="#333">${detail}</text>`);
@@ -475,8 +482,8 @@ class BookingFormDrawer {
     // Returns height of input
     drawInput(y: number, label: string, value: string): number {
         const factor = this.scalingOptions.content;
-        const x = this.s(20, factor);
-        const w = this.width - this.s(40, factor);
+        const x = this.getLeftMargin();
+        const w = this.width - (this.getLeftMargin() * 2); // Consistent width based on margins
         const h = this.s(44, factor);
         const radius = this.s(6, factor);
 
@@ -502,8 +509,8 @@ class BookingFormDrawer {
     drawFooter() {
         const factor = this.scalingOptions.footer;
         const y = this.height - this.s(35, factor);
-        const xLeft = this.s(20, factor);
-        const xRight = this.width - this.s(20, factor);
+        const xLeft = this.getLeftMargin();
+        const xRight = this.width - this.getLeftMargin();
 
         // Back
         this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(16, factor)}" fill="#8E8E93">← ${this.formData.footer.backText}</text>`);
