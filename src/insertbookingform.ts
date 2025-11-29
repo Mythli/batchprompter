@@ -43,6 +43,14 @@ interface BookingFormData {
     };
 }
 
+interface ScalingOptions {
+    general: number;
+    stepper: number;
+    header: number;
+    content: number;
+    footer: number;
+}
+
 function escapeXml(unsafe: string): string {
     return unsafe.replace(/[<>&'"]/g, (c) => {
         switch (c) {
@@ -344,7 +352,8 @@ class BookingFormDrawer {
     private width: number;
     private height: number;
     private elements: string[] = [];
-    private scale: number;
+    private baseScale: number;
+    private scalingOptions: ScalingOptions;
     private logoData?: { base64: string, width: number, height: number };
     private formData: BookingFormData;
 
@@ -353,129 +362,137 @@ class BookingFormDrawer {
         height: number, 
         formData: BookingFormData, 
         logoData?: { base64: string, width: number, height: number },
-        scalingFactor: number = 1.0
+        scalingOptions: ScalingOptions = { general: 1.0, stepper: 1.0, header: 1.0, content: 1.0, footer: 1.0 }
     ) {
         this.width = width;
         this.height = height;
         // Base scale on a reference width of ~375px (typical mobile width)
-        this.scale = (width / 375) * scalingFactor;
+        this.baseScale = (width / 375) * scalingOptions.general;
+        this.scalingOptions = scalingOptions;
         this.logoData = logoData;
         this.formData = formData;
     }
 
-    // Helper to scale values
-    private s(val: number): number {
-        return val * this.scale;
+    // Helper to scale values with a specific section factor
+    private s(val: number, sectionFactor: number = 1.0): number {
+        return val * this.baseScale * sectionFactor;
     }
 
     drawHeader() {
-        const y = this.s(30);
+        const factor = this.scalingOptions.header;
+        const y = this.s(30, factor);
 
         if (this.logoData) {
-            const targetHeight = this.s(42);
+            const targetHeight = this.s(42, factor);
             const aspectRatio = this.logoData.width / this.logoData.height;
             const targetWidth = targetHeight * aspectRatio;
 
-            this.elements.push(`<image href="${this.logoData.base64}" x="${this.s(20)}" y="${y}" width="${targetWidth}" height="${targetHeight}" />`);
+            this.elements.push(`<image href="${this.logoData.base64}" x="${this.s(20, factor)}" y="${y}" width="${targetWidth}" height="${targetHeight}" />`);
         } else {
             // Fallback text if logo not loaded
-            this.elements.push(`<text x="${this.s(20)}" y="${y + this.s(19)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22)}" fill="#333">Butlerapp</text>`);
+            this.elements.push(`<text x="${this.s(20, factor)}" y="${y + this.s(19, factor)}" font-family="Arial, sans-serif" font-weight="bold" font-size="${this.s(22, factor)}" fill="#333">Butlerapp</text>`);
         }
 
         // Hamburger Menu
-        const barW = this.s(30);
-        const barH = this.s(5);
-        const gap = this.s(9);
+        const barW = this.s(30, factor);
+        const barH = this.s(5, factor);
+        const gap = this.s(9, factor);
 
-        const menuX = this.width - this.s(50); // Maintain ~20px right margin (20 + 30 = 50)
+        const menuX = this.width - this.s(50, factor); // Maintain ~20px right margin (20 + 30 = 50)
 
         // Center vertically with logo (Logo Y=30, H=42 -> Center=51)
         // Menu H = 3*5 + 2*9 = 33. Center offset = 16.5. Top = 51 - 16.5 = 34.5
-        const menuY = this.s(34.5);
+        const menuY = this.s(34.5, factor);
 
-        this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
-        this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
-        this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
+        this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
     }
 
     drawStepper(y: number) {
-        const startX = this.s(20);
-        const circleSize = this.s(32);
-        const fontSize = this.s(16);
-        const textOffsetY = this.s(6);
+        const factor = this.scalingOptions.stepper;
+        const startX = this.s(20, factor);
+        const circleSize = this.s(32, factor);
+        const fontSize = this.s(16, factor);
+        const textOffsetY = this.s(6, factor);
 
         // Step 1 (Active)
         this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#1D1D1F" />`);
         this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
 
         // Text
-        this.elements.push(`<text x="${startX + circleSize + this.s(10)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
+        this.elements.push(`<text x="${startX + circleSize + this.s(10, factor)}" y="${y + circleSize/2 + textOffsetY}" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
 
         // Step 3 (Inactive) - Right aligned
-        const step3X = this.width - this.s(20) - circleSize;
+        const step3X = this.width - this.s(20, factor) - circleSize;
         // Darker text color for inactive: #444444
         this.elements.push(`<circle cx="${step3X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#C7C7CC" />`);
         this.elements.push(`<text x="${step3X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">3</text>`);
 
         // Step 2 (Inactive) - Left of Step 3
-        const gap = this.s(16);
+        const gap = this.s(16, factor);
         const step2X = step3X - gap - circleSize;
         this.elements.push(`<circle cx="${step2X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#C7C7CC" />`);
         this.elements.push(`<text x="${step2X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">2</text>`);
     }
 
     drawInfoSection(y: number) {
-        const x = this.s(20);
-        const lineHeight = this.s(34);
+        const factor = this.scalingOptions.header; // Using header scale for title/subtitle
+        const x = this.s(20, factor);
+        const lineHeight = this.s(34, factor);
 
         // Title
-        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">${this.formData.header.title}</text>`);
+        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(26, factor)}" fill="#000">${this.formData.header.title}</text>`);
         // Subtitle
-        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(26)}" fill="#000">${this.formData.header.subtitle}</text>`);
+        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(26, factor)}" fill="#000">${this.formData.header.subtitle}</text>`);
 
-        // Details
-        const detailY = y + lineHeight * 2 + this.s(10);
-        const detailLineHeight = this.s(18);
+        // Details - Using content scale for details
+        const contentFactor = this.scalingOptions.content;
+        const detailY = y + lineHeight * 2 + this.s(10, contentFactor);
+        const detailLineHeight = this.s(18, contentFactor);
+        const detailX = this.s(20, contentFactor);
 
         this.formData.header.details.forEach((detail, index) => {
-            this.elements.push(`<text x="${x}" y="${detailY + (index * detailLineHeight)}" font-family="Arial" font-size="${this.s(14)}" fill="#333">${detail}</text>`);
+            this.elements.push(`<text x="${detailX}" y="${detailY + (index * detailLineHeight)}" font-family="Arial" font-size="${this.s(14, contentFactor)}" fill="#333">${detail}</text>`);
         });
     }
 
     drawInput(y: number, label: string, value: string) {
-        const x = this.s(20);
-        const w = this.width - this.s(40);
-        const h = this.s(44);
-        const radius = this.s(6);
+        const factor = this.scalingOptions.content;
+        const x = this.s(20, factor);
+        const w = this.width - this.s(40, factor);
+        const h = this.s(44, factor);
+        const radius = this.s(6, factor);
 
         // Label
-        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-size="${this.s(12)}" fill="#333">${label}</text>`);
+        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-size="${this.s(12, factor)}" fill="#333">${label}</text>`);
 
         // Input Box
-        const boxY = y + this.s(8);
+        const boxY = y + this.s(8, factor);
         this.elements.push(`<rect x="${x}" y="${boxY}" width="${w}" height="${h}" rx="${radius}" fill="#F2F2F7" />`);
 
         // Value
-        this.elements.push(`<text x="${x + this.s(12)}" y="${boxY + h/2 + this.s(5)}" font-family="Arial" font-size="${this.s(14)}" fill="#000">${value}</text>`);
+        this.elements.push(`<text x="${x + this.s(12, factor)}" y="${boxY + h/2 + this.s(5, factor)}" font-family="Arial" font-size="${this.s(14, factor)}" fill="#000">${value}</text>`);
 
         // Chevron Icon
-        const iconSize = this.s(10);
-        const iconX = x + w - this.s(24);
+        const iconSize = this.s(10, factor);
+        const iconX = x + w - this.s(24, factor);
         const iconY = boxY + h/2 - iconSize/2;
-        this.elements.push(`<path d="M${iconX} ${iconY} L${iconX + iconSize/2} ${iconY + iconSize/2} L${iconX + iconSize} ${iconY}" fill="none" stroke="#999" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconX} ${iconY} L${iconX + iconSize/2} ${iconY + iconSize/2} L${iconX + iconSize} ${iconY}" fill="none" stroke="#999" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
     drawFooter() {
-        const y = this.height - this.s(35);
-        const xLeft = this.s(20);
-        const xRight = this.width - this.s(20);
+        const factor = this.scalingOptions.footer;
+        const y = this.height - this.s(35, factor);
+        const xLeft = this.s(20, factor);
+        const xRight = this.width - this.s(20, factor);
 
         // Back
-        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(16)}" fill="#8E8E93">← ${this.formData.footer.backText}</text>`);
+        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(16, factor)}" fill="#8E8E93">← ${this.formData.footer.backText}</text>`);
 
         // Next
-        const fontSize = this.s(22);
-        const iconR = this.s(12);
+        const fontSize = this.s(22, factor);
+        const iconR = this.s(12, factor);
 
         // Center icon vertically relative to text baseline approx
         // Baseline is y. Cap height ~0.7em. Center ~ y - 0.35em.
@@ -483,28 +500,28 @@ class BookingFormDrawer {
         const iconCx = xRight - iconR;
 
         // Draw text
-        this.elements.push(`<text x="${iconCx - iconR - this.s(10)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">${this.formData.footer.nextText}</text>`);
+        this.elements.push(`<text x="${iconCx - iconR - this.s(10, factor)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">${this.formData.footer.nextText}</text>`);
 
         // Draw Icon Circle
-        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(2)}" />`);
+        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="#000" stroke-width="${this.s(2, factor)}" />`);
 
         // Draw Arrow
-        const arrowLen = this.s(10);
-        const arrowHead = this.s(4);
+        const arrowLen = this.s(10, factor);
+        const arrowHead = this.s(4, factor);
 
         // Line
-        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="#000" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="#000" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
         // Head
-        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="#000" stroke-width="${this.s(2)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="#000" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
     render() {
         this.drawHeader();
-        this.drawStepper(this.s(100));
-        this.drawInfoSection(this.s(180));
+        this.drawStepper(this.s(100, this.scalingOptions.stepper));
+        this.drawInfoSection(this.s(180, this.scalingOptions.header));
 
-        let inputY = this.s(310);
-        const inputGap = this.s(85);
+        let inputY = this.s(310, this.scalingOptions.content);
+        const inputGap = this.s(85, this.scalingOptions.content);
 
         this.formData.inputs.forEach((input, index) => {
             this.drawInput(inputY + (inputGap * index), input.label, input.value);
@@ -533,7 +550,7 @@ async function drawBookingForm(
     formData: BookingFormData,
     logoPath: string,
     superSample: number = 8,
-    scalingFactor: number = 1.0
+    scalingOptions: ScalingOptions
 ) {
     // Load logo
     let logoData;
@@ -553,7 +570,7 @@ async function drawBookingForm(
     }
 
     // Supersample to improve text rendering sharpness
-    const drawer = new BookingFormDrawer(rect.width * superSample, rect.height * superSample, formData, logoData, scalingFactor);
+    const drawer = new BookingFormDrawer(rect.width * superSample, rect.height * superSample, formData, logoData, scalingOptions);
     drawer.render();
     const svgContent = drawer.getSvg();
 
@@ -586,14 +603,41 @@ async function main() {
     const superSample = superSampleArg ? parseInt(superSampleArg.split('=')[1], 10) : 8;
 
     const scaleArg = args.find(arg => arg.startsWith('--scale='));
-    const scalingFactor = scaleArg ? parseFloat(scaleArg.split('=')[1]) : 1.0;
+    const generalScale = scaleArg ? parseFloat(scaleArg.split('=')[1]) : 1.0;
+
+    const stepperScaleArg = args.find(arg => arg.startsWith('--scale-stepper='));
+    const stepperScale = stepperScaleArg ? parseFloat(stepperScaleArg.split('=')[1]) : 1.0;
+
+    const headerScaleArg = args.find(arg => arg.startsWith('--scale-header='));
+    const headerScale = headerScaleArg ? parseFloat(headerScaleArg.split('=')[1]) : 1.0;
+
+    const contentScaleArg = args.find(arg => arg.startsWith('--scale-content='));
+    const contentScale = contentScaleArg ? parseFloat(contentScaleArg.split('=')[1]) : 1.0;
+
+    const footerScaleArg = args.find(arg => arg.startsWith('--scale-footer='));
+    const footerScale = footerScaleArg ? parseFloat(footerScaleArg.split('=')[1]) : 1.0;
+
+    const scalingOptions: ScalingOptions = {
+        general: generalScale,
+        stepper: stepperScale,
+        header: headerScale,
+        content: contentScale,
+        footer: footerScale
+    };
 
     // Filter out flags to get positional arguments
     const positionalArgs = args.filter(arg => !arg.startsWith('--'));
 
     if (positionalArgs.length < 3) {
-        console.error('Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> [output_image] [--supersample=8] [--scale=1.0]');
-        console.log('Example: ts-node src/insertbookingform.ts test/input.png test/form_data.json test/logo.png');
+        console.error('Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> [output_image] [options]');
+        console.log('Options:');
+        console.log('  --supersample=<n>      Supersampling factor (default: 8)');
+        console.log('  --scale=<n>            General scaling factor (default: 1.0)');
+        console.log('  --scale-stepper=<n>    Scaling factor for stepper (default: 1.0)');
+        console.log('  --scale-header=<n>     Scaling factor for header (default: 1.0)');
+        console.log('  --scale-content=<n>    Scaling factor for content/inputs (default: 1.0)');
+        console.log('  --scale-footer=<n>     Scaling factor for footer (default: 1.0)');
+        console.log('Example: ts-node src/insertbookingform.ts test/input.png test/form_data.json test/logo.png --scale=1.2 --scale-header=1.5');
         process.exit(1);
     }
 
@@ -632,7 +676,7 @@ async function main() {
         const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
         console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
 
-        await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, superSample, scalingFactor);
+        await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, superSample, scalingOptions);
 
     } catch (error) {
         console.error('Error processing image:', error);
