@@ -4,7 +4,6 @@
 # Example: ./vectorize.sh mylogo.png mylogo.svg
 
 set -e
-set -x
 
 # Check for API Key
 if [ -z "$FAL_KEY" ]; then
@@ -34,11 +33,11 @@ fi
 
 echo "Processing $INPUT_FILE -> $OUTPUT_FILE"
 
-# 1. Upload image to a temporary host (0x0.st)
+# 1. Upload image to a temporary host (catbox.moe)
 # fal.ai requires a public URL for the input image.
-echo "Uploading image to temporary storage..."
-# Using 0x0.st for temporary hosting. Added User-Agent to avoid blocking.
-IMAGE_URL=$(curl -s -A "Mozilla/5.0" -F "file=@$INPUT_FILE" https://0x0.st)
+echo "Uploading image to temporary storage (catbox.moe)..."
+# Using catbox.moe for temporary hosting. It returns the raw URL in the body.
+IMAGE_URL=$(curl -s -F "reqtype=fileupload" -F "fileToUpload=@$INPUT_FILE" https://catbox.moe/user/api.php)
 
 if [ -z "$IMAGE_URL" ]; then
     echo "Error: Failed to upload image."
