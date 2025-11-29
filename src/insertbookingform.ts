@@ -379,9 +379,10 @@ class BookingFormDrawer {
         return val * this.baseScale * sectionFactor;
     }
 
-    drawHeader() {
+    // Returns the height of the header section
+    drawHeader(startY: number): number {
         const factor = this.scalingOptions.header;
-        const y = this.s(30, factor);
+        const y = startY;
 
         if (this.logoData) {
             const targetHeight = this.s(42, factor);
@@ -403,14 +404,19 @@ class BookingFormDrawer {
 
         // Center vertically with logo (Logo Y=30, H=42 -> Center=51)
         // Menu H = 3*5 + 2*9 = 33. Center offset = 16.5. Top = 51 - 16.5 = 34.5
-        const menuY = this.s(34.5, factor);
+        // Adjusting relative to startY
+        const menuY = y + this.s(4.5, factor); // 34.5 - 30 = 4.5 offset from top
 
         this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
         this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
         this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
+
+        // Return height used (approx 42 + padding)
+        return this.s(60, factor); 
     }
 
-    drawStepper(y: number) {
+    // Returns height of stepper section
+    drawStepper(y: number): number {
         const factor = this.scalingOptions.stepper;
         const startX = this.s(20, factor);
         const circleSize = this.s(32, factor);
@@ -435,9 +441,12 @@ class BookingFormDrawer {
         const step2X = step3X - gap - circleSize;
         this.elements.push(`<circle cx="${step2X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#C7C7CC" />`);
         this.elements.push(`<text x="${step2X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">2</text>`);
+
+        return circleSize + this.s(20, factor); // Height + padding
     }
 
-    drawInfoSection(y: number) {
+    // Returns height of info section
+    drawInfoSection(y: number): number {
         const factor = this.scalingOptions.header; // Using header scale for title/subtitle
         const x = this.s(20, factor);
         const lineHeight = this.s(34, factor);
@@ -456,9 +465,13 @@ class BookingFormDrawer {
         this.formData.header.details.forEach((detail, index) => {
             this.elements.push(`<text x="${detailX}" y="${detailY + (index * detailLineHeight)}" font-family="Arial" font-size="${this.s(14, contentFactor)}" fill="#333">${detail}</text>`);
         });
+
+        const detailsHeight = this.formData.header.details.length * detailLineHeight;
+        return (lineHeight * 2) + this.s(10, contentFactor) + detailsHeight + this.s(20, contentFactor); // Total height + padding
     }
 
-    drawInput(y: number, label: string, value: string) {
+    // Returns height of input
+    drawInput(y: number, label: string, value: string): number {
         const factor = this.scalingOptions.content;
         const x = this.s(20, factor);
         const w = this.width - this.s(40, factor);
@@ -480,6 +493,8 @@ class BookingFormDrawer {
         const iconX = x + w - this.s(24, factor);
         const iconY = boxY + h/2 - iconSize/2;
         this.elements.push(`<path d="M${iconX} ${iconY} L${iconX + iconSize/2} ${iconY + iconSize/2} L${iconX + iconSize} ${iconY}" fill="none" stroke="#999" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+
+        return this.s(12, factor) + this.s(8, factor) + h + this.s(15, factor); // Label height + gap + box height + bottom margin
     }
 
     drawFooter() {
@@ -517,22 +532,25 @@ class BookingFormDrawer {
     }
 
     render() {
-        this.drawHeader();
-        this.drawStepper(this.s(100, this.scalingOptions.stepper));
-        this.drawInfoSection(this.s(180, this.scalingOptions.header));
+        // Sequential layout calculation
+        let currentY = this.s(30, this.scalingOptions.header); // Start Y for header
 
-        let inputY = this.s(310, this.scalingOptions.content);
-        const inputGap = this.s(85, this.scalingOptions.content);
+        const headerHeight = this.drawHeader(currentY);
+        currentY += headerHeight + this.s(10, this.scalingOptions.general); // Add margin
 
-        this.formData.inputs.forEach((input, index) => {
-            this.drawInput(inputY + (inputGap * index), input.label, input.value);
+        const stepperHeight = this.drawStepper(currentY);
+        currentY += stepperHeight + this.s(20, this.scalingOptions.general); // Add margin
+
+        const infoHeight = this.drawInfoSection(currentY);
+        currentY += infoHeight + this.s(20, this.scalingOptions.general); // Add margin
+
+        // Draw inputs sequentially
+        this.formData.inputs.forEach((input) => {
+            const inputHeight = this.drawInput(currentY, input.label, input.value);
+            currentY += inputHeight; // drawInput includes bottom margin
         });
 
         this.drawFooter();
-
-        // Draw green border around the detected area (changed from red)
-        // const borderW = this.s(4);
-        // this.elements.push(`<rect x="${borderW/2}" y="${borderW/2}" width="${this.width - borderW}" height="${this.height - borderW}" fill="none" stroke="#00FF00" stroke-width="${borderW}" />`);
     }
 
     getSvg(): string {
