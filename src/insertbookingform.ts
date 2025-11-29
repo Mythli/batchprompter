@@ -52,6 +52,7 @@ interface ScalingOptions {
     header: number;
     content: number;
     footer: number;
+    logo: number;
 }
 
 function escapeXml(unsafe: string): string {
@@ -367,7 +368,7 @@ class BookingFormDrawer {
         height: number, 
         formData: BookingFormData, 
         logoData?: { base64: string, width: number, height: number },
-        scalingOptions: ScalingOptions = { general: 1.0, stepper: 1.0, header: 1.0, content: 1.0, footer: 1.0 }
+        scalingOptions: ScalingOptions = { general: 1.0, stepper: 1.0, header: 1.0, content: 1.0, footer: 1.0, logo: 1.0 }
     ) {
         this.width = width;
         this.height = height;
@@ -391,6 +392,7 @@ class BookingFormDrawer {
     // Returns the height of the header section
     drawHeader(startY: number): number {
         const factor = this.scalingOptions.header;
+        const logoFactor = this.scalingOptions.logo;
         const y = startY;
         const x = this.getLeftMargin();
 
@@ -401,12 +403,15 @@ class BookingFormDrawer {
         const burgerHeight = (barH * 3) + (gap * 2);
 
         if (this.logoData) {
-            // Icon - Match height to burger menu
-            const targetHeight = burgerHeight;
+            // Icon - Match height to burger menu * logoFactor
+            const targetHeight = burgerHeight * logoFactor;
             const aspectRatio = this.logoData.width / this.logoData.height;
             const targetWidth = targetHeight * aspectRatio;
 
-            this.elements.push(`<image href="${this.logoData.base64}" x="${x}" y="${y}" width="${targetWidth}" height="${targetHeight}" />`);
+            // Center vertically relative to burger menu
+            const logoY = y + (burgerHeight - targetHeight) / 2;
+
+            this.elements.push(`<image href="${this.logoData.base64}" x="${x}" y="${logoY}" width="${targetWidth}" height="${targetHeight}" />`);
             
             // Company Name Text
             const textX = x + targetWidth + this.s(10, factor);
@@ -564,7 +569,7 @@ class BookingFormDrawer {
         let currentY = this.s(30, this.scalingOptions.header); // Start Y for header
 
         const headerHeight = this.drawHeader(currentY);
-        currentY += headerHeight + this.s(10, this.scalingOptions.general); // Add margin
+        currentY += headerHeight + this.s(25, this.scalingOptions.general); // Add margin (increased from 10)
 
         const stepperHeight = this.drawStepper(currentY);
         currentY += stepperHeight + this.s(20, this.scalingOptions.general); // Add margin
@@ -683,13 +688,15 @@ async function main() {
         .option('--scale-header <n>', 'Scaling factor for header', (val) => parseFloat(val), 1.0)
         .option('--scale-content <n>', 'Scaling factor for content/inputs', (val) => parseFloat(val), 1.0)
         .option('--scale-footer <n>', 'Scaling factor for footer', (val) => parseFloat(val), 1.0)
+        .option('--scale-logo <n>', 'Scaling factor for logo', (val) => parseFloat(val), 1.0)
         .action(async (inputPath, jsonPath, logoPath, outputPath, options) => {
             const scalingOptions: ScalingOptions = {
                 general: options.scale,
                 stepper: options.scaleStepper,
                 header: options.scaleHeader,
                 content: options.scaleContent,
-                footer: options.scaleFooter
+                footer: options.scaleFooter,
+                logo: options.scaleLogo
             };
 
             // Derive debug output path
