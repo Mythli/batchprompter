@@ -47,11 +47,11 @@ export class ImageSearchTool {
             console.log(`[Row ${index}] Step ${stepIndex} Generating search queries...`);
             
             const QuerySchema = z.object({
-                queries: z.array(z.string()).min(1).describe("A list of diverse search queries")
+                queries: z.array(z.string()).min(1).max(3).describe("A list of up to 3 diverse search queries")
             });
 
             const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                { role: 'system', content: 'You are a research assistant. Generate diverse search queries based on the user request.' },
+                { role: 'system', content: 'You are a research assistant. Generate up to 3 diverse search queries based on the user request.' },
                 { role: 'user', content: config.imageSearchPrompt }
             ];
 
