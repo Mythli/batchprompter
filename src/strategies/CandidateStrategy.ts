@@ -136,8 +136,23 @@ export class CandidateStrategy implements GenerationStrategy {
         stepIndex: number
     ): Promise<GenerationResult & { candidateIndex: number }> {
         
-        const judgeSystemPrompt = "You are an impartial judge evaluating AI responses. You must select the best response based on the user's original request.";
+        let judgeSystemPrompt = "You are an impartial judge evaluating AI responses. You must select the best response based on the user's original request.";
         
+        // Add the custom judge prompt parts (rendered) to system prompt
+        if (config.judgePromptParts && config.judgePromptParts.length > 0) {
+            const judgeInstructions = config.judgePromptParts
+                .filter(p => p.type === 'text')
+                .map(p => p.text)
+                .join('\n');
+            
+            if (judgeInstructions.trim()) {
+                judgeSystemPrompt += "\n\n" + judgeInstructions;
+            }
+        } else {
+            // Default prompt if none provided
+            judgeSystemPrompt += "\n\nAnalyze the candidates above and select the best one based on the original request.";
+        }
+
         const userPromptText = userPromptParts
             .filter(p => p.type === 'text')
             .map(p => p.text)
@@ -161,15 +176,6 @@ export class CandidateStrategy implements GenerationStrategy {
             } else {
                 judgeMessageContent.push({ type: 'text', text: val || "(No Content)" });
             }
-        }
-
-        // Add the custom judge prompt parts (rendered)
-        if (config.judgePromptParts && config.judgePromptParts.length > 0) {
-            judgeMessageContent.push({ type: 'text', text: '\n\n' });
-            judgeMessageContent.push(...config.judgePromptParts);
-        } else {
-            // Default prompt if none provided
-            judgeMessageContent.push({ type: 'text', text: "\n\nAnalyze the candidates above and select the best one based on the original request." });
         }
 
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
