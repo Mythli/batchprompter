@@ -6,6 +6,7 @@ import OpenAI from "openai";
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
 import { ImageSearch } from './utils/ImageSearch.js';
+import { AiImageSearch } from './utils/AiImageSearch.js';
 
 dotenv.config();
 
@@ -82,14 +83,18 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     });
 
     let imageSearch: ImageSearch | undefined;
+    let aiImageSearch: AiImageSearch | undefined;
+    
     if (config.SERPER_API_KEY) {
         imageSearch = new ImageSearch(config.SERPER_API_KEY);
+        aiImageSearch = new AiImageSearch(imageSearch, llm, config.MODEL);
     }
 
     return {
         config,
         llm,
-        imageSearch
+        imageSearch,
+        aiImageSearch
     };
 }
 
