@@ -56,7 +56,13 @@ export class CandidateStrategy implements GenerationStrategy {
             promises.push(
                 this.standardStrategy.execute(
                     row, index, stepIndex, config, userPromptParts, history, salt, candidateOutputPath || undefined, shouldSkipCommands
-                ).then(res => ({ ...res, candidateIndex: i, outputPath: candidateOutputPath }))
+                )
+                .then(res => ({ ...res, candidateIndex: i, outputPath: candidateOutputPath }))
+                .catch(err => {
+                    // Log immediately as requested
+                    console.error(`[Row ${index}] Step ${stepIndex} Candidate ${i} failed:`, err.message);
+                    throw err;
+                })
             );
         }
 
@@ -66,7 +72,16 @@ export class CandidateStrategy implements GenerationStrategy {
             .map(r => (r as PromiseFulfilledResult<GenerationResult & { candidateIndex: number, outputPath: string | null }>).value);
 
         if (successfulCandidates.length === 0) {
-            throw new Error(`All ${candidateCount} candidates failed to generate.`);
+            const errorMessages = results.map((r, i) => {
+                if (r.status === 'rejected') {
+                    const reason = r.reason;
+                    const msg = reason instanceof Error ? reason.message : String(reason);
+                    return `Candidate ${i}: ${msg}`;
+                }
+                return null;
+            }).filter(Boolean).join('\n');
+
+            throw new Error(`All ${candidateCount} candidates failed to generate.\nErrors:\n${errorMessages}`);
         }
 
         let winner = successfulCandidates[0];
