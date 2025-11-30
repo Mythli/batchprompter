@@ -129,6 +129,12 @@ export class ImageSearch {
         });
         
         if (!response.ok) throw new Error(`Failed to fetch image: ${url} (${response.status})`);
+
+        // Validate Content-Type to ensure it's an image
+        const contentType = response.headers.get('content-type');
+        if (contentType && !contentType.startsWith('image/')) {
+            throw new Error(`Invalid content-type for image: ${contentType}`);
+        }
         
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
