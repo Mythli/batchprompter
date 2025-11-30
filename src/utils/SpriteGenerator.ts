@@ -26,6 +26,10 @@ export class SpriteGenerator {
     ): Promise<{ spriteBuffer: Buffer; validIndices: number[] }> {
         // 1. Download and validate images using ImageSearch
         const downloadPromises = imageUrls.map(async (url, index) => {
+            if (!url) {
+                console.warn(`[SpriteGenerator] Skipping undefined URL at index ${index}`);
+                return null;
+            }
             try {
                 const buffer = await imageSearch.download(url);
                 

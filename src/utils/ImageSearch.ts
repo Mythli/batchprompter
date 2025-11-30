@@ -8,14 +8,14 @@ const ImageSchema = z.object({
   imageUrl: z.string(),
   imageWidth: z.number(),
   imageHeight: z.number(),
-  thumbnailUrl: z.string(),
-  thumbnailWidth: z.number(),
-  thumbnailHeight: z.number(),
-  source: z.string(),
-  domain: z.string(),
-  link: z.string(),
-  googleUrl: z.string(),
-  position: z.number(),
+  thumbnailUrl: z.string().optional(),
+  thumbnailWidth: z.number().optional(),
+  thumbnailHeight: z.number().optional(),
+  source: z.string().optional(),
+  domain: z.string().optional(),
+  link: z.string().optional(),
+  googleUrl: z.string().optional(),
+  position: z.number().optional(),
 });
 
 const SearchParametersSchema = z.object({
@@ -43,7 +43,8 @@ export class ImageSearch {
     }
 
     async search(query: string, num: number = 10): Promise<SerperImage[]> {
-        const cacheKey = `serper:search:${this.hash(query)}:${num}`;
+        // Bumped version to v2 to invalidate potentially bad cache
+        const cacheKey = `serper:search:v2:${this.hash(query)}:${num}`;
 
         if (this.cache) {
             const cached = await this.cache.get(cacheKey);
@@ -72,18 +73,29 @@ export class ImageSearch {
         }
 
         const json = await response.json();
-        const parsed = SerperResponseSchema.parse(json);
-        const images = parsed.images;
+        
+        // Validate with Zod
+        try {
+            const parsed = SerperResponseSchema.parse(json);
+            const images = parsed.images;
 
-        if (this.cache) {
-            // Cache for 24 hours (in milliseconds)
-            await this.cache.set(cacheKey, images, 24 * 60 * 60 * 1000);
+            if (this.cache) {
+                // Cache for 24 hours (in milliseconds)
+                await this.cache.set(cacheKey, images, 24 * 60 * 60 * 1000);
+            }
+
+            return images;
+        } catch (e) {
+            console.error("[ImageSearch] Failed to parse Serper API response:", e);
+            throw e;
         }
-
-        return images;
     }
 
     async download(url: string): Promise<Buffer> {
+        if (!url) {
+            throw new Error("Image URL is undefined or empty");
+        }
+
         // v2 prefix to invalidate previous potentially corrupted cache entries
         const cacheKey = `image:content:v2:${this.hash(url)}`;
 
