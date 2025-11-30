@@ -28,6 +28,7 @@ export interface StepConfig {
 
 export interface ActionOptions {
     concurrency: number;
+    tmpDir: string;
     aspectRatio?: string;
     model?: string;
     system?: string;

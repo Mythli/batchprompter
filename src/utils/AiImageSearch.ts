@@ -24,7 +24,8 @@ export class AiImageSearch {
         images: SerperImage[],
         searchContext: string,
         selectionPrompt: string,
-        maxSelected: number = 1
+        maxSelected: number = 1,
+        onSprite?: (buffer: Buffer, index: number) => Promise<void>
     ): Promise<SerperImage[]> {
         if (images.length === 0) return [];
 
@@ -52,6 +53,13 @@ export class AiImageSearch {
 
         if (sprites.length === 0) {
             throw new Error("Failed to generate any valid sprites from search results.");
+        }
+
+        // Save sprites if callback provided
+        if (onSprite) {
+            for (let i = 0; i < sprites.length; i++) {
+                await onSprite(sprites[i].spriteBuffer, i);
+            }
         }
 
         // Prepare LLM Request

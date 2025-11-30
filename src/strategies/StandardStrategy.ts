@@ -200,6 +200,13 @@ export class StandardStrategy implements GenerationStrategy {
             if (isFeedbackLoop) {
                 console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${loop}/${config.feedbackLoops}`);
 
+                // Save previous iteration draft
+                if (finalContent) {
+                    const draftFilename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_iter_${loop-1}.${finalContent.extension}`;
+                    const draftPath = path.join(config.tmpDir, draftFilename);
+                    await this.saveArtifact(finalContent, draftPath);
+                }
+
                 // Generate Critique
                 // Pass currentHistory to allow the critic to see the conversation context
                 const critique = await this.generateCritique(
@@ -210,6 +217,11 @@ export class StandardStrategy implements GenerationStrategy {
                     `${cacheSalt}_critique_${loop-1}`
                 );
                 console.log(`[Row ${index}] Step ${stepIndex} 📝 Critique: ${critique}`);
+
+                // Save Critique
+                const critiqueFilename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_critique_${loop-1}.md`;
+                const critiquePath = path.join(config.tmpDir, critiqueFilename);
+                await ArtifactSaver.save(critique, critiquePath);
 
                 // Append to history
                 // 1. Assistant's previous attempt

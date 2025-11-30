@@ -92,6 +92,19 @@ export class ImageSearchTool {
             throw new Error("No images found for any of the queries.");
         }
 
+        // --- DEBUG: Save all found images ---
+        // We do this asynchronously to not block too much, but we await it to ensure files exist for debugging
+        const saveFoundPromises = pooledImages.map(async (img, i) => {
+            try {
+                const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_found_${i}.jpg`;
+                const savePath = path.join(config.tmpDir, filename);
+                await ArtifactSaver.save(img.imageUrl, savePath);
+            } catch (e) {
+                // Ignore save errors for debug files
+            }
+        });
+        await Promise.all(saveFoundPromises);
+
         // 3. Selection
         let selectedImages: SerperImage[] = [];
 
@@ -102,11 +115,18 @@ export class ImageSearchTool {
                 .join('\n');
 
             console.log(`[Row ${index}] Step ${stepIndex} AI Selecting best images...`);
+            
             selectedImages = await this.aiImageSearch.selectFromPool(
                 pooledImages, 
                 queries.join(', '), // Context
                 selectPromptText, 
-                config.imageSearchSelect
+                config.imageSearchSelect,
+                // Callback to save sprites
+                async (buffer, spriteIndex) => {
+                    const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_sprite_${spriteIndex}.jpg`;
+                    const savePath = path.join(config.tmpDir, filename);
+                    await ArtifactSaver.save(buffer, savePath);
+                }
             );
         } else {
             console.log(`[Row ${index}] Step ${stepIndex} Selecting first ${config.imageSearchSelect} images (no AI prompt)...`);
@@ -122,9 +142,18 @@ export class ImageSearchTool {
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
             
+            // Save selected image to tmpDir
+            const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_selected_${i}.jpg`;
+            const savePath = path.join(config.tmpDir, filename);
+            
             // Normalize for History (Base64 JPEG)
             try {
                 const base64 = await this.normalizeImage(img.imageUrl);
+                
+                // Save the normalized version as the "selected" one
+                await ArtifactSaver.save(Buffer.from(base64, 'base64'), savePath);
+                savedPaths.push(savePath);
+
                 contentParts.push({
                     type: 'image_url',
                     image_url: { url: `data:image/jpeg;base64,${base64}` }
@@ -136,22 +165,9 @@ export class ImageSearchTool {
                     type: 'image_url',
                     image_url: { url: img.imageUrl }
                 });
+                // Try to save original URL content
+                try { await ArtifactSaver.save(img.imageUrl, savePath); savedPaths.push(savePath); } catch(e2) {}
             }
-
-            // Save to Disk if output path is configured
-            // Note: StandardStrategy handles the main output path. 
-            // If we want to save these search results separately, we might need a dedicated path or just rely on the fact they are in history.
-            // However, the previous logic saved them to the output path if provided.
-            // In this new model, StandardStrategy generates NEW content. 
-            // So we probably shouldn't overwrite the main output path with search results unless explicitly requested.
-            // But for now, let's just return the paths/content and let StandardStrategy decide or just use them as context.
-            // If the user wants to SAVE the search results, they might need a specific flag or we assume they are just context for the generation.
-            
-            // Let's save them to a sidecar folder or just log them? 
-            // The requirement was "these images should just go into the prompt".
-            // So we won't save them to the main output path here, to avoid conflict with the generated text/image.
-            // We will just return them as content parts.
-            savedPaths.push(img.imageUrl);
         }
 
         return { contentParts, savedPaths };

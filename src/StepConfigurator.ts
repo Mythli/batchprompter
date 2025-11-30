@@ -5,6 +5,7 @@ import { ActionOptions } from './types.js';
 import { aggressiveSanitize } from './utils/fileUtils.js';
 
 export interface ResolvedStepConfig {
+    tmpDir: string;
     outputPath: string | null;
     outputColumn: string | null;
     systemPrompt: string | null;
@@ -183,6 +184,7 @@ export class StepConfigurator {
         const currentImageSearchSelect = stepOverride?.imageSearchSelect ?? options.imageSearchSelect ?? 1;
 
         return {
+            tmpDir: options.tmpDir,
             outputPath: currentOutputPath,
             outputColumn: currentOutputColumn || null,
             systemPrompt: currentSystemPrompt,

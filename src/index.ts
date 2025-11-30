@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import 'dotenv/config';
+import fsPromises from 'fs/promises';
 import { runAction } from './actions.js';
 import { ActionOptions } from './types.js';
 
@@ -17,6 +18,7 @@ const generateCmd = program.command('generate')
     .option('-o, --output <path>', 'Template path for the output (e.g., "out/{{id}}/result.txt")')
     .option('--output-column <column>', 'Column name to write output to in the data file')
     .option('--data-output <path>', 'Path to save the processed data file')
+    .option('--tmp-dir <path>', 'Directory for temporary files', '.tmp')
     .option('-c, --concurrency <number>', 'Number of concurrent requests', '20')
     .option('--aspect-ratio <ratio>', 'Aspect ratio for image generation (e.g., "3:2"). If provided, requests image generation.')
     .option('-m, --model <model>', 'Model to use for generation')
@@ -147,8 +149,18 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         process.exit(1);
     }
 
+    // Ensure tmp dir exists
+    const tmpDir = options.tmpDir || '.tmp';
+    try {
+        await fsPromises.mkdir(tmpDir, { recursive: true });
+    } catch (e) {
+        console.error(`Error creating temporary directory ${tmpDir}:`, e);
+        process.exit(1);
+    }
+
     const actionOptions: ActionOptions = {
         concurrency,
+        tmpDir,
         aspectRatio: options.aspectRatio,
         model: options.model,
         system: options.system,

@@ -51,12 +51,28 @@ export class CandidateStrategy implements GenerationStrategy {
                 sanitizedRow['candidate_index'] = (i + 1).toString();
                 candidateOutputPath = delegate(sanitizedRow);
 
-            } else if (config.outputPath) {
-                // Default behavior: append _cand_N
-                const ext = path.extname(config.outputPath);
-                const base = path.basename(config.outputPath, ext);
-                const dir = path.dirname(config.outputPath);
-                candidateOutputPath = path.join(dir, `${base}_cand_${i + 1}${ext}`);
+            } else {
+                // Default behavior: Save to tmpDir with structured naming
+                // Format: {tmpDir}/{rowIndex}_{stepIndex}_cand_{candidateIndex}.{ext}
+                // We don't know the extension yet, but StandardStrategy will handle it if we pass a path without extension?
+                // No, StandardStrategy expects a full path usually.
+                // However, StandardStrategy determines extension from content.
+                // If we pass a path, it saves to it.
+                // Let's assume a default extension based on config or just use a placeholder that StandardStrategy might respect?
+                // Actually, StandardStrategy.saveArtifact uses the path provided.
+                // If we don't provide an extension, it saves without one.
+                // But we can guess based on config.aspectRatio (image) vs others.
+                
+                let ext = '.txt';
+                if (config.aspectRatio) ext = '.png'; // Likely image
+                // If we can't guess, we might need StandardStrategy to return the extension or handle the path generation.
+                // But StandardStrategy takes outputPath as input.
+                
+                // Let's use a generic name and let the user rename it later if needed, or rely on the fact that
+                // StandardStrategy saves it.
+                
+                const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_cand_${i}${ext}`;
+                candidateOutputPath = path.join(config.tmpDir, filename);
             }
 
             // We use the loop index as the cacheSalt to ensure unique generations
@@ -94,7 +110,7 @@ export class CandidateStrategy implements GenerationStrategy {
             }
         }
 
-        // If the winner has an output path (it was saved to _cand_N), we should copy it to the final output path
+        // If the winner has an output path (it was saved to tmpDir or custom path), we should copy it to the final output path
         if (config.outputPath && winner.outputPath) {
             const fs = await import('fs/promises');
             try {
