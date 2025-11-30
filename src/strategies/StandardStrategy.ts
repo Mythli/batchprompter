@@ -5,7 +5,7 @@ import util from 'util';
 import { exec } from 'child_process';
 import { z } from 'zod';
 import fsPromises from 'fs/promises';
-import { LlmClient, LlmRetryError } from 'llm-fns';
+import { LlmClient } from 'llm-fns';
 
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
@@ -13,19 +13,31 @@ import { ResolvedStepConfig } from '../StepConfigurator.js';
 
 const execPromise = util.promisify(exec);
 
-// Response schema to extract image URL
+// Unified Response Schema supporting Text, Image, and Audio
 const responseSchema = z.object({
     choices: z.array(z.object({
         message: z.object({
-            content: z.string().nullable(),
+            content: z.string().nullable().optional(),
             images: z.array(z.object({
                 image_url: z.object({
                     url: z.string()
                 })
-            })).optional()
+            })).optional(),
+            audio: z.object({
+                id: z.string(),
+                data: z.string(), // Base64 encoded audio data
+                expires_at: z.number(),
+                transcript: z.string().optional()
+            }).optional()
         })
     })).min(1)
 });
+
+type ExtractedContent = {
+    type: 'text' | 'image' | 'audio';
+    data: string; // Text content, Image URL, or Audio Base64
+    extension: string;
+};
 
 export class StandardStrategy implements GenerationStrategy {
     constructor(
@@ -36,8 +48,90 @@ export class StandardStrategy implements GenerationStrategy {
     private extractUserText(parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]): string {
         return parts.map(p => {
             if (p.type === 'text') return p.text;
-            return '[Image/Audio Input]';
+            return `[${p.type} Input]`;
         }).join('\n');
+    }
+
+    private extractContent(message: z.infer<typeof responseSchema>['choices'][0]['message']): ExtractedContent {
+        if (message.audio) {
+            return { type: 'audio', data: message.audio.data, extension: 'wav' };
+        }
+        if (message.images && message.images.length > 0) {
+            return { type: 'image', data: message.images[0].image_url.url, extension: 'png' };
+        }
+        if (message.content) {
+            return { type: 'text', data: message.content, extension: 'txt' };
+        }
+        throw new Error("LLM returned empty response (no text, image, or audio).");
+    }
+
+    private async validateContent(
+        extracted: ExtractedContent,
+        config: ResolvedStepConfig,
+        row: Record<string, any>,
+        index: number,
+        stepIndex: number,
+        skipCommands: boolean
+    ): Promise<ExtractedContent> {
+        let validated = { ...extracted };
+
+        // 1. JSON Schema Validation (Text only)
+        if (validated.type === 'text' && config.jsonSchema) {
+            try {
+                const data = JSON.parse(validated.data);
+                // Re-serialize to ensure clean formatting
+                validated.data = JSON.stringify(data, null, 2);
+                
+                if (config.validator) {
+                    const valid = config.validator(data);
+                    if (!valid) {
+                        const errors = config.validator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
+                        throw new Error(`JSON does not match schema: ${errors}`);
+                    }
+                }
+            } catch (e: any) {
+                if (e.message.includes('JSON')) throw e;
+                throw new Error(`Invalid JSON: ${e.message}`);
+            }
+        }
+
+        // 2. Verify Command (Universal)
+        if (config.verifyCommand && !skipCommands) {
+            // Create temp file
+            const tempFilename = `temp_verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.${validated.extension}`;
+            const tempPath = path.join(process.cwd(), tempFilename);
+            
+            try {
+                await this.saveArtifact(validated, tempPath);
+
+                const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
+                const cmd = cmdTemplate({ ...row, file: tempPath });
+                
+                console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying: ${cmd}`);
+                
+                const { stdout } = await execPromise(cmd);
+                if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
+                
+            } catch (error: any) {
+                const feedback = error.stderr || error.stdout || error.message;
+                throw new Error(`Verification command failed:\n${feedback}\n\nPlease fix the content.`);
+            } finally {
+                try { await fsPromises.unlink(tempPath); } catch (e) {}
+            }
+        }
+
+        return validated;
+    }
+
+    private async saveArtifact(content: ExtractedContent, targetPath: string) {
+        if (content.type === 'audio') {
+            // Base64 to Buffer
+            const buffer = Buffer.from(content.data, 'base64');
+            await ArtifactSaver.save(buffer, targetPath);
+        } else {
+            // Text or Image URL
+            await ArtifactSaver.save(content.data, targetPath);
+        }
     }
 
     async execute(
@@ -52,395 +146,204 @@ export class StandardStrategy implements GenerationStrategy {
         skipCommands: boolean = false
     ): Promise<GenerationResult> {
         
-        // Construct Messages
-        const apiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+        const effectiveOutputPath = outputPathOverride || config.outputPath;
         
+        // Initial History
+        let currentHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+        
+        // System Prompt
         if (config.systemPrompt || config.jsonSchema) {
             let content = config.systemPrompt || "";
             if (config.jsonSchema) {
                 if (content) content += "\n\n";
                 content += `You must output valid JSON that matches the following schema: ${JSON.stringify(config.jsonSchema)}`;
             }
-            apiMessages.push({ role: 'system', content });
+            currentHistory.push({ role: 'system', content });
         }
 
-        apiMessages.push(...history);
-        apiMessages.push({ role: 'user', content: userPromptParts });
+        currentHistory.push(...history);
+        currentHistory.push({ role: 'user', content: userPromptParts });
 
-        let contentForColumn: string | null = null;
-        let assistantResponseContent: string = "";
+        let finalContent: ExtractedContent | null = null;
+
+        // --- Main Generation Loop (Initial + Feedback) ---
+        const totalIterations = 1 + (config.feedbackLoops || 0);
         
-        // Determine effective output path (override takes precedence)
-        const effectiveOutputPath = outputPathOverride || config.outputPath;
-
-        // --- Execution Logic ---
-        if (config.jsonSchema || config.verifyCommand) {
-            // ReQuery Mode using llm-fns promptTextRetry
+        for (let loop = 0; loop < totalIterations; loop++) {
+            const isFeedbackLoop = loop > 0;
             
-            if (config.aspectRatio) {
-                // Image Generation with manual retry loop
-                const maxRetries = 3;
-                let lastError: any;
+            if (isFeedbackLoop) {
+                console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${loop}/${config.feedbackLoops}`);
                 
-                for (let attempt = 0; attempt <= maxRetries; attempt++) {
-                    try {
-                        const currentMessages = [...apiMessages];
-                        if (lastError) {
-                            currentMessages.push({ role: 'user', content: lastError.message });
-                        }
-
-                        const response = await this.llm.prompt({
-                            messages: currentMessages,
-                            model: this.model,
-                            cacheSalt: cacheSalt,
-                            modalities: ['image', 'text'],
-                            image_config: { aspect_ratio: config.aspectRatio }
-                        });
-
-                        const parsed = responseSchema.parse(response);
-                        const message = parsed.choices[0].message;
-                        const images = message.images;
-                        
-                        if (!images || images.length === 0) {
-                            throw new Error("No image generated.");
-                        }
-                        
-                        const imageUrl = images[0].image_url.url;
-                        
-                        // Verify Command
-                        if (config.verifyCommand && !skipCommands) {
-                            const verifyPath = effectiveOutputPath || path.join(path.dirname(effectiveOutputPath || '.'), `temp_verify_${index}_${stepIndex}.png`);
-                            await ArtifactSaver.save(imageUrl, verifyPath);
-                            
-                            const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
-                            const cmd = cmdTemplate({ ...row, file: verifyPath });
-                            
-                            console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying Image: ${cmd}`);
-                            
-                            try {
-                                const { stdout } = await execPromise(cmd);
-                                if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
-                            } catch (error: any) {
-                                const feedback = error.stderr || error.stdout || error.message;
-                                throw new Error(`Verification failed: ${feedback}`);
-                            }
-                        }
-                        
-                        // Success
-                        contentForColumn = imageUrl;
-                        assistantResponseContent = "Image generated.";
-                        
-                        if (effectiveOutputPath && (!config.verifyCommand || skipCommands)) {
-                            await ArtifactSaver.save(imageUrl, effectiveOutputPath);
-                            console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${effectiveOutputPath}`);
-                        }
-                        
-                        break; // Exit loop
-                        
-                    } catch (error: any) {
-                        lastError = error;
-                        if (attempt === maxRetries) throw error;
-                        console.log(`[Row ${index}] Step ${stepIndex} Image generation/verification failed, retrying... (${error.message})`);
-                    }
-                }
-            } else {
-                // Text/JSON Generation with promptTextRetry
+                // Generate Critique
+                const critique = await this.generateCritique(finalContent!, config, userPromptParts, `${cacheSalt}_critique_${loop-1}`);
+                console.log(`[Row ${index}] Step ${stepIndex} 📝 Critique: ${critique.substring(0, 100)}...`);
                 
-                // Define Validator Function to be reused in Feedback Loop
-                const validator = async (text: string, info: any) => {
-                    let content = text;
-                    let data: any;
-
-                    // 1. JSON Parsing & Schema Validation
-                    if (config.jsonSchema) {
-                        if (!content) {
-                            throw new LlmRetryError("Expected JSON response but got empty content.", 'CUSTOM_ERROR');
-                        }
-                        try {
-                            data = JSON.parse(content);
-                            content = JSON.stringify(data, null, 2);
-                        } catch (e) {
-                            throw new LlmRetryError("Response was not valid JSON.", 'JSON_PARSE_ERROR');
-                        }
-
-                        const valid = config.validator(data);
-                        if (!valid) {
-                            const errors = config.validator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
-                            throw new LlmRetryError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR');
-                        }
-                    }
-
-                    // 2. Verify Command
-                    if (config.verifyCommand && !skipCommands) {
-                        // Use a temp path for verification to avoid race conditions or overwriting final output prematurely
-                        const verifyPath = path.join(path.dirname(effectiveOutputPath || '.'), `temp_verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.txt`);
-                        
-                        await ArtifactSaver.save(content, verifyPath);
-
-                        const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
-                        const cmd = cmdTemplate({ ...row, file: verifyPath });
-                        
-                        console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying: ${cmd}`);
-
-                        try {
-                            const { stdout } = await execPromise(cmd);
-                            if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
-                        } catch (error: any) {
-                            const feedback = error.stderr || error.stdout || error.message;
-                            throw new LlmRetryError(
-                                `Verification command failed:\n${feedback}\n\nPlease fix the content based on this error.`,
-                                'CUSTOM_ERROR'
-                            );
-                        } finally {
-                            // Clean up temp file
-                            try { await fsPromises.unlink(verifyPath); } catch (e) {}
-                        }
-                    }
-
-                    return content;
-                };
-
-                // Initial Generation
-                let currentText = await this.llm.promptTextRetry({
-                    messages: apiMessages,
-                    model: this.model,
-                    cacheSalt: cacheSalt,
-                    response_format: config.jsonSchema ? { type: "json_object" } : undefined,
-                    validate: validator
-                });
-
-                // Feedback Loop
-                if (config.feedbackLoops > 0 && config.feedbackPrompt) {
-                    for (let i = 0; i < config.feedbackLoops; i++) {
-                        console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${i+1}/${config.feedbackLoops}`);
-
-                        // 1. Critique
-                        const critiqueContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-                            { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCurrent Draft:\n${currentText}\n\nCritique Criteria:` },
-                            ...config.feedbackPrompt
-                        ];
-
-                        const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                            { role: 'system', content: 'You are an expert critic. Analyze the provided content against the criteria and provide specific, actionable improvements.' },
-                            { role: 'user', content: critiqueContent }
-                        ];
-
-                        const critique = await this.llm.prompt({
-                            messages: critiqueMessages,
-                            model: config.feedbackModel || this.model,
-                            cacheSalt: `${cacheSalt}_critique_${i}`
-                        });
-                        
-                        const critiqueText = critique.choices[0].message.content;
-                        console.log(`[Row ${index}] Step ${stepIndex} 📝 Critique: ${critiqueText?.substring(0, 100)}...`);
-
-                        // 2. Refine (with Validation)
-                        const refinementMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                            ...apiMessages,
-                            { role: 'assistant', content: currentText },
-                            { role: 'user', content: `Critique:\n${critiqueText}\n\nPlease rewrite the content to address this critique while maintaining all original requirements (including JSON schema if applicable).` }
-                        ];
-
-                        currentText = await this.llm.promptTextRetry({
-                            messages: refinementMessages,
-                            model: this.model,
-                            cacheSalt: `${cacheSalt}_refine_${i}`,
-                            response_format: config.jsonSchema ? { type: "json_object" } : undefined,
-                            validate: validator
-                        });
-                    }
+                // Append to history
+                // 1. Assistant's previous attempt
+                if (finalContent!.type === 'text') {
+                    currentHistory.push({ role: 'assistant', content: finalContent!.data });
+                } else {
+                    // For Image/Audio, we represent it abstractly in history if we can't feed it back directly
+                    currentHistory.push({ role: 'assistant', content: `[Generated ${finalContent!.type}]` });
                 }
 
-                contentForColumn = currentText;
-                assistantResponseContent = currentText;
-
-                // Save Final Output
-                if (effectiveOutputPath && (!config.verifyCommand || skipCommands)) {
-                    await ArtifactSaver.save(currentText, effectiveOutputPath);
-                    console.log(`[Row ${index}] Step ${stepIndex} Saved to ${effectiveOutputPath}`);
-                }
+                // 2. User's Critique
+                currentHistory.push({ role: 'user', content: `Critique:\n${critique}\n\nPlease regenerate the content to address this critique.` });
             }
 
-        } else {
-            // Standard Mode (No validation loop)
-            const askOptions: any = {
-                messages: [...apiMessages],
-                cacheSalt: cacheSalt
-            };
-            if (this.model) askOptions.model = this.model;
-            if (config.aspectRatio) {
-                askOptions.modalities = ['image', 'text'];
-                askOptions.image_config = { aspect_ratio: config.aspectRatio };
-            }
-
-            const response = await this.llm.prompt(askOptions);
-            const parsed = responseSchema.parse(response);
-            const message = parsed.choices[0].message;
-            const textContent = message.content;
-            const images = message.images;
-
-            if (textContent) {
-                contentForColumn = textContent;
-                assistantResponseContent = textContent;
-                
-                // Feedback Loop for Standard Mode (Text only)
-                if (config.feedbackLoops > 0 && config.feedbackPrompt && !config.aspectRatio) {
-                    let currentText = textContent;
-                    for (let i = 0; i < config.feedbackLoops; i++) {
-                        console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${i+1}/${config.feedbackLoops}`);
-
-                        // 1. Critique
-                        const critiqueContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-                            { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCurrent Draft:\n${currentText}\n\nCritique Criteria:` },
-                            ...config.feedbackPrompt
-                        ];
-
-                        const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                            { role: 'system', content: 'You are an expert critic. Analyze the provided content against the criteria and provide specific, actionable improvements.' },
-                            { role: 'user', content: critiqueContent }
-                        ];
-
-                        const critique = await this.llm.prompt({
-                            messages: critiqueMessages,
-                            model: config.feedbackModel || this.model,
-                            cacheSalt: `${cacheSalt}_critique_${i}`
-                        });
-                        
-                        const critiqueText = critique.choices[0].message.content;
-
-                        // 2. Refine (No Validation)
-                        const refinementMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                            ...apiMessages,
-                            { role: 'assistant', content: currentText },
-                            { role: 'user', content: `Critique:\n${critiqueText}\n\nPlease rewrite the content to address this critique.` }
-                        ];
-
-                        const refined = await this.llm.prompt({
-                            messages: refinementMessages,
-                            model: this.model,
-                            cacheSalt: `${cacheSalt}_refine_${i}`
-                        });
-                        
-                        if (refined.choices[0].message.content) {
-                            currentText = refined.choices[0].message.content;
-                        }
-                    }
-                    contentForColumn = currentText;
-                    assistantResponseContent = currentText;
-                }
-
-                if (effectiveOutputPath) {
-                    await ArtifactSaver.save(contentForColumn, effectiveOutputPath);
-                    console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${effectiveOutputPath}`);
-                }
-            }
-
-            if (images && images.length > 0) {
-                const imageUrl = images[0].image_url.url;
-                contentForColumn = imageUrl;
-                assistantResponseContent = "Image generated.";
-                
-                // Image Feedback Loop
-                if (config.feedbackLoops > 0 && config.feedbackPrompt) {
-                    let currentImageUrl = imageUrl;
-                    
-                    for (let i = 0; i < config.feedbackLoops; i++) {
-                        console.log(`[Row ${index}] Step ${stepIndex} 🔄 Image Feedback Loop ${i+1}/${config.feedbackLoops}`);
-
-                        // 1. Critique (Vision)
-                        const critiqueContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-                            { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCritique Criteria:` },
-                            ...config.feedbackPrompt,
-                            { type: 'text', text: "\nAnalyze the image below:" },
-                            { type: 'image_url', image_url: { url: currentImageUrl } }
-                        ];
-
-                        const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                            { role: 'system', content: 'You are an expert art director and technical director.' },
-                            { role: 'user', content: critiqueContent }
-                        ];
-
-                        const critique = await this.llm.prompt({
-                            messages: critiqueMessages,
-                            model: config.feedbackModel || this.model, // Must be a vision model
-                            cacheSalt: `${cacheSalt}_critique_${i}`
-                        });
-                        
-                        const critiqueText = critique.choices[0].message.content;
-                        console.log(`[Row ${index}] Step ${stepIndex} 📝 Critique: ${critiqueText?.substring(0, 100)}...`);
-
-                        // 2. Refine (Generate New Image)
-                        // We append the critique to the user prompt or history
-                        const refinementMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                            ...apiMessages,
-                            // We can't easily pass the previous image back to the image generator (DALL-E 3 doesn't support img2img in this API usually, or at least standard chat completions don't).
-                            // So we just ask for a regeneration with the critique as context.
-                            { role: 'assistant', content: "Image generated." }, // Placeholder for previous turn
-                            { role: 'user', content: `The previous image had the following issues:\n${critiqueText}\n\nPlease generate a new image that fixes these issues while maintaining the original requirements.` }
-                        ];
-
-                        const refineOptions: any = {
-                            messages: refinementMessages,
-                            model: this.model,
-                            cacheSalt: `${cacheSalt}_refine_${i}`,
-                            modalities: ['image', 'text'],
-                            image_config: { aspect_ratio: config.aspectRatio }
-                        };
-
-                        const refined = await this.llm.prompt(refineOptions);
-                        const parsedRefined = responseSchema.parse(refined);
-                        const refinedImages = parsedRefined.choices[0].message.images;
-
-                        if (refinedImages && refinedImages.length > 0) {
-                            currentImageUrl = refinedImages[0].image_url.url;
-                        } else {
-                            console.warn(`[Row ${index}] Step ${stepIndex} Refinement failed to generate image. Keeping previous version.`);
-                        }
-                    }
-                    contentForColumn = currentImageUrl;
-                }
-                
-                if (effectiveOutputPath) {
-                    await ArtifactSaver.save(contentForColumn, effectiveOutputPath);
-                    console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${effectiveOutputPath}`);
-                }
-            }
+            // Generate with Technical Retries
+            const loopSalt = isFeedbackLoop ? `${cacheSalt}_refine_${loop-1}` : cacheSalt;
+            finalContent = await this.generateWithRetry(
+                currentHistory, 
+                config, 
+                row, 
+                index, 
+                stepIndex, 
+                skipCommands, 
+                loopSalt
+            );
         }
 
-        // Post Process
+        if (!finalContent) throw new Error("Generation failed.");
+
+        // Save Final Output
+        if (effectiveOutputPath && (!config.verifyCommand || skipCommands)) {
+            await this.saveArtifact(finalContent, effectiveOutputPath);
+            console.log(`[Row ${index}] Step ${stepIndex} Saved ${finalContent.type} to ${effectiveOutputPath}`);
+        }
+
+        // Post Process Command
         if (config.postProcessCommand && !skipCommands) {
             let filePathForCommand = effectiveOutputPath;
             let isTemp = false;
 
-            if (!filePathForCommand && contentForColumn) {
+            if (!filePathForCommand) {
                 isTemp = true;
-                const ext = (contentForColumn.startsWith('http') || contentForColumn.startsWith('data:')) ? '.png' : '.txt';
-                filePathForCommand = path.join(path.dirname(effectiveOutputPath || '.'), `temp_post_${index}_${stepIndex}${ext}`);
-                await ArtifactSaver.save(contentForColumn, filePathForCommand);
+                filePathForCommand = path.join(process.cwd(), `temp_post_${index}_${stepIndex}.${finalContent.extension}`);
+                await this.saveArtifact(finalContent, filePathForCommand);
             }
 
-            if (filePathForCommand) {
-                const cmdTemplate = Handlebars.compile(config.postProcessCommand, { noEscape: true });
-                const cmd = cmdTemplate({ ...row, file: filePathForCommand });
-                
-                console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running command: ${cmd}`);
-                
-                try {
-                    const { stdout } = await execPromise(cmd);
-                    if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
-                } catch (error: any) {
-                    console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error.message);
-                }
+            const cmdTemplate = Handlebars.compile(config.postProcessCommand, { noEscape: true });
+            const cmd = cmdTemplate({ ...row, file: filePathForCommand });
+            
+            console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running command: ${cmd}`);
+            
+            try {
+                const { stdout } = await execPromise(cmd);
+                if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
+            } catch (error: any) {
+                console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error.message);
+            }
 
-                if (isTemp) {
-                    try { await fsPromises.unlink(filePathForCommand); } catch (e) {}
-                }
+            if (isTemp) {
+                try { await fsPromises.unlink(filePathForCommand!); } catch (e) {}
             }
         }
 
-        return { 
-            historyMessage: { role: 'assistant', content: assistantResponseContent },
-            columnValue: contentForColumn
+        return {
+            historyMessage: { 
+                role: 'assistant', 
+                content: finalContent.type === 'text' ? finalContent.data : `[Generated ${finalContent.type}]` 
+            },
+            columnValue: finalContent.data // URL, Base64, or Text
         };
+    }
+
+    private async generateWithRetry(
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        config: ResolvedStepConfig,
+        row: Record<string, any>,
+        index: number,
+        stepIndex: number,
+        skipCommands: boolean,
+        salt?: string | number
+    ): Promise<ExtractedContent> {
+        const maxRetries = 3;
+        let currentMessages = [...messages];
+        let lastError: any;
+
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                const promptOptions: any = {
+                    messages: currentMessages,
+                    model: this.model,
+                    cacheSalt: attempt === 0 ? salt : `${salt}_retry_${attempt}`,
+                };
+
+                // Configure Modalities
+                if (config.aspectRatio) {
+                    promptOptions.modalities = ['image', 'text'];
+                    promptOptions.image_config = { aspect_ratio: config.aspectRatio };
+                }
+                // Future: Audio config check here (e.g. if config.audioFormat)
+
+                if (config.jsonSchema) {
+                    promptOptions.response_format = { type: "json_object" };
+                }
+
+                const response = await this.llm.prompt(promptOptions);
+                const parsed = responseSchema.parse(response);
+                const message = parsed.choices[0].message;
+
+                const extracted = this.extractContent(message);
+                const validated = await this.validateContent(extracted, config, row, index, stepIndex, skipCommands);
+
+                return validated;
+
+            } catch (error: any) {
+                lastError = error;
+                console.log(`[Row ${index}] Step ${stepIndex} Attempt ${attempt+1}/${maxRetries+1} failed: ${error.message}`);
+                
+                if (attempt < maxRetries) {
+                    // Add error to history for retry
+                    currentMessages.push({ 
+                        role: 'user', 
+                        content: `The previous generation failed with the following error:\n${error.message}\n\nPlease try again and fix the issue.` 
+                    });
+                }
+            }
+        }
+        throw new Error(`Generation failed after ${maxRetries + 1} attempts. Last error: ${lastError?.message}`);
+    }
+
+    private async generateCritique(
+        content: ExtractedContent,
+        config: ResolvedStepConfig,
+        userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        salt: string
+    ): Promise<string> {
+        const critiqueContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+            { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCritique Criteria:` },
+            ...(config.feedbackPrompt || [])
+        ];
+
+        // Attach content to critique prompt
+        if (content.type === 'image') {
+            critiqueContent.push({ type: 'text', text: "\nAnalyze the image below:" });
+            critiqueContent.push({ type: 'image_url', image_url: { url: content.data } });
+        } else if (content.type === 'text') {
+            critiqueContent.push({ type: 'text', text: `\nCurrent Draft:\n${content.data}` });
+        } else if (content.type === 'audio') {
+             critiqueContent.push({ type: 'text', text: "\nAnalyze the audio below:" });
+             // @ts-ignore - input_audio might not be in all type definitions yet
+             critiqueContent.push({ 
+                 type: 'input_audio', 
+                 input_audio: { data: content.data, format: 'wav' } 
+             });
+        }
+
+        const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+            { role: 'system', content: 'You are an expert critic. Analyze the provided content against the criteria and provide specific, actionable improvements.' },
+            { role: 'user', content: critiqueContent }
+        ];
+
+        const response = await this.llm.prompt({
+            messages: critiqueMessages,
+            model: config.feedbackModel || this.model,
+            cacheSalt: salt
+        });
+
+        return response.choices[0].message.content || "No critique provided.";
     }
 }
