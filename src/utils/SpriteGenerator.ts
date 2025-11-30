@@ -33,8 +33,8 @@ export class SpriteGenerator {
                 await sharp(buffer).metadata();
                 
                 return { buffer, originalIndex: index };
-            } catch (e) {
-                // console.warn(`Failed to download/validate image ${url}:`, e);
+            } catch (e: any) {
+                console.warn(`[SpriteGenerator] Failed to download/validate image ${url}: ${e.message}`);
                 return null;
             }
         });

@@ -84,35 +84,50 @@ export class ImageSearch {
     }
 
     async download(url: string): Promise<Buffer> {
-        const cacheKey = `image:content:${this.hash(url)}`;
+        // v2 prefix to invalidate previous potentially corrupted cache entries
+        const cacheKey = `image:content:v2:${this.hash(url)}`;
 
         if (this.cache) {
-            const cached = await this.cache.get(cacheKey);
-            if (cached) {
-                // Keyv/Cache-manager might return it as a Buffer or a JSON object representing a Buffer
-                if (Buffer.isBuffer(cached)) {
-                    return cached;
-                } else if (typeof cached === 'object' && (cached as any).type === 'Buffer') {
-                    return Buffer.from((cached as any).data);
-                } else if (typeof cached === 'string') {
-                    // Assuming base64 string storage if serialization happened
-                    return Buffer.from(cached, 'base64');
+            try {
+                const cached = await this.cache.get(cacheKey);
+                if (cached) {
+                    // We now explicitly store as base64 string to avoid serialization issues
+                    if (typeof cached === 'string') {
+                        // console.log(`[ImageSearch] Cache hit for image: ${url}`);
+                        return Buffer.from(cached, 'base64');
+                    }
+                    // Fallback for other types if we revert or migrate
+                    if (Buffer.isBuffer(cached)) {
+                        return cached;
+                    }
+                    if (typeof cached === 'object' && (cached as any).type === 'Buffer') {
+                        return Buffer.from((cached as any).data);
+                    }
                 }
+            } catch (e) {
+                console.warn(`[ImageSearch] Cache read error for ${url}:`, e);
             }
         }
 
         // console.log(`[ImageSearch] Downloading: ${url}`);
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to fetch image: ${url}`);
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+        
+        if (!response.ok) throw new Error(`Failed to fetch image: ${url} (${response.status})`);
         
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
         if (this.cache) {
-            // Cache indefinitely (or very long time)
-            // We store as base64 string to be safe with JSON serialization in some cache stores,
-            // though KeyvSqlite handles Buffers usually. Let's store as Buffer and let the store handle it.
-            await this.cache.set(cacheKey, buffer, 24 * 60 * 60 * 1000);
+            try {
+                // Store as base64 string
+                await this.cache.set(cacheKey, buffer.toString('base64'), 24 * 60 * 60 * 1000);
+            } catch (e) {
+                console.warn(`[ImageSearch] Cache write error for ${url}:`, e);
+            }
         }
 
         return buffer;
