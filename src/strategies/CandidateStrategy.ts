@@ -35,17 +35,26 @@ export class CandidateStrategy implements GenerationStrategy {
         const promises: Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }>[] = [];
 
         for (let i = 0; i < candidateCount; i++) {
-            // Determine a unique output path for this candidate in the tmpDir
+            // Determine a unique output path for this candidate
             let candidateOutputPath: string | null = null;
 
-            // Default behavior: Save to tmpDir with structured naming
-            // Format: {tmpDir}/{rowIndex}_{stepIndex}_cand_{candidateIndex}.{ext}
-            
-            let ext = '.txt';
-            if (config.aspectRatio) ext = '.png'; // Likely image
-            
-            const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_cand_${i}${ext}`;
-            candidateOutputPath = path.join(config.tmpDir, filename);
+            if (config.outputPath) {
+                // Use the configured output path as a base
+                const dir = path.dirname(config.outputPath);
+                const ext = path.extname(config.outputPath);
+                const name = path.basename(config.outputPath, ext);
+                
+                // Construct candidate path: {dir}/{name}_cand_{i}{ext}
+                candidateOutputPath = path.join(dir, `${name}_cand_${i}${ext}`);
+            } else {
+                // Default behavior: Save to tmpDir with structured naming
+                // Format: {tmpDir}/{rowIndex}_{stepIndex}_cand_{candidateIndex}.{ext}
+                let ext = '.txt';
+                if (config.aspectRatio) ext = '.png'; // Likely image
+                
+                const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_cand_${i}${ext}`;
+                candidateOutputPath = path.join(config.tmpDir, filename);
+            }
 
             // We use the loop index as the cacheSalt to ensure unique generations
             const salt = `${cacheSalt || ''}_cand_${i}`;
@@ -97,13 +106,17 @@ export class CandidateStrategy implements GenerationStrategy {
             }
         }
 
-        // If the winner has an output path (it was saved to tmpDir), we should copy it to the final output path
+        // If the winner has an output path, we should copy it to the final output path
         if (config.outputPath && winner.outputPath) {
             const fs = await import('fs/promises');
             try {
                 await ensureDir(config.outputPath);
-                await fs.copyFile(winner.outputPath, config.outputPath);
-                console.log(`[Row ${index}] Step ${stepIndex} Winner (Candidate ${winner.candidateIndex + 1}) copied to ${config.outputPath}`);
+                
+                // If the winner path is different from the final path (which it should be for candidates), copy it
+                if (winner.outputPath !== config.outputPath) {
+                    await fs.copyFile(winner.outputPath, config.outputPath);
+                    console.log(`[Row ${index}] Step ${stepIndex} Winner (Candidate ${winner.candidateIndex + 1}) copied to ${config.outputPath}`);
+                }
                 
                 // If commands were skipped during candidate generation, we MUST run them now on the final file
                 if (config.noCandidateCommand && config.postProcessCommand) {

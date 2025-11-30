@@ -100,8 +100,19 @@ export class StandardStrategy implements GenerationStrategy {
         // 2. Verify Command (Universal)
         if (config.verifyCommand && !skipCommands) {
             // Create temp file
-            const tempFilename = `temp_verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.${validated.extension}`;
-            const tempPath = path.join(process.cwd(), tempFilename);
+            let tempPath: string;
+            
+            if (config.outputPath) {
+                const dir = path.dirname(config.outputPath);
+                const ext = path.extname(config.outputPath);
+                const name = path.basename(config.outputPath, ext);
+                const timestamp = Date.now();
+                const random = Math.random().toString(36).substring(7);
+                tempPath = path.join(dir, `${name}_verify_${timestamp}_${random}.${validated.extension}`);
+            } else {
+                const tempFilename = `temp_verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.${validated.extension}`;
+                tempPath = path.join(process.cwd(), tempFilename);
+            }
 
             try {
                 await this.saveArtifact(validated, tempPath);
@@ -192,8 +203,18 @@ export class StandardStrategy implements GenerationStrategy {
 
                 // Save previous iteration draft
                 if (finalContent) {
-                    const draftFilename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_iter_${loop-1}.${finalContent.extension}`;
-                    const draftPath = path.join(config.tmpDir, draftFilename);
+                    let draftPath: string;
+                    if (config.outputPath) {
+                        const dir = path.dirname(config.outputPath);
+                        const ext = path.extname(config.outputPath);
+                        const name = path.basename(config.outputPath, ext);
+                        // Use the extension of the content, not necessarily the output path (e.g. if output is .md but content is image)
+                        // But usually they match. We'll use content extension to be safe.
+                        draftPath = path.join(dir, `${name}_iter_${loop-1}.${finalContent.extension}`);
+                    } else {
+                        const draftFilename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_iter_${loop-1}.${finalContent.extension}`;
+                        draftPath = path.join(config.tmpDir, draftFilename);
+                    }
                     await this.saveArtifact(finalContent, draftPath);
                 }
 
@@ -209,8 +230,16 @@ export class StandardStrategy implements GenerationStrategy {
                 console.log(`[Row ${index}] Step ${stepIndex} 📝 Critique: ${critique}`);
 
                 // Save Critique
-                const critiqueFilename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_critique_${loop-1}.md`;
-                const critiquePath = path.join(config.tmpDir, critiqueFilename);
+                let critiquePath: string;
+                if (config.outputPath) {
+                    const dir = path.dirname(config.outputPath);
+                    const ext = path.extname(config.outputPath);
+                    const name = path.basename(config.outputPath, ext);
+                    critiquePath = path.join(dir, `${name}_critique_${loop-1}.md`);
+                } else {
+                    const critiqueFilename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_critique_${loop-1}.md`;
+                    critiquePath = path.join(config.tmpDir, critiqueFilename);
+                }
                 await ArtifactSaver.save(critique, critiquePath);
 
                 // Append to history
@@ -266,7 +295,15 @@ export class StandardStrategy implements GenerationStrategy {
 
             if (!filePathForCommand) {
                 isTemp = true;
-                filePathForCommand = path.join(process.cwd(), `temp_post_${index}_${stepIndex}.${finalContent.extension}`);
+                // If we have an output path configured but not used here (e.g. override was null), try to use it for temp naming
+                if (config.outputPath) {
+                    const dir = path.dirname(config.outputPath);
+                    const ext = path.extname(config.outputPath);
+                    const name = path.basename(config.outputPath, ext);
+                    filePathForCommand = path.join(dir, `${name}_temp_post.${finalContent.extension}`);
+                } else {
+                    filePathForCommand = path.join(process.cwd(), `temp_post_${index}_${stepIndex}.${finalContent.extension}`);
+                }
                 await this.saveArtifact(finalContent, filePathForCommand);
             }
 
