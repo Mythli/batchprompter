@@ -15,10 +15,8 @@ export class ImageSearchTool {
     ) {}
 
     private async normalizeImage(url: string): Promise<string> {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Failed to fetch image: ${url}`);
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        // Use the cached download from ImageSearch
+        const buffer = await this.aiImageSearch.getImageSearch().download(url);
 
         const processedBuffer = await sharp(buffer)
             .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
@@ -98,7 +96,10 @@ export class ImageSearchTool {
             try {
                 const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_found_${i}.jpg`;
                 const savePath = path.join(config.tmpDir, filename);
-                await ArtifactSaver.save(img.imageUrl, savePath);
+                
+                // Use cached download to save to disk
+                const buffer = await this.aiImageSearch.getImageSearch().download(img.imageUrl);
+                await ArtifactSaver.save(buffer, savePath);
             } catch (e) {
                 // Ignore save errors for debug files
             }
@@ -166,7 +167,11 @@ export class ImageSearchTool {
                     image_url: { url: img.imageUrl }
                 });
                 // Try to save original URL content
-                try { await ArtifactSaver.save(img.imageUrl, savePath); savedPaths.push(savePath); } catch(e2) {}
+                try { 
+                    const buffer = await this.aiImageSearch.getImageSearch().download(img.imageUrl);
+                    await ArtifactSaver.save(buffer, savePath); 
+                    savedPaths.push(savePath); 
+                } catch(e2) {}
             }
         }
 

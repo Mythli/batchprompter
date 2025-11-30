@@ -86,7 +86,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     let aiImageSearch: AiImageSearch | undefined;
     
     if (config.SERPER_API_KEY) {
-        imageSearch = new ImageSearch(config.SERPER_API_KEY);
+        // Pass cache to ImageSearch
+        imageSearch = new ImageSearch(config.SERPER_API_KEY, cache);
         aiImageSearch = new AiImageSearch(imageSearch, llm);
     }
 

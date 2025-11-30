@@ -41,7 +41,8 @@ export class AiImageSearch {
             const startNum = (i * this.imagesPerSprite) + 1;
             const urls = chunk.map(img => img.imageUrl);
             try {
-                const result = await SpriteGenerator.generate(urls, startNum);
+                // Pass this.imageSearch to use cached downloads
+                const result = await SpriteGenerator.generate(urls, startNum, this.imageSearch);
                 return { ...result, startNum, chunk, success: true };
             } catch (e) {
                 console.warn(`[AiImageSearch] Failed to generate sprite for chunk ${i}:`, e);
@@ -142,5 +143,10 @@ export class AiImageSearch {
 
         // 2. Select
         return this.selectFromPool(images, searchQuery, selectionPrompt, maxSelected);
+    }
+    
+    // Expose the underlying ImageSearch for direct access if needed
+    getImageSearch(): ImageSearch {
+        return this.imageSearch;
     }
 }

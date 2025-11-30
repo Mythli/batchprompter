@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { ImageSearch } from './ImageSearch.js';
 
 export interface SpriteItem {
     buffer: Buffer;
@@ -16,21 +17,24 @@ export class SpriteGenerator {
      * 
      * @param imageUrls List of image URLs to process
      * @param startNumber The starting number for the overlay labels (default 1)
+     * @param imageSearch The ImageSearch instance to use for downloading (with caching)
      */
-    static async generate(imageUrls: string[], startNumber: number = 1): Promise<{ spriteBuffer: Buffer; validIndices: number[] }> {
-        // 1. Download and validate images
+    static async generate(
+        imageUrls: string[], 
+        startNumber: number = 1,
+        imageSearch: ImageSearch
+    ): Promise<{ spriteBuffer: Buffer; validIndices: number[] }> {
+        // 1. Download and validate images using ImageSearch
         const downloadPromises = imageUrls.map(async (url, index) => {
             try {
-                const response = await fetch(url);
-                if (!response.ok) return null;
-                const arrayBuffer = await response.arrayBuffer();
-                const buffer = Buffer.from(arrayBuffer);
+                const buffer = await imageSearch.download(url);
                 
                 // Verify it's a valid image by attempting to get metadata
                 await sharp(buffer).metadata();
                 
                 return { buffer, originalIndex: index };
             } catch (e) {
+                // console.warn(`Failed to download/validate image ${url}:`, e);
                 return null;
             }
         });
