@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Cache } from 'cache-manager';
 import crypto from 'crypto';
+import sharp from 'sharp';
 
 // Zod Schemas
 const ImageSchema = z.object({
@@ -139,6 +140,14 @@ export class ImageSearch {
         
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
+
+        // Validate image integrity with Sharp
+        try {
+            await sharp(buffer).metadata();
+        } catch (e) {
+            console.warn(`[ImageSearch] Rejected URL ${url} - Invalid image data:`, e);
+            throw new Error(`Invalid image data downloaded from ${url}`);
+        }
 
         if (this.cache) {
             try {
