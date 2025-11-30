@@ -29,7 +29,6 @@ const generateCmd = program.command('generate')
     .option('--candidates <number>', 'Number of candidates to generate per step', '1')
     .option('--judge-model <model>', 'Model to use for judging candidates')
     .option('--judge-prompt <text>', 'Custom prompt for the judge')
-    .option('--candidate-output <template>', 'Template path for candidate files (e.g. "debug/{{id}}_c{{candidate_index}}.png")')
     .option('--skip-candidate-command', 'Do not run verify/post-process commands on candidates, only on the winner')
     .option('--feedback-loops <number>', 'Number of feedback iterations per candidate', '0')
     .option('--feedback-prompt <text>', 'Prompt for the feedback model')
@@ -54,7 +53,6 @@ for (let i = 1; i <= 10; i++) {
     generateCmd.option(`--candidates-${i} <number>`, `Number of candidates for step ${i}`);
     generateCmd.option(`--judge-model-${i} <model>`, `Judge model for step ${i}`);
     generateCmd.option(`--judge-prompt-${i} <text>`, `Judge prompt for step ${i}`);
-    generateCmd.option(`--candidate-output-${i} <template>`, `Candidate output template for step ${i}`);
     generateCmd.option(`--skip-candidate-command-${i}`, `Disable candidate commands for step ${i}`);
     generateCmd.option(`--feedback-loops-${i} <number>`, `Feedback loops for step ${i}`);
     generateCmd.option(`--feedback-prompt-${i} <text>`, `Feedback prompt for step ${i}`);
@@ -83,7 +81,6 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         const cand = options[`candidates${i}`];
         const jModel = options[`judgeModel${i}`];
         const jPrompt = options[`judgePrompt${i}`];
-        const candOut = options[`candidateOutput${i}`];
         const skipCandCmd = options[`skipCandidateCommand${i}`];
         const fbLoops = options[`feedbackLoops${i}`];
         const fbPrompt = options[`feedbackPrompt${i}`];
@@ -95,7 +92,7 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         const isl = options[`imageSearchLimit${i}`];
         const iss = options[`imageSearchSelect${i}`];
 
-        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || candOut || skipCandCmd !== undefined || fbLoops || fbPrompt || fbModel || isq || isp || isel || isl || iss) {
+        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || skipCandCmd !== undefined || fbLoops || fbPrompt || fbModel || isq || isp || isel || isl || iss) {
             stepOverrides[i] = {};
             if (sys) stepOverrides[i].system = sys;
             if (schema) stepOverrides[i].schema = schema;
@@ -107,7 +104,6 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
             if (cand) stepOverrides[i].candidates = parseInt(cand, 10);
             if (jModel) stepOverrides[i].judgeModel = jModel;
             if (jPrompt) stepOverrides[i].judgePrompt = jPrompt;
-            if (candOut) stepOverrides[i].candidateOutputTemplate = candOut;
             if (skipCandCmd !== undefined) stepOverrides[i].noCandidateCommand = skipCandCmd;
             if (fbLoops) stepOverrides[i].feedbackLoops = parseInt(fbLoops, 10);
             if (fbPrompt) stepOverrides[i].feedbackPrompt = fbPrompt;
@@ -173,7 +169,6 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         candidates: options.candidates ? parseInt(options.candidates, 10) : undefined,
         judgeModel: options.judgeModel,
         judgePrompt: options.judgePrompt,
-        candidateOutputTemplate: options.candidateOutput,
         noCandidateCommand: options.skipCandidateCommand,
         feedbackLoops: options.feedbackLoops ? parseInt(options.feedbackLoops, 10) : undefined,
         feedbackPrompt: options.feedbackPrompt,

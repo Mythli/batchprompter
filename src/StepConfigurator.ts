@@ -17,7 +17,6 @@ export interface ResolvedStepConfig {
     candidates: number;
     judgeModel: string | undefined;
     judgePromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
-    candidateOutputTemplate: string | undefined;
     noCandidateCommand: boolean;
     feedbackLoops: number;
     feedbackPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
@@ -114,8 +113,7 @@ export class StepConfigurator {
             });
         }
         
-        // 8. Candidate Output & Command Control
-        const currentCandidateOutputTemplate = stepOverride?.candidateOutputTemplate || options.candidateOutputTemplate;
+        // 8. Command Control
         // Boolean flags: check step override first, then global. If undefined, default to false.
         const currentNoCandidateCommand = stepOverride?.noCandidateCommand ?? options.noCandidateCommand ?? false;
 
@@ -196,7 +194,6 @@ export class StepConfigurator {
             candidates: currentCandidates,
             judgeModel: currentJudgeModel,
             judgePromptParts: currentJudgePromptParts,
-            candidateOutputTemplate: currentCandidateOutputTemplate,
             noCandidateCommand: currentNoCandidateCommand,
             feedbackLoops: currentFeedbackLoops,
             feedbackPrompt: currentFeedbackPrompt,

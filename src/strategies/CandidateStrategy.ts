@@ -35,45 +35,17 @@ export class CandidateStrategy implements GenerationStrategy {
         const promises: Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }>[] = [];
 
         for (let i = 0; i < candidateCount; i++) {
-            // Determine a unique output path for this candidate
+            // Determine a unique output path for this candidate in the tmpDir
             let candidateOutputPath: string | null = null;
 
-            if (config.candidateOutputTemplate) {
-                // Use the custom template if provided
-                const delegate = Handlebars.compile(config.candidateOutputTemplate, { noEscape: true });
-                const sanitizedRow: Record<string, string> = {};
-                for (const [key, val] of Object.entries(row)) {
-                    const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                    const sanitized = aggressiveSanitize(stringVal);
-                    sanitizedRow[key] = sanitized;
-                }
-                // Add candidate index to the context
-                sanitizedRow['candidate_index'] = (i + 1).toString();
-                candidateOutputPath = delegate(sanitizedRow);
-
-            } else {
-                // Default behavior: Save to tmpDir with structured naming
-                // Format: {tmpDir}/{rowIndex}_{stepIndex}_cand_{candidateIndex}.{ext}
-                // We don't know the extension yet, but StandardStrategy will handle it if we pass a path without extension?
-                // No, StandardStrategy expects a full path usually.
-                // However, StandardStrategy determines extension from content.
-                // If we pass a path, it saves to it.
-                // Let's assume a default extension based on config or just use a placeholder that StandardStrategy might respect?
-                // Actually, StandardStrategy.saveArtifact uses the path provided.
-                // If we don't provide an extension, it saves without one.
-                // But we can guess based on config.aspectRatio (image) vs others.
-                
-                let ext = '.txt';
-                if (config.aspectRatio) ext = '.png'; // Likely image
-                // If we can't guess, we might need StandardStrategy to return the extension or handle the path generation.
-                // But StandardStrategy takes outputPath as input.
-                
-                // Let's use a generic name and let the user rename it later if needed, or rely on the fact that
-                // StandardStrategy saves it.
-                
-                const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_cand_${i}${ext}`;
-                candidateOutputPath = path.join(config.tmpDir, filename);
-            }
+            // Default behavior: Save to tmpDir with structured naming
+            // Format: {tmpDir}/{rowIndex}_{stepIndex}_cand_{candidateIndex}.{ext}
+            
+            let ext = '.txt';
+            if (config.aspectRatio) ext = '.png'; // Likely image
+            
+            const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_cand_${i}${ext}`;
+            candidateOutputPath = path.join(config.tmpDir, filename);
 
             // We use the loop index as the cacheSalt to ensure unique generations
             const salt = `${cacheSalt || ''}_cand_${i}`;
@@ -110,7 +82,7 @@ export class CandidateStrategy implements GenerationStrategy {
             }
         }
 
-        // If the winner has an output path (it was saved to tmpDir or custom path), we should copy it to the final output path
+        // If the winner has an output path (it was saved to tmpDir), we should copy it to the final output path
         if (config.outputPath && winner.outputPath) {
             const fs = await import('fs/promises');
             try {

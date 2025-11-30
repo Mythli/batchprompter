@@ -12,7 +12,6 @@ export interface StepConfig {
     candidates?: number;
     judgeModel?: string;
     judgePrompt?: string;
-    candidateOutputTemplate?: string;
     noCandidateCommand?: boolean;
     feedbackLoops?: number;
     feedbackPrompt?: string;
@@ -41,7 +40,6 @@ export interface ActionOptions {
     candidates?: number;
     judgeModel?: string;
     judgePrompt?: string;
-    candidateOutputTemplate?: string;
     noCandidateCommand?: boolean;
     feedbackLoops?: number;
     feedbackPrompt?: string;
