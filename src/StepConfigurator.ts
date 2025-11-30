@@ -21,6 +21,13 @@ export interface ResolvedStepConfig {
     feedbackLoops: number;
     feedbackPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
     feedbackModel: string | undefined;
+    
+    // Image Search
+    imageSearchQuery: string | null;
+    imageSearchPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
+    imageSelectPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
+    imageSearchLimit: number;
+    imageSearchSelect: number;
 }
 
 export class StepConfigurator {
@@ -33,6 +40,8 @@ export class StepConfigurator {
         renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
         loadedJudgePrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
         loadedFeedbackPrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
+        loadedImageSearchPrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
+        loadedImageSelectPrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
         validators: Record<string, any>
     ): ResolvedStepConfig {
         const stepOverride = options.stepOverrides?.[stepIndex];
@@ -133,6 +142,46 @@ export class StepConfigurator {
         
         const currentFeedbackModel = stepOverride?.feedbackModel || options.feedbackModel;
 
+        // 10. Image Search
+        const currentImageSearchQuery = stepOverride?.imageSearchQuery || options.imageSearchQuery || null;
+        let renderedImageSearchQuery: string | null = null;
+        if (currentImageSearchQuery) {
+            renderedImageSearchQuery = Handlebars.compile(currentImageSearchQuery, { noEscape: true })(row);
+        }
+
+        // Resolve Image Search Prompt
+        let rawSearchPromptParts = loadedImageSearchPrompts.steps[stepIndex];
+        if (!rawSearchPromptParts && loadedImageSearchPrompts.global) {
+            rawSearchPromptParts = loadedImageSearchPrompts.global;
+        }
+        let currentImageSearchPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
+        if (rawSearchPromptParts) {
+            currentImageSearchPrompt = rawSearchPromptParts.map(part => {
+                if (part.type === 'text') {
+                    return { type: 'text', text: Handlebars.compile(part.text, { noEscape: true })(row) };
+                }
+                return part;
+            });
+        }
+
+        // Resolve Image Select Prompt
+        let rawSelectPromptParts = loadedImageSelectPrompts.steps[stepIndex];
+        if (!rawSelectPromptParts && loadedImageSelectPrompts.global) {
+            rawSelectPromptParts = loadedImageSelectPrompts.global;
+        }
+        let currentImageSelectPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
+        if (rawSelectPromptParts) {
+            currentImageSelectPrompt = rawSelectPromptParts.map(part => {
+                if (part.type === 'text') {
+                    return { type: 'text', text: Handlebars.compile(part.text, { noEscape: true })(row) };
+                }
+                return part;
+            });
+        }
+
+        const currentImageSearchLimit = stepOverride?.imageSearchLimit ?? options.imageSearchLimit ?? 10;
+        const currentImageSearchSelect = stepOverride?.imageSearchSelect ?? options.imageSearchSelect ?? 1;
+
         return {
             outputPath: currentOutputPath,
             outputColumn: currentOutputColumn || null,
@@ -149,7 +198,13 @@ export class StepConfigurator {
             noCandidateCommand: currentNoCandidateCommand,
             feedbackLoops: currentFeedbackLoops,
             feedbackPrompt: currentFeedbackPrompt,
-            feedbackModel: currentFeedbackModel
+            feedbackModel: currentFeedbackModel,
+            
+            imageSearchQuery: renderedImageSearchQuery,
+            imageSearchPrompt: currentImageSearchPrompt,
+            imageSelectPrompt: currentImageSelectPrompt,
+            imageSearchLimit: currentImageSearchLimit,
+            imageSearchSelect: currentImageSearchSelect
         };
     }
 

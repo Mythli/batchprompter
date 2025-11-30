@@ -11,6 +11,7 @@ import { resolvePromptInput, aggressiveSanitize } from './utils/fileUtils.js';
 import { loadData } from './utils/dataLoader.js';
 import { StepConfigurator } from './StepConfigurator.js';
 import { StepExecutor } from './StepExecutor.js';
+import { AiImageSearch } from './utils/AiImageSearch.js';
 
 // Helper to render path templates
 function renderPath(pathTemplate: string, context: any): string {
@@ -20,9 +21,12 @@ function renderPath(pathTemplate: string, context: any): string {
 
 type RowHandler = (
     llm: LlmClient,
+    aiImageSearch: AiImageSearch | undefined,
     renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
     loadedJudgePrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
     loadedFeedbackPrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
+    loadedImageSearchPrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
+    loadedImageSelectPrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
     userPrompts: OpenAI.Chat.Completions.ChatCompletionContentPart[][],
     baseOutputPath: string,
     index: number,
@@ -42,7 +46,7 @@ async function processBatch(
 
     // 1. Initialize Config with Concurrency
     console.log(`Initializing with concurrency: ${concurrency}`);
-    const { llm } = await getConfig({ concurrency });
+    const { llm, aiImageSearch } = await getConfig({ concurrency });
 
     // 2. Initialize Caches and Validators
     const fileCache = new Map<string, OpenAI.Chat.Completions.ChatCompletionContentPart[]>();
@@ -131,8 +135,21 @@ async function processBatch(
                 const resolvedPath = renderPath(options.feedbackPrompt, row);
                 globalFeedbackPrompt = await getFileContent(resolvedPath);
             }
+            
+            // 5. Global Image Search Prompts
+            let globalImageSearchPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null = null;
+            if (options.imageSearchPrompt) {
+                const resolvedPath = renderPath(options.imageSearchPrompt, row);
+                globalImageSearchPrompt = await getFileContent(resolvedPath);
+            }
+            
+            let globalImageSelectPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null = null;
+            if (options.imageSelectPrompt) {
+                const resolvedPath = renderPath(options.imageSelectPrompt, row);
+                globalImageSelectPrompt = await getFileContent(resolvedPath);
+            }
 
-            // 5. Prepare Row-Specific Options and Validators
+            // 6. Prepare Row-Specific Options and Validators
             const rowValidators: Record<string, any> = {};
             const rowOptions: ActionOptions = { 
                 ...options, 
@@ -152,6 +169,8 @@ async function processBatch(
             const stepSystemPrompts: Record<number, string> = {};
             const stepJudgePrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
             const stepFeedbackPrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
+            const stepImageSearchPrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
+            const stepImageSelectPrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
             
             if (options.stepOverrides) {
                 for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
@@ -176,6 +195,18 @@ async function processBatch(
                     if (config.feedbackPrompt) {
                         const resolvedPath = renderPath(config.feedbackPrompt, row);
                         stepFeedbackPrompts[step] = await getFileContent(resolvedPath);
+                    }
+                    
+                    // Step Image Search Prompt
+                    if (config.imageSearchPrompt) {
+                        const resolvedPath = renderPath(config.imageSearchPrompt, row);
+                        stepImageSearchPrompts[step] = await getFileContent(resolvedPath);
+                    }
+                    
+                    // Step Image Select Prompt
+                    if (config.imageSelectPrompt) {
+                        const resolvedPath = renderPath(config.imageSelectPrompt, row);
+                        stepImageSelectPrompts[step] = await getFileContent(resolvedPath);
                     }
 
                     // Step Schema
@@ -207,6 +238,16 @@ async function processBatch(
                 global: globalFeedbackPrompt,
                 steps: stepFeedbackPrompts
             };
+            
+            const loadedImageSearchPrompts = {
+                global: globalImageSearchPrompt,
+                steps: stepImageSearchPrompts
+            };
+            
+            const loadedImageSelectPrompts = {
+                global: globalImageSelectPrompt,
+                steps: stepImageSelectPrompts
+            };
 
             // Fallback for User Prompts if none provided
             if (userPrompts.length === 0) {
@@ -227,7 +268,21 @@ async function processBatch(
 
             console.log(`[Row ${index}] Processing...`);
 
-            await handler(llm, renderedSystemPrompts, loadedJudgePrompts, loadedFeedbackPrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
+            await handler(
+                llm, 
+                aiImageSearch,
+                renderedSystemPrompts, 
+                loadedJudgePrompts, 
+                loadedFeedbackPrompts, 
+                loadedImageSearchPrompts,
+                loadedImageSelectPrompts,
+                userPrompts, 
+                baseOutputPath, 
+                index, 
+                rowOptions, 
+                rowValidators, 
+                row
+            );
 
         } catch (err) {
             console.error(`[Row ${index}] Error:`, err);
@@ -267,10 +322,24 @@ async function processBatch(
     console.log(`Updated data saved to ${outputDataPath}`);
 }
 
-const handleUnifiedGeneration: RowHandler = async (llm, renderedSystemPrompts, loadedJudgePrompts, loadedFeedbackPrompts, userPrompts, baseOutputPath, index, options, validators, row) => {
+const handleUnifiedGeneration: RowHandler = async (
+    llm, 
+    aiImageSearch,
+    renderedSystemPrompts, 
+    loadedJudgePrompts, 
+    loadedFeedbackPrompts, 
+    loadedImageSearchPrompts,
+    loadedImageSelectPrompts,
+    userPrompts, 
+    baseOutputPath, 
+    index, 
+    options, 
+    validators, 
+    row
+) => {
     // History of conversation (User + Assistant only)
     const persistentHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-    const executor = new StepExecutor(llm, options.model);
+    const executor = new StepExecutor(llm, options.model, aiImageSearch);
 
     for (let i = 0; i < userPrompts.length; i++) {
         const stepIndex = i + 1;
@@ -285,6 +354,8 @@ const handleUnifiedGeneration: RowHandler = async (llm, renderedSystemPrompts, l
             renderedSystemPrompts, 
             loadedJudgePrompts,
             loadedFeedbackPrompts,
+            loadedImageSearchPrompts,
+            loadedImageSelectPrompts,
             validators
         );
 

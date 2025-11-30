@@ -17,6 +17,13 @@ export interface StepConfig {
     feedbackLoops?: number;
     feedbackPrompt?: string;
     feedbackModel?: string;
+    
+    // Image Search Specific
+    imageSearchQuery?: string;
+    imageSearchPrompt?: string; // Prompt to generate queries
+    imageSelectPrompt?: string; // Prompt to select images (Optional)
+    imageSearchLimit?: number; // Images per query
+    imageSearchSelect?: number; // Max images to select/return
 }
 
 export interface ActionOptions {
@@ -38,5 +45,13 @@ export interface ActionOptions {
     feedbackLoops?: number;
     feedbackPrompt?: string;
     feedbackModel?: string;
+    
+    // Image Search Global Defaults
+    imageSearchQuery?: string;
+    imageSearchPrompt?: string;
+    imageSelectPrompt?: string;
+    imageSearchLimit?: number;
+    imageSearchSelect?: number;
+
     stepOverrides?: Record<number, StepConfig>;
 }

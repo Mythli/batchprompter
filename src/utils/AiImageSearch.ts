@@ -11,29 +11,24 @@ export class AiImageSearch {
     ) {}
 
     /**
-     * Searches for images, creates one or more sprites, and asks the AI to select the best one(s).
-     *
-     * @param searchQuery The query to send to the search engine (e.g. "sailing boat")
-     * @param selectionPrompt The criteria for the AI (e.g. "Select the image that looks most heroic")
-     * @param count Total number of images to fetch from search (default 9)
-     * @param maxSelected Maximum number of images to select (default 1)
-     * @returns The selected SerperImage object(s)
+     * Public wrapper to perform a raw search.
      */
-    async searchAndSelect(
-        searchQuery: string,
+    async search(query: string, count: number): Promise<SerperImage[]> {
+        return this.imageSearch.search(query, count);
+    }
+
+    /**
+     * Selects images from a pre-existing pool using the AI.
+     */
+    async selectFromPool(
+        images: SerperImage[],
+        searchContext: string,
         selectionPrompt: string,
-        count: number = 20,
         maxSelected: number = 1
     ): Promise<SerperImage[]> {
-        // 1. Search
-        console.log(`[AiImageSearch] Searching for: "${searchQuery}" (Limit: ${count})`);
-        const images = await this.imageSearch.search(searchQuery, count);
+        if (images.length === 0) return [];
 
-        if (images.length === 0) {
-            throw new Error("No images found for query.");
-        }
-
-        // 2. Chunk images and Generate Sprites
+        // Chunk images and Generate Sprites
         const chunks: SerperImage[][] = [];
         for (let i = 0; i < images.length; i += this.imagesPerSprite) {
             chunks.push(images.slice(i, i + this.imagesPerSprite));
@@ -59,9 +54,9 @@ export class AiImageSearch {
             throw new Error("Failed to generate any valid sprites from search results.");
         }
 
-        // 3. Prepare LLM Request
+        // Prepare LLM Request
         const contentParts: any[] = [
-            { type: 'text', text: `Search Query used: "${searchQuery}"\n\nSelection Criteria: ${selectionPrompt}\n\nReturn the index numbers (displayed in the top-left of the images) of the best matches. Select at most ${maxSelected} image(s).` }
+            { type: 'text', text: `Search Context: "${searchContext}"\n\nSelection Criteria: ${selectionPrompt}\n\nReturn the index numbers (displayed in the top-left of the images) of the best matches. Select at most ${maxSelected} image(s).` }
         ];
 
         // Map visual index -> SerperImage
@@ -96,16 +91,16 @@ export class AiImageSearch {
             }
         ];
 
-        // 4. Call LLM
+        // Call LLM
         console.log(`[AiImageSearch] Asking AI to select up to ${maxSelected} images...`);
         const response = await this.llm.promptZod(messages, SelectionSchema);
 
         console.log(`[AiImageSearch] AI Selected: ${response.selected_indices.join(', ')}. Reason: ${response.reasoning}`);
 
-        // 5. Map back to original images
+        // Map back to original images
         const selectedImages: SerperImage[] = [];
 
-        // Take only up to maxSelected, just in case LLM returns more
+        // Take only up to maxSelected
         const indicesToProcess = response.selected_indices.slice(0, maxSelected);
 
         for (const visualIndex of indicesToProcess) {
@@ -118,5 +113,26 @@ export class AiImageSearch {
         }
 
         return selectedImages;
+    }
+
+    /**
+     * Searches for images, creates one or more sprites, and asks the AI to select the best one(s).
+     */
+    async searchAndSelect(
+        searchQuery: string,
+        selectionPrompt: string,
+        count: number = 20,
+        maxSelected: number = 1
+    ): Promise<SerperImage[]> {
+        // 1. Search
+        console.log(`[AiImageSearch] Searching for: "${searchQuery}" (Limit: ${count})`);
+        const images = await this.search(searchQuery, count);
+
+        if (images.length === 0) {
+            throw new Error("No images found for query.");
+        }
+
+        // 2. Select
+        return this.selectFromPool(images, searchQuery, selectionPrompt, maxSelected);
     }
 }

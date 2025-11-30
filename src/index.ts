@@ -30,7 +30,14 @@ const generateCmd = program.command('generate')
     .option('--skip-candidate-command', 'Do not run verify/post-process commands on candidates, only on the winner')
     .option('--feedback-loops <number>', 'Number of feedback iterations per candidate', '0')
     .option('--feedback-prompt <text>', 'Prompt for the feedback model')
-    .option('--feedback-model <model>', 'Model to use for feedback');
+    .option('--feedback-model <model>', 'Model to use for feedback')
+    
+    // Image Search Flags
+    .option('--image-search-query <text>', 'Raw search query for image search')
+    .option('--image-search-prompt <text>', 'Prompt to generate search queries')
+    .option('--image-select-prompt <text>', 'Prompt to select the best images')
+    .option('--image-search-limit <number>', 'Number of images to fetch per query', '10')
+    .option('--image-search-select <number>', 'Number of images to select', '1');
 
 // Add explicit options for steps 1-10
 for (let i = 1; i <= 10; i++) {
@@ -49,6 +56,13 @@ for (let i = 1; i <= 10; i++) {
     generateCmd.option(`--feedback-loops-${i} <number>`, `Feedback loops for step ${i}`);
     generateCmd.option(`--feedback-prompt-${i} <text>`, `Feedback prompt for step ${i}`);
     generateCmd.option(`--feedback-model-${i} <model>`, `Feedback model for step ${i}`);
+    
+    // Image Search Step Options
+    generateCmd.option(`--image-search-query-${i} <text>`, `Search query for step ${i}`);
+    generateCmd.option(`--image-search-prompt-${i} <text>`, `Search generation prompt for step ${i}`);
+    generateCmd.option(`--image-select-prompt-${i} <text>`, `Selection prompt for step ${i}`);
+    generateCmd.option(`--image-search-limit-${i} <number>`, `Search limit for step ${i}`);
+    generateCmd.option(`--image-search-select-${i} <number>`, `Selection count for step ${i}`);
 }
 
 generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
@@ -71,8 +85,14 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         const fbLoops = options[`feedbackLoops${i}`];
         const fbPrompt = options[`feedbackPrompt${i}`];
         const fbModel = options[`feedbackModel${i}`];
+        
+        const isq = options[`imageSearchQuery${i}`];
+        const isp = options[`imageSearchPrompt${i}`];
+        const isel = options[`imageSelectPrompt${i}`];
+        const isl = options[`imageSearchLimit${i}`];
+        const iss = options[`imageSearchSelect${i}`];
 
-        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || candOut || skipCandCmd !== undefined || fbLoops || fbPrompt || fbModel) {
+        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || candOut || skipCandCmd !== undefined || fbLoops || fbPrompt || fbModel || isq || isp || isel || isl || iss) {
             stepOverrides[i] = {};
             if (sys) stepOverrides[i].system = sys;
             if (schema) stepOverrides[i].schema = schema;
@@ -89,13 +109,21 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
             if (fbLoops) stepOverrides[i].feedbackLoops = parseInt(fbLoops, 10);
             if (fbPrompt) stepOverrides[i].feedbackPrompt = fbPrompt;
             if (fbModel) stepOverrides[i].feedbackModel = fbModel;
+            
+            if (isq) stepOverrides[i].imageSearchQuery = isq;
+            if (isp) stepOverrides[i].imageSearchPrompt = isp;
+            if (isel) stepOverrides[i].imageSelectPrompt = isel;
+            if (isl) stepOverrides[i].imageSearchLimit = parseInt(isl, 10);
+            if (iss) stepOverrides[i].imageSearchSelect = parseInt(iss, 10);
         }
     }
 
     // Validation
     const hasOverrides = Object.keys(stepOverrides).length > 0;
-    if ((!templateFilePaths || templateFilePaths.length === 0) && !options.system && !hasOverrides) {
-        console.error('Error: You must provide either template files or a system prompt.');
+    const hasImageSearch = options.imageSearchQuery || options.imageSearchPrompt || Object.values(stepOverrides).some((o: any) => o.imageSearchQuery || o.imageSearchPrompt);
+    
+    if ((!templateFilePaths || templateFilePaths.length === 0) && !options.system && !hasOverrides && !hasImageSearch) {
+        console.error('Error: You must provide either template files, a system prompt, or an image search configuration.');
         process.exit(1);
     }
 
@@ -129,6 +157,13 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         feedbackLoops: options.feedbackLoops ? parseInt(options.feedbackLoops, 10) : undefined,
         feedbackPrompt: options.feedbackPrompt,
         feedbackModel: options.feedbackModel,
+        
+        imageSearchQuery: options.imageSearchQuery,
+        imageSearchPrompt: options.imageSearchPrompt,
+        imageSelectPrompt: options.imageSelectPrompt,
+        imageSearchLimit: options.imageSearchLimit ? parseInt(options.imageSearchLimit, 10) : undefined,
+        imageSearchSelect: options.imageSearchSelect ? parseInt(options.imageSearchSelect, 10) : undefined,
+        
         stepOverrides
     };
 
