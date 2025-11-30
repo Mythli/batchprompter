@@ -2,6 +2,7 @@ import * as dotenv from 'dotenv';
 import { z } from 'zod';
 import { createCache } from 'cache-manager';
 import KeyvSqlite from '@keyv/sqlite';
+import Keyv from 'keyv';
 import OpenAI from "openai";
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
@@ -48,8 +49,20 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Setup Cache
     let cache;
     if (config.CACHE_ENABLED) {
-        const sqliteStore = new KeyvSqlite(`sqlite://${config.SQLITE_PATH}`);
-        cache = createCache({ stores: [sqliteStore as any] });
+        const keyv = new Keyv({
+            store: new KeyvSqlite(`sqlite://${config.SQLITE_PATH}`),
+            serialize: JSON.stringify,
+            deserialize: JSON.parse
+        });
+
+        const storeAdapter = {
+            get: (key: string) => keyv.get(key),
+            set: (key: string, value: any, ttl?: number) => keyv.set(key, value, ttl),
+            del: (key: string) => keyv.delete(key),
+            reset: () => keyv.clear(),
+        };
+
+        cache = createCache({ stores: [storeAdapter as any] });
     }
 
     const openAi = new OpenAI({
