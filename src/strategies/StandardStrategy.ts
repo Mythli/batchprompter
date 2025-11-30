@@ -176,15 +176,28 @@ export class StandardStrategy implements GenerationStrategy {
                 console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${loop}/${config.feedbackLoops}`);
                 
                 // Generate Critique
-                const critique = await this.generateCritique(finalContent!, config, userPromptParts, `${cacheSalt}_critique_${loop-1}`);
+                // Pass currentHistory to allow the critic to see the conversation context
+                const critique = await this.generateCritique(
+                    finalContent!, 
+                    config, 
+                    userPromptParts, 
+                    currentHistory, 
+                    `${cacheSalt}_critique_${loop-1}`
+                );
                 console.log(`[Row ${index}] Step ${stepIndex} 📝 Critique: ${critique.substring(0, 100)}...`);
                 
                 // Append to history
                 // 1. Assistant's previous attempt
                 if (finalContent!.type === 'text') {
                     currentHistory.push({ role: 'assistant', content: finalContent!.data });
+                } else if (finalContent!.type === 'image') {
+                    // Store actual image in history so both Generator and Critic can see it in future turns
+                    currentHistory.push({ 
+                        role: 'assistant', 
+                        content: [ { type: 'image_url', image_url: { url: finalContent!.data } } ] 
+                    });
                 } else {
-                    // For Image/Audio, we represent it abstractly in history if we can't feed it back directly
+                    // For Audio, we represent it abstractly in history if we can't feed it back directly
                     currentHistory.push({ role: 'assistant', content: `[Generated ${finalContent!.type}]` });
                 }
 
@@ -311,31 +324,41 @@ export class StandardStrategy implements GenerationStrategy {
         content: ExtractedContent,
         config: ResolvedStepConfig,
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         salt: string
     ): Promise<string> {
-        const critiqueContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-            { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCritique Criteria:` },
+        // 1. Construct the Critique Request (The "User" message for the Critic)
+        const critiqueRequestContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+            { type: 'text', text: `Critique Criteria:` },
             ...(config.feedbackPrompt || [])
         ];
 
         // Attach content to critique prompt
         if (content.type === 'image') {
-            critiqueContent.push({ type: 'text', text: "\nAnalyze the image below:" });
-            critiqueContent.push({ type: 'image_url', image_url: { url: content.data } });
+            critiqueRequestContent.push({ type: 'text', text: "\nAnalyze the image below:" });
+            critiqueRequestContent.push({ type: 'image_url', image_url: { url: content.data } });
         } else if (content.type === 'text') {
-            critiqueContent.push({ type: 'text', text: `\nCurrent Draft:\n${content.data}` });
+            critiqueRequestContent.push({ type: 'text', text: `\nCurrent Draft:\n${content.data}` });
         } else if (content.type === 'audio') {
-             critiqueContent.push({ type: 'text', text: "\nAnalyze the audio below:" });
+             critiqueRequestContent.push({ type: 'text', text: "\nAnalyze the audio below:" });
              // @ts-ignore - input_audio might not be in all type definitions yet
-             critiqueContent.push({ 
+             critiqueRequestContent.push({ 
                  type: 'input_audio', 
                  input_audio: { data: content.data, format: 'wav' } 
              });
         }
 
+        // 2. Construct the Full History for the Critic
+        // We filter out 'system' messages from the generator's history to avoid confusing the Critic with the Generator's instructions.
+        const conversationContext = history.filter(m => m.role !== 'system');
+
         const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-            { role: 'system', content: 'You are an expert critic. Analyze the provided content against the criteria and provide specific, actionable improvements.' },
-            { role: 'user', content: critiqueContent }
+            { 
+                role: 'system', 
+                content: 'You are an expert critic. Review the conversation history to understand the context and previous feedback. Analyze the provided content against the criteria and provide specific, actionable improvements.' 
+            },
+            ...conversationContext,
+            { role: 'user', content: critiqueRequestContent }
         ];
 
         const response = await this.llm.prompt({
