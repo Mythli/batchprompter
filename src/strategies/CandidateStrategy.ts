@@ -39,13 +39,14 @@ export class CandidateStrategy implements GenerationStrategy {
             let candidateOutputPath: string | null = null;
 
             if (config.outputPath) {
-                // Use the configured output path as a base
+                // Mirror the output structure inside tmpDir
+                // e.g. outputPath: "out/folder/img.png" -> tmpDir: ".tmp/out/folder/img_cand_0.png"
                 const dir = path.dirname(config.outputPath);
                 const ext = path.extname(config.outputPath);
                 const name = path.basename(config.outputPath, ext);
                 
-                // Construct candidate path: {dir}/{name}_cand_{i}{ext}
-                candidateOutputPath = path.join(dir, `${name}_cand_${i}${ext}`);
+                // Join tmpDir with the directory structure of the output path
+                candidateOutputPath = path.join(config.tmpDir, dir, `${name}_cand_${i}${ext}`);
             } else {
                 // Default behavior: Save to tmpDir with structured naming
                 // Format: {tmpDir}/{rowIndex}_{stepIndex}_cand_{candidateIndex}.{ext}

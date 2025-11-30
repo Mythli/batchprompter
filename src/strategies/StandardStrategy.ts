@@ -108,10 +108,12 @@ export class StandardStrategy implements GenerationStrategy {
                 const name = path.basename(config.outputPath, ext);
                 const timestamp = Date.now();
                 const random = Math.random().toString(36).substring(7);
-                tempPath = path.join(dir, `${name}_verify_${timestamp}_${random}.${validated.extension}`);
+                
+                // Use tmpDir mirroring structure
+                tempPath = path.join(config.tmpDir, dir, `${name}_verify_${timestamp}_${random}.${validated.extension}`);
             } else {
                 const tempFilename = `temp_verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.${validated.extension}`;
-                tempPath = path.join(process.cwd(), tempFilename);
+                tempPath = path.join(config.tmpDir, tempFilename);
             }
 
             try {
@@ -208,9 +210,8 @@ export class StandardStrategy implements GenerationStrategy {
                         const dir = path.dirname(config.outputPath);
                         const ext = path.extname(config.outputPath);
                         const name = path.basename(config.outputPath, ext);
-                        // Use the extension of the content, not necessarily the output path (e.g. if output is .md but content is image)
-                        // But usually they match. We'll use content extension to be safe.
-                        draftPath = path.join(dir, `${name}_iter_${loop-1}.${finalContent.extension}`);
+                        // Use tmpDir mirroring structure
+                        draftPath = path.join(config.tmpDir, dir, `${name}_iter_${loop-1}.${finalContent.extension}`);
                     } else {
                         const draftFilename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_iter_${loop-1}.${finalContent.extension}`;
                         draftPath = path.join(config.tmpDir, draftFilename);
@@ -235,7 +236,8 @@ export class StandardStrategy implements GenerationStrategy {
                     const dir = path.dirname(config.outputPath);
                     const ext = path.extname(config.outputPath);
                     const name = path.basename(config.outputPath, ext);
-                    critiquePath = path.join(dir, `${name}_critique_${loop-1}.md`);
+                    // Use tmpDir mirroring structure
+                    critiquePath = path.join(config.tmpDir, dir, `${name}_critique_${loop-1}.md`);
                 } else {
                     const critiqueFilename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_critique_${loop-1}.md`;
                     critiquePath = path.join(config.tmpDir, critiqueFilename);
@@ -300,9 +302,10 @@ export class StandardStrategy implements GenerationStrategy {
                     const dir = path.dirname(config.outputPath);
                     const ext = path.extname(config.outputPath);
                     const name = path.basename(config.outputPath, ext);
-                    filePathForCommand = path.join(dir, `${name}_temp_post.${finalContent.extension}`);
+                    // Use tmpDir mirroring structure
+                    filePathForCommand = path.join(config.tmpDir, dir, `${name}_temp_post.${finalContent.extension}`);
                 } else {
-                    filePathForCommand = path.join(process.cwd(), `temp_post_${index}_${stepIndex}.${finalContent.extension}`);
+                    filePathForCommand = path.join(config.tmpDir, `temp_post_${index}_${stepIndex}.${finalContent.extension}`);
                 }
                 await this.saveArtifact(finalContent, filePathForCommand);
             }

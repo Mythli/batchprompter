@@ -36,9 +36,12 @@ export class ImageSearchTool {
         let filePrefix = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}`;
 
         if (config.outputPath) {
-            outputDir = path.dirname(config.outputPath);
+            // Mirror the output structure inside tmpDir
+            const dir = path.dirname(config.outputPath);
             const ext = path.extname(config.outputPath);
             const name = path.basename(config.outputPath, ext);
+            
+            outputDir = path.join(config.tmpDir, dir);
             filePrefix = name;
         }
 
