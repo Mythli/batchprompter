@@ -4,7 +4,7 @@ import path from 'path';
 import sharp from 'sharp';
 import { LlmClient } from 'llm-fns';
 import { AiImageSearch } from './AiImageSearch.js';
-import { SerperImage } from './ImageSearch.js';
+import { SerperImage, ImageSearchResult } from './ImageSearch.js';
 import { ResolvedStepConfig } from '../StepConfigurator.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
 
@@ -14,10 +14,7 @@ export class ImageSearchTool {
         private llm: LlmClient
     ) {}
 
-    private async normalizeImage(url: string): Promise<string> {
-        // Use the cached download from ImageSearch
-        const buffer = await this.aiImageSearch.getImageSearch().download(url);
-
+    private async normalizeImage(buffer: Buffer): Promise<string> {
         const processedBuffer = await sharp(buffer)
             .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
             .jpeg({ quality: 80 })
@@ -72,13 +69,13 @@ export class ImageSearchTool {
         const results = await Promise.all(searchPromises);
         
         // Pool and Deduplicate
-        const pooledImages: SerperImage[] = [];
+        const pooledImages: ImageSearchResult[] = [];
         const seenUrls = new Set<string>();
 
         for (const group of results) {
             for (const img of group) {
-                if (!seenUrls.has(img.imageUrl)) {
-                    seenUrls.add(img.imageUrl);
+                if (!seenUrls.has(img.metadata.imageUrl)) {
+                    seenUrls.add(img.metadata.imageUrl);
                     pooledImages.push(img);
                 }
             }
@@ -97,9 +94,8 @@ export class ImageSearchTool {
                 const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_found_${i}.jpg`;
                 const savePath = path.join(config.tmpDir, filename);
                 
-                // Use cached download to save to disk
-                const buffer = await this.aiImageSearch.getImageSearch().download(img.imageUrl);
-                await ArtifactSaver.save(buffer, savePath);
+                // Use buffer directly
+                await ArtifactSaver.save(img.buffer, savePath);
             } catch (e) {
                 // Ignore save errors for debug files
             }
@@ -107,7 +103,7 @@ export class ImageSearchTool {
         await Promise.all(saveFoundPromises);
 
         // 3. Selection
-        let selectedImages: SerperImage[] = [];
+        let selectedImages: ImageSearchResult[] = [];
 
         if (config.imageSelectPrompt) {
             const selectPromptText = config.imageSelectPrompt
@@ -149,7 +145,7 @@ export class ImageSearchTool {
             
             // Normalize for History (Base64 JPEG)
             try {
-                const base64 = await this.normalizeImage(img.imageUrl);
+                const base64 = await this.normalizeImage(img.buffer);
                 
                 // Save the normalized version as the "selected" one
                 await ArtifactSaver.save(Buffer.from(base64, 'base64'), savePath);
@@ -160,16 +156,15 @@ export class ImageSearchTool {
                     image_url: { url: `data:image/jpeg;base64,${base64}` }
                 });
             } catch (e) {
-                console.warn(`[Row ${index}] Step ${stepIndex} Failed to normalize image for history: ${img.imageUrl}`, e);
+                console.warn(`[Row ${index}] Step ${stepIndex} Failed to normalize image for history: ${img.metadata.imageUrl}`, e);
                 // Fallback to URL if normalization fails
                 contentParts.push({
                     type: 'image_url',
-                    image_url: { url: img.imageUrl }
+                    image_url: { url: img.metadata.imageUrl }
                 });
-                // Try to save original URL content
+                // Try to save original buffer
                 try { 
-                    const buffer = await this.aiImageSearch.getImageSearch().download(img.imageUrl);
-                    await ArtifactSaver.save(buffer, savePath); 
+                    await ArtifactSaver.save(img.buffer, savePath); 
                     savedPaths.push(savePath); 
                 } catch(e2) {}
             }

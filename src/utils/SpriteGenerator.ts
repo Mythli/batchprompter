@@ -1,5 +1,4 @@
 import sharp from 'sharp';
-import { ImageSearch } from './ImageSearch.js';
 
 export interface SpriteItem {
     buffer: Buffer;
@@ -12,42 +11,25 @@ export class SpriteGenerator {
     private static FONT_SIZE = 48;
 
     /**
-     * Downloads images from URLs, processes them, and creates a labeled sprite.
+     * Processes provided image buffers and creates a labeled sprite.
      * Returns the sprite buffer and a map of sprite-index to original-array-index.
      * 
-     * @param imageUrls List of image URLs to process
+     * @param images List of objects containing image buffers
      * @param startNumber The starting number for the overlay labels (default 1)
-     * @param imageSearch The ImageSearch instance to use for downloading (with caching)
      */
     static async generate(
-        imageUrls: string[], 
-        startNumber: number = 1,
-        imageSearch: ImageSearch
+        images: { buffer: Buffer }[], 
+        startNumber: number = 1
     ): Promise<{ spriteBuffer: Buffer; validIndices: number[] }> {
-        // 1. Download and validate images using ImageSearch
-        const downloadPromises = imageUrls.map(async (url, index) => {
-            if (!url) {
-                console.warn(`[SpriteGenerator] Skipping undefined URL at index ${index}`);
-                return null;
-            }
-            try {
-                const buffer = await imageSearch.download(url);
-                
-                // Verify it's a valid image by attempting to get metadata
-                await sharp(buffer).metadata();
-                
-                return { buffer, originalIndex: index };
-            } catch (e: any) {
-                console.warn(`[SpriteGenerator] Failed to download/validate image ${url}: ${e.message}`);
-                return null;
-            }
-        });
-
-        const results = await Promise.all(downloadPromises);
-        const validImages = results.filter((item): item is SpriteItem => item !== null);
+        
+        // Map input to SpriteItem format (we assume inputs are already valid buffers from ImageSearch)
+        const validImages: SpriteItem[] = images.map((img, index) => ({
+            buffer: img.buffer,
+            originalIndex: index
+        }));
 
         if (validImages.length === 0) {
-            throw new Error("No valid images could be downloaded to generate a sprite.");
+            throw new Error("No images provided to generate a sprite.");
         }
 
         // 2. Calculate Grid Dimensions

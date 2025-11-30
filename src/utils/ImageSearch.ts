@@ -33,6 +33,11 @@ const SerperResponseSchema = z.object({
 
 export type SerperImage = z.infer<typeof ImageSchema>;
 
+export interface ImageSearchResult {
+    metadata: SerperImage;
+    buffer: Buffer;
+}
+
 export class ImageSearch {
     constructor(
         private apiKey: string,
@@ -43,53 +48,67 @@ export class ImageSearch {
         return crypto.createHash('md5').update(input).digest('hex');
     }
 
-    async search(query: string, num: number = 10): Promise<SerperImage[]> {
+    async search(query: string, num: number = 10): Promise<ImageSearchResult[]> {
         // Bumped version to v2 to invalidate potentially bad cache
         const cacheKey = `serper:search:v2:${this.hash(query)}:${num}`;
+        let images: SerperImage[] = [];
 
         if (this.cache) {
             const cached = await this.cache.get(cacheKey);
             if (cached) {
                 console.log(`[ImageSearch] Cache hit for query: "${query}"`);
                 // We assume cached data is valid JSON matching the schema
-                return cached as SerperImage[];
+                images = cached as SerperImage[];
             }
         }
 
-        console.log(`[ImageSearch] API call for query: "${query}"`);
-        const response = await fetch('https://google.serper.dev/images', {
-            method: 'POST',
-            headers: {
-                'X-API-KEY': this.apiKey,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                q: query,
-                num: num
-            })
-        });
+        if (images.length === 0) {
+            console.log(`[ImageSearch] API call for query: "${query}"`);
+            const response = await fetch('https://google.serper.dev/images', {
+                method: 'POST',
+                headers: {
+                    'X-API-KEY': this.apiKey,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    q: query,
+                    num: num
+                })
+            });
 
-        if (!response.ok) {
-            throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-        }
-
-        const json = await response.json();
-        
-        // Validate with Zod
-        try {
-            const parsed = SerperResponseSchema.parse(json);
-            const images = parsed.images;
-
-            if (this.cache) {
-                // Cache for 24 hours (in milliseconds)
-                await this.cache.set(cacheKey, images, 24 * 60 * 60 * 1000);
+            if (!response.ok) {
+                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
             }
 
-            return images;
-        } catch (e) {
-            console.error("[ImageSearch] Failed to parse Serper API response:", e);
-            throw e;
+            const json = await response.json();
+            
+            // Validate with Zod
+            try {
+                const parsed = SerperResponseSchema.parse(json);
+                images = parsed.images;
+
+                if (this.cache) {
+                    // Cache for 24 hours (in milliseconds)
+                    await this.cache.set(cacheKey, images, 24 * 60 * 60 * 1000);
+                }
+            } catch (e) {
+                console.error("[ImageSearch] Failed to parse Serper API response:", e);
+                throw e;
+            }
         }
+
+        // Download images immediately and filter out failures
+        const results = await Promise.all(images.map(async (img) => {
+            try {
+                const buffer = await this.download(img.imageUrl);
+                return { metadata: img, buffer };
+            } catch (e) {
+                // console.warn(`[ImageSearch] Failed to download ${img.imageUrl}:`, e);
+                return null;
+            }
+        }));
+
+        return results.filter((r): r is ImageSearchResult => r !== null);
     }
 
     async download(url: string): Promise<Buffer> {

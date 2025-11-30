@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { LlmClient } from 'llm-fns';
-import { ImageSearch, SerperImage } from './ImageSearch.js';
+import { ImageSearch, SerperImage, ImageSearchResult } from './ImageSearch.js';
 import { SpriteGenerator } from './SpriteGenerator.js';
 
 export class AiImageSearch {
@@ -12,8 +12,9 @@ export class AiImageSearch {
 
     /**
      * Public wrapper to perform a raw search.
+     * Now returns ImageSearchResult[] which includes buffers.
      */
-    async search(query: string, count: number): Promise<SerperImage[]> {
+    async search(query: string, count: number): Promise<ImageSearchResult[]> {
         return this.imageSearch.search(query, count);
     }
 
@@ -21,16 +22,16 @@ export class AiImageSearch {
      * Selects images from a pre-existing pool using the AI.
      */
     async selectFromPool(
-        images: SerperImage[],
+        images: ImageSearchResult[],
         searchContext: string,
         selectionPrompt: string,
         maxSelected: number = 1,
         onSprite?: (buffer: Buffer, index: number) => Promise<void>
-    ): Promise<SerperImage[]> {
+    ): Promise<ImageSearchResult[]> {
         if (images.length === 0) return [];
 
         // Chunk images and Generate Sprites
-        const chunks: SerperImage[][] = [];
+        const chunks: ImageSearchResult[][] = [];
         for (let i = 0; i < images.length; i += this.imagesPerSprite) {
             chunks.push(images.slice(i, i + this.imagesPerSprite));
         }
@@ -39,10 +40,9 @@ export class AiImageSearch {
 
         const spritePromises = chunks.map(async (chunk, i) => {
             const startNum = (i * this.imagesPerSprite) + 1;
-            const urls = chunk.map(img => img.imageUrl);
             try {
-                // Pass this.imageSearch to use cached downloads
-                const result = await SpriteGenerator.generate(urls, startNum, this.imageSearch);
+                // Pass buffers directly to SpriteGenerator
+                const result = await SpriteGenerator.generate(chunk, startNum);
                 return { ...result, startNum, chunk, success: true };
             } catch (e) {
                 console.warn(`[AiImageSearch] Failed to generate sprite for chunk ${i}:`, e);
@@ -68,8 +68,8 @@ export class AiImageSearch {
             { type: 'text', text: `Search Context: "${searchContext}"\n\nSelection Criteria: ${selectionPrompt}\n\nReturn the index numbers (displayed in the top-left of the images) of the best matches. Select at most ${maxSelected} image(s).` }
         ];
 
-        // Map visual index -> SerperImage
-        const indexMap = new Map<number, SerperImage>();
+        // Map visual index -> ImageSearchResult
+        const indexMap = new Map<number, ImageSearchResult>();
 
         for (const sprite of sprites) {
             const base64Sprite = sprite.spriteBuffer.toString('base64');
@@ -107,7 +107,7 @@ export class AiImageSearch {
         console.log(`[AiImageSearch] AI Selected: ${response.selected_indices.join(', ')}. Reason: ${response.reasoning}`);
 
         // Map back to original images
-        const selectedImages: SerperImage[] = [];
+        const selectedImages: ImageSearchResult[] = [];
 
         // Take only up to maxSelected
         const indicesToProcess = response.selected_indices.slice(0, maxSelected);
@@ -132,7 +132,7 @@ export class AiImageSearch {
         selectionPrompt: string,
         count: number = 20,
         maxSelected: number = 1
-    ): Promise<SerperImage[]> {
+    ): Promise<ImageSearchResult[]> {
         // 1. Search
         console.log(`[AiImageSearch] Searching for: "${searchQuery}" (Limit: ${count})`);
         const images = await this.search(searchQuery, count);
