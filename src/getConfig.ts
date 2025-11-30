@@ -57,16 +57,16 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Based on request, CLI defaults to 1.
     const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? 1 });
 
-    gptQueue.on('active', () => {
+    gptQueue.on('active', (a: any, b: any) => {
         console.log(`[Queue] Active. Pending: ${gptQueue.pending} | Queue: ${gptQueue.size}`);
     });
 
-    gptQueue.on('completed', (result: any) => {
+    gptQueue.on('completed', (result: any, a: any) => {
         const id = result?.id || 'unknown';
         console.log(`[Queue] Task completed (ID: ${id}). Pending: ${gptQueue.pending} | Queue: ${gptQueue.size}`);
     });
 
-    gptQueue.on('error', (error) => {
+    gptQueue.on('error', (error, a: any, b: any) => {
         console.error(`[Queue] Task error:`, error);
     });
 
