@@ -33,6 +33,13 @@ export class StandardStrategy implements GenerationStrategy {
         private model: string | undefined
     ) {}
 
+    private extractUserText(parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]): string {
+        return parts.map(p => {
+            if (p.type === 'text') return p.text;
+            return '[Image/Audio Input]';
+        }).join('\n');
+    }
+
     async execute(
         row: Record<string, any>,
         index: number,
@@ -69,10 +76,6 @@ export class StandardStrategy implements GenerationStrategy {
         // --- Execution Logic ---
         if (config.jsonSchema || config.verifyCommand) {
             // ReQuery Mode using llm-fns promptTextRetry
-            
-            // Note: promptTextRetry is primarily for text. If we are generating images (aspectRatio set),
-            // we might need a different approach or assume verifyCommand is for text/json.
-            // If aspectRatio is set, we use a manual loop around llm.prompt to handle image verification if needed.
             
             if (config.aspectRatio) {
                 // Image Generation with manual retry loop
@@ -142,67 +145,113 @@ export class StandardStrategy implements GenerationStrategy {
                 }
             } else {
                 // Text/JSON Generation with promptTextRetry
-                const resultText = await this.llm.promptTextRetry({
+                
+                // Define Validator Function to be reused in Feedback Loop
+                const validator = async (text: string, info: any) => {
+                    let content = text;
+                    let data: any;
+
+                    // 1. JSON Parsing & Schema Validation
+                    if (config.jsonSchema) {
+                        if (!content) {
+                            throw new LlmRetryError("Expected JSON response but got empty content.", 'CUSTOM_ERROR');
+                        }
+                        try {
+                            data = JSON.parse(content);
+                            content = JSON.stringify(data, null, 2);
+                        } catch (e) {
+                            throw new LlmRetryError("Response was not valid JSON.", 'JSON_PARSE_ERROR');
+                        }
+
+                        const valid = config.validator(data);
+                        if (!valid) {
+                            const errors = config.validator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
+                            throw new LlmRetryError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR');
+                        }
+                    }
+
+                    // 2. Verify Command
+                    if (config.verifyCommand && !skipCommands) {
+                        // Use a temp path for verification to avoid race conditions or overwriting final output prematurely
+                        const verifyPath = path.join(path.dirname(effectiveOutputPath || '.'), `temp_verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.txt`);
+                        
+                        await ArtifactSaver.save(content, verifyPath);
+
+                        const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
+                        const cmd = cmdTemplate({ ...row, file: verifyPath });
+                        
+                        console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying: ${cmd}`);
+
+                        try {
+                            const { stdout } = await execPromise(cmd);
+                            if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
+                        } catch (error: any) {
+                            const feedback = error.stderr || error.stdout || error.message;
+                            throw new LlmRetryError(
+                                `Verification command failed:\n${feedback}\n\nPlease fix the content based on this error.`,
+                                'CUSTOM_ERROR'
+                            );
+                        } finally {
+                            // Clean up temp file
+                            try { await fsPromises.unlink(verifyPath); } catch (e) {}
+                        }
+                    }
+
+                    return content;
+                };
+
+                // Initial Generation
+                let currentText = await this.llm.promptTextRetry({
                     messages: apiMessages,
                     model: this.model,
                     cacheSalt: cacheSalt,
                     response_format: config.jsonSchema ? { type: "json_object" } : undefined,
-                    validate: async (text, info) => {
-                        let content = text;
-                        let data: any;
-
-                        // 1. JSON Parsing & Schema Validation
-                        if (config.jsonSchema) {
-                            if (!content) {
-                                throw new LlmRetryError("Expected JSON response but got empty content.", 'CUSTOM_ERROR');
-                            }
-                            try {
-                                data = JSON.parse(content);
-                                content = JSON.stringify(data, null, 2);
-                            } catch (e) {
-                                throw new LlmRetryError("Response was not valid JSON.", 'JSON_PARSE_ERROR');
-                            }
-
-                            const valid = config.validator(data);
-                            if (!valid) {
-                                const errors = config.validator.errors?.map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
-                                throw new LlmRetryError(`JSON does not match schema: ${errors}`, 'CUSTOM_ERROR');
-                            }
-                        }
-
-                        // 2. Verify Command
-                        if (config.verifyCommand && !skipCommands) {
-                            const verifyPath = effectiveOutputPath || path.join(path.dirname(effectiveOutputPath || '.'), `temp_verify_${index}_${stepIndex}.txt`);
-                            
-                            await ArtifactSaver.save(content, verifyPath);
-
-                            const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
-                            const cmd = cmdTemplate({ ...row, file: verifyPath });
-                            
-                            console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying: ${cmd}`);
-
-                            try {
-                                const { stdout } = await execPromise(cmd);
-                                if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
-                            } catch (error: any) {
-                                const feedback = error.stderr || error.stdout || error.message;
-                                throw new LlmRetryError(
-                                    `Verification command failed:\n${feedback}\n\nPlease fix the content based on this error.`,
-                                    'CUSTOM_ERROR'
-                                );
-                            }
-                        }
-
-                        return content;
-                    }
+                    validate: validator
                 });
 
-                contentForColumn = resultText;
-                assistantResponseContent = resultText;
+                // Feedback Loop
+                if (config.feedbackLoops > 0 && config.feedbackPrompt) {
+                    for (let i = 0; i < config.feedbackLoops; i++) {
+                        console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${i+1}/${config.feedbackLoops}`);
 
-                // Save Final Output if not already handled by verify logic (or if verify logic used a temp path)
+                        // 1. Critique
+                        const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+                            { role: 'system', content: 'You are an expert critic. Analyze the provided content against the criteria and provide specific, actionable improvements.' },
+                            { role: 'user', content: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCurrent Draft:\n${currentText}\n\nCritique Criteria:\n${config.feedbackPrompt}` }
+                        ];
+
+                        const critique = await this.llm.prompt({
+                            messages: critiqueMessages,
+                            model: config.feedbackModel || this.model,
+                            cacheSalt: `${cacheSalt}_critique_${i}`
+                        });
+                        
+                        const critiqueText = critique.choices[0].message.content;
+                        console.log(`[Row ${index}] Step ${stepIndex} 📝 Critique: ${critiqueText?.substring(0, 100)}...`);
+
+                        // 2. Refine (with Validation)
+                        const refinementMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+                            ...apiMessages,
+                            { role: 'assistant', content: currentText },
+                            { role: 'user', content: `Critique:\n${critiqueText}\n\nPlease rewrite the content to address this critique while maintaining all original requirements (including JSON schema if applicable).` }
+                        ];
+
+                        currentText = await this.llm.promptTextRetry({
+                            messages: refinementMessages,
+                            model: this.model,
+                            cacheSalt: `${cacheSalt}_refine_${i}`,
+                            response_format: config.jsonSchema ? { type: "json_object" } : undefined,
+                            validate: validator
+                        });
+                    }
+                }
+
+                contentForColumn = currentText;
+                assistantResponseContent = currentText;
+
+                // Save Final Output
                 if (effectiveOutputPath && (!config.verifyCommand || skipCommands)) {
-                    await ArtifactSaver.save(resultText, effectiveOutputPath);
+                    await ArtifactSaver.save(currentText, effectiveOutputPath);
                     console.log(`[Row ${index}] Step ${stepIndex} Saved to ${effectiveOutputPath}`);
                 }
             }
@@ -228,8 +277,50 @@ export class StandardStrategy implements GenerationStrategy {
             if (textContent) {
                 contentForColumn = textContent;
                 assistantResponseContent = textContent;
+                
+                // Feedback Loop for Standard Mode (Text only)
+                if (config.feedbackLoops > 0 && config.feedbackPrompt && !config.aspectRatio) {
+                    let currentText = textContent;
+                    for (let i = 0; i < config.feedbackLoops; i++) {
+                        console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${i+1}/${config.feedbackLoops}`);
+
+                        // 1. Critique
+                        const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+                            { role: 'system', content: 'You are an expert critic. Analyze the provided content against the criteria and provide specific, actionable improvements.' },
+                            { role: 'user', content: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCurrent Draft:\n${currentText}\n\nCritique Criteria:\n${config.feedbackPrompt}` }
+                        ];
+
+                        const critique = await this.llm.prompt({
+                            messages: critiqueMessages,
+                            model: config.feedbackModel || this.model,
+                            cacheSalt: `${cacheSalt}_critique_${i}`
+                        });
+                        
+                        const critiqueText = critique.choices[0].message.content;
+
+                        // 2. Refine (No Validation)
+                        const refinementMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+                            ...apiMessages,
+                            { role: 'assistant', content: currentText },
+                            { role: 'user', content: `Critique:\n${critiqueText}\n\nPlease rewrite the content to address this critique.` }
+                        ];
+
+                        const refined = await this.llm.prompt({
+                            messages: refinementMessages,
+                            model: this.model,
+                            cacheSalt: `${cacheSalt}_refine_${i}`
+                        });
+                        
+                        if (refined.choices[0].message.content) {
+                            currentText = refined.choices[0].message.content;
+                        }
+                    }
+                    contentForColumn = currentText;
+                    assistantResponseContent = currentText;
+                }
+
                 if (effectiveOutputPath) {
-                    await ArtifactSaver.save(textContent, effectiveOutputPath);
+                    await ArtifactSaver.save(contentForColumn, effectiveOutputPath);
                     console.log(`[Row ${index}] Step ${stepIndex} Text saved to ${effectiveOutputPath}`);
                 }
             }

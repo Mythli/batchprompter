@@ -27,7 +27,10 @@ const generateCmd = program.command('generate')
     .option('--judge-model <model>', 'Model to use for judging candidates')
     .option('--judge-prompt <text>', 'Custom prompt for the judge')
     .option('--candidate-output <template>', 'Template path for candidate files (e.g. "debug/{{id}}_c{{candidate_index}}.png")')
-    .option('--skip-candidate-command', 'Do not run verify/post-process commands on candidates, only on the winner');
+    .option('--skip-candidate-command', 'Do not run verify/post-process commands on candidates, only on the winner')
+    .option('--feedback-loops <number>', 'Number of feedback iterations per candidate', '0')
+    .option('--feedback-prompt <text>', 'Prompt for the feedback model')
+    .option('--feedback-model <model>', 'Model to use for feedback');
 
 // Add explicit options for steps 1-10
 for (let i = 1; i <= 10; i++) {
@@ -43,6 +46,9 @@ for (let i = 1; i <= 10; i++) {
     generateCmd.option(`--judge-prompt-${i} <text>`, `Judge prompt for step ${i}`);
     generateCmd.option(`--candidate-output-${i} <template>`, `Candidate output template for step ${i}`);
     generateCmd.option(`--skip-candidate-command-${i}`, `Disable candidate commands for step ${i}`);
+    generateCmd.option(`--feedback-loops-${i} <number>`, `Feedback loops for step ${i}`);
+    generateCmd.option(`--feedback-prompt-${i} <text>`, `Feedback prompt for step ${i}`);
+    generateCmd.option(`--feedback-model-${i} <model>`, `Feedback model for step ${i}`);
 }
 
 generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
@@ -62,8 +68,11 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         const jPrompt = options[`judgePrompt${i}`];
         const candOut = options[`candidateOutput${i}`];
         const skipCandCmd = options[`skipCandidateCommand${i}`];
+        const fbLoops = options[`feedbackLoops${i}`];
+        const fbPrompt = options[`feedbackPrompt${i}`];
+        const fbModel = options[`feedbackModel${i}`];
 
-        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || candOut || skipCandCmd !== undefined) {
+        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || candOut || skipCandCmd !== undefined || fbLoops || fbPrompt || fbModel) {
             stepOverrides[i] = {};
             if (sys) stepOverrides[i].system = sys;
             if (schema) stepOverrides[i].schema = schema;
@@ -77,6 +86,9 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
             if (jPrompt) stepOverrides[i].judgePrompt = jPrompt;
             if (candOut) stepOverrides[i].candidateOutputTemplate = candOut;
             if (skipCandCmd !== undefined) stepOverrides[i].noCandidateCommand = skipCandCmd;
+            if (fbLoops) stepOverrides[i].feedbackLoops = parseInt(fbLoops, 10);
+            if (fbPrompt) stepOverrides[i].feedbackPrompt = fbPrompt;
+            if (fbModel) stepOverrides[i].feedbackModel = fbModel;
         }
     }
 
@@ -104,6 +116,7 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         model: options.model,
         system: options.system,
         schema: options.schema,
+        jsonSchema: options.jsonSchema,
         verifyCommand: options.verifyCommand,
         postProcessCommand: options.command,
         outputColumn: options.outputColumn,
@@ -113,6 +126,9 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         judgePrompt: options.judgePrompt,
         candidateOutputTemplate: options.candidateOutput,
         noCandidateCommand: options.skipCandidateCommand,
+        feedbackLoops: options.feedbackLoops ? parseInt(options.feedbackLoops, 10) : undefined,
+        feedbackPrompt: options.feedbackPrompt,
+        feedbackModel: options.feedbackModel,
         stepOverrides
     };
 
