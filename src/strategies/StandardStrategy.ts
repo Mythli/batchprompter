@@ -10,6 +10,7 @@ import { LlmClient } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
 import { ResolvedStepConfig } from '../StepConfigurator.js';
+import { ImageSearchTool } from '../utils/ImageSearchTool.js';
 
 const execPromise = util.promisify(exec);
 
@@ -42,7 +43,8 @@ type ExtractedContent = {
 export class StandardStrategy implements GenerationStrategy {
     constructor(
         private llm: LlmClient,
-        private model: string | undefined
+        private model: string | undefined,
+        private imageSearchTool?: ImageSearchTool
     ) {}
 
     private extractUserText(parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]): string {
@@ -148,6 +150,19 @@ export class StandardStrategy implements GenerationStrategy {
 
         const effectiveOutputPath = outputPathOverride || config.outputPath;
 
+        // --- Image Search Integration ---
+        let searchContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+        if (this.imageSearchTool && (config.imageSearchQuery || config.imageSearchPrompt)) {
+            try {
+                const searchResult = await this.imageSearchTool.execute(row, index, stepIndex, config, cacheSalt);
+                searchContentParts = searchResult.contentParts;
+            } catch (e: any) {
+                console.error(`[Row ${index}] Step ${stepIndex} Image Search failed:`, e.message);
+                // We continue without images if search fails, or we could throw. 
+                // Let's log and continue to be robust.
+            }
+        }
+
         // Initial History
         let currentHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
@@ -162,7 +177,11 @@ export class StandardStrategy implements GenerationStrategy {
         }
 
         currentHistory.push(...history);
-        currentHistory.push({ role: 'user', content: userPromptParts });
+        
+        // Combine Search Results + User Prompt
+        // Search results go BEFORE the user prompt so the user prompt is the final instruction
+        const combinedUserContent = [...searchContentParts, ...userPromptParts];
+        currentHistory.push({ role: 'user', content: combinedUserContent });
 
         let finalContent: ExtractedContent | null = null;
 

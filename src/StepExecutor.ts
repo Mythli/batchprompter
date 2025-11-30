@@ -3,15 +3,21 @@ import { LlmClient } from 'llm-fns';
 import { ResolvedStepConfig } from './StepConfigurator.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
-import { ImageSearchStrategy } from './strategies/ImageSearchStrategy.js';
 import { AiImageSearch } from './utils/AiImageSearch.js';
+import { ImageSearchTool } from './utils/ImageSearchTool.js';
 
 export class StepExecutor {
+    private imageSearchTool?: ImageSearchTool;
+
     constructor(
         private llm: LlmClient,
         private model: string | undefined,
-        private aiImageSearch?: AiImageSearch
-    ) {}
+        aiImageSearch?: AiImageSearch
+    ) {
+        if (aiImageSearch) {
+            this.imageSearchTool = new ImageSearchTool(aiImageSearch, llm);
+        }
+    }
 
     async execute(
         row: Record<string, any>,
@@ -22,20 +28,10 @@ export class StepExecutor {
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
     ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
         
-        let strategy;
-
-        // Determine Strategy
-        if (config.imageSearchQuery || config.imageSearchPrompt) {
-            if (!this.aiImageSearch) {
-                throw new Error("Image Search requested but not configured (missing API Key).");
-            }
-            strategy = new ImageSearchStrategy(this.aiImageSearch, this.llm);
-        } else {
-            strategy = new StandardStrategy(this.llm, this.model);
-        }
+        // Always use StandardStrategy, but inject the ImageSearchTool
+        let strategy = new StandardStrategy(this.llm, this.model, this.imageSearchTool);
         
         // Wrap in Candidate Strategy if needed
-        // Note: ImageSearchStrategy can also be wrapped in CandidateStrategy if we want multiple distinct search attempts!
         if (config.candidates > 1) {
             strategy = new CandidateStrategy(strategy, this.llm);
         }
