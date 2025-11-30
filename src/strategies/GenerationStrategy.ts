@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import { ResolvedStepConfig } from '../StepConfigurator.js';
 
 export interface GenerationResult {
-    historyMessage: { role: 'assistant', content: string };
+    historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
     columnValue: string | null;
 }
 

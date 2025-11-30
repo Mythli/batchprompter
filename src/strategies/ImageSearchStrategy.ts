@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import path from 'path';
+import sharp from 'sharp';
 import { LlmClient } from 'llm-fns';
 import { AiImageSearch } from '../utils/AiImageSearch.js';
 import { SerperImage } from '../utils/ImageSearch.js';
@@ -13,6 +14,20 @@ export class ImageSearchStrategy implements GenerationStrategy {
         private aiImageSearch: AiImageSearch,
         private llm: LlmClient
     ) {}
+
+    private async normalizeImage(url: string): Promise<string> {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Failed to fetch image: ${url}`);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        const processedBuffer = await sharp(buffer)
+            .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 80 })
+            .toBuffer();
+
+        return processedBuffer.toString('base64');
+    }
 
     async execute(
         row: Record<string, any>,
@@ -60,17 +75,6 @@ export class ImageSearchStrategy implements GenerationStrategy {
         // 2. Execute Searches (Breadth-First)
         console.log(`[Row ${index}] Step ${stepIndex} Executing ${queries.length} searches (Limit: ${config.imageSearchLimit} per query)...`);
         
-        // We access the underlying ImageSearch instance to run raw searches
-        // Since AiImageSearch wraps it, we might need to expose it or add a method.
-        // For now, let's assume we can use AiImageSearch's internal search or we just use AiImageSearch.searchAndSelect logic
-        // BUT AiImageSearch.searchAndSelect does the whole flow. We want to pool first.
-        // Let's modify AiImageSearch to allow searching without selecting, OR we just use the public search method if we exposed it.
-        // Actually, AiImageSearch has `private imageSearch`. We should probably add a public `search` method to AiImageSearch that delegates.
-        // Or better, let's just use the `imageSearch` instance directly if we had access.
-        // Since we don't want to break encapsulation too much, let's assume we update AiImageSearch to have a `search(query, count)` method that returns SerperImage[].
-        // Wait, `AiImageSearch` constructor takes `ImageSearch`. We can just inject `ImageSearch` into this strategy too?
-        // No, let's stick to `AiImageSearch` being the main entry point. I will add a `search` method to `AiImageSearch` in the next file update.
-        
         const searchPromises = queries.map(q => this.aiImageSearch.search(q, config.imageSearchLimit));
         const results = await Promise.all(searchPromises);
         
@@ -97,10 +101,6 @@ export class ImageSearchStrategy implements GenerationStrategy {
         let selectedImages: SerperImage[] = [];
 
         if (config.imageSelectPrompt) {
-            // AI Selection
-            // We need to convert the prompt parts back to string for the current AiImageSearch signature, 
-            // or update AiImageSearch to accept parts. The current signature takes `string`.
-            // Let's extract text from parts.
             const selectPromptText = config.imageSelectPrompt
                 .filter(p => p.type === 'text')
                 .map(p => p.text)
@@ -114,24 +114,42 @@ export class ImageSearchStrategy implements GenerationStrategy {
                 config.imageSearchSelect
             );
         } else {
-            // Direct Selection (First N)
             console.log(`[Row ${index}] Step ${stepIndex} Selecting first ${config.imageSearchSelect} images (no AI prompt)...`);
             selectedImages = pooledImages.slice(0, config.imageSearchSelect);
         }
 
-        // 4. Output
+        // 4. Process & Output
         const effectiveOutputPath = outputPathOverride || config.outputPath;
         const savedPaths: string[] = [];
+        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+            { type: 'text', text: `I have found the following images based on the search queries: ${queries.join(', ')}` }
+        ];
 
-        if (effectiveOutputPath) {
-            const ext = path.extname(effectiveOutputPath);
-            const base = path.basename(effectiveOutputPath, ext);
-            const dir = path.dirname(effectiveOutputPath);
+        for (let i = 0; i < selectedImages.length; i++) {
+            const img = selectedImages[i];
+            
+            // Normalize for History (Base64 JPEG)
+            try {
+                const base64 = await this.normalizeImage(img.imageUrl);
+                contentParts.push({
+                    type: 'image_url',
+                    image_url: { url: `data:image/jpeg;base64,${base64}` }
+                });
+            } catch (e) {
+                console.warn(`[Row ${index}] Step ${stepIndex} Failed to normalize image for history: ${img.imageUrl}`, e);
+                // Fallback to URL if normalization fails
+                contentParts.push({
+                    type: 'image_url',
+                    image_url: { url: img.imageUrl }
+                });
+            }
 
-            for (let i = 0; i < selectedImages.length; i++) {
-                const img = selectedImages[i];
-                // If multiple images, append index. If single, keep original name (unless forced).
-                // If we selected 1, use exact path. If > 1, use suffix.
+            // Save to Disk
+            if (effectiveOutputPath) {
+                const ext = path.extname(effectiveOutputPath);
+                const base = path.basename(effectiveOutputPath, ext);
+                const dir = path.dirname(effectiveOutputPath);
+
                 let finalPath = effectiveOutputPath;
                 if (selectedImages.length > 1) {
                     finalPath = path.join(dir, `${base}_${i + 1}${ext}`);
@@ -140,20 +158,19 @@ export class ImageSearchStrategy implements GenerationStrategy {
                 await ArtifactSaver.save(img.imageUrl, finalPath);
                 savedPaths.push(finalPath);
                 console.log(`[Row ${index}] Step ${stepIndex} Saved image to ${finalPath}`);
+            } else {
+                savedPaths.push(img.imageUrl);
             }
-        } else {
-            // If no output path, we just return URLs
-            savedPaths.push(...selectedImages.map(img => img.imageUrl));
         }
 
-        // Return result
-        // If multiple, join with comma? Or JSON array? JSON array is safer for downstream.
         const columnValue = savedPaths.length === 1 ? savedPaths[0] : JSON.stringify(savedPaths);
 
+        // We return a USER message so that the NEXT step (which sees history) sees these images as input.
+        // This effectively "injects them into the prompt" of the next step.
         return {
             historyMessage: {
-                role: 'assistant',
-                content: `[Image Search] Selected: ${columnValue}`
+                role: 'user',
+                content: contentParts
             },
             columnValue
         };

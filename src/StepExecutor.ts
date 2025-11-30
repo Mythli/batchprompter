@@ -20,7 +20,7 @@ export class StepExecutor {
         config: ResolvedStepConfig,
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-    ): Promise<{ role: 'assistant', content: string }> {
+    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
         
         let strategy;
 
