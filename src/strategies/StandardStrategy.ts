@@ -154,19 +154,9 @@ export class StandardStrategy implements GenerationStrategy {
         let searchContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         const hasSearchRequest = config.imageSearchQuery || config.imageSearchPrompt;
 
-        if (hasSearchRequest) {
-            if (!this.imageSearchTool) {
-                throw new Error(`[Row ${index}] Step ${stepIndex} Image search requested but SERPER_API_KEY is missing. Please set SERPER_API_KEY in your environment variables.`);
-            }
-
-            try {
-                const searchResult = await this.imageSearchTool.execute(row, index, stepIndex, config, cacheSalt);
-                searchContentParts = searchResult.contentParts;
-            } catch (e: any) {
-                console.error(`[Row ${index}] Step ${stepIndex} Image Search failed:`, e.message);
-                // We continue without images if search fails, or we could throw.
-                // Let's log and continue to be robust.
-            }
+        if (hasSearchRequest && this.imageSearchTool) {
+            const searchResult = await this.imageSearchTool.execute(row, index, stepIndex, config, cacheSalt);
+            searchContentParts = searchResult.contentParts;
         }
 
         // Initial History
