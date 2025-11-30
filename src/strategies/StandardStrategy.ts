@@ -330,8 +330,67 @@ export class StandardStrategy implements GenerationStrategy {
                 contentForColumn = imageUrl;
                 assistantResponseContent = "Image generated.";
                 
+                // Image Feedback Loop
+                if (config.feedbackLoops > 0 && config.feedbackPrompt) {
+                    let currentImageUrl = imageUrl;
+                    
+                    for (let i = 0; i < config.feedbackLoops; i++) {
+                        console.log(`[Row ${index}] Step ${stepIndex} 🔄 Image Feedback Loop ${i+1}/${config.feedbackLoops}`);
+
+                        // 1. Critique (Vision)
+                        const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+                            { role: 'system', content: 'You are an expert art director and technical director.' },
+                            { 
+                                role: 'user', 
+                                content: [
+                                    { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCritique Criteria:\n${config.feedbackPrompt}\n\nAnalyze the image below:` },
+                                    { type: 'image_url', image_url: { url: currentImageUrl } }
+                                ] 
+                            }
+                        ];
+
+                        const critique = await this.llm.prompt({
+                            messages: critiqueMessages,
+                            model: config.feedbackModel || this.model, // Must be a vision model
+                            cacheSalt: `${cacheSalt}_critique_${i}`
+                        });
+                        
+                        const critiqueText = critique.choices[0].message.content;
+                        console.log(`[Row ${index}] Step ${stepIndex} 📝 Critique: ${critiqueText?.substring(0, 100)}...`);
+
+                        // 2. Refine (Generate New Image)
+                        // We append the critique to the user prompt or history
+                        const refinementMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+                            ...apiMessages,
+                            // We can't easily pass the previous image back to the image generator (DALL-E 3 doesn't support img2img in this API usually, or at least standard chat completions don't).
+                            // So we just ask for a regeneration with the critique as context.
+                            { role: 'assistant', content: "Image generated." }, // Placeholder for previous turn
+                            { role: 'user', content: `The previous image had the following issues:\n${critiqueText}\n\nPlease generate a new image that fixes these issues while maintaining the original requirements.` }
+                        ];
+
+                        const refineOptions: any = {
+                            messages: refinementMessages,
+                            model: this.model,
+                            cacheSalt: `${cacheSalt}_refine_${i}`,
+                            modalities: ['image', 'text'],
+                            image_config: { aspect_ratio: config.aspectRatio }
+                        };
+
+                        const refined = await this.llm.prompt(refineOptions);
+                        const parsedRefined = responseSchema.parse(refined);
+                        const refinedImages = parsedRefined.choices[0].message.images;
+
+                        if (refinedImages && refinedImages.length > 0) {
+                            currentImageUrl = refinedImages[0].image_url.url;
+                        } else {
+                            console.warn(`[Row ${index}] Step ${stepIndex} Refinement failed to generate image. Keeping previous version.`);
+                        }
+                    }
+                    contentForColumn = currentImageUrl;
+                }
+                
                 if (effectiveOutputPath) {
-                    await ArtifactSaver.save(imageUrl, effectiveOutputPath);
+                    await ArtifactSaver.save(contentForColumn, effectiveOutputPath);
                     console.log(`[Row ${index}] Step ${stepIndex} Image saved to ${effectiveOutputPath}`);
                 }
             }

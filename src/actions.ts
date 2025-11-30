@@ -22,6 +22,7 @@ type RowHandler = (
     llm: LlmClient,
     renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
     loadedJudgePrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
+    loadedFeedbackPrompts: { global: string | null, steps: Record<number, string> },
     userPrompts: OpenAI.Chat.Completions.ChatCompletionContentPart[][],
     baseOutputPath: string,
     index: number,
@@ -124,7 +125,16 @@ async function processBatch(
                 globalJudgePrompt = await getFileContent(resolvedPath);
             }
 
-            // 4. Prepare Row-Specific Options and Validators
+            // 4. Global Feedback Prompt
+            let globalFeedbackPrompt: string | null = null;
+            if (options.feedbackPrompt) {
+                const resolvedPath = renderPath(options.feedbackPrompt, row);
+                const parts = await getFileContent(resolvedPath);
+                const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
+                globalFeedbackPrompt = Handlebars.compile(content, { noEscape: true })(row);
+            }
+
+            // 5. Prepare Row-Specific Options and Validators
             const rowValidators: Record<string, any> = {};
             const rowOptions: ActionOptions = { 
                 ...options, 
@@ -143,6 +153,7 @@ async function processBatch(
             // Step Overrides
             const stepSystemPrompts: Record<number, string> = {};
             const stepJudgePrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
+            const stepFeedbackPrompts: Record<number, string> = {};
             
             if (options.stepOverrides) {
                 for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
@@ -161,6 +172,14 @@ async function processBatch(
                     if (config.judgePrompt) {
                         const resolvedPath = renderPath(config.judgePrompt, row);
                         stepJudgePrompts[step] = await getFileContent(resolvedPath);
+                    }
+
+                    // Step Feedback Prompt
+                    if (config.feedbackPrompt) {
+                        const resolvedPath = renderPath(config.feedbackPrompt, row);
+                        const parts = await getFileContent(resolvedPath);
+                        const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
+                        stepFeedbackPrompts[step] = Handlebars.compile(content, { noEscape: true })(row);
                     }
 
                     // Step Schema
@@ -188,6 +207,11 @@ async function processBatch(
                 steps: stepJudgePrompts
             };
 
+            const loadedFeedbackPrompts = {
+                global: globalFeedbackPrompt,
+                steps: stepFeedbackPrompts
+            };
+
             // Fallback for User Prompts if none provided
             if (userPrompts.length === 0) {
                 userPrompts = [[{ type: 'text', text: JSON.stringify(row, null, 2) }]];
@@ -207,7 +231,7 @@ async function processBatch(
 
             console.log(`[Row ${index}] Processing...`);
 
-            await handler(llm, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
+            await handler(llm, renderedSystemPrompts, loadedJudgePrompts, loadedFeedbackPrompts, userPrompts, baseOutputPath, index, rowOptions, rowValidators, row);
 
         } catch (err) {
             console.error(`[Row ${index}] Error:`, err);
@@ -247,7 +271,7 @@ async function processBatch(
     console.log(`Updated data saved to ${outputDataPath}`);
 }
 
-const handleUnifiedGeneration: RowHandler = async (llm, renderedSystemPrompts, loadedJudgePrompts, userPrompts, baseOutputPath, index, options, validators, row) => {
+const handleUnifiedGeneration: RowHandler = async (llm, renderedSystemPrompts, loadedJudgePrompts, loadedFeedbackPrompts, userPrompts, baseOutputPath, index, options, validators, row) => {
     // History of conversation (User + Assistant only)
     const persistentHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
     const executor = new StepExecutor(llm, options.model);
@@ -264,6 +288,7 @@ const handleUnifiedGeneration: RowHandler = async (llm, renderedSystemPrompts, l
             baseOutputPath, 
             renderedSystemPrompts, 
             loadedJudgePrompts,
+            loadedFeedbackPrompts,
             validators
         );
 

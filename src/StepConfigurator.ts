@@ -32,6 +32,7 @@ export class StepConfigurator {
         baseOutputPath: string,
         renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
         loadedJudgePrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
+        loadedFeedbackPrompts: { global: string | null, steps: Record<number, string> },
         validators: Record<string, any>
     ): ResolvedStepConfig {
         const stepOverride = options.stepOverrides?.[stepIndex];
@@ -110,7 +111,17 @@ export class StepConfigurator {
 
         // 9. Feedback Loop
         const currentFeedbackLoops = stepOverride?.feedbackLoops ?? options.feedbackLoops ?? 0;
-        const currentFeedbackPrompt = stepOverride?.feedbackPrompt || options.feedbackPrompt;
+        
+        // Resolve Feedback Prompt
+        let currentFeedbackPrompt = loadedFeedbackPrompts.steps[stepIndex];
+        if (!currentFeedbackPrompt && loadedFeedbackPrompts.global) {
+            currentFeedbackPrompt = loadedFeedbackPrompts.global;
+        }
+        // Fallback to raw string if not loaded (though logic in actions.ts should handle loading)
+        if (!currentFeedbackPrompt) {
+             currentFeedbackPrompt = stepOverride?.feedbackPrompt || options.feedbackPrompt;
+        }
+        
         const currentFeedbackModel = stepOverride?.feedbackModel || options.feedbackModel;
 
         return {
