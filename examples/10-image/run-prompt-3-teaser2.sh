@@ -7,8 +7,9 @@ npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/promp
   --output "out/10-image/{{industry}}/05_AboutCourseSecondImage.jpg" \
   --aspect-ratio "3:2" \
   --model "google/gemini-3-pro-image-preview" \
-  --candidates 10 \
-  --candidate-output "out/10-image-candidates/{{industry}}/05_AboutCourseSecondImage_c{{candidate_index}}.jpg" \
+  --image-search-prompt "Generate search queries for {{industry}} related keywords. Specifically look for images with a man or male person in focus doing the core activity of {{industry}} or in an {{industry}} setting." \
+  --image-select-prompt "Select the image that best shows a man or male person 30-45 years old, in focus doing the core activity of {{industry}} with his face visible. Avoid pictures that look AI generated or have a low quality." \
+  --candidates 3 \
   --judge-model "google/gemini-3-pro-preview" \
   --judge-prompt examples/10-image/select-best-image.md \
   --skip-candidate-command \
