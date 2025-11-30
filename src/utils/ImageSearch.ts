@@ -81,7 +81,7 @@ export class ImageSearch {
             }
 
             const json = await response.json();
-            
+
             // Validate with Zod
             try {
                 const parsed = SerperResponseSchema.parse(json);
@@ -117,7 +117,7 @@ export class ImageSearch {
         }
 
         // v2 prefix to invalidate previous potentially corrupted cache entries
-        const cacheKey = `image:content:v2:${this.hash(url)}`;
+        const cacheKey = `image:content:v3:${this.hash(url)}`;
 
         if (this.cache) {
             try {
@@ -147,7 +147,7 @@ export class ImageSearch {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
         });
-        
+
         if (!response.ok) throw new Error(`Failed to fetch image: ${url} (${response.status})`);
 
         // Validate Content-Type to ensure it's an image
@@ -156,7 +156,7 @@ export class ImageSearch {
             console.warn(`[ImageSearch] Rejected URL ${url} due to content-type: ${contentType}`);
             throw new Error(`Invalid content-type for image: ${contentType}`);
         }
-        
+
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
