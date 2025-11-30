@@ -5,6 +5,7 @@ import KeyvSqlite from '@keyv/sqlite';
 import OpenAI from "openai";
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
+import { ImageSearch } from './utils/ImageSearch.js';
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ export const configSchema = z.object({
     GPT_MAX_CONVERSATION_CHARS: z.coerce.number().int().positive().optional(),
     CACHE_ENABLED: z.coerce.boolean().default(true),
     SQLITE_PATH: z.string().default(".cache.sqlite"),
+    SERPER_API_KEY: z.string().optional(),
 });
 
 export type ConfigOverrides = {
@@ -37,6 +39,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         AI_API_KEY: getEnvVar(['BATCHPROMPT_OPENAI_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY']),
         AI_API_URL: getEnvVar(['BATCHPROMPT_OPENAI_BASE_URL', 'OPENAI_BASE_URL', 'AI_API_URL']),
         MODEL: getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']),
+        SERPER_API_KEY: getEnvVar(['BATCHPROMPT_SERPER_API_KEY', 'SERPER_API_KEY']),
     };
 
     const config = configSchema.parse(rawConfig);
@@ -78,9 +81,15 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         maxConversationChars: config.GPT_MAX_CONVERSATION_CHARS,
     });
 
+    let imageSearch: ImageSearch | undefined;
+    if (config.SERPER_API_KEY) {
+        imageSearch = new ImageSearch(config.SERPER_API_KEY);
+    }
+
     return {
         config,
-        llm
+        llm,
+        imageSearch
     };
 }
 
