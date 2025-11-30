@@ -87,7 +87,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     
     if (config.SERPER_API_KEY) {
         imageSearch = new ImageSearch(config.SERPER_API_KEY);
-        aiImageSearch = new AiImageSearch(imageSearch, llm, config.MODEL);
+        aiImageSearch = new AiImageSearch(imageSearch, llm);
     }
 
     return {

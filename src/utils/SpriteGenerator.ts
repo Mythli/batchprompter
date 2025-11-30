@@ -13,8 +13,11 @@ export class SpriteGenerator {
     /**
      * Downloads images from URLs, processes them, and creates a labeled sprite.
      * Returns the sprite buffer and a map of sprite-index to original-array-index.
+     * 
+     * @param imageUrls List of image URLs to process
+     * @param startNumber The starting number for the overlay labels (default 1)
      */
-    static async generate(imageUrls: string[]): Promise<{ spriteBuffer: Buffer; validIndices: number[] }> {
+    static async generate(imageUrls: string[], startNumber: number = 1): Promise<{ spriteBuffer: Buffer; validIndices: number[] }> {
         // 1. Download and validate images
         const downloadPromises = imageUrls.map(async (url, index) => {
             try {
@@ -50,7 +53,7 @@ export class SpriteGenerator {
 
         // 3. Process each image (Resize, Border, Number)
         const compositeOperations = await Promise.all(validImages.map(async (item, i) => {
-            const displayIndex = i + 1; // 1-based index for the AI
+            const displayIndex = startNumber + i; // Use startNumber for the overlay
             
             // Resize and cover
             const resized = await sharp(item.buffer)
