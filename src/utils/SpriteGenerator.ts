@@ -27,7 +27,7 @@ export class SpriteGenerator {
         // 1. Download and validate images using ImageSearch
         const downloadPromises = imageUrls.map(async (url, index) => {
             if (!url) {
-                // console.warn(`[SpriteGenerator] Skipping undefined URL at index ${index}`);
+                console.warn(`[SpriteGenerator] Skipping undefined URL at index ${index}`);
                 return null;
             }
             try {
@@ -38,7 +38,7 @@ export class SpriteGenerator {
                 
                 return { buffer, originalIndex: index };
             } catch (e: any) {
-                // console.warn(`[SpriteGenerator] Failed to download/validate image ${url}: ${e.message}`);
+                console.warn(`[SpriteGenerator] Failed to download/validate image ${url}: ${e.message}`);
                 return null;
             }
         });

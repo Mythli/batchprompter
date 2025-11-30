@@ -132,7 +132,8 @@ export class ImageSearch {
 
         // Validate Content-Type to ensure it's an image
         const contentType = response.headers.get('content-type');
-        if (contentType && !contentType.startsWith('image/')) {
+        if (contentType && !contentType.startsWith('image/') && !contentType.startsWith('application/octet-stream')) {
+            console.warn(`[ImageSearch] Rejected URL ${url} due to content-type: ${contentType}`);
             throw new Error(`Invalid content-type for image: ${contentType}`);
         }
         
