@@ -122,7 +122,15 @@ export class CandidateStrategy implements GenerationStrategy {
                 // If commands were skipped during candidate generation, we MUST run them now on the final file
                 if (config.noCandidateCommand && config.postProcessCommand) {
                     const cmdTemplate = Handlebars.compile(config.postProcessCommand, { noEscape: true });
-                    const cmd = cmdTemplate({ ...row, file: config.outputPath });
+                    
+                    // Sanitize row data for command execution to match file path behavior
+                    const sanitizedRow: Record<string, string> = {};
+                    for (const [key, val] of Object.entries(row)) {
+                        const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                        sanitizedRow[key] = aggressiveSanitize(stringVal);
+                    }
+
+                    const cmd = cmdTemplate({ ...sanitizedRow, file: config.outputPath });
                     
                     console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running deferred command on winner: ${cmd}`);
                     

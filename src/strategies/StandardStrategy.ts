@@ -11,6 +11,7 @@ import { ArtifactSaver } from '../ArtifactSaver.js';
 import { ResolvedStepConfig } from '../StepConfigurator.js';
 import { ImageSearchTool } from '../utils/ImageSearchTool.js';
 import {LlmClient} from "llm-fns";
+import { aggressiveSanitize } from '../utils/fileUtils.js';
 
 const execPromise = util.promisify(exec);
 
@@ -120,7 +121,15 @@ export class StandardStrategy implements GenerationStrategy {
                 await this.saveArtifact(validated, tempPath);
 
                 const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
-                const cmd = cmdTemplate({ ...row, file: tempPath });
+                
+                // Sanitize row data for command execution to match file path behavior
+                const sanitizedRow: Record<string, string> = {};
+                for (const [key, val] of Object.entries(row)) {
+                    const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                    sanitizedRow[key] = aggressiveSanitize(stringVal);
+                }
+
+                const cmd = cmdTemplate({ ...sanitizedRow, file: tempPath });
 
                 console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying: ${cmd}`);
 
@@ -311,7 +320,15 @@ export class StandardStrategy implements GenerationStrategy {
             }
 
             const cmdTemplate = Handlebars.compile(config.postProcessCommand, { noEscape: true });
-            const cmd = cmdTemplate({ ...row, file: filePathForCommand });
+            
+            // Sanitize row data for command execution to match file path behavior
+            const sanitizedRow: Record<string, string> = {};
+            for (const [key, val] of Object.entries(row)) {
+                const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                sanitizedRow[key] = aggressiveSanitize(stringVal);
+            }
+
+            const cmd = cmdTemplate({ ...sanitizedRow, file: filePathForCommand });
 
             console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running command: ${cmd}`);
 
