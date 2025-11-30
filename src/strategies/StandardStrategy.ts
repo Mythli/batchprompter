@@ -5,12 +5,12 @@ import util from 'util';
 import { exec } from 'child_process';
 import { z } from 'zod';
 import fsPromises from 'fs/promises';
-import { LlmClient } from 'llm-fns';
 
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
 import { ResolvedStepConfig } from '../StepConfigurator.js';
 import { ImageSearchTool } from '../utils/ImageSearchTool.js';
+import {LlmClient} from "llm-fns";
 
 const execPromise = util.promisify(exec);
 
@@ -158,7 +158,7 @@ export class StandardStrategy implements GenerationStrategy {
                 searchContentParts = searchResult.contentParts;
             } catch (e: any) {
                 console.error(`[Row ${index}] Step ${stepIndex} Image Search failed:`, e.message);
-                // We continue without images if search fails, or we could throw. 
+                // We continue without images if search fails, or we could throw.
                 // Let's log and continue to be robust.
             }
         }
@@ -177,7 +177,7 @@ export class StandardStrategy implements GenerationStrategy {
         }
 
         currentHistory.push(...history);
-        
+
         // Combine Search Results + User Prompt
         // Search results go BEFORE the user prompt so the user prompt is the final instruction
         const combinedUserContent = [...searchContentParts, ...userPromptParts];
