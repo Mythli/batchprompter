@@ -87,7 +87,7 @@ export class CandidateStrategy implements GenerationStrategy {
         if (config.judgeModel && successfulCandidates.length > 1) {
             console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates with ${config.judgeModel}...`);
             try {
-                winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts);
+                winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, index, stepIndex);
                 console.log(`[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}`);
             } catch (e: any) {
                 console.error(`[Row ${index}] Step ${stepIndex} Judging failed, falling back to first candidate. Error: ${e.message}`);
@@ -131,7 +131,9 @@ export class CandidateStrategy implements GenerationStrategy {
     private async judgeCandidates(
         candidates: (GenerationResult & { candidateIndex: number })[],
         config: ResolvedStepConfig,
-        userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
+        userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        index: number,
+        stepIndex: number
     ): Promise<GenerationResult & { candidateIndex: number }> {
         
         const judgeSystemPrompt = "You are an impartial judge evaluating AI responses. You must select the best response based on the user's original request.";
@@ -176,12 +178,15 @@ export class CandidateStrategy implements GenerationStrategy {
         ];
 
         const JudgeSchema = z.object({
-            best_candidate_index: z.number().int().min(0).max(candidates.length - 1).describe("The index of the best candidate (0-based)")
+            best_candidate_index: z.number().int().min(0).max(candidates.length - 1).describe("The index of the best candidate (0-based)"),
+            reason: z.string().describe("The reason for selecting this candidate")
         });
 
         const result = await this.llm.promptZod(messages, JudgeSchema, {
             model: config.judgeModel!
         });
+
+        console.log(`[Row ${index}] Step ${stepIndex} Judge Reason: ${result.reason}`);
 
         return candidates[result.best_candidate_index];
     }
