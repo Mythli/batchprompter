@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import 'dotenv/config';
 import { runAction } from './actions.js';
 import { ActionOptions } from './types.js';
 
@@ -122,6 +123,14 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
     const hasOverrides = Object.keys(stepOverrides).length > 0;
     const hasImageSearch = options.imageSearchQuery || options.imageSearchPrompt || Object.values(stepOverrides).some((o: any) => o.imageSearchQuery || o.imageSearchPrompt);
     
+    if (hasImageSearch) {
+        const key = process.env.BATCHPROMPT_SERPER_API_KEY || process.env.SERPER_API_KEY;
+        if (!key) {
+            console.error('Error: Image search requested but SERPER_API_KEY is missing. Please set SERPER_API_KEY in your environment variables.');
+            process.exit(1);
+        }
+    }
+
     if ((!templateFilePaths || templateFilePaths.length === 0) && !options.system && !hasOverrides && !hasImageSearch) {
         console.error('Error: You must provide either template files, a system prompt, or an image search configuration.');
         process.exit(1);
