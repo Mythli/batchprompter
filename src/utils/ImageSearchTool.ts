@@ -132,9 +132,7 @@ export class ImageSearchTool {
 
         // 4. Process & Output
         const savedPaths: string[] = [];
-        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-            { type: 'text', text: `I have found the following images based on the search queries: ${queries.join(', ')}` }
-        ];
+        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
