@@ -211,8 +211,14 @@ export class StandardStrategy implements GenerationStrategy {
                     currentHistory.push({ role: 'assistant', content: finalContent!.data });
                 } else if (finalContent!.type === 'image') {
                     // Store actual image in history so both Generator and Critic can see it in future turns
+                    // Assistant messages cannot contain images, so we use a placeholder text for the assistant
+                    // and inject the image as a user message immediately after.
                     currentHistory.push({
                         role: 'assistant',
+                        content: "[Generated Image]"
+                    });
+                    currentHistory.push({
+                        role: 'user',
                         content: [ { type: 'image_url', image_url: { url: finalContent!.data } } ]
                     });
                 } else {
