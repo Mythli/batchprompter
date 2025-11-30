@@ -31,6 +31,17 @@ export class ImageSearchTool {
         cacheSalt?: string | number
     ): Promise<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[], savedPaths: string[] }> {
         
+        // Determine output directory
+        let outputDir = config.tmpDir;
+        let filePrefix = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}`;
+
+        if (config.outputPath) {
+            outputDir = path.dirname(config.outputPath);
+            const ext = path.extname(config.outputPath);
+            const name = path.basename(config.outputPath, ext);
+            filePrefix = name;
+        }
+
         const queries: string[] = [];
 
         // 1. Collect Queries
@@ -91,8 +102,8 @@ export class ImageSearchTool {
         // We do this asynchronously to not block too much, but we await it to ensure files exist for debugging
         const saveFoundPromises = pooledImages.map(async (img, i) => {
             try {
-                const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_found_${i}.jpg`;
-                const savePath = path.join(config.tmpDir, filename);
+                const filename = `${filePrefix}_found_${i}.jpg`;
+                const savePath = path.join(outputDir, filename);
                 
                 // Use buffer directly
                 await ArtifactSaver.save(img.buffer, savePath);
@@ -120,8 +131,8 @@ export class ImageSearchTool {
                 config.imageSearchSelect,
                 // Callback to save sprites
                 async (buffer, spriteIndex) => {
-                    const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_sprite_${spriteIndex}.jpg`;
-                    const savePath = path.join(config.tmpDir, filename);
+                    const filename = `${filePrefix}_sprite_${spriteIndex}.jpg`;
+                    const savePath = path.join(outputDir, filename);
                     await ArtifactSaver.save(buffer, savePath);
                 }
             );
@@ -137,9 +148,9 @@ export class ImageSearchTool {
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
             
-            // Save selected image to tmpDir
-            const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_selected_${i}.jpg`;
-            const savePath = path.join(config.tmpDir, filename);
+            // Save selected image
+            const filename = `${filePrefix}_selected_${i}.jpg`;
+            const savePath = path.join(outputDir, filename);
             
             // Normalize for History (Base64 JPEG)
             try {
