@@ -90,7 +90,7 @@ export class CandidateStrategy implements GenerationStrategy {
         if (config.judgeModel && successfulCandidates.length > 1) {
             console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates with ${config.judgeModel}...`);
             try {
-                winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, index, stepIndex);
+                winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex);
                 console.log(`[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}`);
             } catch (e: any) {
                 console.error(`[Row ${index}] Step ${stepIndex} Judging failed, falling back to first candidate. Error: ${e.message}`);
@@ -135,11 +135,12 @@ export class CandidateStrategy implements GenerationStrategy {
         candidates: (GenerationResult & { candidateIndex: number })[],
         config: ResolvedStepConfig,
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         index: number,
         stepIndex: number
     ): Promise<GenerationResult & { candidateIndex: number }> {
         
-        let judgeSystemPrompt = "You are an impartial judge evaluating AI responses. You must select the best response based on the user's original request.";
+        let judgeSystemPrompt = "You are an impartial judge evaluating AI responses. You must select the best response based on the user's original request and the conversation context.";
         
         // Add the custom judge prompt parts (rendered) to system prompt
         if (config.judgePromptParts && config.judgePromptParts.length > 0) {
@@ -156,42 +157,48 @@ export class CandidateStrategy implements GenerationStrategy {
             judgeSystemPrompt += "\n\nAnalyze the candidates above and select the best one based on the original request.";
         }
 
-        const userPromptText = userPromptParts
-            .filter(p => p.type === 'text')
-            .map(p => p.text)
-            .join('\n');
+        // --- Construct Full Context for Judge ---
+        // 1. Replay History (System + User/Assistant turns)
+        // We filter out the original system prompt if we want to replace it with the Judge's system prompt,
+        // OR we can keep it as context. Usually, keeping it as context is better so the judge knows what the agent was told to do.
+        // However, we must ensure the Judge's instructions are the *primary* system directive.
+        
+        const contextMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+            { role: 'system', content: judgeSystemPrompt },
+            ...history.filter(m => m.role !== 'system'), // Filter out original system prompt to avoid confusion
+            { role: 'user', content: userPromptParts }   // The effective user prompt (includes search results)
+        ];
 
-        const judgeMessageContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-            { type: 'text', text: `Original User Request:\n${userPromptText}\n\nCandidates:\n` }
+        // 2. Append Candidates
+        // We present candidates as a new User message asking to evaluate them.
+        const candidatePresentationParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+            { type: 'text', text: "\n\n--- CANDIDATE EVALUATION ---\nPlease evaluate the following candidates generated in response to the request above:\n" }
         ];
 
         for (let i = 0; i < candidates.length; i++) {
             const cand = candidates[i];
-            judgeMessageContent.push({ type: 'text', text: `\n--- Candidate ${i} ---\n` });
+            candidatePresentationParts.push({ type: 'text', text: `\n--- Candidate ${i} ---\n` });
             
             // Check if candidate content is image URL or text
             const val = cand.columnValue;
             if (val && (val.startsWith('http') || val.startsWith('data:image'))) {
-                judgeMessageContent.push({ 
+                candidatePresentationParts.push({ 
                     type: 'image_url', 
                     image_url: { url: val } 
                 });
             } else {
-                judgeMessageContent.push({ type: 'text', text: val || "(No Content)" });
+                candidatePresentationParts.push({ type: 'text', text: val || "(No Content)" });
             }
         }
 
-        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-            { role: 'system', content: judgeSystemPrompt },
-            { role: 'user', content: judgeMessageContent }
-        ];
+        contextMessages.push({ role: 'user', content: candidatePresentationParts });
 
         const JudgeSchema = z.object({
             best_candidate_index: z.number().int().min(0).max(candidates.length - 1).describe("The index of the best candidate (0-based)"),
             reason: z.string().describe("The reason for selecting this candidate")
         });
 
-        const result = await this.llm.promptZod(messages, JudgeSchema, {
+        const result = await this.llm.promptZod(contextMessages, JudgeSchema, {
             model: config.judgeModel!
         });
 

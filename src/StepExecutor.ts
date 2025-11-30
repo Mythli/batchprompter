@@ -28,7 +28,28 @@ export class StepExecutor {
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
     ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
         
-        // Always use StandardStrategy, but inject the ImageSearchTool
+        // 1. Execute Image Search (Global Context for this step)
+        // We do this here so the results are available to:
+        // a) The StandardStrategy (for generation)
+        // b) The CandidateStrategy (for the Judge to see)
+        let effectiveUserPromptParts = [...userPromptParts];
+        let effectiveConfig = { ...config };
+
+        const hasSearchRequest = config.imageSearchQuery || config.imageSearchPrompt;
+
+        if (hasSearchRequest && this.imageSearchTool) {
+            const searchResult = await this.imageSearchTool.execute(row, index, stepIndex, config);
+            
+            // Prepend search results to the user prompt
+            effectiveUserPromptParts = [...searchResult.contentParts, ...userPromptParts];
+
+            // Clear search config to prevent strategies from re-running it
+            effectiveConfig.imageSearchQuery = null;
+            effectiveConfig.imageSearchPrompt = undefined;
+        }
+
+        // 2. Select Strategy
+        // Always use StandardStrategy as base
         let strategy = new StandardStrategy(this.llm, this.model, this.imageSearchTool);
         
         // Wrap in Candidate Strategy if needed
@@ -36,12 +57,13 @@ export class StepExecutor {
             strategy = new CandidateStrategy(strategy, this.llm);
         }
 
+        // 3. Execute
         const result = await strategy.execute(
             row,
             index,
             stepIndex,
-            config,
-            userPromptParts,
+            effectiveConfig,
+            effectiveUserPromptParts,
             history
         );
 
