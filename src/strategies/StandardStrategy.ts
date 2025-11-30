@@ -152,7 +152,13 @@ export class StandardStrategy implements GenerationStrategy {
 
         // --- Image Search Integration ---
         let searchContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        if (this.imageSearchTool && (config.imageSearchQuery || config.imageSearchPrompt)) {
+        const hasSearchRequest = config.imageSearchQuery || config.imageSearchPrompt;
+
+        if (hasSearchRequest) {
+            if (!this.imageSearchTool) {
+                throw new Error(`[Row ${index}] Step ${stepIndex} Image search requested but SERPER_API_KEY is missing. Please set SERPER_API_KEY in your environment variables.`);
+            }
+
             try {
                 const searchResult = await this.imageSearchTool.execute(row, index, stepIndex, config, cacheSalt);
                 searchContentParts = searchResult.contentParts;
