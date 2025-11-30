@@ -22,7 +22,7 @@ type RowHandler = (
     llm: LlmClient,
     renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
     loadedJudgePrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
-    loadedFeedbackPrompts: { global: string | null, steps: Record<number, string> },
+    loadedFeedbackPrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
     userPrompts: OpenAI.Chat.Completions.ChatCompletionContentPart[][],
     baseOutputPath: string,
     index: number,
@@ -126,12 +126,10 @@ async function processBatch(
             }
 
             // 4. Global Feedback Prompt
-            let globalFeedbackPrompt: string | null = null;
+            let globalFeedbackPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null = null;
             if (options.feedbackPrompt) {
                 const resolvedPath = renderPath(options.feedbackPrompt, row);
-                const parts = await getFileContent(resolvedPath);
-                const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
-                globalFeedbackPrompt = Handlebars.compile(content, { noEscape: true })(row);
+                globalFeedbackPrompt = await getFileContent(resolvedPath);
             }
 
             // 5. Prepare Row-Specific Options and Validators
@@ -153,7 +151,7 @@ async function processBatch(
             // Step Overrides
             const stepSystemPrompts: Record<number, string> = {};
             const stepJudgePrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
-            const stepFeedbackPrompts: Record<number, string> = {};
+            const stepFeedbackPrompts: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> = {};
             
             if (options.stepOverrides) {
                 for (const [stepStr, config] of Object.entries(options.stepOverrides)) {
@@ -177,9 +175,7 @@ async function processBatch(
                     // Step Feedback Prompt
                     if (config.feedbackPrompt) {
                         const resolvedPath = renderPath(config.feedbackPrompt, row);
-                        const parts = await getFileContent(resolvedPath);
-                        const content = parts.filter(p => p.type === 'text').map(p => p.text).join('\n\n');
-                        stepFeedbackPrompts[step] = Handlebars.compile(content, { noEscape: true })(row);
+                        stepFeedbackPrompts[step] = await getFileContent(resolvedPath);
                     }
 
                     // Step Schema

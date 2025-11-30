@@ -215,9 +215,14 @@ export class StandardStrategy implements GenerationStrategy {
                         console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${i+1}/${config.feedbackLoops}`);
 
                         // 1. Critique
+                        const critiqueContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+                            { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCurrent Draft:\n${currentText}\n\nCritique Criteria:` },
+                            ...config.feedbackPrompt
+                        ];
+
                         const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
                             { role: 'system', content: 'You are an expert critic. Analyze the provided content against the criteria and provide specific, actionable improvements.' },
-                            { role: 'user', content: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCurrent Draft:\n${currentText}\n\nCritique Criteria:\n${config.feedbackPrompt}` }
+                            { role: 'user', content: critiqueContent }
                         ];
 
                         const critique = await this.llm.prompt({
@@ -285,9 +290,14 @@ export class StandardStrategy implements GenerationStrategy {
                         console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${i+1}/${config.feedbackLoops}`);
 
                         // 1. Critique
+                        const critiqueContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+                            { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCurrent Draft:\n${currentText}\n\nCritique Criteria:` },
+                            ...config.feedbackPrompt
+                        ];
+
                         const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
                             { role: 'system', content: 'You are an expert critic. Analyze the provided content against the criteria and provide specific, actionable improvements.' },
-                            { role: 'user', content: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCurrent Draft:\n${currentText}\n\nCritique Criteria:\n${config.feedbackPrompt}` }
+                            { role: 'user', content: critiqueContent }
                         ];
 
                         const critique = await this.llm.prompt({
@@ -338,15 +348,16 @@ export class StandardStrategy implements GenerationStrategy {
                         console.log(`[Row ${index}] Step ${stepIndex} 🔄 Image Feedback Loop ${i+1}/${config.feedbackLoops}`);
 
                         // 1. Critique (Vision)
+                        const critiqueContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+                            { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCritique Criteria:` },
+                            ...config.feedbackPrompt,
+                            { type: 'text', text: "\nAnalyze the image below:" },
+                            { type: 'image_url', image_url: { url: currentImageUrl } }
+                        ];
+
                         const critiqueMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
                             { role: 'system', content: 'You are an expert art director and technical director.' },
-                            { 
-                                role: 'user', 
-                                content: [
-                                    { type: 'text', text: `Original Request:\n${this.extractUserText(userPromptParts)}\n\nCritique Criteria:\n${config.feedbackPrompt}\n\nAnalyze the image below:` },
-                                    { type: 'image_url', image_url: { url: currentImageUrl } }
-                                ] 
-                            }
+                            { role: 'user', content: critiqueContent }
                         ];
 
                         const critique = await this.llm.prompt({

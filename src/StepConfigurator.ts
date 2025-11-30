@@ -19,7 +19,7 @@ export interface ResolvedStepConfig {
     candidateOutputTemplate: string | undefined;
     noCandidateCommand: boolean;
     feedbackLoops: number;
-    feedbackPrompt: string | undefined;
+    feedbackPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
     feedbackModel: string | undefined;
 }
 
@@ -32,7 +32,7 @@ export class StepConfigurator {
         baseOutputPath: string,
         renderedSystemPrompts: { global: string | null, steps: Record<number, string> },
         loadedJudgePrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
-        loadedFeedbackPrompts: { global: string | null, steps: Record<number, string> },
+        loadedFeedbackPrompts: { global: OpenAI.Chat.Completions.ChatCompletionContentPart[] | null, steps: Record<number, OpenAI.Chat.Completions.ChatCompletionContentPart[]> },
         validators: Record<string, any>
     ): ResolvedStepConfig {
         const stepOverride = options.stepOverrides?.[stepIndex];
@@ -113,13 +113,22 @@ export class StepConfigurator {
         const currentFeedbackLoops = stepOverride?.feedbackLoops ?? options.feedbackLoops ?? 0;
         
         // Resolve Feedback Prompt
-        let currentFeedbackPrompt = loadedFeedbackPrompts.steps[stepIndex];
-        if (!currentFeedbackPrompt && loadedFeedbackPrompts.global) {
-            currentFeedbackPrompt = loadedFeedbackPrompts.global;
+        let rawFeedbackParts = loadedFeedbackPrompts.steps[stepIndex];
+        if (!rawFeedbackParts && loadedFeedbackPrompts.global) {
+            rawFeedbackParts = loadedFeedbackPrompts.global;
         }
-        // Fallback to raw string if not loaded (though logic in actions.ts should handle loading)
-        if (!currentFeedbackPrompt) {
-             currentFeedbackPrompt = stepOverride?.feedbackPrompt || options.feedbackPrompt;
+
+        let currentFeedbackPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
+        if (rawFeedbackParts) {
+            currentFeedbackPrompt = rawFeedbackParts.map(part => {
+                if (part.type === 'text') {
+                    return {
+                        type: 'text',
+                        text: Handlebars.compile(part.text, { noEscape: true })(row)
+                    };
+                }
+                return part;
+            });
         }
         
         const currentFeedbackModel = stepOverride?.feedbackModel || options.feedbackModel;
