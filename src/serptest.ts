@@ -1,8 +1,23 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { z } from 'zod';
 
 const API_TOKEN = 'a40d157a5b06b8f7e162b70e944632de699c5fc41e722541a3ad6bf179a95d06';
 const ZONE = 'serp_api1';
+
+// Define Zod schemas based on the provided sample
+const ImageEntrySchema = z.object({
+    link: z.string().optional(), // Often the page URL
+    original_image: z.string().optional(), // The high-res image URL
+    image: z.string().optional(), // Sometimes the image URL or thumbnail
+    title: z.string().optional(),
+    source: z.string().optional()
+});
+
+const SerpResponseSchema = z.object({
+    general: z.any().optional(),
+    images: z.array(ImageEntrySchema).optional().nullable()
+});
 
 async function main() {
     console.log('Sending request to Bright Data...');
@@ -24,12 +39,20 @@ async function main() {
         throw new Error(`API request failed: ${response.status} ${response.statusText} - ${await response.text()}`);
     }
 
-    const data = await response.json();
+    const rawData = await response.json();
     
-    // Bright Data SERP API typically returns images in an 'images' array for image searches
-    const images = data.images;
+    // Parse and validate response with Zod
+    let parsedData;
+    try {
+        parsedData = SerpResponseSchema.parse(rawData);
+    } catch (error) {
+        console.error('Response validation failed:', error);
+        return;
+    }
+    
+    const images = parsedData.images;
 
-    if (!images || !Array.isArray(images) || images.length === 0) {
+    if (!images || images.length === 0) {
         console.error('No images found in the response.');
         return;
     }
@@ -45,8 +68,9 @@ async function main() {
 
     for (let i = 0; i < top3.length; i++) {
         const imgEntry = top3[i];
-        // 'link' is typically the direct image URL in SERP API JSON
-        const imageUrl = imgEntry.link || imgEntry.image;
+        
+        // Prioritize original_image, then image, then link based on sample data
+        const imageUrl = imgEntry.original_image || imgEntry.image || imgEntry.link;
 
         if (!imageUrl) {
             console.log(`Skipping image ${i + 1}: No URL found.`);
