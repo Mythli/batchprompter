@@ -7,12 +7,12 @@ export class AiImageSearch {
     constructor(
         private imageSearch: ImageSearch,
         private llm: LlmClient,
-        private imagesPerSprite: number = 9
+        private imagesPerSprite: number = 10
     ) {}
 
     /**
      * Searches for images, creates one or more sprites, and asks the AI to select the best one(s).
-     * 
+     *
      * @param searchQuery The query to send to the search engine (e.g. "sailing boat")
      * @param selectionPrompt The criteria for the AI (e.g. "Select the image that looks most heroic")
      * @param count Total number of images to fetch from search (default 9)
@@ -20,15 +20,15 @@ export class AiImageSearch {
      * @returns The selected SerperImage object(s)
      */
     async searchAndSelect(
-        searchQuery: string, 
-        selectionPrompt: string, 
-        count: number = 9,
+        searchQuery: string,
+        selectionPrompt: string,
+        count: number = 20,
         maxSelected: number = 1
     ): Promise<SerperImage[]> {
         // 1. Search
         console.log(`[AiImageSearch] Searching for: "${searchQuery}" (Limit: ${count})`);
         const images = await this.imageSearch.search(searchQuery, count);
-        
+
         if (images.length === 0) {
             throw new Error("No images found for query.");
         }
@@ -70,7 +70,7 @@ export class AiImageSearch {
         for (const sprite of sprites) {
             const base64Sprite = sprite.spriteBuffer.toString('base64');
             const dataUrl = `data:image/jpeg;base64,${base64Sprite}`;
-            
+
             contentParts.push({ type: 'image_url', image_url: { url: dataUrl } });
 
             // Map valid indices back to original images
@@ -104,7 +104,7 @@ export class AiImageSearch {
 
         // 5. Map back to original images
         const selectedImages: SerperImage[] = [];
-        
+
         // Take only up to maxSelected, just in case LLM returns more
         const indicesToProcess = response.selected_indices.slice(0, maxSelected);
 
