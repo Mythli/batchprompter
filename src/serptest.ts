@@ -30,8 +30,8 @@ async function main() {
         },
         body: JSON.stringify({
             zone: ZONE,
-            url: 'https://www.google.com/search?q=bouldering&tbm=isch',
-            format: 'json'
+            url: 'https://google.com/search?q=sailing&gl=DE&hl=de&tbm=isch',
+            format: 'raw'
         })
     });
 
@@ -98,7 +98,7 @@ async function main() {
                 else if (contentType.includes('jpeg')) ext = '.jpg';
             }
 
-            const filePath = path.join(outputDir, `bouldering_${i + 1}${ext}`);
+            const filePath = path.join(outputDir, `sailing_${i + 1}${ext}`);
             fs.writeFileSync(filePath, buffer);
             console.log(`Saved to ${filePath}`);
 
