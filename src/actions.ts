@@ -88,6 +88,8 @@ async function processBatch(
 
     console.log(`Found ${rows.length} rows to process.`);
 
+    const rowErrors: { index: number, error: any }[] = [];
+
     const tasks = rows.map(async (row, index) => {
         try {
             // --- Resolve Paths and Load Content per Row ---
@@ -286,11 +288,23 @@ async function processBatch(
 
         } catch (err) {
             console.error(`[Row ${index}] Error:`, err);
+            rowErrors.push({ index, error: err });
         }
     });
 
     await Promise.all(tasks);
     console.log("All tasks completed.");
+
+    if (rowErrors.length > 0) {
+        console.error(`\n⚠️  Completed with ${rowErrors.length} errors out of ${rows.length} rows.`);
+        console.error("--- Error Summary ---");
+        rowErrors.sort((a, b) => a.index - b.index).forEach(({ index, error }) => {
+            console.error(`[Row ${index}] ${error instanceof Error ? error.message : String(error)}`);
+        });
+        console.error("---------------------\n");
+    } else {
+        console.log(`\n✅ Successfully processed all ${rows.length} rows.\n`);
+    }
 
     // Save updated data
     const ext = path.extname(dataFilePath);
