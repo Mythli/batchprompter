@@ -1,7 +1,6 @@
 // src/lib/createCachedFetcher.ts
 
 import { Cache } from 'cache-manager';
-import { EventTracker } from './EventTracker.js';
 import { ProxyAgent } from 'undici';
 import crypto from 'crypto';
 
@@ -30,7 +29,6 @@ export interface CreateFetcherDependencies {
     timeout: number;
     /** User-Agent string for requests. */
     userAgent?: string;
-    eventTracker?: EventTracker;
     proxyUrl?: string;
 }
 
@@ -65,7 +63,7 @@ export class CachedResponse extends Response {
  * @returns A function with the same signature as native `fetch`.
  */
 export function createCachedFetcher(deps: CreateFetcherDependencies): Fetcher {
-    const { cache, prefix, ttl, timeout, userAgent, eventTracker, proxyUrl } = deps;
+    const { cache, prefix, ttl, timeout, userAgent, proxyUrl } = deps;
 
     const fetchWithTimeout = async (url: string | URL | Request, options?: RequestInit): Promise<Response> => {
         const controller = new AbortController();
@@ -185,9 +183,6 @@ export function createCachedFetcher(deps: CreateFetcherDependencies): Fetcher {
             return response;
         };
 
-        if (eventTracker) {
-            return eventTracker.trackOperation('fetcher.fetch', { url: urlString }, fetchAndCache);
-        }
         return fetchAndCache();
     };
 }
