@@ -6,7 +6,7 @@ import { RuntimeConfig, StepConfig } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { getConfig } from "./getConfig.js";
 import { PromptResolver } from './utils/PromptResolver.js';
-import { resolvePromptInput } from './utils/fileUtils.js';
+import { resolvePromptInput, aggressiveSanitize } from './utils/fileUtils.js';
 
 export async function runAction(config: RuntimeConfig) {
     const { concurrency, taskConcurrency, data, steps, dataFilePath, dataOutputPath } = config;
@@ -25,7 +25,15 @@ export async function runAction(config: RuntimeConfig) {
     try {
         // Process Rows
         for (let index = 0; index < data.length; index++) {
-            const row = data[index];
+            // Sanitize row data upfront to ensure consistency across paths, commands, and prompts
+            const rawRow = data[index];
+            const row: Record<string, any> = {};
+            for (const [key, val] of Object.entries(rawRow)) {
+                 const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                 row[key] = aggressiveSanitize(stringVal);
+            }
+            // Update data array so output is consistent
+            data[index] = row;
             
             queue.add(async () => {
                 try {
