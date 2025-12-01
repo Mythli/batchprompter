@@ -7,3 +7,6 @@ cache.sqlite
 dist
 out
 output
+.vectorize_cache
+dowbloaded_images
+test.zip

@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@keyv/redis':
-        specifier: ^4.4.1
+        specifier: ^4.6.0
         version: 4.6.0(keyv@5.5.4)
       '@keyv/sqlite':
         specifier: ^4.0.6
@@ -21,7 +21,7 @@ importers:
         specifier: ^6.4.3
         version: 6.4.3
       cacheable:
-        specifier: ^1.9.0
+        specifier: ^1.10.4
         version: 1.10.4
       commander:
         specifier: ^14.0.2
@@ -38,9 +38,6 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
-      eventemitter3:
-        specifier: ^5.0.1
-        version: 5.0.1
       handlebars:
         specifier: ^4.7.8
         version: 4.7.8
@@ -50,9 +47,12 @@ importers:
       keyv:
         specifier: ^5.5.4
         version: 5.5.4
+      llm-fns:
+        specifier: ^1.0.6
+        version: 1.0.6
       openai:
-        specifier: ^4.103.0
-        version: 4.104.0(encoding@0.1.13)(zod@3.25.76)
+        specifier: ^4.104.0
+        version: 4.104.0(encoding@0.1.13)(zod@4.1.13)
       p-queue:
         specifier: ^9.0.1
         version: 9.0.1
@@ -63,20 +63,20 @@ importers:
         specifier: ^4.20.6
         version: 4.20.6
       zod:
-        specifier: ^3.25.42
-        version: 3.25.76
+        specifier: ^4.1.13
+        version: 4.1.13
     devDependencies:
       '@types/json2csv':
         specifier: ^5.0.7
         version: 5.0.7
       '@types/node':
-        specifier: ^20.11.0
+        specifier: ^20.19.25
         version: 20.19.25
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
       typescript:
-        specifier: ^5.3.3
+        specifier: ^5.9.3
         version: 5.9.3
 
 packages:
@@ -790,6 +790,9 @@ packages:
   keyv@5.5.4:
     resolution: {integrity: sha512-eohl3hKTiVyD1ilYdw9T0OiB4hnjef89e3dMYKz+mVKDzj+5IteTseASUsOB+EU9Tf6VNTCjDePcP6wkDGmLKQ==}
 
+  llm-fns@1.0.6:
+    resolution: {integrity: sha512-Vxdj6WQBamVmQrDCTpZQFQxRm2D2coJdTJgJ5hImG9vhRCC5Jco6bcwGHmwdBDqB2U+XlzcYvHR7QkGvf3E5fQ==}
+
   lodash.get@4.4.2:
     resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
     deprecated: This package is deprecated. Use the optional chaining (?.) operator instead.
@@ -922,6 +925,18 @@ packages:
     peerDependencies:
       ws: ^8.18.0
       zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
+  openai@6.9.1:
+    resolution: {integrity: sha512-vQ5Rlt0ZgB3/BNmTa7bIijYFhz3YBceAA3Z4JuoMSBftBF9YqFHIEhZakSs+O/Ad7EaoEimZvHxD5ylRjN11Lg==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
     peerDependenciesMeta:
       ws:
         optional: true
@@ -1139,8 +1154,8 @@ packages:
   yallist@4.0.0:
     resolution: {integrity: sha512-3wdGidZyq5PB084XLES5TpOSRA3wjXAlIWMhum2kRcv/41Sn2emQ0dycQW4uZXLejwKvg6EsvbdlVL+FYEct7A==}
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+  zod@4.1.13:
+    resolution: {integrity: sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig==}
 
 snapshots:
 
@@ -1804,6 +1819,13 @@ snapshots:
     dependencies:
       '@keyv/serialize': 1.1.1
 
+  llm-fns@1.0.6:
+    dependencies:
+      openai: 6.9.1(zod@4.1.13)
+      zod: 4.1.13
+    transitivePeerDependencies:
+      - ws
+
   lodash.get@4.4.2: {}
 
   lru-cache@6.0.0:
@@ -1952,7 +1974,7 @@ snapshots:
     dependencies:
       wrappy: 1.0.2
 
-  openai@4.104.0(encoding@0.1.13)(zod@3.25.76):
+  openai@4.104.0(encoding@0.1.13)(zod@4.1.13):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -1962,9 +1984,13 @@ snapshots:
       formdata-node: 4.4.1
       node-fetch: 2.7.0(encoding@0.1.13)
     optionalDependencies:
-      zod: 3.25.76
+      zod: 4.1.13
     transitivePeerDependencies:
       - encoding
+
+  openai@6.9.1(zod@4.1.13):
+    optionalDependencies:
+      zod: 4.1.13
 
   p-map@4.0.0:
     dependencies:
@@ -2238,4 +2264,4 @@ snapshots:
 
   yallist@4.0.0: {}
 
-  zod@3.25.76: {}
+  zod@4.1.13: {}

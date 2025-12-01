@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv';
 import { z } from 'zod';
-import { createCache } from 'cache-manager';
+// import { createCache } from 'cache-manager';
 import KeyvSqlite from '@keyv/sqlite';
 import Keyv from 'keyv';
 import OpenAI from "openai";
@@ -49,20 +49,11 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Setup Cache
     let cache;
     if (config.CACHE_ENABLED) {
-        const keyv = new Keyv({
+        cache = new Keyv({
             store: new KeyvSqlite(`sqlite://${config.SQLITE_PATH}`),
             serialize: JSON.stringify,
             deserialize: JSON.parse
         });
-
-        const storeAdapter = {
-            get: (key: string) => keyv.get(key),
-            set: (key: string, value: any, ttl?: number) => keyv.set(key, value, ttl),
-            del: (key: string) => keyv.delete(key),
-            reset: () => keyv.clear(),
-        };
-
-        cache = createCache({ stores: [storeAdapter as any] });
     }
 
     const openAi = new OpenAI({
@@ -97,7 +88,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     let imageSearch: ImageSearch | undefined;
     let aiImageSearch: AiImageSearch | undefined;
-    
+
     if (config.SERPER_API_KEY) {
         // Pass cache to ImageSearch
         imageSearch = new ImageSearch(config.SERPER_API_KEY, cache);
