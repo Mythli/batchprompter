@@ -25,15 +25,17 @@ export async function runAction(config: RuntimeConfig) {
     try {
         // Process Rows
         for (let index = 0; index < data.length; index++) {
-            // Sanitize row data upfront to ensure consistency across paths, commands, and prompts
             const rawRow = data[index];
-            const row: Record<string, any> = {};
+            
+            // Compute sanitized version upfront for file system operations
+            const sanitizedRow: Record<string, any> = {};
             for (const [key, val] of Object.entries(rawRow)) {
                  const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                 row[key] = aggressiveSanitize(stringVal);
+                 sanitizedRow[key] = aggressiveSanitize(stringVal);
             }
-            // Update data array so output is consistent
-            data[index] = row;
+            
+            // We do NOT overwrite data[index] with sanitized data, 
+            // because we want the output CSV/JSON to retain original readable data.
             
             queue.add(async () => {
                 try {
@@ -47,30 +49,23 @@ export async function runAction(config: RuntimeConfig) {
                         const stepConfig = steps[i];
 
                         // --- Dynamic Resolution Phase ---
-                        // Some config values might be templates (e.g. output path, schema path)
-                        // We resolve them here using the current row.
+                        // We resolve templates using the appropriate context (Raw vs Sanitized)
                         
                         const resolvedStep: StepConfig = { ...stepConfig };
 
-                        // 1. Output Path
+                        // 1. Output Path -> Uses SANITIZED data (File System Safe)
                         if (stepConfig.outputTemplate) {
-                            // We use PromptResolver logic or simple Handlebars? 
-                            // PromptResolver handles paths.
-                            // But output path is just a string template.
                             const Handlebars = (await import('handlebars')).default;
                             const delegate = Handlebars.compile(stepConfig.outputTemplate, { noEscape: true });
-                            resolvedStep.outputPath = delegate(row);
+                            resolvedStep.outputPath = delegate(sanitizedRow);
                         }
 
-                        // 2. Schema (if dynamic)
+                        // 2. Schema Path -> Uses SANITIZED data (Consistent with Output Path)
                         if (stepConfig.schemaPath && stepConfig.schemaPath.includes('{{')) {
-                            const parts = await PromptResolver.resolve(stepConfig.schemaPath, row);
+                            // We use sanitizedRow here because if we generated a schema in a previous step,
+                            // it would have been saved using a sanitized path.
+                            const parts = await PromptResolver.resolve(stepConfig.schemaPath, sanitizedRow);
                             if (parts.length > 0 && parts[0].type === 'text') {
-                                // It resolved to a file content or text
-                                // If it was a file path, resolvePromptInput read it.
-                                // If it was raw text, it's the schema.
-                                // But resolvePromptInput returns content.
-                                // We need to parse it.
                                 try {
                                     resolvedStep.jsonSchema = JSON.parse(parts[0].text);
                                 } catch (e) {
@@ -79,25 +74,22 @@ export async function runAction(config: RuntimeConfig) {
                             }
                         }
 
-                        // 3. User Prompt (Positional)
-                        // If it was marked as dynamic (text type with {{), resolve it now
+                        // 3. User Prompt -> Uses RAW data (Human Readable)
                         if (stepConfig.userPromptParts.length === 1 && stepConfig.userPromptParts[0].type === 'text' && stepConfig.userPromptParts[0].text.includes('{{')) {
-                            // It's a path template
                             const template = stepConfig.userPromptParts[0].text;
-                            // Resolve path using row context
-                            resolvedStep.userPromptParts = await PromptResolver.resolve(template, row);
+                            resolvedStep.userPromptParts = await PromptResolver.resolve(template, rawRow);
                         }
 
-                        // 4. Image Search Queries (Dynamic)
+                        // 4. Image Search Queries -> Uses RAW data (Better Search Results)
                         if (resolvedStep.imageSearch?.query?.includes('{{')) {
                             const Handlebars = (await import('handlebars')).default;
-                            resolvedStep.imageSearch.query = Handlebars.compile(resolvedStep.imageSearch.query, { noEscape: true })(row);
+                            resolvedStep.imageSearch.query = Handlebars.compile(resolvedStep.imageSearch.query, { noEscape: true })(rawRow);
                         }
 
                         console.log(`[Row ${index}] Step ${stepIndex} Processing...`);
 
                         const result = await executor.execute(
-                            row,
+                            rawRow, // Pass raw row to executor (Strategies will handle command sanitization internally if needed)
                             index,
                             stepIndex,
                             resolvedStep,
@@ -125,8 +117,7 @@ export async function runAction(config: RuntimeConfig) {
         }
 
     } finally {
-        // Save updated data (Write-on-Finish / Write-on-Crash)
-        // Because 'data' is mutated in place during execution, we can simply write it out.
+        // Save updated data
         const ext = path.extname(dataFilePath);
         const isColumnMode = steps.some(s => !!s.outputColumn);
 
