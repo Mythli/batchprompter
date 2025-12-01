@@ -1,31 +1,44 @@
-Du bist ein UX-Writer für "Butlerapp", eine moderne Buchungssoftware.
-Erstelle realistische, deutsche Buchungsdaten für ein mobiles Buchungsformular für die Branche: {{industry}}.
+You are a UX developer at Butlerapp, a modern booking software.
 
-Das Formular besteht aus:
-1. **Firmenname:** Ein kurzer, symbolischer Name für das Unternehmen (max 12 Zeichen).
-2. **Primärfarbe:** Ein Hex-Code (z.B. #E63946), der perfekt zur Branche passt (z.B. Grün für Natur, Blau für Business).
-3. **Header:** Titel des Angebots (kurz, prägnant) und Untertitel (Preis/Dauer). Details enthalten Ort und Zeit.
-4. **Stepper:** Der erste Schritt heißt meistens "Termin wählen", "Ticket wählen" oder ähnlich passend zur Branche.
-5. **Inputs:** Genau 3 Eingabefelder, die typisch für den ersten Buchungsschritt sind (z.B. Datum, Anzahl Personen, Tarif/Option).
-6. **Footer:** Standard Navigation.
+Create realistic booking data in German for a mobile booking form for the {{industry}} industry.
 
-**Wichtige Regeln:**
-- Sprache: Deutsch.
-- Währung: Euro (€).
-- Datum: Ein realistisches Datum Ende 2025.
-- Preise: Realistische Marktpreise für {{industry}}.
-- Ort: Eine typische deutsche Großstadt (z.B. Berlin, Hamburg, München) oder passende Region.
-- Stil: Professionell, kurz und clean.
+The form consists of:
 
-**Beispiel für "Erste Hilfe Kurs":**
-Firma: "RescuePoint"
-Farbe: "#D32F2F"
-Titel: "Reanimationskurs"
-Untertitel: "(9 UE) 59,00 €"
-Details: ["Ort: DRK Zentrum Berlin", "Zeit: 09:00 - 16:30 Uhr"]
-Step 1: "Kurstermin auswählen"
-Input 1: "Kurstermin*" -> "15. Nov. 2025"
-Input 2: "Teilnehmeranzahl*" -> "1 Person"
-Input 3: "Tarifwahl*" -> "59,00 € Führerschein-Paket"
+1. **Company Name:** A short, symbolic company name (maximum 12 characters).
 
-Generiere jetzt die Daten für: {{industry}}.
+2. **Primary Color:** A hex code (e.g., #E63946) that perfectly matches the industry (e.g., green for nature, blue for business).
+
+3. **Headline:** The offer title (short and concise) and subheadline (price/duration). Details include location and time.
+
+4. **Step:** The first step is usually called "Select Date," "Select Ticket," or something similar, depending on the industry.
+
+5. **Input Data:** Only 3 input fields, typical for the first step of booking (e.g., date, number of people, rate/option).
+
+6. **Footer:** Standard navigation.
+
+**Important Rules:**
+
+- Language: German.
+
+- Currency: Euro (€).
+
+- Date: A realistic date for the end of 2025.
+
+- Prices: Realistic market prices for {{industry}}.
+
+- Location: A typical major German city (e.g., Berlin, Hamburg, Munich) or a suitable region.
+
+- Style: Professional, concise, and clear.
+
+**Example for "First Aid Course":**
+Company: "RescuePoint"
+Color: "#D32F2F"
+Title: "CPR Course"
+Subtitle: "(9 lessons) €59.00"
+Details: ["Venue: German Red Cross Center in Berlin", "Time: 9:00–16:30"]
+Step 1: "Select Course Date"
+Enter 1: "Course Date*" -> "November 15, 2025"
+Enter 2: "Number of Participants*" -> "1 person"
+Enter 3: "Selected Price*" -> "Driver's License Package €59.00"
+
+Generate data for: {{industry}}.

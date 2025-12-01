@@ -1,0 +1,16 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Booking Form Primary Color",
+    "description": "Schema for validating only the primary color configuration used by the booking form.",
+    "type": "object",
+    "properties": {
+        "primaryColor": {
+            "type": "string",
+            "description": "Hex-Farbcode für die Primärfarbe, z.B. '#FF7043'. Nur volle 6-stellige Hex-Werte sind erlaubt.",
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "examples": ["#FF7043"]
+        }
+    },
+    "required": ["primaryColor"],
+    "additionalProperties": false
+}

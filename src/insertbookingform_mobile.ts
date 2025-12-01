@@ -23,9 +23,12 @@ interface DetectionOptions {
     margins: Margins;
 }
 
+interface ColorConfig {
+    primaryColor: string;
+}
+
 interface BookingFormData {
     companyName: string;
-    primaryColor: string;
     header: {
         title: string;
         subtitle: string;
@@ -71,7 +74,6 @@ function escapeXml(unsafe: string): string {
 function normalizeFormData(data: BookingFormData): BookingFormData {
     return {
         companyName: escapeXml(data.companyName),
-        primaryColor: data.primaryColor || '#000000',
         header: {
             title: escapeXml(data.header.title),
             subtitle: escapeXml(data.header.subtitle),
@@ -362,13 +364,15 @@ class BookingFormDrawer {
     private scalingOptions: ScalingOptions;
     private logoData?: { base64: string, width: number, height: number };
     private formData: BookingFormData;
+    private primaryColor: string;
 
     constructor(
         width: number, 
         height: number, 
         formData: BookingFormData, 
         logoData?: { base64: string, width: number, height: number },
-        scalingOptions: ScalingOptions = { general: 1.0, stepper: 1.0, header: 1.0, content: 1.0, footer: 1.0, logo: 1.0 }
+        scalingOptions: ScalingOptions = { general: 1.0, stepper: 1.0, header: 1.0, content: 1.0, footer: 1.0, logo: 1.0 },
+        primaryColor: string = '#000000'
     ) {
         this.width = width;
         this.height = height;
@@ -377,6 +381,7 @@ class BookingFormDrawer {
         this.scalingOptions = scalingOptions;
         this.logoData = logoData;
         this.formData = formData;
+        this.primaryColor = primaryColor;
     }
 
     // Helper to scale values with a specific section factor
@@ -423,12 +428,12 @@ class BookingFormDrawer {
             // Approximate baseline calculation: y + fontSize * 0.85
             const textY = y + (fontSize * 0.85);
             
-            this.elements.push(`<text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.formData.primaryColor}">${this.formData.companyName}</text>`);
+            this.elements.push(`<text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.primaryColor}">${this.formData.companyName}</text>`);
         } else {
             // Fallback text if logo not loaded
             const fontSize = burgerHeight;
             const textY = y + (fontSize * 0.85);
-            this.elements.push(`<text x="${x}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.formData.primaryColor}">${this.formData.companyName || 'Butlerapp'}</text>`);
+            this.elements.push(`<text x="${x}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.primaryColor}">${this.formData.companyName || 'Butlerapp'}</text>`);
         }
 
         // Hamburger Menu
@@ -455,11 +460,11 @@ class BookingFormDrawer {
         const textOffsetY = this.s(6, factor);
 
         // Step 1 (Active)
-        this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="${this.formData.primaryColor}" />`);
+        this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="${this.primaryColor}" />`);
         this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
 
         // Text
-        this.elements.push(`<text x="${startX + circleSize + this.s(10, factor)}" y="${y + circleSize/2 + textOffsetY}" fill="${this.formData.primaryColor}" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
+        this.elements.push(`<text x="${startX + circleSize + this.s(10, factor)}" y="${y + circleSize/2 + textOffsetY}" fill="${this.primaryColor}" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
 
         // Step 3 (Inactive) - Right aligned
         const step3X = this.width - this.getLeftMargin() - circleSize;
@@ -549,19 +554,19 @@ class BookingFormDrawer {
         const iconCx = xRight - iconR;
 
         // Draw text
-        this.elements.push(`<text x="${iconCx - iconR - this.s(10, factor)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="${this.formData.primaryColor}">${this.formData.footer.nextText}</text>`);
+        this.elements.push(`<text x="${iconCx - iconR - this.s(10, factor)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="${this.primaryColor}">${this.formData.footer.nextText}</text>`);
 
         // Draw Icon Circle
-        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="${this.formData.primaryColor}" stroke-width="${this.s(2, factor)}" />`);
+        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="${this.primaryColor}" stroke-width="${this.s(2, factor)}" />`);
 
         // Draw Arrow
         const arrowLen = this.s(10, factor);
         const arrowHead = this.s(4, factor);
 
         // Line
-        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="${this.formData.primaryColor}" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="${this.primaryColor}" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
         // Head
-        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="${this.formData.primaryColor}" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="${this.primaryColor}" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
     }
 
     render() {
@@ -603,7 +608,8 @@ async function drawBookingForm(
     formData: BookingFormData,
     logoPath: string,
     superSample: number = 8,
-    scalingOptions: ScalingOptions
+    scalingOptions: ScalingOptions,
+    primaryColor: string
 ) {
     // Load logo
     let logoData;
@@ -614,14 +620,14 @@ async function drawBookingForm(
         // Force PNG conversion for the logo data to ensure it renders correctly in the SVG
         const logoBuffer = await logoImage.png().toBuffer();
 
-        if (formData.primaryColor && metadata.width && metadata.height) {
+        if (primaryColor && metadata.width && metadata.height) {
             // Create a solid color image of the same size
             const solidColor = sharp({
                 create: {
                     width: metadata.width,
                     height: metadata.height,
                     channels: 4,
-                    background: formData.primaryColor
+                    background: primaryColor
                 }
             });
 
@@ -648,7 +654,7 @@ async function drawBookingForm(
     }
 
     // Supersample to improve text rendering sharpness
-    const drawer = new BookingFormDrawer(rect.width * superSample, rect.height * superSample, formData, logoData, scalingOptions);
+    const drawer = new BookingFormDrawer(rect.width * superSample, rect.height * superSample, formData, logoData, scalingOptions, primaryColor);
     drawer.render();
     const svgContent = drawer.getSvg();
 
@@ -676,12 +682,13 @@ async function main() {
     const program = new Command();
 
     program
-        .name('insertbookingform')
+        .name('insertbookingform_mobile')
         .description('Insert a booking form into an image')
         .argument('<input_image>', 'Path to the input image')
         .argument('<json_data>', 'Path to the JSON data file')
         .argument('<logo_image>', 'Path to the logo image')
-        .argument('[output_image]', 'Path to the output image', 'test/output_with_form.png')
+        .argument('<output_image>', 'Path to the output image')
+        .argument('<color_json>', 'Path to the color JSON data file')
         .option('--supersample <n>', 'Supersampling factor', (val) => parseInt(val, 10), 8)
         .option('--scale <n>', 'General scaling factor', (val) => parseFloat(val), 1.0)
         .option('--scale-stepper <n>', 'Scaling factor for stepper', (val) => parseFloat(val), 1.0)
@@ -689,7 +696,7 @@ async function main() {
         .option('--scale-content <n>', 'Scaling factor for content/inputs', (val) => parseFloat(val), 1.0)
         .option('--scale-footer <n>', 'Scaling factor for footer', (val) => parseFloat(val), 1.0)
         .option('--scale-logo <n>', 'Scaling factor for logo', (val) => parseFloat(val), 1.0)
-        .action(async (inputPath, jsonPath, logoPath, outputPath, options) => {
+        .action(async (inputPath, jsonPath, logoPath, outputPath, colorJsonPath, options) => {
             const scalingOptions: ScalingOptions = {
                 general: options.scale,
                 stepper: options.scaleStepper,
@@ -711,6 +718,10 @@ async function main() {
                 const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
                 const rawFormData: BookingFormData = JSON.parse(jsonContent);
 
+                // Load color config (validated by color_schema.json in generation step)
+                const colorContent = fs.readFileSync(colorJsonPath, 'utf-8');
+                const colorConfig: ColorConfig = JSON.parse(colorContent);
+
                 // Normalize data (escape XML characters)
                 const formData = normalizeFormData(rawFormData);
 
@@ -729,7 +740,7 @@ async function main() {
                 const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
                 console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
 
-                await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, options.supersample, scalingOptions);
+                await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, options.supersample, scalingOptions, colorConfig.primaryColor);
 
             } catch (error) {
                 console.error('Error processing image:', error);
