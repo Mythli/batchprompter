@@ -7,8 +7,7 @@ npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/promp
   --output-1 "out/10-image/{{industry}}/06_YourBenefitsImage.jpg" \
   --aspect-ratio-1 "4:3" \
   --model "google/gemini-3-pro-image-preview" \
-  --candidates-1 4 \
-  --candidate-output-1 "out/10-image-candidates/{{industry}}/06_YourBenefitsImage_c{{candidate_index}}.jpg" \
+  --candidates-1 3 \
   --judge-model-1 "google/gemini-3-pro-preview" \
   --judge-prompt-1 examples/10-image/select-best-image.md \
   --skip-candidate-command-1 \
