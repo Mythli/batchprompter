@@ -98,6 +98,19 @@ interface PrimaryConfig {
     primaryColor?: string;
 }
 
+function escapeXml(text: string | number | undefined | null): string {
+    if (text === undefined || text === null) {
+        return "";
+    }
+    const str = String(text);
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+}
+
 function hexToRgba(hex: string, alpha: number): string {
     let cleaned = hex.trim();
     if (cleaned.startsWith("#")) {
@@ -385,9 +398,9 @@ class BookingFormDrawer {
         this.elements.push(
             `<text x="${startX + circleSize + this.s(10)}" y="${
                 y + circleSize / 2 + textOffsetY
-            }" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${
+            }" fill="#1D1D1F" font-size="${fontSize}" font-weight="bold" font-family="Arial">${escapeXml(
                 this.formData.stepper.step1
-            }</text>`
+            )}</text>`
         );
 
         // Step 3 (Inactive) - Right aligned
@@ -427,7 +440,7 @@ class BookingFormDrawer {
         this.elements.push(
             `<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(
                 36
-            )}" fill="#000">${this.formData.header.title}</text>`
+            )}" fill="#000">${escapeXml(this.formData.header.title)}</text>`
         );
         // Subtitle - Increased font size to match title
         this.elements.push(
@@ -435,7 +448,7 @@ class BookingFormDrawer {
                 y + lineHeight
             }" font-family="Arial" font-weight="bold" font-size="${this.s(
                 36
-            )}" fill="#000">${this.formData.header.subtitle}</text>`
+            )}" fill="#000">${escapeXml(this.formData.header.subtitle)}</text>`
         );
 
         // Details
@@ -448,7 +461,7 @@ class BookingFormDrawer {
                     detailY + index * detailLineHeight
                 }" font-family="Arial" font-size="${this.s(
                     20
-                )}" fill="#333">${detail}</text>`
+                )}" fill="#333">${escapeXml(detail)}</text>`
             );
         });
     }
@@ -463,7 +476,7 @@ class BookingFormDrawer {
         this.elements.push(
             `<text x="${x}" y="${y}" font-family="Arial" font-size="${this.s(
                 17
-            )}" fill="#333">${label}</text>`
+            )}" fill="#333">${escapeXml(label)}</text>`
         );
 
         // Input Box
@@ -478,7 +491,7 @@ class BookingFormDrawer {
                 boxY + h / 2 + this.s(5)
             }" font-family="Arial" font-size="${this.s(
                 20
-            )}" fill="#000">${value}</text>`
+            )}" fill="#000">${escapeXml(value)}</text>`
         );
 
         // Chevron Icon
@@ -505,7 +518,9 @@ class BookingFormDrawer {
         this.elements.push(
             `<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(
                 22
-            )}" fill="#8E8E93">← ${this.formData.footer.backText}</text>`
+            )}" fill="#8E8E93">← ${escapeXml(
+                this.formData.footer.backText
+            )}</text>`
         );
 
         // Next
@@ -521,9 +536,9 @@ class BookingFormDrawer {
         this.elements.push(
             `<text x="${
                 iconCx - iconR - this.s(10)
-            }" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">${
+            }" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="#000">${escapeXml(
                 this.formData.footer.nextText
-            }</text>`
+            )}</text>`
         );
 
         // Draw Icon Circle
@@ -927,9 +942,9 @@ class DashboardDrawer {
             this.elements.push(
                 `<text x="${x + this.s(20)}" y="${
                     y + this.s(30)
-                }" font-family="Arial" font-size="${this.s(24)}" fill="#666">${
-                    card.label || ""
-                }</text>`
+                }" font-family="Arial" font-size="${this.s(
+                    24
+                )}" fill="#666">${escapeXml(card.label || "")}</text>`
             );
 
             // Value (Middle/Big) - more space from title
@@ -939,7 +954,7 @@ class DashboardDrawer {
                         y + this.s(95)
                     }" font-family="Arial" font-weight="bold" font-size="${this.s(
                         50
-                    )}" fill="#333">${card.value}</text>`
+                    )}" fill="#333">${escapeXml(card.value)}</text>`
                 );
             }
         });
@@ -964,7 +979,9 @@ class DashboardDrawer {
                 startY + this.s(40)
             }" font-family="Arial" font-weight="bold" font-size="${this.s(
                 28
-            )}" fill="#333" letter-spacing="1">${section.title}</text>`
+            )}" fill="#333" letter-spacing="1">${escapeXml(
+                section.title
+            )}</text>`
         );
 
         // Chart Area (Simplified Line Chart) - adjusted spacing for bigger text
@@ -1000,7 +1017,9 @@ class DashboardDrawer {
             this.elements.push(
                 `<text x="${labelX}" y="${labelY}" text-anchor="start" font-family="Arial" font-size="${this.s(
                     14
-                )}" fill="#999">${currencySymbol}${value.toFixed(0)}</text>`
+                )}" fill="#999">${escapeXml(currencySymbol)}${value.toFixed(
+                    0
+                )}</text>`
             );
         }
 
@@ -1097,12 +1116,16 @@ class DashboardDrawer {
 
             // Label to the left
             this.elements.push(
-                `<text x="${labelX}" y="${textY}" text-anchor="end" font-family="Arial" font-size="${labelFontSize}" fill="#999">${total.label}</text>`
+                `<text x="${labelX}" y="${textY}" text-anchor="end" font-family="Arial" font-size="${labelFontSize}" fill="#999">${escapeXml(
+                    total.label
+                )}</text>`
             );
 
             // Money value
             this.elements.push(
-                `<text x="${moneyX}" y="${textY}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${moneyFontSize}" fill="#333">${moneyText}</text>`
+                `<text x="${moneyX}" y="${textY}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${moneyFontSize}" fill="#333">${escapeXml(
+                    moneyText
+                )}</text>`
             );
         }
     }
@@ -1125,7 +1148,9 @@ class DashboardDrawer {
                 startY + this.s(40)
             }" font-family="Arial" font-weight="bold" font-size="${this.s(
                 28
-            )}" fill="#333" letter-spacing="1">${table.title.toUpperCase()}</text>`
+            )}" fill="#333" letter-spacing="1">${escapeXml(
+                table.title.toUpperCase()
+            )}</text>`
         );
 
         // Columns - filter out checkbox, id, and email columns
@@ -1171,7 +1196,7 @@ class DashboardDrawer {
                     colY + this.s(16)
                 }" font-family="Arial" font-weight="bold" font-size="${this.s(
                     32
-                )}" fill="#666">${col.label}</text>`
+                )}" fill="#666">${escapeXml(col.label)}</text>`
             );
             currentX += colW;
         });
@@ -1213,7 +1238,7 @@ class DashboardDrawer {
                             rowY + this.s(10)
                         }" font-family="Arial" font-size="${this.s(
                             32
-                        )}" fill="${color}">${val}</text>`
+                        )}" fill="${color}">${escapeXml(val)}</text>`
                     );
                 }
 

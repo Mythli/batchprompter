@@ -4,7 +4,3 @@ npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/promp
   --schema examples/10-image/prompt-4-booking-form-json-data/schema.json \
   --output "out/10-image/{{industry}}/data.json" \
   --model "google/gemini-3-pro-preview"
-
-for dir in out/10-image/*/; do
-  cp examples/10-image/prompt-4-booking-form-json-data/user_image.png "${dir%/}/user_image.png"
-done
