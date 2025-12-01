@@ -7,7 +7,7 @@ export class AiImageSearch {
     constructor(
         private imageSearch: ImageSearch,
         private llm: LlmClient,
-        private imagesPerSprite: number = 10
+        private imagesPerSprite: number = 4
     ) {}
 
     /**
