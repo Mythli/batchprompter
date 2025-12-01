@@ -8,6 +8,7 @@ import { AiImageSearch } from './AiImageSearch.js';
 import { SerperImage, ImageSearchResult } from './ImageSearch.js';
 import { StepConfig } from '../types.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
+import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
 
 export class ImageSearchTool {
     constructor(
@@ -22,19 +23,6 @@ export class ImageSearchTool {
             .toBuffer();
 
         return processedBuffer.toString('base64');
-    }
-
-    private renderParts(
-        parts: OpenAI.Chat.Completions.ChatCompletionContentPart[], 
-        row: Record<string, any>
-    ): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
-        return parts.map(part => {
-            if (part.type === 'text') {
-                const delegate = Handlebars.compile(part.text, { noEscape: true });
-                return { type: 'text', text: delegate(row) };
-            }
-            return part;
-        });
     }
 
     async execute(
@@ -64,25 +52,26 @@ export class ImageSearchTool {
 
         // 1. Collect Queries
         if (searchConfig.query) {
-            queries.push(searchConfig.query);
+            // Handlebars render the static query
+            const delegate = Handlebars.compile(searchConfig.query, { noEscape: true });
+            queries.push(delegate(row));
         }
 
-        if (searchConfig.promptParts && searchConfig.promptParts.length > 0) {
+        if (searchConfig.queryConfig) {
             console.log(`[Row ${index}] Step ${stepIndex} Generating search queries...`);
             
-            const renderedPromptParts = this.renderParts(searchConfig.promptParts, row);
             const queryCount = searchConfig.queryCount;
             
             const QuerySchema = z.object({
                 queries: z.array(z.string()).min(1).max(queryCount).describe(`A list of up to ${queryCount} diverse search queries`)
             });
 
-            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                { role: 'system', content: `You are a research assistant. Generate up to ${queryCount} diverse search queries based on the user request.` },
-                { role: 'user', content: renderedPromptParts }
-            ];
+            // Use Normalizer
+            const request = ModelRequestNormalizer.normalize(searchConfig.queryConfig, row);
 
-            const response = await this.llm.promptZod(messages, QuerySchema, {
+            const response = await this.llm.promptZod(request.messages, QuerySchema, {
+                model: request.model,
+                ...request.options,
                 cacheSalt: `${cacheSalt}_gen_queries`
             });
 
@@ -132,22 +121,19 @@ export class ImageSearchTool {
         // 3. Selection
         let selectedImages: ImageSearchResult[] = [];
 
-        if (searchConfig.selectPromptParts && searchConfig.selectPromptParts.length > 0) {
-            const renderedSelectParts = this.renderParts(searchConfig.selectPromptParts, row);
-            
-            // Extract text for the select prompt (AiImageSearch expects string currently)
-            // We should probably update AiImageSearch to take ContentParts, but for now join text
-            const selectPromptText = renderedSelectParts
-                .filter(p => p.type === 'text')
-                .map(p => p.text)
-                .join('\n');
-
+        if (searchConfig.selectConfig) {
             console.log(`[Row ${index}] Step ${stepIndex} AI Selecting best images...`);
             
+            // Pass row context merged with search context
+            const selectionContext = {
+                ...row,
+                searchContext: queries.join(', ')
+            };
+
             selectedImages = await this.aiImageSearch.selectFromPool(
                 pooledImages, 
-                queries.join(', '), 
-                selectPromptText, 
+                searchConfig.selectConfig,
+                selectionContext,
                 searchConfig.select,
                 async (buffer, spriteIndex) => {
                     const filename = `${filePrefix}_sprite_${spriteIndex}.jpg`;

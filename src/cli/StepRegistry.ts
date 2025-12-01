@@ -13,6 +13,10 @@ export class StepRegistry {
         ModelFlags.register(program, '', { includeSystem: true, defaultModel: 'gpt-4o' }); // Main Model
         ModelFlags.register(program, 'judge', { includePrompt: true }); // Global Judge
         ModelFlags.register(program, 'feedback', { includePrompt: true }); // Global Feedback
+        
+        // Global Image Search Agents
+        ModelFlags.register(program, 'image-query', { includePrompt: true });
+        ModelFlags.register(program, 'image-select', { includePrompt: true });
 
         // Global Workflow
         program.option('-o, --output <path>', 'Template path for the output');
@@ -29,10 +33,8 @@ export class StepRegistry {
         program.option('--feedback-loops <number>', 'Number of feedback loops', '0');
         program.option('--aspect-ratio <ratio>', 'Aspect ratio for image generation');
 
-        // Global Image Search
+        // Global Image Search Params
         program.option('--image-search-query <text>', 'Raw search query');
-        program.option('--image-search-prompt <text>', 'Prompt to generate search queries');
-        program.option('--image-select-prompt <text>', 'Prompt to select best images');
         program.option('--image-search-limit <number>', 'Images per query', '12');
         program.option('--image-search-select <number>', 'Images to select', '1');
         program.option('--image-search-query-count <number>', 'Queries to generate', '3');
@@ -43,6 +45,10 @@ export class StepRegistry {
             ModelFlags.register(program, `${i}`, { includeSystem: true });
             ModelFlags.register(program, `judge-${i}`, { includePrompt: true });
             ModelFlags.register(program, `feedback-${i}`, { includePrompt: true });
+            
+            // Step Image Search Agents
+            ModelFlags.register(program, `image-query-${i}`, { includePrompt: true });
+            ModelFlags.register(program, `image-select-${i}`, { includePrompt: true });
 
             program.option(`--output-${i} <path>`, `Output path for step ${i}`);
             program.option(`--output-column-${i} <column>`, `Output column for step ${i}`);
@@ -55,8 +61,6 @@ export class StepRegistry {
             program.option(`--aspect-ratio-${i} <ratio>`, `Aspect ratio for step ${i}`);
 
             program.option(`--image-search-query-${i} <text>`, `Search query for step ${i}`);
-            program.option(`--image-search-prompt-${i} <text>`, `Search prompt for step ${i}`);
-            program.option(`--image-select-prompt-${i} <text>`, `Select prompt for step ${i}`);
             program.option(`--image-search-limit-${i} <number>`, `Search limit for step ${i}`);
             program.option(`--image-search-select-${i} <number>`, `Select count for step ${i}`);
             program.option(`--image-search-query-count-${i} <number>`, `Query count for step ${i}`);
@@ -116,9 +120,9 @@ export class StepRegistry {
                 promptSource: specific.promptSource || fallback.promptSource
             };
 
-            // If no model specified for auxiliary (Judge/Feedback) and no prompt, return undefined (not active)
+            // If no model specified for auxiliary (Judge/Feedback/Image) and no prompt, return undefined (not active)
             // But for Main, we always return config.
-            const isAux = namespace.includes('judge') || namespace.includes('feedback');
+            const isAux = namespace.includes('judge') || namespace.includes('feedback') || namespace.includes('image');
             if (isAux && !merged.promptSource && !merged.model) {
                 return undefined;
             }
@@ -160,22 +164,25 @@ export class StepRegistry {
             // 3. Auxiliary Models
             const judgeConfig = await resolveModelConfig(`judge-${i}`, 'judge');
             const feedbackConfig = await resolveModelConfig(`feedback-${i}`, 'feedback');
+            
+            // Image Search Agents
+            const imageQueryConfig = await resolveModelConfig(`image-query-${i}`, 'image-query');
+            const imageSelectConfig = await resolveModelConfig(`image-select-${i}`, 'image-select');
 
             // 4. Workflow & IO
             const candidates = parseInt(getOpt('candidates', i) || '1', 10);
             const feedbackLoops = parseInt(getOpt('feedbackLoops', i) || '0', 10);
 
             // Image Search
+            const query = getOpt('imageSearchQuery', i);
             const imgSearch = {
-                query: getOpt('imageSearchQuery', i),
-                prompt: getOpt('imageSearchPrompt', i),
-                selectPrompt: getOpt('imageSelectPrompt', i),
+                query,
+                queryConfig: imageQueryConfig,
+                selectConfig: imageSelectConfig,
                 limit: parseInt(getOpt('imageSearchLimit', i) || '12', 10),
                 select: parseInt(getOpt('imageSearchSelect', i) || '1', 10),
                 queryCount: parseInt(getOpt('imageSearchQueryCount', i) || '3', 10),
                 spriteSize: parseInt(getOpt('imageSearchSpriteSize', i) || '4', 10),
-                promptParts: await PromptResolver.resolve(getOpt('imageSearchPrompt', i)),
-                selectPromptParts: await PromptResolver.resolve(getOpt('imageSelectPrompt', i))
             };
 
             // Schema
@@ -207,7 +214,7 @@ export class StepRegistry {
                 judge: judgeConfig,
                 feedback: feedbackConfig,
                 feedbackLoops,
-                imageSearch: (imgSearch.query || imgSearch.prompt) ? imgSearch : undefined,
+                imageSearch: (imgSearch.query || imgSearch.queryConfig) ? imgSearch : undefined,
                 aspectRatio: getOpt('aspectRatio', i)
             });
         }

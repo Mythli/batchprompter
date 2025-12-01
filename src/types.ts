@@ -66,15 +66,16 @@ export interface StepConfig extends ResolvedModelConfig {
     
     // Image Search (Specific to the step)
     imageSearch?: {
-        query?: string;
-        prompt?: string; // Raw prompt text/path
-        promptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[]; // Resolved
+        query?: string; // Static query
+        
+        // Agents
+        queryConfig?: ResolvedModelConfig;
+        selectConfig?: ResolvedModelConfig;
+
         limit: number;
         select: number;
         queryCount: number;
         spriteSize: number;
-        selectPrompt?: string; // Raw prompt text/path
-        selectPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[]; // Resolved
     };
     
     // Image Generation
