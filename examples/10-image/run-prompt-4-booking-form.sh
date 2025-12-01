@@ -9,7 +9,7 @@ npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/promp
   --model "google/gemini-3-pro-image-preview" \
   --image-search-prompt-1 "Find a high-quality, bright, atmospheric photo representing {{industry}} in a German setting. No text overlay." \
   --image-select-prompt-1 "Select the best image that represents {{industry}}. It should be bright, high-quality photography, and suitable for use as a background." \
-  --candidates-1 4 \
+  --candidates-1 3 \
   --judge-model-1 "google/gemini-3-pro-preview" \
   --judge-prompt-1 examples/10-image/select-best-image.md \
   --skip-candidate-command-1 \
