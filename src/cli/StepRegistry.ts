@@ -21,6 +21,7 @@ export class StepRegistry {
         program.option('--data-output <path>', 'Path to save the processed data file');
         program.option('--tmp-dir <path>', 'Directory for temporary files', '.tmp');
         program.option('-c, --concurrency <number>', 'Number of concurrent requests', '20');
+        program.option('--task-concurrency <number>', 'Number of concurrent row tasks', '100');
         program.option('-S, --schema <file>', 'Path to the JSON Schema file');
         program.option('--verify-command <cmd>', 'Shell command to verify output');
         program.option('--command <cmd>', 'Shell command to run after generation');
@@ -214,6 +215,7 @@ export class StepRegistry {
 
         return {
             concurrency: parseInt(options.concurrency || '20', 10),
+            taskConcurrency: parseInt(options.taskConcurrency || '100', 10),
             tmpDir: options.tmpDir || '.tmp',
             dataFilePath,
             dataOutputPath: options.dataOutput,

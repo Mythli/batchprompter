@@ -28,6 +28,7 @@ export const configSchema = z.object({
     CACHE_ENABLED: z.coerce.boolean().default(true),
     SQLITE_PATH: z.string().default(".cache.sqlite"),
     SERPER_API_KEY: z.string().optional(),
+    TASK_CONCURRENCY: z.coerce.number().int().positive().default(100),
 });
 
 export type ConfigOverrides = {
@@ -42,6 +43,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         AI_API_URL: getEnvVar(['BATCHPROMPT_OPENAI_BASE_URL', 'OPENAI_BASE_URL', 'AI_API_URL']),
         MODEL: getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']),
         SERPER_API_KEY: getEnvVar(['BATCHPROMPT_SERPER_API_KEY', 'SERPER_API_KEY']),
+        TASK_CONCURRENCY: getEnvVar(['BATCHPROMPT_TASK_CONCURRENCY', 'TASK_CONCURRENCY']),
     };
 
     const config = configSchema.parse(rawConfig);

@@ -106,10 +106,24 @@ export async function resolvePromptInput(input: string): Promise<OpenAI.Chat.Com
         // If stat succeeds, it's a file or directory
         return await readPromptInput(input);
     } catch (error: any) {
-        // Treat as raw text if:
-        // - ENOENT: File does not exist
-        // - ENAMETOOLONG: String is too long to be a filename
-        // - EINVAL: String contains invalid characters for a filename
+        // Heuristic Check: Is this likely a file path that doesn't exist?
+        
+        // 1. Check for path separators
+        const hasPathSeparators = input.includes('/') || input.includes('\\');
+        
+        // 2. Check for file-like characteristics
+        // - No newlines (filenames don't have newlines)
+        // - Short length (filenames are usually short)
+        // - Ends with a file extension pattern (dot followed by 1-5 alphanumeric chars)
+        const hasNoNewlines = !input.includes('\n');
+        const isShort = input.length < 255;
+        const hasExtension = /\.[a-zA-Z0-9]{1,5}$/.test(input);
+
+        if (hasPathSeparators || (hasNoNewlines && isShort && hasExtension)) {
+            throw new Error(`File not found: ${input}`);
+        }
+
+        // Treat as raw text if it doesn't look like a file path
         if (error.code === 'ENOENT' || error.code === 'ENAMETOOLONG' || error.code === 'EINVAL') {
             return [{ type: 'text', text: input }];
         }

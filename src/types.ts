@@ -85,6 +85,7 @@ export interface StepConfig extends ResolvedModelConfig {
 
 export interface RuntimeConfig {
     concurrency: number;
+    taskConcurrency: number;
     tmpDir: string;
     dataFilePath: string;
     dataOutputPath?: string;
