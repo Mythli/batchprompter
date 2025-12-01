@@ -102,7 +102,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         });
 
         // Pass cache to ImageSearch for Serper results, and fetcher for downloads
-        imageSearch = new ImageSearch(config.SERPER_API_KEY, cachedFetcher, cache);
+        imageSearch = new ImageSearch(config.SERPER_API_KEY, cachedFetcher);
         aiImageSearch = new AiImageSearch(imageSearch, llm);
     }
 

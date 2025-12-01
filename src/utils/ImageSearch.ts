@@ -1,6 +1,4 @@
 import { z } from 'zod';
-import { Cache } from 'cache-manager';
-import crypto from 'crypto';
 import sharp from 'sharp';
 import { Fetcher } from './createCachedFetcher.js';
 
@@ -42,65 +40,40 @@ export interface ImageSearchResult {
 export class ImageSearch {
     constructor(
         private apiKey: string,
-        private fetcher: Fetcher,
-        private cache?: Cache
+        private fetcher: Fetcher
     ) {}
 
-    private hash(input: string): string {
-        return crypto.createHash('md5').update(input).digest('hex');
-    }
-
     async search(query: string, num: number = 10): Promise<ImageSearchResult[]> {
-        // Bumped version to v2 to invalidate potentially bad cache
-        const cacheKey = `serper:search:v2:${this.hash(query)}:${num}`;
-        let images: SerperImage[] = [];
+        console.log(`[ImageSearch] Searching for query: "${query}"`);
+        
+        // Use the fetcher for the network call. 
+        // The fetcher handles caching (including POST requests) and retries/timeouts.
+        const response = await this.fetcher('https://google.serper.dev/images', {
+            method: 'POST',
+            headers: {
+                'X-API-KEY': this.apiKey,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                q: query,
+                num: num
+            })
+        });
 
-        if (this.cache) {
-            const cached = await this.cache.get(cacheKey);
-            if (cached) {
-                console.log(`[ImageSearch] Cache hit for query: "${query}"`);
-                // We assume cached data is valid JSON matching the schema
-                images = cached as SerperImage[];
-            }
+        if (!response.ok) {
+            throw new Error(`API request failed: ${response.status} ${response.statusText}`);
         }
 
-        if (images.length === 0) {
-            console.log(`[ImageSearch] API call for query: "${query}"`);
-            
-            // Use the fetcher for the network call. 
-            // Note: cachedFetcher currently only caches GET requests, so this POST won't be cached by the fetcher itself.
-            // We rely on the manual caching block above/below for the API results.
-            const response = await this.fetcher('https://google.serper.dev/images', {
-                method: 'POST',
-                headers: {
-                    'X-API-KEY': this.apiKey,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    q: query,
-                    num: num
-                })
-            });
+        const json = await response.json();
+        let images: SerperImage[] = [];
 
-            if (!response.ok) {
-                throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-            }
-
-            const json = await response.json();
-
-            // Validate with Zod
-            try {
-                const parsed = SerperResponseSchema.parse(json);
-                images = parsed.images;
-
-                if (this.cache) {
-                    // Cache for 24 hours (in milliseconds)
-                    await this.cache.set(cacheKey, images, 24 * 60 * 60 * 1000);
-                }
-            } catch (e) {
-                console.error("[ImageSearch] Failed to parse Serper API response:", e);
-                throw e;
-            }
+        // Validate with Zod
+        try {
+            const parsed = SerperResponseSchema.parse(json);
+            images = parsed.images;
+        } catch (e) {
+            console.error("[ImageSearch] Failed to parse Serper API response:", e);
+            throw e;
         }
 
         // Download images immediately and filter out failures
