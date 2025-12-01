@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import fsPromises from 'fs/promises';
-import path from 'path';
 import { ModelFlags } from './ModelFlags.js';
 import { RuntimeConfig, StepConfig, ResolvedModelConfig, ModelConfig } from '../types.js';
 import { loadData } from '../utils/dataLoader.js';
@@ -8,7 +7,7 @@ import { PromptResolver } from '../utils/PromptResolver.js';
 import { resolvePromptInput } from '../utils/fileUtils.js';
 
 export class StepRegistry {
-    
+
     static registerStepArgs(program: Command) {
         // --- Global Level ---
         ModelFlags.register(program, '', { includeSystem: true, defaultModel: 'gpt-4o' }); // Main Model
@@ -101,13 +100,13 @@ export class StepRegistry {
 
         // Helper to resolve Model Config
         const resolveModelConfig = async (
-            namespace: string, 
+            namespace: string,
             fallbackNamespace: string | null
         ): Promise<ResolvedModelConfig | undefined> => {
-            
+
             const specific = ModelFlags.extract(options, namespace);
             const fallback = fallbackNamespace !== null ? ModelFlags.extract(options, fallbackNamespace) : {};
-            
+
             // Merge: Specific > Fallback
             const merged: ModelConfig = {
                 model: specific.model || fallback.model || options.model || 'gpt-4o',
@@ -124,7 +123,7 @@ export class StepRegistry {
                 return undefined;
             }
             if (isAux && !merged.model) {
-                // If prompt exists but no model, inherit main model? 
+                // If prompt exists but no model, inherit main model?
                 // Usually better to default to main model if not set.
                 merged.model = options.model || 'gpt-4o';
             }
@@ -165,7 +164,7 @@ export class StepRegistry {
             // 4. Workflow & IO
             const candidates = parseInt(getOpt('candidates', i) || '1', 10);
             const feedbackLoops = parseInt(getOpt('feedbackLoops', i) || '0', 10);
-            
+
             // Image Search
             const imgSearch = {
                 query: getOpt('imageSearchQuery', i),

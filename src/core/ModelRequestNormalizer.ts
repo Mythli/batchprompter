@@ -9,13 +9,13 @@ export interface LlmRequest {
 }
 
 export class ModelRequestNormalizer {
-    
+
     static normalize(
-        config: ResolvedModelConfig, 
-        row: Record<string, any>, 
+        config: ResolvedModelConfig,
+        row: Record<string, any>,
         externalContent?: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): LlmRequest {
-        
+
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
         // 1. System Message
@@ -28,7 +28,7 @@ export class ModelRequestNormalizer {
 
         // 2. User Message
         const userParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        
+
         // a) Config Prompt (e.g. from --prompt or --judge-prompt)
         if (config.promptParts && config.promptParts.length > 0) {
             userParts.push(...this.renderParts(config.promptParts, row));
@@ -54,15 +54,7 @@ export class ModelRequestNormalizer {
         }
 
         if (config.thinkingLevel) {
-            // Check if model supports reasoning_effort (o1, o3)
-            // Simple heuristic: starts with 'o1' or 'o3'
-            if (config.model.startsWith('o1') || config.model.startsWith('o3')) {
-                options.reasoning_effort = config.thinkingLevel;
-            } else {
-                // Fallback for standard models? 
-                // For now, we just ignore or could append to system prompt.
-                // Let's keep it clean and only apply if supported.
-            }
+            options.reasoning_effort = config.thinkingLevel;
         }
 
         return {
@@ -73,7 +65,7 @@ export class ModelRequestNormalizer {
     }
 
     private static renderParts(
-        parts: OpenAI.Chat.Completions.ChatCompletionContentPart[], 
+        parts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         row: Record<string, any>
     ): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
         return parts.map(part => {
