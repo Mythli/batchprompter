@@ -108,19 +108,22 @@ export async function resolvePromptInput(input: string): Promise<OpenAI.Chat.Com
     } catch (error: any) {
         // Heuristic Check: Is this likely a file path that doesn't exist?
         
-        // 1. Check for path separators
-        const hasPathSeparators = input.includes('/') || input.includes('\\');
+        const hasNewlines = input.includes('\n');
         
-        // 2. Check for file-like characteristics
-        // - No newlines (filenames don't have newlines)
-        // - Short length (filenames are usually short)
-        // - Ends with a file extension pattern (dot followed by 1-5 alphanumeric chars)
-        const hasNoNewlines = !input.includes('\n');
-        const isShort = input.length < 255;
-        const hasExtension = /\.[a-zA-Z0-9]{1,5}$/.test(input);
+        // If it has newlines, it is definitely raw text, not a file path.
+        if (!hasNewlines) {
+            // 1. Check for path separators
+            const hasPathSeparators = input.includes('/') || input.includes('\\');
+            
+            // 2. Check for file-like characteristics
+            // - Short length (filenames are usually short)
+            // - Ends with a file extension pattern (dot followed by 1-5 alphanumeric chars)
+            const isShort = input.length < 255;
+            const hasExtension = /\.[a-zA-Z0-9]{1,5}$/.test(input);
 
-        if (hasPathSeparators || (hasNoNewlines && isShort && hasExtension)) {
-            throw new Error(`File not found: ${input}`);
+            if (hasPathSeparators || (isShort && hasExtension)) {
+                throw new Error(`File not found: ${input}`);
+            }
         }
 
         // Treat as raw text if it doesn't look like a file path
