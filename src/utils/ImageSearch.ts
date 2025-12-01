@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { Cache } from 'cache-manager';
 import crypto from 'crypto';
 import sharp from 'sharp';
+import { Fetcher } from './createCachedFetcher.js';
 
 // Zod Schemas
 const ImageSchema = z.object({
@@ -41,6 +42,7 @@ export interface ImageSearchResult {
 export class ImageSearch {
     constructor(
         private apiKey: string,
+        private fetcher: Fetcher,
         private cache?: Cache
     ) {}
 
@@ -64,7 +66,11 @@ export class ImageSearch {
 
         if (images.length === 0) {
             console.log(`[ImageSearch] API call for query: "${query}"`);
-            const response = await fetch('https://google.serper.dev/images', {
+            
+            // Use the fetcher for the network call. 
+            // Note: cachedFetcher currently only caches GET requests, so this POST won't be cached by the fetcher itself.
+            // We rely on the manual caching block above/below for the API results.
+            const response = await this.fetcher('https://google.serper.dev/images', {
                 method: 'POST',
                 headers: {
                     'X-API-KEY': this.apiKey,
@@ -116,37 +122,8 @@ export class ImageSearch {
             throw new Error("Image URL is undefined or empty");
         }
 
-        // v2 prefix to invalidate previous potentially corrupted cache entries
-        const cacheKey = `image:content:v3:${this.hash(url)}`;
-
-        if (this.cache) {
-            try {
-                const cached = await this.cache.get(cacheKey);
-                if (cached) {
-                    // We now explicitly store as base64 string to avoid serialization issues
-                    if (typeof cached === 'string') {
-                        // console.log(`[ImageSearch] Cache hit for image: ${url}`);
-                        return Buffer.from(cached, 'base64');
-                    }
-                    // Fallback for other types if we revert or migrate
-                    if (Buffer.isBuffer(cached)) {
-                        return cached;
-                    }
-                    if (typeof cached === 'object' && (cached as any).type === 'Buffer') {
-                        return Buffer.from((cached as any).data);
-                    }
-                }
-            } catch (e) {
-                console.warn(`[ImageSearch] Cache read error for ${url}:`, e);
-            }
-        }
-
-        // console.log(`[ImageSearch] Downloading: ${url}`);
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-        });
+        // Use the cached fetcher. It handles caching, domain queuing, and timeouts.
+        const response = await this.fetcher(url);
 
         if (!response.ok) throw new Error(`Failed to fetch image: ${url} (${response.status})`);
 
@@ -161,20 +138,14 @@ export class ImageSearch {
         const buffer = Buffer.from(arrayBuffer);
 
         // Validate image integrity with Sharp
+        // Note: If the image came from cache, it might be invalid if it was cached before validation logic changed.
+        // However, cachedFetcher doesn't validate before caching. 
+        // We validate here to ensure we don't return bad data to the app.
         try {
             await sharp(buffer).metadata();
         } catch (e) {
             console.warn(`[ImageSearch] Rejected URL ${url} - Invalid image data:`, e);
             throw new Error(`Invalid image data downloaded from ${url}`);
-        }
-
-        if (this.cache) {
-            try {
-                // Store as base64 string
-                await this.cache.set(cacheKey, buffer.toString('base64'), 24 * 60 * 60 * 1000);
-            } catch (e) {
-                console.warn(`[ImageSearch] Cache write error for ${url}:`, e);
-            }
         }
 
         return buffer;
