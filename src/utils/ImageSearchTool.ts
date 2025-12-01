@@ -5,7 +5,7 @@ import sharp from 'sharp';
 import { LlmClient } from 'llm-fns';
 import { AiImageSearch } from './AiImageSearch.js';
 import { SerperImage, ImageSearchResult } from './ImageSearch.js';
-import { ResolvedStepConfig } from '../StepConfigurator.js';
+import { StepConfig } from '../types.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
 
 export class ImageSearchTool {
@@ -27,20 +27,21 @@ export class ImageSearchTool {
         row: Record<string, any>,
         index: number,
         stepIndex: number,
-        config: ResolvedStepConfig,
+        config: StepConfig,
         cacheSalt?: string | number
     ): Promise<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[], savedPaths: string[] }> {
         
+        if (!config.imageSearch) return { contentParts: [], savedPaths: [] };
+        const searchConfig = config.imageSearch;
+
         // Determine output directory
         let outputDir = config.tmpDir;
         let filePrefix = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}`;
 
         if (config.outputPath) {
-            // Mirror the output structure inside tmpDir
             const dir = path.dirname(config.outputPath);
             const ext = path.extname(config.outputPath);
             const name = path.basename(config.outputPath, ext);
-            
             outputDir = path.join(config.tmpDir, dir);
             filePrefix = name;
         }
@@ -48,14 +49,14 @@ export class ImageSearchTool {
         const queries: string[] = [];
 
         // 1. Collect Queries
-        if (config.imageSearchQuery) {
-            queries.push(config.imageSearchQuery);
+        if (searchConfig.query) {
+            queries.push(searchConfig.query);
         }
 
-        if (config.imageSearchPrompt) {
+        if (searchConfig.promptParts && searchConfig.promptParts.length > 0) {
             console.log(`[Row ${index}] Step ${stepIndex} Generating search queries...`);
             
-            const queryCount = config.imageSearchQueryCount;
+            const queryCount = searchConfig.queryCount;
             
             const QuerySchema = z.object({
                 queries: z.array(z.string()).min(1).max(queryCount).describe(`A list of up to ${queryCount} diverse search queries`)
@@ -63,7 +64,7 @@ export class ImageSearchTool {
 
             const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
                 { role: 'system', content: `You are a research assistant. Generate up to ${queryCount} diverse search queries based on the user request.` },
-                { role: 'user', content: config.imageSearchPrompt }
+                { role: 'user', content: searchConfig.promptParts }
             ];
 
             const response = await this.llm.promptZod(messages, QuerySchema, {
@@ -78,10 +79,10 @@ export class ImageSearchTool {
             return { contentParts: [], savedPaths: [] };
         }
 
-        // 2. Execute Searches (Breadth-First)
-        console.log(`[Row ${index}] Step ${stepIndex} Executing ${queries.length} searches (Limit: ${config.imageSearchLimit} per query)...`);
+        // 2. Execute Searches
+        console.log(`[Row ${index}] Step ${stepIndex} Executing ${queries.length} searches (Limit: ${searchConfig.limit} per query)...`);
         
-        const searchPromises = queries.map(q => this.aiImageSearch.search(q, config.imageSearchLimit));
+        const searchPromises = queries.map(q => this.aiImageSearch.search(q, searchConfig.limit));
         const results = await Promise.all(searchPromises);
         
         // Pool and Deduplicate
@@ -103,26 +104,23 @@ export class ImageSearchTool {
             throw new Error("No images found for any of the queries.");
         }
 
-        // --- DEBUG: Save all found images ---
-        // We do this asynchronously to not block too much, but we await it to ensure files exist for debugging
+        // Save found images for debug
         const saveFoundPromises = pooledImages.map(async (img, i) => {
             try {
                 const filename = `${filePrefix}_found_${i}.jpg`;
                 const savePath = path.join(outputDir, filename);
-                
-                // Use buffer directly
                 await ArtifactSaver.save(img.buffer, savePath);
-            } catch (e) {
-                // Ignore save errors for debug files
-            }
+            } catch (e) {}
         });
         await Promise.all(saveFoundPromises);
 
         // 3. Selection
         let selectedImages: ImageSearchResult[] = [];
 
-        if (config.imageSelectPrompt) {
-            const selectPromptText = config.imageSelectPrompt
+        if (searchConfig.selectPromptParts && searchConfig.selectPromptParts.length > 0) {
+            // Extract text for the select prompt (AiImageSearch expects string currently)
+            // We should probably update AiImageSearch to take ContentParts, but for now join text
+            const selectPromptText = searchConfig.selectPromptParts
                 .filter(p => p.type === 'text')
                 .map(p => p.text)
                 .join('\n');
@@ -131,20 +129,19 @@ export class ImageSearchTool {
             
             selectedImages = await this.aiImageSearch.selectFromPool(
                 pooledImages, 
-                queries.join(', '), // Context
+                queries.join(', '), 
                 selectPromptText, 
-                config.imageSearchSelect,
-                // Callback to save sprites
+                searchConfig.select,
                 async (buffer, spriteIndex) => {
                     const filename = `${filePrefix}_sprite_${spriteIndex}.jpg`;
                     const savePath = path.join(outputDir, filename);
                     await ArtifactSaver.save(buffer, savePath);
                 },
-                config.imageSearchSpriteSize // Pass the sprite size override
+                searchConfig.spriteSize
             );
         } else {
-            console.log(`[Row ${index}] Step ${stepIndex} Selecting first ${config.imageSearchSelect} images (no AI prompt)...`);
-            selectedImages = pooledImages.slice(0, config.imageSearchSelect);
+            console.log(`[Row ${index}] Step ${stepIndex} Selecting first ${searchConfig.select} images (no AI prompt)...`);
+            selectedImages = pooledImages.slice(0, searchConfig.select);
         }
 
         // 4. Process & Output
@@ -153,16 +150,11 @@ export class ImageSearchTool {
 
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
-            
-            // Save selected image
             const filename = `${filePrefix}_selected_${i}.jpg`;
             const savePath = path.join(outputDir, filename);
             
-            // Normalize for History (Base64 JPEG)
             try {
                 const base64 = await this.normalizeImage(img.buffer);
-                
-                // Save the normalized version as the "selected" one
                 await ArtifactSaver.save(Buffer.from(base64, 'base64'), savePath);
                 savedPaths.push(savePath);
 
@@ -171,17 +163,11 @@ export class ImageSearchTool {
                     image_url: { url: `data:image/jpeg;base64,${base64}` }
                 });
             } catch (e) {
-                console.warn(`[Row ${index}] Step ${stepIndex} Failed to normalize image for history: ${img.metadata.imageUrl}`, e);
-                // Fallback to URL if normalization fails
+                console.warn(`[Row ${index}] Step ${stepIndex} Failed to normalize image: ${img.metadata.imageUrl}`, e);
                 contentParts.push({
                     type: 'image_url',
                     image_url: { url: img.metadata.imageUrl }
                 });
-                // Try to save original buffer
-                try { 
-                    await ArtifactSaver.save(img.buffer, savePath); 
-                    savedPaths.push(savePath); 
-                } catch(e2) {}
             }
         }
 
