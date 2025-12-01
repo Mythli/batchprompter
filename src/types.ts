@@ -23,6 +23,8 @@ export interface StepConfig {
     imageSelectPrompt?: string; // Prompt to select images (Optional)
     imageSearchLimit?: number; // Images per query
     imageSearchSelect?: number; // Max images to select/return
+    imageSearchQueryCount?: number; // Number of queries to generate
+    imageSearchSpriteSize?: number; // Number of images per sprite grid
 }
 
 export interface ActionOptions {
@@ -51,6 +53,8 @@ export interface ActionOptions {
     imageSelectPrompt?: string;
     imageSearchLimit?: number;
     imageSearchSelect?: number;
+    imageSearchQueryCount?: number;
+    imageSearchSpriteSize?: number;
 
     stepOverrides?: Record<number, StepConfig>;
 }

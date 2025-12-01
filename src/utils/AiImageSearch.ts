@@ -26,20 +26,23 @@ export class AiImageSearch {
         searchContext: string,
         selectionPrompt: string,
         maxSelected: number = 1,
-        onSprite?: (buffer: Buffer, index: number) => Promise<void>
+        onSprite?: (buffer: Buffer, index: number) => Promise<void>,
+        spriteSizeOverride?: number
     ): Promise<ImageSearchResult[]> {
         if (images.length === 0) return [];
 
+        const spriteSize = spriteSizeOverride || this.imagesPerSprite;
+
         // Chunk images and Generate Sprites
         const chunks: ImageSearchResult[][] = [];
-        for (let i = 0; i < images.length; i += this.imagesPerSprite) {
-            chunks.push(images.slice(i, i + this.imagesPerSprite));
+        for (let i = 0; i < images.length; i += spriteSize) {
+            chunks.push(images.slice(i, i + spriteSize));
         }
 
-        console.log(`[AiImageSearch] Generating ${chunks.length} sprite(s) from ${images.length} images (Grid size: ${this.imagesPerSprite})...`);
+        console.log(`[AiImageSearch] Generating ${chunks.length} sprite(s) from ${images.length} images (Grid size: ${spriteSize})...`);
 
         const spritePromises = chunks.map(async (chunk, i) => {
-            const startNum = (i * this.imagesPerSprite) + 1;
+            const startNum = (i * spriteSize) + 1;
             try {
                 // Pass buffers directly to SpriteGenerator
                 const result = await SpriteGenerator.generate(chunk, startNum);

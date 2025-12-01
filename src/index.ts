@@ -39,7 +39,9 @@ const generateCmd = program.command('generate')
     .option('--image-search-prompt <text>', 'Prompt to generate search queries')
     .option('--image-select-prompt <text>', 'Prompt to select the best images')
     .option('--image-search-limit <number>', 'Number of images to fetch per query', '12')
-    .option('--image-search-select <number>', 'Number of images to select', '1');
+    .option('--image-search-select <number>', 'Number of images to select', '1')
+    .option('--image-search-query-count <number>', 'Number of search queries to generate', '3')
+    .option('--image-search-sprite-size <number>', 'Number of images per sprite grid', '4');
 
 // Add explicit options for steps 1-10
 for (let i = 1; i <= 10; i++) {
@@ -64,6 +66,8 @@ for (let i = 1; i <= 10; i++) {
     generateCmd.option(`--image-select-prompt-${i} <text>`, `Selection prompt for step ${i}`);
     generateCmd.option(`--image-search-limit-${i} <number>`, `Search limit for step ${i}`);
     generateCmd.option(`--image-search-select-${i} <number>`, `Selection count for step ${i}`);
+    generateCmd.option(`--image-search-query-count-${i} <number>`, `Query count for step ${i}`);
+    generateCmd.option(`--image-search-sprite-size-${i} <number>`, `Sprite size for step ${i}`);
 }
 
 generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
@@ -91,8 +95,10 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         const isel = options[`imageSelectPrompt${i}`];
         const isl = options[`imageSearchLimit${i}`];
         const iss = options[`imageSearchSelect${i}`];
+        const isqc = options[`imageSearchQueryCount${i}`];
+        const isss = options[`imageSearchSpriteSize${i}`];
 
-        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || skipCandCmd !== undefined || fbLoops || fbPrompt || fbModel || isq || isp || isel || isl || iss) {
+        if (sys || schema || verify || cmd || ar || out || col || cand || jModel || jPrompt || skipCandCmd !== undefined || fbLoops || fbPrompt || fbModel || isq || isp || isel || isl || iss || isqc || isss) {
             stepOverrides[i] = {};
             if (sys) stepOverrides[i].system = sys;
             if (schema) stepOverrides[i].schema = schema;
@@ -114,6 +120,8 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
             if (isel) stepOverrides[i].imageSelectPrompt = isel;
             if (isl) stepOverrides[i].imageSearchLimit = parseInt(isl, 10);
             if (iss) stepOverrides[i].imageSearchSelect = parseInt(iss, 10);
+            if (isqc) stepOverrides[i].imageSearchQueryCount = parseInt(isqc, 10);
+            if (isss) stepOverrides[i].imageSearchSpriteSize = parseInt(isss, 10);
         }
     }
 
@@ -179,6 +187,8 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         imageSelectPrompt: options.imageSelectPrompt,
         imageSearchLimit: options.imageSearchLimit ? parseInt(options.imageSearchLimit, 10) : undefined,
         imageSearchSelect: options.imageSearchSelect ? parseInt(options.imageSearchSelect, 10) : undefined,
+        imageSearchQueryCount: options.imageSearchQueryCount ? parseInt(options.imageSearchQueryCount, 10) : undefined,
+        imageSearchSpriteSize: options.imageSearchSpriteSize ? parseInt(options.imageSearchSpriteSize, 10) : undefined,
         
         stepOverrides
     };

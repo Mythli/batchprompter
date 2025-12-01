@@ -55,12 +55,14 @@ export class ImageSearchTool {
         if (config.imageSearchPrompt) {
             console.log(`[Row ${index}] Step ${stepIndex} Generating search queries...`);
             
+            const queryCount = config.imageSearchQueryCount;
+            
             const QuerySchema = z.object({
-                queries: z.array(z.string()).min(1).max(3).describe("A list of up to 3 diverse search queries")
+                queries: z.array(z.string()).min(1).max(queryCount).describe(`A list of up to ${queryCount} diverse search queries`)
             });
 
             const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-                { role: 'system', content: 'You are a research assistant. Generate up to 3 diverse search queries based on the user request.' },
+                { role: 'system', content: `You are a research assistant. Generate up to ${queryCount} diverse search queries based on the user request.` },
                 { role: 'user', content: config.imageSearchPrompt }
             ];
 
@@ -137,7 +139,8 @@ export class ImageSearchTool {
                     const filename = `${filePrefix}_sprite_${spriteIndex}.jpg`;
                     const savePath = path.join(outputDir, filename);
                     await ArtifactSaver.save(buffer, savePath);
-                }
+                },
+                config.imageSearchSpriteSize // Pass the sprite size override
             );
         } else {
             console.log(`[Row ${index}] Step ${stepIndex} Selecting first ${config.imageSearchSelect} images (no AI prompt)...`);

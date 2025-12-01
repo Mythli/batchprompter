@@ -28,6 +28,8 @@ export interface ResolvedStepConfig {
     imageSelectPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] | undefined;
     imageSearchLimit: number;
     imageSearchSelect: number;
+    imageSearchQueryCount: number;
+    imageSearchSpriteSize: number;
 }
 
 export class StepConfigurator {
@@ -180,6 +182,8 @@ export class StepConfigurator {
 
         const currentImageSearchLimit = stepOverride?.imageSearchLimit ?? options.imageSearchLimit ?? 12;
         const currentImageSearchSelect = stepOverride?.imageSearchSelect ?? options.imageSearchSelect ?? 1;
+        const currentImageSearchQueryCount = stepOverride?.imageSearchQueryCount ?? options.imageSearchQueryCount ?? 3;
+        const currentImageSearchSpriteSize = stepOverride?.imageSearchSpriteSize ?? options.imageSearchSpriteSize ?? 4;
 
         return {
             tmpDir: options.tmpDir,
@@ -203,7 +207,9 @@ export class StepConfigurator {
             imageSearchPrompt: currentImageSearchPrompt,
             imageSelectPrompt: currentImageSelectPrompt,
             imageSearchLimit: currentImageSearchLimit,
-            imageSearchSelect: currentImageSearchSelect
+            imageSearchSelect: currentImageSearchSelect,
+            imageSearchQueryCount: currentImageSearchQueryCount,
+            imageSearchSpriteSize: currentImageSearchSpriteSize
         };
     }
 
