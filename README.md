@@ -401,6 +401,59 @@ batchprompt generate \
 
 ---
 
+### Scenario 10: Candidate Generation & Judging (Best of N)
+**Goal:** Generate multiple versions of a result (e.g., 3 different image variations or 5 different headlines) and have a separate "Judge" AI select the best one based on strict criteria.
+
+**The Input:**
+*   **Data:** `icons.csv` (Column: `industry`)
+*   **Prompt:** `prompt.md` ("Design a minimal icon for {{industry}}...")
+
+**Run this command:**
+```bash
+batchprompt generate \
+  icons.csv \
+  prompt.md \
+  --output "output/icons/{{industry}}.png" \
+  --candidates 5 \
+  --judge-model "google/gemini-3-pro-preview" \
+  --judge-prompt "Select the best icon. Criteria: 1. Minimalist. 2. Black and white only. 3. No text. Return the index of the best candidate." \
+  --skip-candidate-command \
+  --model "google/gemini-3-pro-image-preview"
+```
+
+**What happens here?**
+1.  **Generate Candidates**: The tool runs the generation 5 times in parallel (`--candidates 5`).
+2.  **Judge**: It sends all 5 results (images or text) to the Judge Model.
+3.  **Select**: The Judge evaluates them against your `--judge-prompt` and picks the winner.
+4.  **Save**: Only the winning result is saved to `output/icons/...`.
+    *   *Note:* If you remove `--skip-candidate-command`, post-processing commands run on *all* candidates. With the flag, they only run on the winner.
+
+---
+
+### Scenario 11: Feedback Loops (AI Critique & Refinement)
+**Goal:** Improve quality by forcing the AI to critique its own work and refine it *before* you see the result.
+
+**Run this command:**
+```bash
+batchprompt generate \
+  data.csv \
+  prompt.md \
+  --output "output/refined/{{id}}.txt" \
+  --feedback-loops 2 \
+  --feedback-prompt "Critique the draft for clarity, tone, and factual accuracy. Identify any fluff." \
+  --feedback-model "google/gemini-3-pro-preview" \
+  --model "google/gemini-3-pro-preview"
+```
+
+**What happens here?**
+1.  **Draft 1**: The AI generates an initial response.
+2.  **Critique 1**: The Feedback Model (can be the same or different) reads the draft and your `--feedback-prompt`, then generates a critique.
+3.  **Refine 1**: The Generator receives the critique and produces Draft 2.
+4.  **Loop**: This repeats for the number of loops specified (`--feedback-loops 2`).
+5.  **Final Output**: The final refined version is saved.
+
+---
+
 ## 5. Command Flags Reference
 
 Here is an explanation of the flags used above.
