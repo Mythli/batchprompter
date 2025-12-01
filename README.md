@@ -363,6 +363,44 @@ batchprompt generate \
 
 ---
 
+### Scenario 9: AI-Powered Image Search & Selection
+**Goal:** Instead of generating an image from scratch, find a real image from the web, curate it using AI, and use it in your workflow.
+
+**Prerequisite:** You need a [Serper.dev](https://serper.dev/) API key.
+```bash
+export SERPER_API_KEY="your-key"
+```
+
+**The Input:**
+*   **Data:** `destinations.csv` (Column: `city`)
+*   **Prompt:** `prompt.md` ("Write a travel guide for {{city}}...")
+
+**Run this command:**
+```bash
+batchprompt generate \
+  destinations.csv \
+  prompt.md \
+  --output "output/{{city}}/guide.md" \
+  --image-search-prompt "Find high-quality, scenic photography of {{city}} landmarks. No text overlay." \
+  --image-select-prompt "Select the most breathtaking landscape shot. It must be high resolution and free of watermarks." \
+  --image-search-limit 10 \
+  --image-search-query-count 3 \
+  --model google/gemini-3-pro-preview
+```
+
+**What happens here?**
+1.  **Generate Queries**: The AI uses your `--image-search-prompt` to generate 3 diverse search queries (e.g., "Paris Eiffel Tower sunset", "Paris Louvre museum exterior").
+2.  **Search**: It fetches 10 images per query using Serper.dev.
+3.  **Sprite Generation**: It combines the found images into grid "sprites".
+4.  **AI Selection**: It sends these grids to the Vision AI with your `--image-select-prompt`. The AI "looks" at the search results and picks the best one based on your criteria.
+5.  **Integration**: The selected image is downloaded and provided to the main prompt context (or saved if using `--output`).
+
+**Fine-tuning Control:**
+*   `--image-search-query-count`: How many different search queries to generate (default: 3).
+*   `--image-search-sprite-size`: How many images to pack into one grid for the AI to review (default: 4).
+
+---
+
 ## 5. Command Flags Reference
 
 Here is an explanation of the flags used above.
@@ -380,6 +418,13 @@ Here is an explanation of the flags used above.
 | `-c` / `--concurrency` | `10` | How many items to process at once. Defaults to 20. Lower this if you hit Rate Limits. |
 | `-m` / `--model` | `google/gemini...` | Which AI model to use. **Note:** For images, you must use a unified text+image model. |
 | `--aspect-ratio` | `16:9` | Triggers **Text+Image mode**. Common values: `1:1`, `16:9`, `3:2`. |
+| `--image-search-query` | `"cats"` | Raw search query for image search. |
+| `--image-search-prompt` | `"Find images of..."` | Prompt to generate search queries dynamically. |
+| `--image-select-prompt` | `"Pick the best..."` | Prompt for the AI to select the best image from results. |
+| `--image-search-limit` | `10` | Images to fetch per query. |
+| `--image-search-select` | `1` | How many images to select. |
+| `--image-search-query-count` | `3` | Number of search queries to generate. |
+| `--image-search-sprite-size` | `4` | Number of images per grid sent to the AI judge. |
 
 ### Step-Specific Overrides (Flags ending in -N)
 When running a multi-step generation (by providing multiple prompt files), you can configure each step individually.
@@ -395,3 +440,6 @@ BatchPrompt supports overrides for steps 1 through 10. Simply append the step nu
 | `--output-N` | `--output-2` | Override output file path for step N. |
 | `--output-column-N` | `--output-column-2` | Override output column for step N. |
 | `--aspect-ratio-N` | `--aspect-ratio-2` | Override aspect ratio for step N. |
+| `--image-search-query-N` | `--image-search-query-2` | Override search query for step N. |
+| `--image-search-prompt-N` | `--image-search-prompt-2` | Override search prompt for step N. |
+| `--image-select-prompt-N` | `--image-select-prompt-2` | Override select prompt for step N. |
