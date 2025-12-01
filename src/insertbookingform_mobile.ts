@@ -23,10 +23,6 @@ interface DetectionOptions {
     margins: Margins;
 }
 
-interface ColorConfig {
-    primaryColor: string;
-}
-
 interface BookingFormData {
     companyName: string;
     header: {
@@ -685,10 +681,9 @@ async function main() {
         .name('insertbookingform_mobile')
         .description('Insert a booking form into an image')
         .argument('<input_image>', 'Path to the input image')
-        .argument('<json_data>', 'Path to the JSON data file')
+        .argument('<json_data>', 'Path to the composite JSON data file (matches schema.json)')
         .argument('<logo_image>', 'Path to the logo image')
         .argument('<output_image>', 'Path to the output image')
-        .argument('<color_json>', 'Path to the color JSON data file')
         .option('--supersample <n>', 'Supersampling factor', (val) => parseInt(val, 10), 8)
         .option('--scale <n>', 'General scaling factor', (val) => parseFloat(val), 1.0)
         .option('--scale-stepper <n>', 'Scaling factor for stepper', (val) => parseFloat(val), 1.0)
@@ -696,7 +691,7 @@ async function main() {
         .option('--scale-content <n>', 'Scaling factor for content/inputs', (val) => parseFloat(val), 1.0)
         .option('--scale-footer <n>', 'Scaling factor for footer', (val) => parseFloat(val), 1.0)
         .option('--scale-logo <n>', 'Scaling factor for logo', (val) => parseFloat(val), 1.0)
-        .action(async (inputPath, jsonPath, logoPath, outputPath, colorJsonPath, options) => {
+        .action(async (inputPath, jsonPath, logoPath, outputPath, options) => {
             const scalingOptions: ScalingOptions = {
                 general: options.scale,
                 stepper: options.scaleStepper,
@@ -714,16 +709,45 @@ async function main() {
             const debugOutputPath = path.join(dir, `${base}_debug.png`);
 
             try {
-                // Load JSON data
+                // Load composite JSON data (array that matches schema.json)
                 const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
-                const rawFormData: BookingFormData = JSON.parse(jsonContent);
+                const parsed = JSON.parse(jsonContent);
 
-                // Load color config (validated by color_schema.json in generation step)
-                const colorContent = fs.readFileSync(colorJsonPath, 'utf-8');
-                const colorConfig: ColorConfig = JSON.parse(colorContent);
+                // Extract primaryColor and booking form from composite data
+                let primaryColor: string = '#000000';
+                let bookingForm: BookingFormData | null = null;
+
+                if (Array.isArray(parsed)) {
+                    parsed.forEach((obj: any) => {
+                        if (!obj || typeof obj !== 'object') return;
+
+                        // Primary color object: { primaryColor: "#...." }
+                        if ('primaryColor' in obj && typeof obj.primaryColor === 'string') {
+                            primaryColor = obj.primaryColor;
+                        }
+
+                        // Booking form object: has header/stepper/inputs/footer, but NOT dashboard_interface
+                        if (!('dashboard_interface' in obj) &&
+                            obj.header && obj.stepper && obj.inputs && obj.footer) {
+                            bookingForm = obj as BookingFormData;
+                        }
+                    });
+                } else if (parsed && typeof parsed === 'object') {
+                    // Backwards compatibility: plain booking form JSON
+                    if ('primaryColor' in parsed && typeof parsed.primaryColor === 'string') {
+                        primaryColor = (parsed as any).primaryColor;
+                    }
+                    if (parsed.header && parsed.stepper && parsed.inputs && parsed.footer) {
+                        bookingForm = parsed as BookingFormData;
+                    }
+                }
+
+                if (!bookingForm) {
+                    throw new Error('Booking form data not found in JSON (expected second object in composite array).');
+                }
 
                 // Normalize data (escape XML characters)
-                const formData = normalizeFormData(rawFormData);
+                const formData = normalizeFormData(bookingForm);
 
                 // Configuration
                 const detectionOptions: DetectionOptions = {
@@ -740,7 +764,7 @@ async function main() {
                 const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
                 console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
 
-                await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, options.supersample, scalingOptions, colorConfig.primaryColor);
+                await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, options.supersample, scalingOptions, primaryColor);
 
             } catch (error) {
                 console.error('Error processing image:', error);

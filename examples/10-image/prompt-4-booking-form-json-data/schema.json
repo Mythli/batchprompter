@@ -1,77 +1,275 @@
 {
-    "type": "object",
-    "properties": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Booking Form + Dashboard Composite",
+  "type": "array",
+  "minItems": 2,
+  "items": [
+    {
+      "title": "Primary Color Config",
+      "type": "object",
+      "properties": {
+        "primaryColor": {
+          "type": "string",
+          "description": "Primary brand color in HEX format, e.g. #6200EA",
+          "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+        }
+      },
+      "required": ["primaryColor"],
+      "additionalProperties": false
+    },
+    {
+      "title": "Booking Form Data",
+      "type": "object",
+      "properties": {
         "companyName": {
-            "type": "string",
-            "description": "Ein kurzer, symbolischer Firmenname. Maximal 12 Zeichen.",
-            "maxLength": 12
+          "type": "string",
+          "description": "Name of the company or venue."
         },
         "header": {
-            "type": "object",
-            "properties": {
-                "title": {
-                    "type": "string",
-                    "description": "Titel des Angebots, z.B. 'Alpaka Wanderung' oder 'Erste Hilfe Kurs'. Maximal 25 Zeichen.",
-                    "maxLength": 25
-                },
-                "subtitle": {
-                    "type": "string",
-                    "description": "Dauer und Preis, z.B. '(9 UE) 59,00 €' oder 'ab 29,00 €'. Maximal 30 Zeichen.",
-                    "maxLength": 30
-                },
-                "details": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "maxLength": 40
-                    },
-                    "description": "Ort und Zeit, z.B. ['Ort: Berlin', 'Zeit: 14:00 Uhr']. Maximal 40 Zeichen pro Zeile."
-                }
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "Main booking title."
             },
-            "required": ["title", "subtitle", "details"]
+            "subtitle": {
+              "type": "string",
+              "description": "Subtitle or pricing line."
+            },
+            "details": {
+              "type": "array",
+              "description": "Short descriptive bullet points about the offer.",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          },
+          "required": ["title", "subtitle", "details"],
+          "additionalProperties": false
         },
         "stepper": {
-            "type": "object",
-            "properties": {
-                "step1": {
-                    "type": "string",
-                    "description": "Name des ersten Schritts, z.B. 'Termin wählen'. Maximal 20 Zeichen.",
-                    "maxLength": 20
-                },
-                "step2": { "type": "string", "default": "2" },
-                "step3": { "type": "string", "default": "3" }
-            },
-            "required": ["step1", "step2", "step3"]
+          "type": "object",
+          "properties": {
+            "step1": { "type": "string" },
+            "step2": { "type": "string" },
+            "step3": { "type": "string" }
+          },
+          "required": ["step1", "step2", "step3"],
+          "additionalProperties": false
         },
         "inputs": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "label": {
-                        "type": "string",
-                        "description": "Label des Eingabefelds, z.B. 'Datum*', 'Teilnehmer*'. Maximal 25 Zeichen.",
-                        "maxLength": 25
-                    },
-                    "value": {
-                        "type": "string",
-                        "description": "Beispielwert, z.B. '15. Nov. 2025'. Maximal 30 Zeichen.",
-                        "maxLength": 30
-                    }
-                },
-                "required": ["label", "value"]
-            },
-            "minItems": 3,
-            "maxItems": 3
-        },
-        "footer": {
+          "type": "array",
+          "items": {
             "type": "object",
             "properties": {
-                "backText": { "type": "string", "default": "Zurück" },
-                "nextText": { "type": "string", "default": "Weiter" }
+              "label": { "type": "string" },
+              "value": { "type": "string" }
             },
-            "required": ["backText", "nextText"]
+            "required": ["label", "value"],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "footer": {
+          "type": "object",
+          "properties": {
+            "backText": { "type": "string" },
+            "nextText": { "type": "string" }
+          },
+          "required": ["backText", "nextText"],
+          "additionalProperties": false
         }
+      },
+      "required": ["companyName", "header", "stepper", "inputs", "footer"],
+      "additionalProperties": false
     },
-    "required": ["companyName", "header", "stepper", "inputs", "footer"]
+    {
+      "title": "Dashboard Interface Data",
+      "type": "object",
+      "properties": {
+        "dashboard_interface": {
+          "type": "object",
+          "properties": {
+            "details": {
+              "type": "object",
+              "properties": {
+                "language": { "type": "string" },
+                "currency": { "type": "string" }
+              },
+              "required": ["language", "currency"],
+              "additionalProperties": false
+            },
+            "sidebar_navigation": {
+              "type": "object",
+              "properties": {
+                "position": {
+                  "type": "string",
+                  "enum": ["left", "right"]
+                },
+                "theme": {
+                  "type": "string",
+                  "enum": ["teal", "dark"]
+                },
+                "items": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "icon": {
+                        "type": "string",
+                        "description": "Icon identifier used by the renderer."
+                      },
+                      "label": {
+                        "type": "string",
+                        "description": "Optional label for the navigation item."
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": ["brand"],
+                        "description": "Item type, e.g. 'brand' for logo item."
+                      },
+                      "position": {
+                        "type": "string",
+                        "enum": ["bottom"],
+                        "description": "If set to 'bottom', item will be placed at the bottom of the sidebar."
+                      }
+                    },
+                    "required": ["icon"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": ["position", "theme", "items"],
+              "additionalProperties": false
+            },
+            "main_content": {
+              "type": "object",
+              "properties": {
+                "kpi_cards": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "label": { "type": "string" },
+                      "value": {
+                        "type": "number",
+                        "description": "Numeric value displayed on the card."
+                      },
+                      "unit": { "type": "string" },
+                      "icon": { "type": "string" },
+                      "icon_color": {
+                        "type": "string",
+                        "enum": ["green", "brown"],
+                        "description": "Optional semantic coloring for icon."
+                      }
+                    },
+                    "required": ["id", "label", "value"],
+                    "additionalProperties": false
+                  }
+                },
+                "analytics_section": {
+                  "type": "object",
+                  "properties": {
+                    "title": { "type": "string" },
+                    "filters": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": { "type": "string" },
+                          "type": { "type": "string" }
+                        },
+                        "required": ["label", "type"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "chart": {
+                      "type": "object",
+                      "properties": {
+                        "type": { "type": "string" },
+                        "x_axis": { "type": "string" },
+                        "y_axis": { "type": "string" },
+                        "total_overlay": {
+                          "type": "object",
+                          "properties": {
+                            "value": { "type": "string" },
+                            "currency": { "type": "string" },
+                            "label": { "type": "string" }
+                          },
+                          "required": ["value", "currency", "label"],
+                          "additionalProperties": false
+                        },
+                        "trend_line": { "type": "string" }
+                      },
+                      "required": [
+                        "type",
+                        "x_axis",
+                        "y_axis",
+                        "total_overlay",
+                        "trend_line"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["title", "filters", "chart"],
+                  "additionalProperties": false
+                },
+                "data_table": {
+                  "type": "object",
+                  "properties": {
+                    "title": { "type": "string" },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": { "type": "string" },
+                          "label": { "type": "string" }
+                        },
+                        "required": ["key", "label"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "phone": { "type": "string" },
+                          "amount": { "type": "string" },
+                          "status": { "type": "string" },
+                          "status_color": {
+                            "type": "string",
+                            "enum": ["green", "brown"]
+                          }
+                        },
+                        "required": ["name", "phone", "amount", "status"],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["title", "columns", "rows"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["kpi_cards", "analytics_section", "data_table"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["details", "sidebar_navigation", "main_content"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["dashboard_interface"],
+      "additionalProperties": false
+    }
+  ],
+  "additionalItems": false
 }
+
+

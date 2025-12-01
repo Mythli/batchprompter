@@ -942,29 +942,6 @@ class DashboardDrawer {
                     )}" fill="#333">${card.value}</text>`
                 );
             }
-
-            // Icon/Right content - skip icon for card 3 (index 2)
-            if (card.icon && index !== 2) {
-                const iconSize = this.s(40);
-                const iconX = x + cardW - this.s(20) - iconSize;
-                const iconY = y + (cardH - iconSize) / 2;
-                const color = card.icon_color === "green" ? "#28a745" : "#333";
-
-                // Simple icon representation
-                this.elements.push(
-                    `<rect x="${iconX}" y="${iconY}" width="${iconSize}" height="${iconSize}" fill="none" stroke="${color}" stroke-width="2" rx="4" />`
-                );
-                // Arrow out for sign-out
-                if (card.icon === "sign-out-alt") {
-                    this.elements.push(
-                        `<path d="M${iconX + iconSize / 2} ${
-                            iconY + iconSize / 2
-                        } L${iconX + iconSize - 5} ${
-                            iconY + iconSize / 2
-                        }" stroke="${color}" stroke-width="2"/>`
-                    );
-                }
-            }
         });
     }
 
@@ -1393,10 +1370,10 @@ async function main() {
 
     if (args.length < 4) {
         console.error(
-            "Usage: ts-node src/insertbookingform.ts <input_image> <json_data> <logo_image> <user_image> [color_config] [output_image]"
+            "Usage: ts-node src/dashboard_tablet.ts <input_image> <json_data> <logo_image> <user_image> [output_image]"
         );
         console.log(
-            "Example: ts-node src/insertbookingform.ts test/input.png test/form_data.json test/logo.png test/user_image.png test/color.json test/output.png"
+            "Example: ts-node src/dashboard_tablet.ts test/input5.png test/data.json test/small_logo.png test/user_image.png test/output.png"
         );
         process.exit(1);
     }
@@ -1405,30 +1382,28 @@ async function main() {
     const jsonPath = args[1]!;
     const logoPath = args[2]!;
     const userImagePath = args[3]!;
-    const colorConfigArg = args[4];
-    const outputPath = args[5] || "test/output_with_form.png";
+    const outputPath = args[4] || "test/output_with_form.png";
 
     try {
-        // Load main JSON data
+        // Load composite JSON data (array with primaryColor, booking form, dashboard_interface)
         const jsonContent = fs.readFileSync(jsonPath, "utf-8");
-        const data = JSON.parse(jsonContent);
+        const parsed = JSON.parse(jsonContent);
 
-        // Load primary color from separate config (e.g. test/color.json)
         let primaryColor = "#17A2B8";
-        try {
-            const colorConfigPath =
-                colorConfigArg && colorConfigArg.length > 0
-                    ? colorConfigArg
-                    : path.join(path.dirname(jsonPath), "color.json");
-            const colorContent = fs.readFileSync(colorConfigPath, "utf-8");
-            const colorConfig = JSON.parse(colorContent) as PrimaryConfig;
-            if (colorConfig.primaryColor) {
-                primaryColor = colorConfig.primaryColor;
-            }
-        } catch (e) {
-            console.warn(
-                "Could not load color.json, using default teal color."
-            );
+        let data: any = parsed;
+
+        if (Array.isArray(parsed)) {
+            parsed.forEach((obj: any) => {
+                if (obj && typeof obj === "object") {
+                    if ("primaryColor" in obj) {
+                        primaryColor =
+                            (obj as PrimaryConfig).primaryColor || primaryColor;
+                    }
+                    if ("dashboard_interface" in obj) {
+                        data = obj;
+                    }
+                }
+            });
         }
 
         // Margins: 4% sides/bottom, 7% top
