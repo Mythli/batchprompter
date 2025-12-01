@@ -131,326 +131,87 @@ You can further configure BatchPrompt using these environment variables:
 
 ---
 
-## 4. Usage Examples
+## 4. Comprehensive Workflows
 
-We will use the files located in the `examples` folder to demonstrate how this works.
+These 3 scenarios demonstrate the full power of BatchPrompt, combining multiple features into realistic workflows.
 
-### Scenario 1: Generating Blog Content (Text)
-**Goal:** Generate a blog post. We will chain two prompts: first to generate headlines, then to write an intro.
+### Scenario 1: The "Content Machine"
+**Features:** Text Generation, Dynamic Prompt Paths, Feedback Loops, Data Enrichment.
 
-**The Input Files:**
+**Goal:** Generate SEO-optimized product descriptions. We use different prompt files based on the product category, force the AI to critique and refine its own work, and save the result to both a file and a new column in the CSV.
 
-1.  **Data:** [examples/1-text/data.csv](examples/1-text/data.csv)
-    ```csv
-    id,industry
-    1,Dachdecker
-    ...
-    ```
-2.  **Prompt 1 (Headlines):** [examples/1-text/prompt1.md](examples/1-text/prompt1.md)
-    ```text
-    Schreibe 5 creative und klickstarke Überschriften für einen Blogartikel über das Thema: {{industry}}.
-    ```
-3.  **Prompt 2 (Intro):** [examples/1-text/prompt2.md](examples/1-text/prompt2.md)
-    ```text
-    Wähle die beste Überschrift aus und schreibe dazu eine fesselnde Einleitung...
-    ```
-
-**Run this command:**
-
-```bash
-batchprompt generate \
-  examples/1-text/data.csv \
-  examples/1-text/prompt1.md \
-  examples/1-text/prompt2.md \
-  --system examples/1-text/system.md \
-  --output "output/text/{{industry}}/blog_draft.md" \
-  --concurrency 5 \
-  --model google/gemini-3-pro-preview
-```
-
-**What happens here?**
-1.  **Fill Data**: The tool reads row 1 ("Dachdecker") and replaces `{{industry}}` in both prompt files.
-2.  **`--output`**: It saves the results into folders named after the industry.
-    *   Prompt 1 Output -> `output/text/Dachdecker/blog_draft_1.md` (Headlines)
-    *   Prompt 2 Output -> `output/text/Dachdecker/blog_draft_2.md` (Introduction)
-    *   *Note: Numerical suffixes (`_1`, `_2`) are added automatically for multiple prompts.*
-
----
-
-### Scenario 2: Dynamic Prompt Paths
-**Goal:** Use different prompt files for different rows based on data (e.g., customer segments).
-
-**The Input:**
-*   **Data:** `examples/2-dynamic-prompts/data.csv` (contains `segment` column: "vip", "new", etc.)
-*   **Prompts:** `examples/2-dynamic-prompts/prompts/vip.md`, `examples/2-dynamic-prompts/prompts/new.md`...
-
-**Run this command:**
-```bash
-batchprompt generate \
-  examples/2-dynamic-prompts/data.csv \
-  "examples/2-dynamic-prompts/prompts/{{segment}}.md" \
-  --output "output/dynamic-prompts/{{id}}.txt" \
-  --model google/gemini-3-pro-preview
-```
-
-**What happens here?**
-*   For a row where `segment` is "vip", BatchPrompt loads `examples/2-dynamic-prompts/prompts/vip.md`.
-*   For a row where `segment` is "new", it loads `examples/2-dynamic-prompts/prompts/new.md`.
-
----
-
-### Scenario 3: Using Directories for Prompts
-**Goal:** Organize complex prompts by splitting them into multiple files within a folder.
-
-**The Input:**
-*   **Prompt Directory:** `examples/3-directory-prompt/prompt/`
-    *   `01_instruction.md`
-    *   `02_details.md`
-
-**Run this command:**
-```bash
-batchprompt generate \
-  examples/3-directory-prompt/data.csv \
-  examples/3-directory-prompt/prompt/ \
-  --system examples/3-directory-prompt/system/ \
-  --output "output/directory-prompt/{{id}}.txt" \
-  --model google/gemini-3-pro-preview
-```
-
-**What happens here?**
-*   BatchPrompt detects that `examples/3-directory-prompt/prompt/` is a directory.
-*   It reads all files inside, sorts them alphabetically, and concatenates them into **one single prompt**.
-*   This works for both **User Prompts** and **System Prompts** (`--system`).
-
----
-
-### Scenario 4: Generating Images & Multimodal Inputs
-**Goal:** Create realistic stock photos using a model that supports text-to-image output via chat (e.g., Gemini 3).
-
-**The Input Files:**
-
-1.  **Data:** [examples/4-image/data.csv](examples/4-image/data.csv)
-    ```csv
-    id,industry
-    1,Dachdecker
-    2,Zahnarztpraxis
-    ...
-    ```
-2.  **Prompt Directory:** `examples/4-image/prompt/`
-    *   `2_person.jpg` (Reference image)
-    *   `2_prompt.md` (Text prompt)
-
-**Note on Inputs:** You can include **Images** (`.jpg`, `.png`) and **Audio** (`.mp3`, `.wav`) files in your prompt directory. BatchPrompt will send them to the model (if the model supports multimodal input).
-
-**Run this command:**
-
-```bash
-batchprompt generate \
-  examples/4-image/data.csv \
-  examples/4-image/prompt \
-  --output "output/images/{{id}}_{{industry}}.png" \
-  --aspect-ratio 1:1 \
-  --model google/gemini-3-pro-image-preview
-```
-
-**What happens here?**
-1.  **`--model google/gemini-3-pro-image-preview`**: We specifically request a model known on OpenRouter to support text+image generation.
-2.  **`--aspect-ratio 1:1`**: This flag signals BatchPrompt to use the `modalities: ['image', 'text']` feature.
-3.  **Prompt Directory**: The tool reads the directory `examples/4-image/prompt`. It finds the image file and the text file, combines them into a multimodal prompt, and sends them to the AI. This allows you to use reference images for consistent character generation.
-4.  **Dynamic Output (`--output`)**: We use **two** placeholders in the filename for organization.
-    *   Row 1 Output -> `output/images/1_Dachdecker.png`
-    *   Row 2 Output -> `output/images/2_Zahnarztpraxis.png`
-
----
-
-### Scenario 5: Structured Data (JSON Schema)
-**Goal:** Generate strictly valid JSON output (e.g., for an API or database import).
-
-**The Input Files:**
-1.  **Data:** `examples/5-json-schema/data.csv`
-2.  **Prompt:** `examples/5-json-schema/prompt.md` ("Create a character profile...")
-3.  **Schema:** `examples/5-json-schema/schema.json` (A standard JSON Schema definition)
-
-**Run this command:**
-```bash
-batchprompt generate \
-  examples/5-json-schema/data.csv \
-  examples/5-json-schema/prompt.md \
-  --output "output/json-schema/{{id}}.json" \
-  --schema examples/5-json-schema/schema.json \
-  --model google/gemini-3-pro-preview
-```
-
-**What happens here?**
-*   **Validation**: The tool forces the AI to output JSON matching `schema.json`.
-*   **Auto-Retry**: If the AI generates invalid JSON, BatchPrompt automatically feeds the error back to the AI and retries (up to 3 times).
-*   **Output**: The result is saved as a `.json` file.
-
----
-
-### Scenario 6: Multi-Step Workflows with Overrides
-**Goal:** A complex chain where Step 1 generates a Character (JSON) and Step 2 generates a Weapon (JSON) with different rules.
-
-**Run this command:**
-```bash
-batchprompt generate \
-  examples/5-json-schema/data.csv \
-  examples/5-json-schema/prompt.md \
-  examples/5-json-schema/prompt_2.md \
-  --output "output/json-schema-multistep/{{id}}/result.json" \
-  --system examples/5-json-schema/system.md \
-  --schema examples/5-json-schema/schema.json \
-  --system-prompt-2 examples/5-json-schema/system_2.md \
-  --json-schema-2 examples/5-json-schema/schema_2.json \
-  --model google/gemini-3-pro-preview
-```
-
-**What happens here?**
-1.  **Step 1 (Character)**: Uses `prompt.md`, `system.md`, and validates against `schema.json`.
-2.  **Step 2 (Weapon)**: Uses `prompt_2.md`.
-    *   **Overrides System**: Instead of the general system prompt, it uses `system_2.md`.
-    *   **Overrides Schema**: Instead of the character schema, it validates against `schema_2.json`.
-
----
-
-### Scenario 7: Command Verification (Self-Healing Code)
-**Goal:** Generate code and verify it runs correctly. If it fails, feed the error back to the AI to fix it.
-
-**The Input:**
-*   **Data:** `examples/6-verify-command/data.csv`
-*   **Prompt:** `examples/6-verify-command/prompt.md` ("Write a script...")
-*   **Verify Script:** `examples/6-verify-command/verify.sh` (Checks syntax or runs the code)
-
-**Run this command:**
-```bash
-batchprompt generate \
-  examples/6-verify-command/data.csv \
-  examples/6-verify-command/prompt.md \
-  --output "output/verify-command/{{id}}/script.js" \
-  --verify-command "examples/6-verify-command/verify.sh {{file}}" \
-  --model google/gemini-3-pro-preview
-```
-
-**What happens here?**
-1.  **Generate**: The AI generates the code.
-2.  **Verify**: BatchPrompt runs `verify.sh output/verify-command/1/script.js`.
-3.  **Self-Heal**: If `verify.sh` exits with an error (non-zero code), BatchPrompt takes the error output (stderr/stdout), sends it back to the AI ("Your code failed with: ..."), and asks for a fix.
-4.  **Retry**: This repeats up to 3 times until the verification passes.
-
----
-
-### Scenario 8: Enriching Data (Column Output)
-**Goal:** Instead of creating hundreds of text files, you want to add a "summary" column to your existing CSV.
-
-**The Input:**
-*   **Data:** `products.csv` (Columns: `id`, `description`)
-*   **Prompt:** `prompt.md` ("Summarize this description in 10 words: {{description}}")
-
-**Run this command:**
+**Command:**
 ```bash
 batchprompt generate \
   products.csv \
-  prompt.md \
-  --output-column "summary" \
-  --data-output "products_with_summary.csv" \
+  "prompts/{{category}}.md" \
+  --output "output/{{category}}/{{id}}_desc.md" \
+  --output-column "description_summary" \
+  --feedback-loops 1 \
+  --feedback-prompt "Critique the draft for SEO keywords and persuasive tone. Identify any fluff." \
   --model google/gemini-3-pro-preview
 ```
 
-**What happens here?**
-1.  **Generate**: The AI generates a summary for each row.
-2.  **Update**: It adds a new column named `summary` to the data.
-3.  **Save**: It saves the new CSV file to `products_with_summary.csv`.
+**What happens:**
+1.  **Dynamic Loading:** For a row where `category` is "electronics", it loads `prompts/electronics.md`.
+2.  **Draft & Refine:** The AI generates a draft. Then, the **Feedback Model** critiques it. The AI generates a final version based on the critique.
+3.  **Dual Output:**
+    *   Saves the full text to `output/electronics/123_desc.md`.
+    *   Adds the text to a new column `description_summary` in `products_processed.csv`.
 
 ---
 
-### Scenario 9: AI-Powered Image Search & Selection
-**Goal:** Instead of generating an image from scratch, find a real image from the web, curate it using AI, and use it in your workflow.
+### Scenario 2: The "Art Director"
+**Features:** Image Search (RAG), Image Generation, Candidate Generation, AI Judging.
 
-**Prerequisite:** You need a [Serper.dev](https://serper.dev/) API key.
-```bash
-export SERPER_API_KEY="your-key"
-```
+**Goal:** Create the perfect marketing visual for travel destinations. Instead of hallucinating details, the AI searches for real photos of the location, uses them as reference, generates 4 variations, and picks the best one.
 
-**The Input:**
-*   **Data:** `destinations.csv` (Column: `city`)
-*   **Prompt:** `prompt.md` ("Write a travel guide for {{city}}...")
-
-**Run this command:**
+**Command:**
 ```bash
 batchprompt generate \
   destinations.csv \
   prompt.md \
-  --output "output/{{city}}/guide.md" \
-  --image-search-prompt "Find high-quality, scenic photography of {{city}} landmarks. No text overlay." \
-  --image-select-prompt "Select the most breathtaking landscape shot. It must be high resolution and free of watermarks." \
-  --image-search-limit 10 \
-  --image-search-query-count 3 \
+  --output "output/{{city}}.png" \
+  --aspect-ratio "16:9" \
+  --image-search-prompt "Find high-quality, scenic photography of {{city}} landmarks." \
+  --image-select-prompt "Select the most breathtaking landscape shot." \
+  --candidates 4 \
+  --judge-model "google/gemini-3-pro-preview" \
+  --judge-prompt "Select the most photorealistic image with the best lighting. Return the index of the best candidate." \
+  --model google/gemini-3-pro-image-preview
+```
+
+**What happens:**
+1.  **Research:** The AI searches the web for images of the city and selects the best reference photo.
+2.  **Generate x4:** It generates 4 different images in parallel, using the reference photo for accuracy.
+3.  **Judge:** The Judge Model looks at all 4 candidates and picks the winner based on your criteria.
+4.  **Save:** Only the winning image is saved.
+
+---
+
+### Scenario 3: The "Software Engineer"
+**Features:** Multi-Step Workflow, JSON Schema, System Prompt Overrides, Self-Healing Code.
+
+**Goal:** A robust code generation pipeline. Step 1 defines a technical specification (JSON). Step 2 writes the code. If the code fails to run, the AI fixes it automatically.
+
+**Command:**
+```bash
+batchprompt generate \
+  features.csv \
+  step1_spec.md \
+  step2_code.md \
+  --output-2 "src/{{id}}.ts" \
+  --system-prompt-1 "You are a Product Manager." \
+  --json-schema-1 spec_schema.json \
+  --system-prompt-2 "You are a Senior TypeScript Developer." \
+  --verify-command-2 "npx tsc --noEmit {{file}}" \
   --model google/gemini-3-pro-preview
 ```
 
-**What happens here?**
-1.  **Generate Queries**: The AI uses your `--image-search-prompt` to generate 3 diverse search queries (e.g., "Paris Eiffel Tower sunset", "Paris Louvre museum exterior").
-2.  **Search**: It fetches 10 images per query using Serper.dev.
-3.  **Sprite Generation**: It combines the found images into grid "sprites".
-4.  **AI Selection**: It sends these grids to the Vision AI with your `--image-select-prompt`. The AI "looks" at the search results and picks the best one based on your criteria.
-5.  **Integration**: The selected image is downloaded and provided to the main prompt context (or saved if using `--output`).
-
-**Fine-tuning Control:**
-*   `--image-search-query-count`: How many different search queries to generate (default: 3).
-*   `--image-search-sprite-size`: How many images to pack into one grid for the AI to review (default: 4).
-
----
-
-### Scenario 10: Candidate Generation & Judging (Best of N)
-**Goal:** Generate multiple versions of a result (e.g., 3 different image variations or 5 different headlines) and have a separate "Judge" AI select the best one based on strict criteria.
-
-**The Input:**
-*   **Data:** `icons.csv` (Column: `industry`)
-*   **Prompt:** `prompt.md` ("Design a minimal icon for {{industry}}...")
-
-**Run this command:**
-```bash
-batchprompt generate \
-  icons.csv \
-  prompt.md \
-  --output "output/icons/{{industry}}.png" \
-  --candidates 5 \
-  --judge-model "google/gemini-3-pro-preview" \
-  --judge-prompt "Select the best icon. Criteria: 1. Minimalist. 2. Black and white only. 3. No text. Return the index of the best candidate." \
-  --skip-candidate-command \
-  --model "google/gemini-3-pro-image-preview"
-```
-
-**What happens here?**
-1.  **Generate Candidates**: The tool runs the generation 5 times in parallel (`--candidates 5`).
-2.  **Judge**: It sends all 5 results (images or text) to the Judge Model.
-3.  **Select**: The Judge evaluates them against your `--judge-prompt` and picks the winner.
-4.  **Save**: Only the winning result is saved to `output/icons/...`.
-    *   *Note:* If you remove `--skip-candidate-command`, post-processing commands run on *all* candidates. With the flag, they only run on the winner.
-
----
-
-### Scenario 11: Feedback Loops (AI Critique & Refinement)
-**Goal:** Improve quality by forcing the AI to critique its own work and refine it *before* you see the result.
-
-**Run this command:**
-```bash
-batchprompt generate \
-  data.csv \
-  prompt.md \
-  --output "output/refined/{{id}}.txt" \
-  --feedback-loops 2 \
-  --feedback-prompt "Critique the draft for clarity, tone, and factual accuracy. Identify any fluff." \
-  --feedback-model "google/gemini-3-pro-preview" \
-  --model "google/gemini-3-pro-preview"
-```
-
-**What happens here?**
-1.  **Draft 1**: The AI generates an initial response.
-2.  **Critique 1**: The Feedback Model (can be the same or different) reads the draft and your `--feedback-prompt`, then generates a critique.
-3.  **Refine 1**: The Generator receives the critique and produces Draft 2.
-4.  **Loop**: This repeats for the number of loops specified (`--feedback-loops 2`).
-5.  **Final Output**: The final refined version is saved.
+**What happens:**
+1.  **Step 1 (Spec):** Acts as a Product Manager. Generates a JSON spec validated against `spec_schema.json`.
+2.  **Step 2 (Code):** Acts as a Developer. Reads the spec from Step 1 and writes TypeScript code.
+3.  **Verify & Heal:** BatchPrompt runs `npx tsc` on the generated file. If it fails, the error is fed back to the AI, which generates a fix. This repeats up to 3 times until the code compiles.
 
 ---
 
