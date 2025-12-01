@@ -178,7 +178,7 @@ export class StepConfigurator {
             });
         }
 
-        const currentImageSearchLimit = stepOverride?.imageSearchLimit ?? options.imageSearchLimit ?? 10;
+        const currentImageSearchLimit = stepOverride?.imageSearchLimit ?? options.imageSearchLimit ?? 12;
         const currentImageSearchSelect = stepOverride?.imageSearchSelect ?? options.imageSearchSelect ?? 1;
 
         return {

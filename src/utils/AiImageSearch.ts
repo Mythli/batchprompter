@@ -36,7 +36,7 @@ export class AiImageSearch {
             chunks.push(images.slice(i, i + this.imagesPerSprite));
         }
 
-        console.log(`[AiImageSearch] Generating ${chunks.length} sprite(s) from ${images.length} images...`);
+        console.log(`[AiImageSearch] Generating ${chunks.length} sprite(s) from ${images.length} images (Grid size: ${this.imagesPerSprite})...`);
 
         const spritePromises = chunks.map(async (chunk, i) => {
             const startNum = (i * this.imagesPerSprite) + 1;

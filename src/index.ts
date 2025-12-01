@@ -38,7 +38,7 @@ const generateCmd = program.command('generate')
     .option('--image-search-query <text>', 'Raw search query for image search')
     .option('--image-search-prompt <text>', 'Prompt to generate search queries')
     .option('--image-select-prompt <text>', 'Prompt to select the best images')
-    .option('--image-search-limit <number>', 'Number of images to fetch per query', '10')
+    .option('--image-search-limit <number>', 'Number of images to fetch per query', '12')
     .option('--image-search-select <number>', 'Number of images to select', '1');
 
 // Add explicit options for steps 1-10
