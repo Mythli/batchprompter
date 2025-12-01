@@ -76,12 +76,6 @@ export class StandardStrategy implements GenerationStrategy {
                 const data = JSON.parse(validated.data);
                 // Re-serialize to ensure clean formatting
                 validated.data = JSON.stringify(data, null, 2);
-
-                // AJV validation logic was removed from here in previous refactor or needs to be re-injected?
-                // For now, we rely on JSON.parse check. 
-                // If we want strict schema validation, we need the validator function.
-                // The new StepConfig has jsonSchema object.
-                // We can use Ajv here if needed, but let's stick to basic JSON check for now unless validator is passed.
             } catch (e: any) {
                 if (e.message.includes('JSON')) throw e;
                 throw new Error(`Invalid JSON: ${e.message}`);
@@ -300,28 +294,50 @@ export class StandardStrategy implements GenerationStrategy {
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
-                const promptOptions: any = {
-                    messages: currentMessages,
-                    model: request.model,
-                    ...request.options, // Include thinking level etc
-                    cacheSalt: attempt === 0 ? salt : `${salt}_retry_${attempt}`,
-                };
+                let extracted: ExtractedContent;
 
-                // Configure Modalities
-                if (config.aspectRatio) {
-                    promptOptions.modalities = ['image', 'text'];
-                    promptOptions.image_config = { aspect_ratio: config.aspectRatio };
-                }
-
+                // BRANCH 1: Strict JSON Schema Mode (using llm.promptJson)
                 if (config.jsonSchema) {
-                    promptOptions.response_format = { type: "json_object" };
+                    const jsonResult = await this.llm.promptJson(
+                        currentMessages,
+                        config.jsonSchema,
+                        undefined, // No extra validator function needed
+                        {
+                            model: request.model,
+                            ...request.options,
+                            cacheSalt: attempt === 0 ? salt : `${salt}_retry_${attempt}`,
+                            maxRetries: 3 // Allow internal retries for JSON syntax fixing
+                        }
+                    );
+
+                    extracted = {
+                        type: 'text',
+                        data: JSON.stringify(jsonResult, null, 2),
+                        extension: 'json'
+                    };
+                } 
+                // BRANCH 2: Standard Text/Image/Audio Mode
+                else {
+                    const promptOptions: any = {
+                        messages: currentMessages,
+                        model: request.model,
+                        ...request.options, // Include thinking level etc
+                        cacheSalt: attempt === 0 ? salt : `${salt}_retry_${attempt}`,
+                    };
+
+                    // Configure Modalities
+                    if (config.aspectRatio) {
+                        promptOptions.modalities = ['image', 'text'];
+                        promptOptions.image_config = { aspect_ratio: config.aspectRatio };
+                    }
+
+                    const response = await this.llm.prompt(promptOptions);
+                    const parsed = responseSchema.parse(response);
+                    const message = parsed.choices[0].message;
+
+                    extracted = this.extractContent(message);
                 }
 
-                const response = await this.llm.prompt(promptOptions);
-                const parsed = responseSchema.parse(response);
-                const message = parsed.choices[0].message;
-
-                const extracted = this.extractContent(message);
                 const validated = await this.validateContent(extracted, config, row, index, stepIndex, skipCommands);
 
                 return validated;
