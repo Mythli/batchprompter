@@ -4,13 +4,13 @@
 rm -f examples/10-image/prompt-4-booking-form/seed.txt
 
 npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/prompt-4-booking-form \
-  --output-1 "out/10-image/{{industry}}/04_AboutCourse.jpg" \
-  --aspect-ratio-1 "4:3" \
+  --output "out/10-image/{{industry}}/06_BookingForm.jpg" \
+  --aspect-ratio "3:2" \
   --model "google/gemini-3-pro-image-preview" \
-  --image-search-prompt-1 "Find a high-quality, bright, atmospheric photo representing {{industry}} in a German setting. No text overlay." \
-  --image-select-prompt-1 "Select the best image that represents {{industry}}. It should be bright, high-quality photography, and suitable for use as a background." \
-  --candidates-1 3 \
-  --judge-model-1 "google/gemini-3-pro-preview" \
-  --judge-prompt-1 examples/10-image/select-best-image.md \
-  --skip-candidate-command-1 \
-  --command "npx tsx src/insertbookingform.ts '{{file}}' 'out/10-image/{{industry}}/form_data.json' 'out/10-image/{{industry}}/01_MenuBarIcon.svg' '{{file}}.tmp.jpg' --scale 1 --scale-content 1.6 --scale-logo 1.5 --supersample 8  && mv '{{file}}.tmp.jpg' '{{file}}' && magick '{{file}}' -resize 1024x1024 -quality 95 '{{file}}' && magick '{{file}}' examples/10-image/assets/phoneinhand.png -gravity center -composite '{{file}}'"
+  --image-search-prompt "Generate search queries for {{industry}} related keywords. Specifically look for images with a girl or female person in focus doing the core activity of {{industry}} or in an {{industry}} setting." \
+  --image-select-prompt "Select the image that best shows a girl or female person 20-30 years old, in focus doing the core activity of {{industry}} with her face visible. Disqualify pictures that have a lot of people in focus, look AI generated, have a low quality in general or have watermarks." \
+  --candidates 3 \
+  --judge-model "google/gemini-3-pro-preview" \
+  --judge-prompt examples/10-image/select-best-image.md \
+  --skip-candidate-command \
+  --command "magick '{{file}}' -resize 1200x800^ -gravity center -extent 1200x800 '{{file}}' && magick '{{file}}' examples/10-image/assets/iphone15_black.png -gravity center -composite '{{file}}' && npx tsx src/insertbookingform.ts '{{file}}' examples/10-image/prompt-4-booking-form-json-data/schema.json examples/10-image/assets/logo.png '{{file}}' --scale 0.8 && magick '{{file}}' -quality 85 '{{file}}'"
