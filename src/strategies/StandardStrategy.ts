@@ -9,7 +9,6 @@ import fsPromises from 'fs/promises';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
 import { StepConfig } from '../types.js'; // Updated import
-import { ImageSearchTool } from '../utils/ImageSearchTool.js';
 import { LlmClient } from "llm-fns";
 import { aggressiveSanitize } from '../utils/fileUtils.js';
 import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
@@ -45,8 +44,7 @@ type ExtractedContent = {
 export class StandardStrategy implements GenerationStrategy {
     constructor(
         private llm: LlmClient,
-        private model: string | undefined, // Kept for compatibility, but config.model is preferred
-        private imageSearchTool?: ImageSearchTool
+        private model: string | undefined // Kept for compatibility, but config.model is preferred
     ) {}
 
     private extractContent(message: z.infer<typeof responseSchema>['choices'][0]['message']): ExtractedContent {

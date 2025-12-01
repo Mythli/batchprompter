@@ -52,7 +52,7 @@ export class StepExecutor {
         // Let's instantiate StandardStrategy with the config's model for now, 
         // but really StandardStrategy needs to be updated to use Normalizer.
         
-        let strategy = new StandardStrategy(this.llm, config.model, this.imageSearchTool);
+        let strategy = new StandardStrategy(this.llm, config.model);
         
         // Wrap in Candidate Strategy if needed
         if (config.candidates > 1) {

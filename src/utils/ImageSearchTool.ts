@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import path from 'path';
 import sharp from 'sharp';
+import Handlebars from 'handlebars';
 import { LlmClient } from 'llm-fns';
 import { AiImageSearch } from './AiImageSearch.js';
 import { SerperImage, ImageSearchResult } from './ImageSearch.js';
@@ -21,6 +22,19 @@ export class ImageSearchTool {
             .toBuffer();
 
         return processedBuffer.toString('base64');
+    }
+
+    private renderParts(
+        parts: OpenAI.Chat.Completions.ChatCompletionContentPart[], 
+        row: Record<string, any>
+    ): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
+        return parts.map(part => {
+            if (part.type === 'text') {
+                const delegate = Handlebars.compile(part.text, { noEscape: true });
+                return { type: 'text', text: delegate(row) };
+            }
+            return part;
+        });
     }
 
     async execute(
@@ -56,6 +70,7 @@ export class ImageSearchTool {
         if (searchConfig.promptParts && searchConfig.promptParts.length > 0) {
             console.log(`[Row ${index}] Step ${stepIndex} Generating search queries...`);
             
+            const renderedPromptParts = this.renderParts(searchConfig.promptParts, row);
             const queryCount = searchConfig.queryCount;
             
             const QuerySchema = z.object({
@@ -64,7 +79,7 @@ export class ImageSearchTool {
 
             const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
                 { role: 'system', content: `You are a research assistant. Generate up to ${queryCount} diverse search queries based on the user request.` },
-                { role: 'user', content: searchConfig.promptParts }
+                { role: 'user', content: renderedPromptParts }
             ];
 
             const response = await this.llm.promptZod(messages, QuerySchema, {
@@ -118,9 +133,11 @@ export class ImageSearchTool {
         let selectedImages: ImageSearchResult[] = [];
 
         if (searchConfig.selectPromptParts && searchConfig.selectPromptParts.length > 0) {
+            const renderedSelectParts = this.renderParts(searchConfig.selectPromptParts, row);
+            
             // Extract text for the select prompt (AiImageSearch expects string currently)
             // We should probably update AiImageSearch to take ContentParts, but for now join text
-            const selectPromptText = searchConfig.selectPromptParts
+            const selectPromptText = renderedSelectParts
                 .filter(p => p.type === 'text')
                 .map(p => p.text)
                 .join('\n');
