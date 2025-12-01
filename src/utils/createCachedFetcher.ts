@@ -3,7 +3,7 @@
 import { Cache } from 'cache-manager';
 import { EventTracker } from './EventTracker.js';
 import { ProxyAgent } from 'undici';
-import { DomainQueue } from './DomainQueue.js';
+import crypto from 'crypto';
 
 // Define a custom options type that extends RequestInit with our custom `ttl` property.
 export type FetcherOptions = RequestInit & {
@@ -30,7 +30,6 @@ export interface CreateFetcherDependencies {
     timeout: number;
     /** User-Agent string for requests. */
     userAgent?: string;
-    domainQueue: DomainQueue;
     eventTracker?: EventTracker;
     proxyUrl?: string;
 }
@@ -66,7 +65,7 @@ export class CachedResponse extends Response {
  * @returns A function with the same signature as native `fetch`.
  */
 export function createCachedFetcher(deps: CreateFetcherDependencies): Fetcher {
-    const { cache, prefix, ttl, timeout, userAgent, domainQueue, eventTracker, proxyUrl } = deps;
+    const { cache, prefix, ttl, timeout, userAgent, eventTracker, proxyUrl } = deps;
 
     const fetchWithTimeout = async (url: string | URL | Request, options?: RequestInit): Promise<Response> => {
         const controller = new AbortController();
@@ -115,20 +114,34 @@ export function createCachedFetcher(deps: CreateFetcherDependencies): Fetcher {
             method = url.method;
         }
 
-        // --- [MODIFIED] --- Only apply caching for GET requests.
-        // For all other methods, or if cache is not configured, bypass the cache entirely.
-        if (method.toUpperCase() !== 'GET' || !cache) {
-            const urlString = typeof url === 'string' ? url : url.toString();
-            if (method.toUpperCase() !== 'GET') {
-                console.log(`[Cache SKIP] Non-GET request (${method}) to: ${urlString}`);
-            } else {
-                console.log(`[Cache SKIP] Cache not configured for request to: ${urlString}`);
-            }
-            return domainQueue.add(urlString, () => fetchWithTimeout(url, options));
+        const urlString = typeof url === 'string' ? url : url.toString();
+
+        if (!cache) {
+            console.log(`[Cache SKIP] Cache not configured for request to: ${urlString}`);
+            return fetchWithTimeout(url, options);
         }
 
-        const urlString = typeof url === 'string' ? url : url.toString();
-        const cacheKey = `${prefix}:${urlString}`;
+        let cacheKey = `${prefix}:${urlString}`;
+
+        // If POST (or others with body), append hash of body to cache key
+        if (method.toUpperCase() === 'POST' && options?.body) {
+            let bodyStr = '';
+            if (typeof options.body === 'string') {
+                bodyStr = options.body;
+            } else if (options.body instanceof URLSearchParams) {
+                bodyStr = options.body.toString();
+            } else {
+                // Fallback for other types, though mostly we expect string/JSON here
+                try {
+                    bodyStr = JSON.stringify(options.body);
+                } catch (e) {
+                    bodyStr = 'unserializable';
+                }
+            }
+            
+            const hash = crypto.createHash('md5').update(bodyStr).digest('hex');
+            cacheKey += `:${hash}`;
+        }
 
         // 1. Check the cache
         const cachedItem = await cache.get<CacheData>(cacheKey);
@@ -147,7 +160,7 @@ export function createCachedFetcher(deps: CreateFetcherDependencies): Fetcher {
 
         // 2. Perform the actual fetch if not in cache
         const fetchAndCache = async () => {
-            const response = await domainQueue.add(urlString, () => fetchWithTimeout(url, options));
+            const response = await fetchWithTimeout(url, options);
 
             // 3. Store in cache on success
             if (response.ok) {

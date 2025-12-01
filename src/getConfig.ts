@@ -9,7 +9,6 @@ import PQueue from 'p-queue';
 import { ImageSearch } from './utils/ImageSearch.js';
 import { AiImageSearch } from './utils/AiImageSearch.js';
 import { createCachedFetcher } from './utils/createCachedFetcher.js';
-import { DomainQueue } from './utils/DomainQueue.js';
 
 dotenv.config();
 
@@ -94,14 +93,11 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     let aiImageSearch: AiImageSearch | undefined;
 
     if (config.SERPER_API_KEY) {
-        const domainQueue = new DomainQueue(5); // 5 concurrent requests per domain
-        
         const cachedFetcher = createCachedFetcher({
             cache,
             prefix: 'fetch',
             ttl: 24 * 60 * 60 * 1000, // 24 hours
             timeout: 30000, // 30 seconds
-            domainQueue,
             userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         });
 
