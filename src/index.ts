@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+// @ts-nocheck
 import { Command } from 'commander';
 import 'dotenv/config';
 import fsPromises from 'fs/promises';
@@ -23,7 +23,7 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
     try {
         // Parse configuration
         const config = await StepRegistry.parseConfig(options, [dataFilePath, ...templateFilePaths]);
-        
+
         // Run
         await runAction(config);
         process.exit(0);

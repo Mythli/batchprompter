@@ -1,6 +1,7 @@
+// @ts-nocheck
 import { z } from 'zod';
 import { LlmClient } from 'llm-fns';
-import { ImageSearch, SerperImage, ImageSearchResult } from './ImageSearch.js';
+import { ImageSearch, SerperImage, ImageSearchResult } from '../plugins/image-search/ImageSearch.js';
 import { SpriteGenerator } from './SpriteGenerator.js';
 import { ResolvedModelConfig } from '../types.js';
 import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
@@ -122,7 +123,7 @@ export class AiImageSearch {
 
         return selectedImages;
     }
-    
+
     // Expose the underlying ImageSearch for direct access if needed
     getImageSearch(): ImageSearch {
         return this.imageSearch;

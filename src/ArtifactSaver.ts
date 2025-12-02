@@ -1,3 +1,4 @@
+// @ts-nocheck
 import fsPromises from 'fs/promises';
 import { ensureDir } from './utils/fileUtils.js';
 

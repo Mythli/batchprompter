@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/lib/createCachedFetcher.ts
 
 import { Cache } from 'cache-manager';

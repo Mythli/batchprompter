@@ -46,6 +46,7 @@
     "p-queue": "^9.0.1",
     "sanitize-filename": "^1.6.3",
     "tsx": "^4.20.6",
+    "undici": "^7.16.0",
     "zod": "^4.1.13"
   },
   "pnpm": {
