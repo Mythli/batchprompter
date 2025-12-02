@@ -20,8 +20,9 @@ export interface ImageSearchDefinition {
     spriteSize: number;
 }
 
-export interface StepDefinition extends ModelDefinition {
+export interface StepDefinition {
     stepIndex: number;
+    modelConfig: ModelDefinition;
     
     // IO
     outputPath?: string;
@@ -69,7 +70,9 @@ export interface ResolvedModelConfig {
     promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
-export interface StepConfig extends ResolvedModelConfig {
+export interface StepConfig {
+    modelConfig: ResolvedModelConfig;
+
     // Execution Logic
     tmpDir: string;
     

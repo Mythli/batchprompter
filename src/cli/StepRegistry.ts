@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Command } from 'commander';
 import fsPromises from 'fs/promises';
 import { ModelFlags } from './ModelFlags.js';
@@ -93,7 +92,7 @@ export class StepRegistry {
 
         for (const stepDef of normalized.steps) {
             // Main Model
-            const mainResolved = await resolveModel(stepDef);
+            const mainResolved = await resolveModel(stepDef.modelConfig);
             if (!mainResolved || !mainResolved.model) {
                 throw new Error(`Step ${stepDef.stepIndex}: Model configuration missing.`);
             }
@@ -113,7 +112,7 @@ export class StepRegistry {
 
             // Construct StepConfig
             steps.push({
-                ...mainResolved,
+                modelConfig: mainResolved,
                 tmpDir: normalized.global.tmpDir,
                 
                 // The promptParts from mainResolved now contain the merged user prompt (flag + positional).

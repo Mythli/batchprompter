@@ -132,7 +132,7 @@ export const ConfigSchema = z.object({
 
         steps.push({
             stepIndex: i,
-            ...baseModel,
+            modelConfig: baseModel,
             
             outputPath: getStepOpt('output'),
             outputColumn: getStepOpt('outputColumn'),
