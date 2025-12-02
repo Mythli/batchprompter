@@ -21,6 +21,10 @@ export interface PluginContext {
         concurrency: number;
     };
     services: PluginServices;
+    
+    // --- NEW: Explicit Paths ---
+    outputDirectory?: string; // Where final assets go
+    tempDirectory: string;    // Where intermediate assets (sprites) go
 }
 
 export interface ContentProviderPlugin {

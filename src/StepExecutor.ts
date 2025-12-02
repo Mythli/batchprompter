@@ -42,7 +42,10 @@ export class StepExecutor {
                             tmpDir: this.tmpDir,
                             concurrency: this.concurrency
                         },
-                        services: this.services
+                        services: this.services,
+                        // Pass the pre-calculated paths
+                        outputDirectory: config.resolvedOutputDir,
+                        tempDirectory: config.resolvedTempDir || this.tmpDir // Fallback to root tmp if something goes wrong
                     });
                     effectiveUserPromptParts = [...contentParts, ...effectiveUserPromptParts];
                 } catch (e: any) {

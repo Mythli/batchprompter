@@ -142,7 +142,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
-        const { row, stepIndex, config, llm, globalConfig, services } = context;
+        const { row, stepIndex, config, llm, globalConfig, services, outputDirectory, tempDirectory } = context;
         const resolvedConfig = config as ImageSearchResolvedConfig;
 
         // Check Services
@@ -157,8 +157,10 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         // --- Execution Logic ---
 
-        let outputDir = globalConfig.tmpDir;
-        let filePrefix = `${String(context.row.index || 0).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}`;
+        // Use tempDirectory for sprites (intermediate files)
+        // Use outputDirectory for final selected images (if available), otherwise fallback to temp
+        const spriteDir = tempDirectory;
+        const finalDir = outputDirectory || tempDirectory;
         
         const queries: string[] = [];
 
@@ -225,8 +227,9 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                 row,
                 resolvedConfig.select,
                 async (buffer, spriteIndex) => {
-                    const filename = `${filePrefix}_sprite_${spriteIndex}.jpg`;
-                    const savePath = path.join(outputDir, filename);
+                    // Save sprites to the TEMP directory
+                    const filename = `sprite_${spriteIndex}.jpg`;
+                    const savePath = path.join(spriteDir, filename);
                     await ArtifactSaver.save(buffer, savePath);
                 },
                 resolvedConfig.spriteSize
@@ -241,8 +244,9 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
-            const filename = `${filePrefix}_selected_${i}.jpg`;
-            const savePath = path.join(outputDir, filename);
+            // Save selected images to the FINAL directory
+            const filename = `selected_${i}.jpg`;
+            const savePath = path.join(finalDir, filename);
 
             try {
                 const processedBuffer = await sharp(img.buffer)

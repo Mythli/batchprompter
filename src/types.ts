@@ -97,6 +97,10 @@ export interface StepConfig {
 
     // Plugins
     plugins: Record<string, any>;
+
+    // --- NEW: Pre-calculated Paths ---
+    resolvedOutputDir?: string; // The final destination folder (e.g., out/10-image/BoulderHall)
+    resolvedTempDir?: string;   // The isolated temp folder (e.g., .tmp/001_02)
 }
 
 export interface RuntimeConfig {

@@ -7,7 +7,7 @@ import { LlmClient } from 'llm-fns';
 import { RuntimeConfig, StepConfig } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PromptResolver } from './utils/PromptResolver.js';
-import { aggressiveSanitize } from './utils/fileUtils.js';
+import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
 import { PluginServices } from './plugins/types.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 
@@ -56,7 +56,14 @@ export class ActionRunner {
                             const stepConfig = steps[i];
 
                             // --- Dynamic Resolution Phase ---
-                            const resolvedStep = await this.prepareStepConfig(stepConfig, rawRow, sanitizedRow, index);
+                            const resolvedStep = await this.prepareStepConfig(
+                                stepConfig, 
+                                rawRow, 
+                                sanitizedRow, 
+                                index, 
+                                stepIndex, 
+                                tmpDir
+                            );
 
                             console.log(`[Row ${index}] Step ${stepIndex} Processing...`);
 
@@ -122,17 +129,30 @@ export class ActionRunner {
         stepConfig: StepConfig,
         rawRow: Record<string, any>,
         sanitizedRow: Record<string, any>,
-        rowIndex: number
+        rowIndex: number,
+        stepIndex: number,
+        globalTmpDir: string
     ): Promise<StepConfig> {
         const resolvedStep: StepConfig = { ...stepConfig };
 
-        // 1. Output Path
+        // 1. Output Path & Directory
         if (stepConfig.outputTemplate) {
             const delegate = Handlebars.compile(stepConfig.outputTemplate, { noEscape: true });
             resolvedStep.outputPath = delegate(sanitizedRow);
+            
+            // Calculate the directory for final assets
+            resolvedStep.resolvedOutputDir = path.dirname(resolvedStep.outputPath);
+            await ensureDir(resolvedStep.resolvedOutputDir);
         }
 
-        // 2. Schema Path
+        // 2. Temp Directory (Structured)
+        // Pattern: .tmp/001_02 (Row 1, Step 2)
+        const rowStr = String(rowIndex).padStart(3, '0');
+        const stepStr = String(stepIndex).padStart(2, '0');
+        resolvedStep.resolvedTempDir = path.join(globalTmpDir, `${rowStr}_${stepStr}`);
+        await ensureDir(resolvedStep.resolvedTempDir);
+
+        // 3. Schema Path
         // Always attempt to resolve the schema path for every row.
         // This handles both static paths (re-read) and dynamic paths (Handlebars + read).
         if (stepConfig.schemaPath) {
@@ -146,13 +166,13 @@ export class ActionRunner {
             }
         }
 
-        // 3. User Prompt
+        // 4. User Prompt
         if (stepConfig.userPromptParts.length === 1 && stepConfig.userPromptParts[0].type === 'text' && stepConfig.userPromptParts[0].text.includes('{{')) {
             const template = stepConfig.userPromptParts[0].text;
             resolvedStep.userPromptParts = await PromptResolver.resolve(template, rawRow);
         }
 
-        // 4. Prepare Plugins
+        // 5. Prepare Plugins
         const preparedPlugins: Record<string, any> = {};
         for (const [name, pluginConfig] of Object.entries(stepConfig.plugins)) {
             const plugin = this.pluginRegistry.get(name);
