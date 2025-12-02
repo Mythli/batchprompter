@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { ModelDefinition, StepDefinition, ImageSearchDefinition, NormalizedConfig } from '../types.js';
 
+// Helper to remove undefined keys
+const clean = <T extends object>(obj: T): T => {
+    return Object.fromEntries(
+        Object.entries(obj).filter(([_, v]) => v !== undefined)
+    ) as T;
+};
+
 // Helper to extract Model Definition from flat options
 const extractModel = (
     options: Record<string, any>, 
@@ -32,13 +39,13 @@ const extractModel = (
     // If no model specified, we can't form a definition unless it's the main model falling back to global
     if (!model) return undefined;
 
-    return {
+    return clean({
         model: String(model),
         temperature: getVal('temperature') ? Number(getVal('temperature')) : undefined,
         thinkingLevel: getVal('thinkingLevel') as 'low' | 'medium' | 'high' | undefined, // thinking-level -> thinkingLevel
         systemSource: getVal('system') ? String(getVal('system')) : undefined,
         promptSource: getVal('prompt') ? String(getVal('prompt')) : undefined
-    };
+    });
 };
 
 export const ConfigSchema = z.object({
@@ -83,13 +90,10 @@ export const ConfigSchema = z.object({
 
         // Ensure we have a base model definition even if extractModel returned undefined
         // (e.g. if only global model is set, or only prompt is set)
-        const baseModel: ModelDefinition = mainModel || {
-            model: String(options.model || ''), 
-            promptSource: undefined
-        };
-        
-        // Update prompt source with merged value
-        baseModel.promptSource = promptSource;
+        const baseModel: ModelDefinition = clean({
+            ...(mainModel || { model: String(options.model || '') }),
+            promptSource: promptSource
+        });
 
         // 3. Auxiliary Models
         const judge = extractModel(options, `judge-${i}`, 'judge');
@@ -117,7 +121,7 @@ export const ConfigSchema = z.object({
             const spriteSize = parseInt(getStepOpt('imageSearchSpriteSize') || '4', 10);
 
             if (query || imageQueryConfig) {
-                return {
+                return clean({
                     query,
                     queryConfig: imageQueryConfig,
                     selectConfig: imageSelectConfig,
@@ -125,12 +129,12 @@ export const ConfigSchema = z.object({
                     select,
                     queryCount,
                     spriteSize
-                };
+                });
             }
             return undefined;
         })();
 
-        steps.push({
+        steps.push(clean({
             stepIndex: i,
             modelConfig: baseModel,
             
@@ -151,17 +155,17 @@ export const ConfigSchema = z.object({
             
             imageSearch,
             aspectRatio: getStepOpt('aspectRatio')
-        });
+        }));
     }
 
     return {
         dataFilePath,
-        global: {
+        global: clean({
             concurrency: parseInt(String(options.concurrency || '20'), 10),
             taskConcurrency: parseInt(String(options.taskConcurrency || '100'), 10),
             tmpDir: String(options.tmpDir || '.tmp'),
             dataOutputPath: options.dataOutput ? String(options.dataOutput) : undefined
-        },
+        }),
         steps
     };
 });
