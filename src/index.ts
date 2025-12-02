@@ -33,8 +33,10 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         // Run
         await actionRunner.run(config);
         process.exit(0);
-    } catch (e) {
-        console.error(e);
+    } catch (e: any) {
+        console.error("\n❌ Error:", e.message || e);
+        console.log("\n--- Usage Help ---\n");
+        generateCmd.outputHelp();
         process.exit(1);
     }
 });
