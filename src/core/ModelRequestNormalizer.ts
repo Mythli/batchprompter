@@ -24,7 +24,9 @@ export class ModelRequestNormalizer {
             const renderedSystem = this.renderParts(config.systemParts, row);
             // Flatten text parts if possible
             const content = this.flattenContent(renderedSystem);
-            messages.push({ role: 'system', content });
+            // Cast content to any to avoid strict type issues with ChatCompletionMessageParam
+            // which expects text-only for system messages in some definitions, but we handle it.
+            messages.push({ role: 'system', content: content as any });
         }
 
         // 2. User Message

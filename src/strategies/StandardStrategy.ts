@@ -302,7 +302,6 @@ export class StandardStrategy implements GenerationStrategy {
                     const jsonResult = await this.llm.promptJson(
                         currentMessages,
                         config.jsonSchema,
-                        undefined, // No extra validator function needed
                         {
                             model: request.model,
                             ...request.options,
@@ -401,7 +400,7 @@ export class StandardStrategy implements GenerationStrategy {
             model: request.model,
             ...request.options,
             cacheSalt: salt
-        });
+        } as any);
 
         return response.choices[0].message.content || "No critique provided.";
     }

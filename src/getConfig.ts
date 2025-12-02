@@ -47,6 +47,34 @@ export const createDefaultRegistry = () => {
     return registry;
 };
 
+// Adapter to make Keyv compatible with cache-manager Cache interface
+class KeyvCacheAdapter {
+    constructor(private keyv: Keyv) {}
+
+    async get<T>(key: string): Promise<T | undefined> {
+        return this.keyv.get(key);
+    }
+
+    async set(key: string, value: any, ttl?: number): Promise<void> {
+        await this.keyv.set(key, value, ttl);
+    }
+
+    async del(key: string): Promise<void> {
+        await this.keyv.delete(key);
+    }
+
+    async reset(): Promise<void> {
+        await this.keyv.clear();
+    }
+
+    // Stubs for full Cache interface compliance
+    async mget(...keys: string[]): Promise<any[]> { return []; }
+    async mset(args: [string, any][], ttl?: number): Promise<void> { return; }
+    async mdel(...keys: string[]): Promise<void> { return; }
+    async wrap<T>(key: string, fn: () => Promise<T>, ttl?: number): Promise<T> { return fn(); }
+    store: any = {};
+}
+
 export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Resolve values from multiple possible environment variable names
     const rawConfig = {
@@ -61,13 +89,14 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const config = configSchema.parse(rawConfig);
 
     // Setup Cache
-    let cache;
+    let cache: any; // Use any to bypass strict Cache type check if needed, or use the adapter
     if (config.CACHE_ENABLED) {
-        cache = new Keyv({
+        const keyv = new Keyv({
             store: new KeyvSqlite(`sqlite://${config.SQLITE_PATH}`),
             serialize: JSON.stringify,
             deserialize: JSON.parse
         });
+        cache = new KeyvCacheAdapter(keyv);
     }
 
     // Setup Fetcher (Global)
@@ -102,7 +131,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     });
 
     const llm = createLlm({
-        openai: openAi,
+        openai: openAi as any, // Cast to any to avoid version mismatch issues
         defaultModel: config.MODEL,
         cache: cache,
         queue: gptQueue,

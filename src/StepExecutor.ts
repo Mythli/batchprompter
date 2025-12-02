@@ -4,6 +4,7 @@ import { LlmClient } from 'llm-fns';
 import { StepConfig } from './types.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
+import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { PluginServices } from './plugins/types.js';
 
@@ -52,11 +53,11 @@ export class StepExecutor {
         }
 
         // 2. Select Strategy
-        let strategy = new StandardStrategy(this.llm, config.modelConfig.model);
+        let strategy: GenerationStrategy = new StandardStrategy(this.llm, config.modelConfig.model);
         
         // Wrap in Candidate Strategy if needed
         if (config.candidates > 1) {
-            strategy = new CandidateStrategy(strategy, this.llm);
+            strategy = new CandidateStrategy(strategy as StandardStrategy, this.llm);
         }
 
         // 3. Execute Strategy

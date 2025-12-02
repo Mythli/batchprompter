@@ -127,13 +127,13 @@ export class CandidateStrategy implements GenerationStrategy {
     }
 
     private async judgeCandidates(
-        candidates: (GenerationResult & { candidateIndex: number })[],
+        candidates: (GenerationResult & { candidateIndex: number, outputPath: string | null })[],
         config: StepConfig,
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         index: number,
         stepIndex: number
-    ): Promise<GenerationResult & { candidateIndex: number }> {
+    ): Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }> {
         
         if (!config.judge) throw new Error("No judge configuration found");
 
