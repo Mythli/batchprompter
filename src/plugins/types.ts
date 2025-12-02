@@ -1,6 +1,15 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
 import { LlmClient } from 'llm-fns';
+import { ImageSearch } from './image-search/ImageSearch.js';
+import { AiImageSearch } from '../utils/AiImageSearch.js';
+import { Fetcher } from '../utils/createCachedFetcher.js';
+
+export interface PluginServices {
+    imageSearch?: ImageSearch;
+    aiImageSearch?: AiImageSearch;
+    fetcher: Fetcher;
+}
 
 export interface PluginContext {
     row: Record<string, any>;
@@ -11,6 +20,7 @@ export interface PluginContext {
         tmpDir: string;
         concurrency: number;
     };
+    services: PluginServices;
 }
 
 export interface ContentProviderPlugin {

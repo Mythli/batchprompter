@@ -5,13 +5,15 @@ import { StepConfig } from './types.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
+import { PluginServices } from './plugins/types.js';
 
 export class StepExecutor {
     
     constructor(
         private llm: LlmClient,
         private tmpDir: string,
-        private concurrency: number
+        private concurrency: number,
+        private services: PluginServices
     ) {}
 
     async execute(
@@ -38,7 +40,8 @@ export class StepExecutor {
                         globalConfig: {
                             tmpDir: this.tmpDir,
                             concurrency: this.concurrency
-                        }
+                        },
+                        services: this.services
                     });
                     effectiveUserPromptParts = [...contentParts, ...effectiveUserPromptParts];
                 } catch (e: any) {

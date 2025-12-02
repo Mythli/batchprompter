@@ -61,6 +61,15 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         });
     }
 
+    // Setup Fetcher (Global)
+    const fetcher = createCachedFetcher({
+        cache,
+        prefix: 'fetch',
+        ttl: 24 * 60 * 60 * 1000, // 24 hours
+        timeout: 30000, // 30 seconds
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    });
+
     const openAi = new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
@@ -95,16 +104,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     let aiImageSearch: AiImageSearch | undefined;
 
     if (config.SERPER_API_KEY) {
-        const cachedFetcher = createCachedFetcher({
-            cache,
-            prefix: 'fetch',
-            ttl: 24 * 60 * 60 * 1000, // 24 hours
-            timeout: 30000, // 30 seconds
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        });
-
         // Pass cache to ImageSearch for Serper results, and fetcher for downloads
-        imageSearch = new ImageSearch(config.SERPER_API_KEY, cachedFetcher);
+        imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher);
         aiImageSearch = new AiImageSearch(imageSearch, llm);
     }
 
@@ -116,7 +117,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         llm,
         imageSearch,
         aiImageSearch,
-        modelFlags
+        modelFlags,
+        fetcher
     };
 }
 

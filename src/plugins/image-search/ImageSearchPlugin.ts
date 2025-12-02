@@ -6,9 +6,6 @@ import { ContentProviderPlugin, PluginContext } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
-import { AiImageSearch } from '../../utils/AiImageSearch.js';
-import { ImageSearch } from './ImageSearch.js';
-import { createCachedFetcher } from '../../utils/createCachedFetcher.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
 
 // --- Configuration Types ---
@@ -35,22 +32,8 @@ interface ImageSearchResolvedConfig {
 
 export class ImageSearchPlugin implements ContentProviderPlugin {
     name = 'image-search';
-    private aiImageSearch?: AiImageSearch;
 
-    constructor() {
-        // Initialize services if API key is present
-        const apiKey = process.env.SERPER_API_KEY || process.env.BATCHPROMPT_SERPER_API_KEY;
-        if (apiKey) {
-            // We need a fetcher. Since we don't have the global cache here easily, 
-            // we might need to defer initialization or create a standalone fetcher.
-            // For now, let's assume we can create a fetcher or pass it in.
-            // Ideally, the plugin should receive services in execute(), but AiImageSearch is stateful/complex.
-            // Let's initialize it lazily or in execute if possible, but execute receives LlmClient.
-            
-            // We'll initialize the core ImageSearch here, but we need the LLM for AiImageSearch.
-            // We will create AiImageSearch on the fly in execute() using the context.llm.
-        }
-    }
+    constructor() {}
 
     register(program: Command): void {
         ModelFlags.register(program, 'image-query', { includePrompt: true });
@@ -159,26 +142,18 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
-        const { row, stepIndex, config, llm, globalConfig } = context;
+        const { row, stepIndex, config, llm, globalConfig, services } = context;
         const resolvedConfig = config as ImageSearchResolvedConfig;
 
-        // Check API Key
-        const apiKey = process.env.SERPER_API_KEY || process.env.BATCHPROMPT_SERPER_API_KEY;
-        if (!apiKey) {
+        // Check Services
+        if (!services.imageSearch || !services.aiImageSearch) {
             throw new Error(
                 `Step ${stepIndex} requires Image Search, but SERPER_API_KEY is missing from environment variables.`
             );
         }
 
-        // Initialize Services (Lazy)
-        const fetcher = createCachedFetcher({
-            prefix: 'serper',
-            timeout: 30000,
-            ttl: 24 * 60 * 60 * 1000 // 24h
-        });
-        
-        const imageSearch = new ImageSearch(apiKey, fetcher);
-        const aiImageSearch = new AiImageSearch(imageSearch, llm, resolvedConfig.spriteSize);
+        const imageSearch = services.imageSearch;
+        const aiImageSearch = services.aiImageSearch;
 
         // --- Execution Logic ---
 
@@ -253,7 +228,8 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                     const filename = `${filePrefix}_sprite_${spriteIndex}.jpg`;
                     const savePath = path.join(outputDir, filename);
                     await ArtifactSaver.save(buffer, savePath);
-                }
+                },
+                resolvedConfig.spriteSize
             );
         } else {
             selectedImages = pooledImages.slice(0, resolvedConfig.select);
