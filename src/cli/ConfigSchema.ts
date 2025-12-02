@@ -10,6 +10,15 @@ const clean = <T extends object>(obj: T): T => {
     ) as T;
 };
 
+// Helper to get env var with fallbacks (duplicated from getConfig to ensure consistency during sync parsing)
+function getEnvVar(keys: string[]): string | undefined {
+    for (const key of keys) {
+        const value = process.env[key];
+        if (value) return value;
+    }
+    return undefined;
+}
+
 export const ConfigSchema = z.object({
     options: z.record(z.string(), z.any()),
     args: z.array(z.string())
@@ -31,13 +40,21 @@ export const ConfigSchema = z.object({
         }
     });
 
+    // Resolve Global Model Default
+    // Priority: Flag > Env Var > Hardcoded
+    const envModel = getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']);
+    const globalModel = String(options.model || envModel || 'gpt-4o');
+
     const globalConfig = {
         concurrency: parseInt(String(options.concurrency || '20'), 10),
         taskConcurrency: parseInt(String(options.taskConcurrency || '100'), 10),
         tmpDir: String(options.tmpDir || '.tmp'),
         dataOutputPath: options.dataOutput ? String(options.dataOutput) : undefined,
-        model: String(options.model || 'gpt-4o') // Global default model
+        model: globalModel
     };
+
+    // Instantiate ModelFlags with the resolved global model
+    const modelFlags = new ModelFlags(globalModel);
 
     const steps: StepDefinition[] = [];
     const pluginRegistry = PluginRegistry.getInstance();
@@ -45,8 +62,7 @@ export const ConfigSchema = z.object({
     for (let i = 1; i <= maxStep; i++) {
         // 1. Main Model
         // Namespace "1", Fallback "" (Global)
-        // We use ModelFlags.extract to handle fallback logic
-        const mainModel = ModelFlags.extract(options, `${i}`, '', globalConfig.model);
+        const mainModel = modelFlags.extract(options, `${i}`, '');
         
         // 2. Prompt Merging
         const posArg = args[i]; // args[0] is data
@@ -67,8 +83,8 @@ export const ConfigSchema = z.object({
         });
 
         // 3. Auxiliary Models
-        const judge = ModelFlags.extract(options, `judge-${i}`, 'judge', globalConfig.model) as ModelDefinition;
-        const feedback = ModelFlags.extract(options, `feedback-${i}`, 'feedback', globalConfig.model) as ModelDefinition;
+        const judge = modelFlags.extract(options, `judge-${i}`, 'judge') as ModelDefinition;
+        const feedback = modelFlags.extract(options, `feedback-${i}`, 'feedback') as ModelDefinition;
         
         // 4. Step Options
         const getStepOpt = (key: string): string | undefined => {

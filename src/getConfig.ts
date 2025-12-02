@@ -10,6 +10,7 @@ import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { AiImageSearch } from './utils/AiImageSearch.js';
 import { createCachedFetcher } from './utils/createCachedFetcher.js';
+import { ModelFlags } from './cli/ModelFlags.js';
 
 dotenv.config();
 
@@ -107,11 +108,15 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         aiImageSearch = new AiImageSearch(imageSearch, llm);
     }
 
+    // Initialize ModelFlags with the resolved default model
+    const modelFlags = new ModelFlags(config.MODEL);
+
     return {
         config,
         llm,
         imageSearch,
-        aiImageSearch
+        aiImageSearch,
+        modelFlags
     };
 }
 

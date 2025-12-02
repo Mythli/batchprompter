@@ -76,9 +76,12 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
     normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): ImageSearchRawConfig | undefined {
         
-        // Helper to extract model config using the enhanced ModelFlags.extract
+        // Instantiate ModelFlags with the global default model
+        const modelFlags = new ModelFlags(globalConfig.model);
+
+        // Helper to extract model config using the instance
         const extractModel = (namespace: string, fallbackNamespace: string): ModelDefinition | undefined => {
-            const config = ModelFlags.extract(options, namespace, fallbackNamespace, globalConfig.model);
+            const config = modelFlags.extract(options, namespace, fallbackNamespace);
             
             // Check if any key was actually set (excluding the default model if nothing else is set)
             // We check if promptSource or systemSource is set, OR if model was explicitly set in options

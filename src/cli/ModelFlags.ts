@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Command, Option } from 'commander';
 import { ModelConfig } from '../types.js';
 
@@ -9,8 +8,15 @@ export interface ModelFlagOptions {
 }
 
 export class ModelFlags {
+    private defaultModel?: string;
+
+    constructor(defaultModel?: string) {
+        this.defaultModel = defaultModel;
+    }
+
     /**
      * Registers model-related flags for a specific namespace.
+     * Static because it's used during CLI setup before config is loaded.
      * 
      * @param program The Commander instance
      * @param namespace Prefix for flags (e.g., "judge", "feedback", "judge-1"). Empty string for main.
@@ -43,13 +49,12 @@ export class ModelFlags {
 
     /**
      * Extracts model configuration from the parsed options object.
-     * Supports fallback namespace and default model.
+     * Uses the instance's defaultModel if no specific model is found.
      */
-    static extract(
+    extract(
         options: Record<string, any>, 
         namespace: string, 
-        fallbackNamespace?: string,
-        defaultModel?: string
+        fallbackNamespace?: string
     ): Partial<ModelConfig> {
         
         const toCamel = (s: string) => {
@@ -80,8 +85,8 @@ export class ModelFlags {
         const model = getVal('model');
         if (model) {
             config.model = model;
-        } else if (defaultModel) {
-            config.model = defaultModel;
+        } else if (this.defaultModel) {
+            config.model = this.defaultModel;
         }
 
         const temp = getVal('temperature');
