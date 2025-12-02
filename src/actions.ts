@@ -9,7 +9,7 @@ import { getConfig } from "./getConfig.js";
 import { PromptResolver } from './utils/PromptResolver.js';
 import { resolvePromptInput, aggressiveSanitize } from './utils/fileUtils.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
-import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
+// ImageSearchPlugin registration moved to StepRegistry to ensure CLI flags are registered early
 
 export async function runAction(config: RuntimeConfig) {
     const { concurrency, taskConcurrency, data, steps, dataFilePath, dataOutputPath } = config;
@@ -17,9 +17,8 @@ export async function runAction(config: RuntimeConfig) {
     console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
     const { llm } = await getConfig({ concurrency });
 
-    // Initialize Plugins
+    // Plugins are already registered in StepRegistry during CLI setup
     const registry = PluginRegistry.getInstance();
-    registry.register(new ImageSearchPlugin());
 
     console.log(`Found ${data.length} rows to process.`);
     console.log(`Pipeline has ${steps.length} steps.`);

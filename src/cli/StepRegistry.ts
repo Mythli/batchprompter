@@ -6,6 +6,7 @@ import { loadData } from '../utils/dataLoader.js';
 import { PromptResolver } from '../utils/PromptResolver.js';
 import { ConfigSchema } from './ConfigSchema.js';
 import { PluginRegistry } from '../plugins/PluginRegistry.js';
+import { ImageSearchPlugin } from '../plugins/image-search/ImageSearchPlugin.js';
 
 export class StepRegistry {
 
@@ -48,7 +49,11 @@ export class StepRegistry {
         }
 
         // --- Plugins ---
-        PluginRegistry.getInstance().configureCLI(program);
+        // Register default plugins here so CLI flags are available
+        const registry = PluginRegistry.getInstance();
+        registry.register(new ImageSearchPlugin());
+        
+        registry.configureCLI(program);
     }
 
     static async parseConfig(options: Record<string, any>, positionalArgs: string[]): Promise<RuntimeConfig> {
