@@ -40,16 +40,22 @@ export class CandidateStrategy implements GenerationStrategy {
             // Determine a unique output path for this candidate
             let candidateOutputPath: string | null = null;
 
+            // Use resolvedTempDir if available (structured), otherwise fallback to global tmpDir
+            const baseTempDir = config.resolvedTempDir || config.tmpDir;
+            const candidatesDir = path.join(baseTempDir, 'candidates');
+            await ensureDir(candidatesDir);
+
             if (config.outputPath) {
-                const dir = path.dirname(config.outputPath);
+                // If we have an output path, we might want to preserve the filename structure
                 const ext = path.extname(config.outputPath);
                 const name = path.basename(config.outputPath, ext);
-                candidateOutputPath = path.join(config.tmpDir, dir, `${name}_cand_${i}${ext}`);
+                candidateOutputPath = path.join(candidatesDir, `${name}_cand_${i}${ext}`);
             } else {
                 let ext = '.txt';
                 if (config.aspectRatio) ext = '.png';
-                const filename = `${String(index).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}_cand_${i}${ext}`;
-                candidateOutputPath = path.join(config.tmpDir, filename);
+                // If no output path, use index-based naming
+                const filename = `cand_${i}${ext}`;
+                candidateOutputPath = path.join(candidatesDir, filename);
             }
 
             const salt = `${cacheSalt || ''}_cand_${i}`;

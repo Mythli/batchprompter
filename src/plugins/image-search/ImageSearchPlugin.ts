@@ -7,6 +7,7 @@ import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
+import { ensureDir } from '../../utils/fileUtils.js';
 
 // --- Configuration Types ---
 
@@ -157,10 +158,14 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         // --- Execution Logic ---
 
-        // Use tempDirectory for sprites (intermediate files)
-        // Use outputDirectory for final selected images (if available), otherwise fallback to temp
-        const spriteDir = tempDirectory;
-        const finalDir = outputDirectory || tempDirectory;
+        // Organize Temp Directory
+        const rawDir = path.join(tempDirectory, 'raw');
+        const spritesDir = path.join(tempDirectory, 'sprites');
+        const selectedDir = path.join(tempDirectory, 'selected');
+
+        await ensureDir(rawDir);
+        await ensureDir(spritesDir);
+        await ensureDir(selectedDir);
         
         const queries: string[] = [];
 
@@ -216,10 +221,10 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         if (pooledImages.length === 0) throw new Error("No images found.");
 
-        // Save raw images to temp for debugging/inspection
+        // Save raw images to 'raw' folder
         await Promise.all(pooledImages.map(async (img, idx) => {
             const filename = `raw_${idx}.jpg`;
-            const savePath = path.join(spriteDir, filename);
+            const savePath = path.join(rawDir, filename);
             try {
                 await ArtifactSaver.save(img.buffer, savePath);
             } catch (e) {
@@ -238,9 +243,9 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                 row,
                 resolvedConfig.select,
                 async (buffer, spriteIndex) => {
-                    // Save sprites to the TEMP directory
+                    // Save sprites to 'sprites' folder
                     const filename = `sprite_${spriteIndex}.jpg`;
-                    const savePath = path.join(spriteDir, filename);
+                    const savePath = path.join(spritesDir, filename);
                     await ArtifactSaver.save(buffer, savePath);
                 },
                 resolvedConfig.spriteSize
@@ -255,9 +260,9 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
-            // Save selected images to the FINAL directory
+            // Save selected images to 'selected' folder (intermediate)
             const filename = `selected_${i}.jpg`;
-            const savePath = path.join(finalDir, filename);
+            const savePath = path.join(selectedDir, filename);
 
             try {
                 const processedBuffer = await sharp(img.buffer)

@@ -11,7 +11,7 @@ import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
 import { StepConfig } from '../types.js'; // Updated import
 import { LlmClient } from "llm-fns";
-import { aggressiveSanitize } from '../utils/fileUtils.js';
+import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
 import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
 
 const execPromise = util.promisify(exec);
@@ -88,18 +88,21 @@ export class StandardStrategy implements GenerationStrategy {
             // Create temp file
             let tempPath: string;
             
+            // Use resolvedTempDir if available, otherwise global tmpDir
+            const baseTempDir = config.resolvedTempDir || config.tmpDir;
+            const verifyDir = path.join(baseTempDir, 'verify');
+            await ensureDir(verifyDir);
+
             if (config.outputPath) {
-                const dir = path.dirname(config.outputPath);
                 const ext = path.extname(config.outputPath);
                 const name = path.basename(config.outputPath, ext);
                 const timestamp = Date.now();
                 const random = Math.random().toString(36).substring(7);
                 
-                // Use tmpDir mirroring structure
-                tempPath = path.join(config.tmpDir, dir, `${name}_verify_${timestamp}_${random}.${validated.extension}`);
+                tempPath = path.join(verifyDir, `${name}_verify_${timestamp}_${random}.${validated.extension}`);
             } else {
-                const tempFilename = `temp_verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.${validated.extension}`;
-                tempPath = path.join(config.tmpDir, tempFilename);
+                const tempFilename = `verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.${validated.extension}`;
+                tempPath = path.join(verifyDir, tempFilename);
             }
 
             try {
@@ -241,13 +244,18 @@ export class StandardStrategy implements GenerationStrategy {
 
             if (!filePathForCommand) {
                 isTemp = true;
+                
+                // Use resolvedTempDir if available, otherwise global tmpDir
+                const baseTempDir = config.resolvedTempDir || config.tmpDir;
+                const postDir = path.join(baseTempDir, 'postprocess');
+                await ensureDir(postDir);
+
                 if (config.outputPath) {
-                    const dir = path.dirname(config.outputPath);
                     const ext = path.extname(config.outputPath);
                     const name = path.basename(config.outputPath, ext);
-                    filePathForCommand = path.join(config.tmpDir, dir, `${name}_temp_post.${finalContent.extension}`);
+                    filePathForCommand = path.join(postDir, `${name}_temp_post.${finalContent.extension}`);
                 } else {
-                    filePathForCommand = path.join(config.tmpDir, `temp_post_${index}_${stepIndex}.${finalContent.extension}`);
+                    filePathForCommand = path.join(postDir, `temp_post_${index}_${stepIndex}.${finalContent.extension}`);
                 }
                 await this.saveArtifact(finalContent, filePathForCommand);
             }
