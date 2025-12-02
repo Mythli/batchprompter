@@ -23,10 +23,10 @@ export class PluginHelpers {
             : [];
 
         // Render content
-        const render = (parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]) => {
+        const render = (parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]): OpenAI.Chat.Completions.ChatCompletionContentPart[] => {
             return parts.map(part => {
                 if (part.type === 'text') {
-                    return { type: 'text', text: Handlebars.compile(part.text, { noEscape: true })(row) };
+                    return { type: 'text' as const, text: Handlebars.compile(part.text, { noEscape: true })(row) };
                 }
                 return part;
             });
