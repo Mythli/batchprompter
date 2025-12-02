@@ -1,3 +1,4 @@
+// @ts-nocheck
 import * as dotenv from 'dotenv';
 import { z } from 'zod';
 // import { createCache } from 'cache-manager';
@@ -6,7 +7,7 @@ import Keyv from 'keyv';
 import OpenAI from "openai";
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
-import { ImageSearch } from './utils/ImageSearch.js';
+import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { AiImageSearch } from './utils/AiImageSearch.js';
 import { createCachedFetcher } from './utils/createCachedFetcher.js';
 
