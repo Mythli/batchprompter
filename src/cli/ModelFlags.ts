@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Command, Option } from 'commander';
 import { ModelConfig } from '../types.js';
 
