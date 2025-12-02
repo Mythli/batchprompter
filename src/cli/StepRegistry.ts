@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import fsPromises from 'fs/promises';
 import { ModelFlags } from './ModelFlags.js';
 import { RuntimeConfig, StepConfig, ModelDefinition, ResolvedModelConfig } from '../types.js';
 import { loadData } from '../utils/dataLoader.js';
@@ -84,13 +83,6 @@ export class StepRegistry {
             const judge = await resolveModel(stepDef.judge);
             const feedback = await resolveModel(stepDef.feedback);
 
-            // Schema Loading
-            let jsonSchema: any = undefined;
-            if (stepDef.schemaPath && !stepDef.schemaPath.includes('{{')) {
-                const content = await fsPromises.readFile(stepDef.schemaPath, 'utf-8');
-                jsonSchema = JSON.parse(content);
-            }
-
             // Construct StepConfig
             steps.push({
                 modelConfig: mainResolved,
@@ -105,7 +97,7 @@ export class StepRegistry {
                 outputTemplate: stepDef.outputTemplate,
                 
                 schemaPath: stepDef.schemaPath,
-                jsonSchema,
+                jsonSchema: undefined, // Resolved per-row in ActionRunner
                 verifyCommand: stepDef.verifyCommand,
                 postProcessCommand: stepDef.postProcessCommand,
                 

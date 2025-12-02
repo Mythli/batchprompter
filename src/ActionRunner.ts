@@ -133,14 +133,16 @@ export class ActionRunner {
         }
 
         // 2. Schema Path
-        if (stepConfig.schemaPath && stepConfig.schemaPath.includes('{{')) {
-            const parts = await PromptResolver.resolve(stepConfig.schemaPath, sanitizedRow);
-            if (parts.length > 0 && parts[0].type === 'text') {
-                try {
+        // Always attempt to resolve the schema path for every row.
+        // This handles both static paths (re-read) and dynamic paths (Handlebars + read).
+        if (stepConfig.schemaPath) {
+            try {
+                const parts = await PromptResolver.resolve(stepConfig.schemaPath, sanitizedRow);
+                if (parts.length > 0 && parts[0].type === 'text') {
                     resolvedStep.jsonSchema = JSON.parse(parts[0].text);
-                } catch (e) {
-                    console.warn(`[Row ${rowIndex}] Failed to parse dynamic schema:`, e);
                 }
+            } catch (e) {
+                console.warn(`[Row ${rowIndex}] Failed to load/parse schema from '${stepConfig.schemaPath}':`, e);
             }
         }
 
