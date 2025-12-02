@@ -11,6 +11,8 @@ import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { AiImageSearch } from './utils/AiImageSearch.js';
 import { createCachedFetcher } from './utils/createCachedFetcher.js';
 import { ModelFlags } from './cli/ModelFlags.js';
+import { PluginRegistry } from './plugins/PluginRegistry.js';
+import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 
 dotenv.config();
 
@@ -36,6 +38,12 @@ export const configSchema = z.object({
 
 export type ConfigOverrides = {
     concurrency?: number;
+};
+
+export const createDefaultRegistry = () => {
+    const registry = new PluginRegistry();
+    registry.register(new ImageSearchPlugin());
+    return registry;
 };
 
 export const initConfig = async (overrides: ConfigOverrides = {}) => {
@@ -112,13 +120,17 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Initialize ModelFlags with the resolved default model
     const modelFlags = new ModelFlags(config.MODEL);
 
+    // Initialize PluginRegistry
+    const pluginRegistry = createDefaultRegistry();
+
     return {
         config,
         llm,
         imageSearch,
         aiImageSearch,
         modelFlags,
-        fetcher
+        fetcher,
+        pluginRegistry
     };
 }
 

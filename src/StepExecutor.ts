@@ -13,7 +13,8 @@ export class StepExecutor {
         private llm: LlmClient,
         private tmpDir: string,
         private concurrency: number,
-        private services: PluginServices
+        private services: PluginServices,
+        private pluginRegistry: PluginRegistry
     ) {}
 
     async execute(
@@ -26,10 +27,9 @@ export class StepExecutor {
         
         // 1. Execute Plugins (Content Providers)
         let effectiveUserPromptParts = [...config.userPromptParts];
-        const registry = PluginRegistry.getInstance();
-
+        
         for (const [name, pluginConfig] of Object.entries(config.plugins)) {
-            const plugin = registry.get(name);
+            const plugin = this.pluginRegistry.get(name);
             if (plugin) {
                 try {
                     const contentParts = await plugin.execute({

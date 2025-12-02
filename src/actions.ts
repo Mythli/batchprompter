@@ -8,7 +8,6 @@ import { StepExecutor } from './StepExecutor.js';
 import { getConfig } from "./getConfig.js";
 import { PromptResolver } from './utils/PromptResolver.js';
 import { resolvePromptInput, aggressiveSanitize } from './utils/fileUtils.js';
-import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { PluginServices } from './plugins/types.js';
 // ImageSearchPlugin registration moved to StepRegistry to ensure CLI flags are registered early
 
@@ -16,16 +15,13 @@ export async function runAction(config: RuntimeConfig) {
     const { concurrency, taskConcurrency, data, steps, dataFilePath, dataOutputPath } = config;
 
     console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
-    const { llm, imageSearch, aiImageSearch, fetcher } = await getConfig({ concurrency });
+    const { llm, imageSearch, aiImageSearch, fetcher, pluginRegistry } = await getConfig({ concurrency });
 
     const services: PluginServices = {
         imageSearch,
         aiImageSearch,
         fetcher
     };
-
-    // Plugins are already registered in StepRegistry during CLI setup
-    const registry = PluginRegistry.getInstance();
 
     console.log(`Found ${data.length} rows to process.`);
     console.log(`Pipeline has ${steps.length} steps.`);
@@ -52,7 +48,7 @@ export async function runAction(config: RuntimeConfig) {
                     // History of conversation (User + Assistant only)
                     // We maintain one history per row across all steps
                     const persistentHistory: any[] = [];
-                    const executor = new StepExecutor(llm, config.tmpDir, concurrency, services);
+                    const executor = new StepExecutor(llm, config.tmpDir, concurrency, services, pluginRegistry);
 
                     for (let i = 0; i < steps.length; i++) {
                         const stepIndex = i + 1;
@@ -90,7 +86,7 @@ export async function runAction(config: RuntimeConfig) {
                         // 4. Prepare Plugins
                         const preparedPlugins: Record<string, any> = {};
                         for (const [name, pluginConfig] of Object.entries(stepConfig.plugins)) {
-                            const plugin = registry.get(name);
+                            const plugin = pluginRegistry.get(name);
                             if (plugin) {
                                 preparedPlugins[name] = await plugin.prepare(pluginConfig, rawRow);
                             }

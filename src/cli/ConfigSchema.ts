@@ -19,7 +19,7 @@ function getEnvVar(keys: string[]): string | undefined {
     return undefined;
 }
 
-export const ConfigSchema = z.object({
+export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
     options: z.record(z.string(), z.any()),
     args: z.array(z.string())
 }).transform((input): NormalizedConfig => {
@@ -57,7 +57,6 @@ export const ConfigSchema = z.object({
     const modelFlags = new ModelFlags(globalModel);
 
     const steps: StepDefinition[] = [];
-    const pluginRegistry = PluginRegistry.getInstance();
 
     for (let i = 1; i <= maxStep; i++) {
         // 1. Main Model

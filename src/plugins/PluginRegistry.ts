@@ -2,17 +2,9 @@ import { Command } from 'commander';
 import { ContentProviderPlugin } from './types.js';
 
 export class PluginRegistry {
-    private static instance: PluginRegistry;
     private plugins: Map<string, ContentProviderPlugin> = new Map();
 
-    private constructor() {}
-
-    static getInstance(): PluginRegistry {
-        if (!PluginRegistry.instance) {
-            PluginRegistry.instance = new PluginRegistry();
-        }
-        return PluginRegistry.instance;
-    }
+    constructor() {}
 
     register(plugin: ContentProviderPlugin) {
         this.plugins.set(plugin.name, plugin);

@@ -4,13 +4,12 @@ import { ModelFlags } from './ModelFlags.js';
 import { RuntimeConfig, StepConfig, ModelDefinition, ResolvedModelConfig } from '../types.js';
 import { loadData } from '../utils/dataLoader.js';
 import { PromptResolver } from '../utils/PromptResolver.js';
-import { ConfigSchema } from './ConfigSchema.js';
+import { createConfigSchema } from './ConfigSchema.js';
 import { PluginRegistry } from '../plugins/PluginRegistry.js';
-import { ImageSearchPlugin } from '../plugins/image-search/ImageSearchPlugin.js';
 
 export class StepRegistry {
 
-    static registerStepArgs(program: Command) {
+    static registerStepArgs(program: Command, registry: PluginRegistry) {
         // --- Global Level ---
         ModelFlags.register(program, '', { includeSystem: true, defaultModel: 'gpt-4o' }); // Main Model
         ModelFlags.register(program, 'judge', { includePrompt: true }); // Global Judge
@@ -49,16 +48,12 @@ export class StepRegistry {
         }
 
         // --- Plugins ---
-        // Register default plugins here so CLI flags are available
-        const registry = PluginRegistry.getInstance();
-        registry.register(new ImageSearchPlugin());
-        
         registry.configureCLI(program);
     }
 
-    static async parseConfig(options: Record<string, any>, positionalArgs: string[]): Promise<RuntimeConfig> {
+    static async parseConfig(options: Record<string, any>, positionalArgs: string[], registry: PluginRegistry): Promise<RuntimeConfig> {
         // 1. Normalize via Zod Schema
-        const normalized = ConfigSchema.parse({ options, args: positionalArgs });
+        const normalized = createConfigSchema(registry).parse({ options, args: positionalArgs });
 
         // 2. Load Data
         const data = await loadData(normalized.dataFilePath);

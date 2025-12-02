@@ -4,6 +4,7 @@ import 'dotenv/config';
 import fsPromises from 'fs/promises';
 import { runAction } from './actions.js';
 import { StepRegistry } from './cli/StepRegistry.js';
+import { createDefaultRegistry } from './getConfig.js';
 
 const program = new Command();
 
@@ -16,13 +17,16 @@ const generateCmd = program.command('generate')
     .argument('<data-file>', 'Path to the CSV or JSON file')
     .argument('[template-files...]', 'Path to the prompt template files (text, image, audio, or directory)');
 
+// Create a registry for CLI configuration purposes
+const cliRegistry = createDefaultRegistry();
+
 // Register all step arguments
-StepRegistry.registerStepArgs(generateCmd);
+StepRegistry.registerStepArgs(generateCmd, cliRegistry);
 
 generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
     try {
-        // Parse configuration
-        const config = await StepRegistry.parseConfig(options, [dataFilePath, ...templateFilePaths]);
+        // Parse configuration using the CLI registry
+        const config = await StepRegistry.parseConfig(options, [dataFilePath, ...templateFilePaths], cliRegistry);
 
         // Run
         await runAction(config);
