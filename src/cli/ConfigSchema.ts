@@ -3,7 +3,7 @@ import { ModelDefinition, StepDefinition, ImageSearchDefinition, NormalizedConfi
 
 // Helper to extract Model Definition from flat options
 const extractModel = (
-    options: any, 
+    options: Record<string, any>, 
     namespace: string, // e.g. "1", "judge-1", "judge"
     fallbackNamespace: string | null // e.g. "judge", "" (global)
 ): ModelDefinition | undefined => {
@@ -17,7 +17,7 @@ const extractModel = (
         return ns.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase()) + suffix.charAt(0).toUpperCase() + suffix.slice(1);
     };
 
-    const getVal = (suffix: string) => {
+    const getVal = (suffix: string): any => {
         const specificKey = getKey(namespace, suffix);
         if (options[specificKey] !== undefined) return options[specificKey];
         
@@ -33,16 +33,16 @@ const extractModel = (
     if (!model) return undefined;
 
     return {
-        model,
-        temperature: getVal('temperature'),
-        thinkingLevel: getVal('thinkingLevel'), // thinking-level -> thinkingLevel
-        systemSource: getVal('system'),
-        promptSource: getVal('prompt')
+        model: String(model),
+        temperature: getVal('temperature') ? Number(getVal('temperature')) : undefined,
+        thinkingLevel: getVal('thinkingLevel') as 'low' | 'medium' | 'high' | undefined, // thinking-level -> thinkingLevel
+        systemSource: getVal('system') ? String(getVal('system')) : undefined,
+        promptSource: getVal('prompt') ? String(getVal('prompt')) : undefined
     };
 };
 
 export const ConfigSchema = z.object({
-    options: z.record(z.any()),
+    options: z.record(z.string(), z.any()),
     args: z.array(z.string())
 }).transform((input): NormalizedConfig => {
     const { options, args } = input;
@@ -84,7 +84,7 @@ export const ConfigSchema = z.object({
         // Ensure we have a base model definition even if extractModel returned undefined
         // (e.g. if only global model is set, or only prompt is set)
         const baseModel: ModelDefinition = mainModel || {
-            model: options.model, 
+            model: String(options.model || ''), 
             promptSource: undefined
         };
         
@@ -100,11 +100,13 @@ export const ConfigSchema = z.object({
         const imageSelectConfig = extractModel(options, `image-select-${i}`, 'image-select');
 
         // 4. Step Options
-        const getStepOpt = (key: string) => {
+        const getStepOpt = (key: string): string | undefined => {
             // Try "output1" then "output"
             const specific = options[`${key}${i}`];
-            if (specific !== undefined) return specific;
-            return options[key];
+            if (specific !== undefined) return String(specific);
+            const global = options[key];
+            if (global !== undefined) return String(global);
+            return undefined;
         };
 
         const imageSearch: ImageSearchDefinition | undefined = (() => {
@@ -136,7 +138,7 @@ export const ConfigSchema = z.object({
             outputColumn: getStepOpt('outputColumn'),
             outputTemplate: getStepOpt('output'), // Alias
             
-            schemaPath: options[`jsonSchema${i}`] || options.schema,
+            schemaPath: options[`jsonSchema${i}`] ? String(options[`jsonSchema${i}`]) : (options.schema ? String(options.schema) : undefined),
             verifyCommand: getStepOpt('verifyCommand'),
             postProcessCommand: getStepOpt('command'), // --command -> command1 -> postProcessCommand
             
@@ -155,10 +157,10 @@ export const ConfigSchema = z.object({
     return {
         dataFilePath,
         global: {
-            concurrency: parseInt(options.concurrency || '20', 10),
-            taskConcurrency: parseInt(options.taskConcurrency || '100', 10),
-            tmpDir: options.tmpDir || '.tmp',
-            dataOutputPath: options.dataOutput
+            concurrency: parseInt(String(options.concurrency || '20'), 10),
+            taskConcurrency: parseInt(String(options.taskConcurrency || '100'), 10),
+            tmpDir: String(options.tmpDir || '.tmp'),
+            dataOutputPath: options.dataOutput ? String(options.dataOutput) : undefined
         },
         steps
     };
