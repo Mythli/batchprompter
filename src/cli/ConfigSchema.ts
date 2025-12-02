@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { ModelDefinition, StepDefinition, ImageSearchDefinition, NormalizedConfig } from '../types.js';
+import { ModelDefinition, StepDefinition, NormalizedConfig } from '../types.js';
+import { PluginRegistry } from '../plugins/PluginRegistry.js';
 
 // Helper to remove undefined keys
 const clean = <T extends object>(obj: T): T => {
@@ -69,7 +70,16 @@ export const ConfigSchema = z.object({
         }
     });
 
+    const globalConfig = {
+        concurrency: parseInt(String(options.concurrency || '20'), 10),
+        taskConcurrency: parseInt(String(options.taskConcurrency || '100'), 10),
+        tmpDir: String(options.tmpDir || '.tmp'),
+        dataOutputPath: options.dataOutput ? String(options.dataOutput) : undefined,
+        model: String(options.model || 'gpt-4o') // Global default model
+    };
+
     const steps: StepDefinition[] = [];
+    const pluginRegistry = PluginRegistry.getInstance();
 
     for (let i = 1; i <= maxStep; i++) {
         // 1. Main Model
@@ -91,7 +101,7 @@ export const ConfigSchema = z.object({
         // Ensure we have a base model definition even if extractModel returned undefined
         // (e.g. if only global model is set, or only prompt is set)
         const baseModel: ModelDefinition = clean({
-            ...(mainModel || { model: String(options.model || '') }),
+            ...(mainModel || { model: globalConfig.model }),
             promptSource: promptSource
         });
 
@@ -99,10 +109,6 @@ export const ConfigSchema = z.object({
         const judge = extractModel(options, `judge-${i}`, 'judge');
         const feedback = extractModel(options, `feedback-${i}`, 'feedback');
         
-        // Image Search Agents
-        const imageQueryConfig = extractModel(options, `image-query-${i}`, 'image-query');
-        const imageSelectConfig = extractModel(options, `image-select-${i}`, 'image-select');
-
         // 4. Step Options
         const getStepOpt = (key: string): string | undefined => {
             // Try "output1" then "output"
@@ -113,26 +119,14 @@ export const ConfigSchema = z.object({
             return undefined;
         };
 
-        const imageSearch: ImageSearchDefinition | undefined = (() => {
-            const query = getStepOpt('imageSearchQuery');
-            const limit = parseInt(getStepOpt('imageSearchLimit') || '12', 10);
-            const select = parseInt(getStepOpt('imageSearchSelect') || '1', 10);
-            const queryCount = parseInt(getStepOpt('imageSearchQueryCount') || '3', 10);
-            const spriteSize = parseInt(getStepOpt('imageSearchSpriteSize') || '4', 10);
-
-            if (query || imageQueryConfig) {
-                return clean({
-                    query,
-                    queryConfig: imageQueryConfig,
-                    selectConfig: imageSelectConfig,
-                    limit,
-                    select,
-                    queryCount,
-                    spriteSize
-                });
+        // 5. Plugins
+        const plugins: Record<string, any> = {};
+        for (const plugin of pluginRegistry.getAll()) {
+            const pluginConfig = plugin.normalize(options, i, globalConfig);
+            if (pluginConfig) {
+                plugins[plugin.name] = pluginConfig;
             }
-            return undefined;
-        })();
+        }
 
         steps.push(clean({
             stepIndex: i,
@@ -153,19 +147,14 @@ export const ConfigSchema = z.object({
             feedback,
             feedbackLoops: parseInt(getStepOpt('feedbackLoops') || '0', 10),
             
-            imageSearch,
-            aspectRatio: getStepOpt('aspectRatio')
+            aspectRatio: getStepOpt('aspectRatio'),
+            plugins
         }));
     }
 
     return {
         dataFilePath,
-        global: clean({
-            concurrency: parseInt(String(options.concurrency || '20'), 10),
-            taskConcurrency: parseInt(String(options.taskConcurrency || '100'), 10),
-            tmpDir: String(options.tmpDir || '.tmp'),
-            dataOutputPath: options.dataOutput ? String(options.dataOutput) : undefined
-        }),
+        global: globalConfig,
         steps
     };
 });

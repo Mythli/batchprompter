@@ -10,16 +10,6 @@ export interface ModelDefinition {
     promptSource?: string;
 }
 
-export interface ImageSearchDefinition {
-    query?: string;
-    queryConfig?: ModelDefinition;
-    selectConfig?: ModelDefinition;
-    limit: number;
-    select: number;
-    queryCount: number;
-    spriteSize: number;
-}
-
 export interface StepDefinition {
     stepIndex: number;
     modelConfig: ModelDefinition;
@@ -43,8 +33,10 @@ export interface StepDefinition {
     feedback?: ModelDefinition;
     feedbackLoops: number;
     
-    imageSearch?: ImageSearchDefinition;
     aspectRatio?: string;
+
+    // Plugins
+    plugins: Record<string, any>;
 }
 
 export interface NormalizedConfig {
@@ -54,6 +46,7 @@ export interface NormalizedConfig {
         taskConcurrency: number;
         tmpDir: string;
         dataOutputPath?: string;
+        model: string; // Global default model
     };
     steps: StepDefinition[];
 }
@@ -99,19 +92,11 @@ export interface StepConfig {
     feedback?: ResolvedModelConfig;
     feedbackLoops: number;
     
-    // Image Search
-    imageSearch?: {
-        query?: string;
-        queryConfig?: ResolvedModelConfig;
-        selectConfig?: ResolvedModelConfig;
-        limit: number;
-        select: number;
-        queryCount: number;
-        spriteSize: number;
-    };
-    
     // Image Generation
     aspectRatio?: string;
+
+    // Plugins
+    plugins: Record<string, any>;
 }
 
 export interface RuntimeConfig {

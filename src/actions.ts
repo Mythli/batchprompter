@@ -8,12 +8,18 @@ import { StepExecutor } from './StepExecutor.js';
 import { getConfig } from "./getConfig.js";
 import { PromptResolver } from './utils/PromptResolver.js';
 import { resolvePromptInput, aggressiveSanitize } from './utils/fileUtils.js';
+import { PluginRegistry } from './plugins/PluginRegistry.js';
+import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 
 export async function runAction(config: RuntimeConfig) {
     const { concurrency, taskConcurrency, data, steps, dataFilePath, dataOutputPath } = config;
 
     console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
-    const { llm, aiImageSearch } = await getConfig({ concurrency });
+    const { llm } = await getConfig({ concurrency });
+
+    // Initialize Plugins
+    const registry = PluginRegistry.getInstance();
+    registry.register(new ImageSearchPlugin());
 
     console.log(`Found ${data.length} rows to process.`);
     console.log(`Pipeline has ${steps.length} steps.`);
@@ -35,36 +41,30 @@ export async function runAction(config: RuntimeConfig) {
                  sanitizedRow[key] = aggressiveSanitize(stringVal);
             }
             
-            // We do NOT overwrite data[index] with sanitized data, 
-            // because we want the output CSV/JSON to retain original readable data.
-            
             queue.add(async () => {
                 try {
                     // History of conversation (User + Assistant only)
                     // We maintain one history per row across all steps
                     const persistentHistory: any[] = [];
-                    const executor = new StepExecutor(llm, aiImageSearch);
+                    const executor = new StepExecutor(llm, config.tmpDir, concurrency);
 
                     for (let i = 0; i < steps.length; i++) {
                         const stepIndex = i + 1;
                         const stepConfig = steps[i];
 
                         // --- Dynamic Resolution Phase ---
-                        // We resolve templates using the appropriate context (Raw vs Sanitized)
                         
                         const resolvedStep: StepConfig = { ...stepConfig };
 
-                        // 1. Output Path -> Uses SANITIZED data (File System Safe)
+                        // 1. Output Path
                         if (stepConfig.outputTemplate) {
                             const Handlebars = (await import('handlebars')).default;
                             const delegate = Handlebars.compile(stepConfig.outputTemplate, { noEscape: true });
                             resolvedStep.outputPath = delegate(sanitizedRow);
                         }
 
-                        // 2. Schema Path -> Uses SANITIZED data (Consistent with Output Path)
+                        // 2. Schema Path
                         if (stepConfig.schemaPath && stepConfig.schemaPath.includes('{{')) {
-                            // We use sanitizedRow here because if we generated a schema in a previous step,
-                            // it would have been saved using a sanitized path.
                             const parts = await PromptResolver.resolve(stepConfig.schemaPath, sanitizedRow);
                             if (parts.length > 0 && parts[0].type === 'text') {
                                 try {
@@ -75,22 +75,26 @@ export async function runAction(config: RuntimeConfig) {
                             }
                         }
 
-                        // 3. User Prompt -> Uses RAW data (Human Readable)
+                        // 3. User Prompt
                         if (stepConfig.userPromptParts.length === 1 && stepConfig.userPromptParts[0].type === 'text' && stepConfig.userPromptParts[0].text.includes('{{')) {
                             const template = stepConfig.userPromptParts[0].text;
                             resolvedStep.userPromptParts = await PromptResolver.resolve(template, rawRow);
                         }
 
-                        // 4. Image Search Queries -> Uses RAW data (Better Search Results)
-                        if (resolvedStep.imageSearch?.query?.includes('{{')) {
-                            const Handlebars = (await import('handlebars')).default;
-                            resolvedStep.imageSearch.query = Handlebars.compile(resolvedStep.imageSearch.query, { noEscape: true })(rawRow);
+                        // 4. Prepare Plugins
+                        const preparedPlugins: Record<string, any> = {};
+                        for (const [name, pluginConfig] of Object.entries(stepConfig.plugins)) {
+                            const plugin = registry.get(name);
+                            if (plugin) {
+                                preparedPlugins[name] = await plugin.prepare(pluginConfig, rawRow);
+                            }
                         }
+                        resolvedStep.plugins = preparedPlugins;
 
                         console.log(`[Row ${index}] Step ${stepIndex} Processing...`);
 
                         const result = await executor.execute(
-                            rawRow, // Pass raw row to executor (Strategies will handle command sanitization internally if needed)
+                            rawRow,
                             index,
                             stepIndex,
                             resolvedStep,

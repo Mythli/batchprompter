@@ -5,6 +5,7 @@ import { RuntimeConfig, StepConfig, ModelDefinition, ResolvedModelConfig } from 
 import { loadData } from '../utils/dataLoader.js';
 import { PromptResolver } from '../utils/PromptResolver.js';
 import { ConfigSchema } from './ConfigSchema.js';
+import { PluginRegistry } from '../plugins/PluginRegistry.js';
 
 export class StepRegistry {
 
@@ -13,10 +14,6 @@ export class StepRegistry {
         ModelFlags.register(program, '', { includeSystem: true, defaultModel: 'gpt-4o' }); // Main Model
         ModelFlags.register(program, 'judge', { includePrompt: true }); // Global Judge
         ModelFlags.register(program, 'feedback', { includePrompt: true }); // Global Feedback
-
-        // Global Image Search Agents
-        ModelFlags.register(program, 'image-query', { includePrompt: true });
-        ModelFlags.register(program, 'image-select', { includePrompt: true });
 
         // Global Workflow
         program.option('-o, --output <path>', 'Template path for the output');
@@ -33,22 +30,11 @@ export class StepRegistry {
         program.option('--feedback-loops <number>', 'Number of feedback loops', '0');
         program.option('--aspect-ratio <ratio>', 'Aspect ratio for image generation');
 
-        // Global Image Search Params
-        program.option('--image-search-query <text>', 'Raw search query');
-        program.option('--image-search-limit <number>', 'Images per query', '12');
-        program.option('--image-search-select <number>', 'Images to select', '1');
-        program.option('--image-search-query-count <number>', 'Queries to generate', '3');
-        program.option('--image-search-sprite-size <number>', 'Images per sprite', '4');
-
         // --- Step Level (1-10) ---
         for (let i = 1; i <= 10; i++) {
             ModelFlags.register(program, `${i}`, { includeSystem: true });
             ModelFlags.register(program, `judge-${i}`, { includePrompt: true });
             ModelFlags.register(program, `feedback-${i}`, { includePrompt: true });
-
-            // Step Image Search Agents
-            ModelFlags.register(program, `image-query-${i}`, { includePrompt: true });
-            ModelFlags.register(program, `image-select-${i}`, { includePrompt: true });
 
             program.option(`--output-${i} <path>`, `Output path for step ${i}`);
             program.option(`--output-column-${i} <column>`, `Output column for step ${i}`);
@@ -59,13 +45,10 @@ export class StepRegistry {
             program.option(`--skip-candidate-command-${i}`, `Skip candidate commands for step ${i}`);
             program.option(`--feedback-loops-${i} <number>`, `Feedback loops for step ${i}`);
             program.option(`--aspect-ratio-${i} <ratio>`, `Aspect ratio for step ${i}`);
-
-            program.option(`--image-search-query-${i} <text>`, `Search query for step ${i}`);
-            program.option(`--image-search-limit-${i} <number>`, `Search limit for step ${i}`);
-            program.option(`--image-search-select-${i} <number>`, `Select count for step ${i}`);
-            program.option(`--image-search-query-count-${i} <number>`, `Query count for step ${i}`);
-            program.option(`--image-search-sprite-size-${i} <number>`, `Sprite size for step ${i}`);
         }
+
+        // --- Plugins ---
+        PluginRegistry.getInstance().configureCLI(program);
     }
 
     static async parseConfig(options: Record<string, any>, positionalArgs: string[]): Promise<RuntimeConfig> {
@@ -100,8 +83,6 @@ export class StepRegistry {
             // Auxiliary
             const judge = await resolveModel(stepDef.judge);
             const feedback = await resolveModel(stepDef.feedback);
-            const imageQuery = await resolveModel(stepDef.imageSearch?.queryConfig);
-            const imageSelect = await resolveModel(stepDef.imageSearch?.selectConfig);
 
             // Schema Loading
             let jsonSchema: any = undefined;
@@ -135,13 +116,8 @@ export class StepRegistry {
                 feedback,
                 feedbackLoops: stepDef.feedbackLoops,
                 
-                imageSearch: stepDef.imageSearch ? {
-                    ...stepDef.imageSearch,
-                    queryConfig: imageQuery,
-                    selectConfig: imageSelect
-                } : undefined,
-                
-                aspectRatio: stepDef.aspectRatio
+                aspectRatio: stepDef.aspectRatio,
+                plugins: stepDef.plugins
             });
         }
 
