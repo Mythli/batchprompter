@@ -1,4 +1,4 @@
-// @ts-nocheck
+// 
 import { z } from 'zod';
 import { LlmClient } from 'llm-fns';
 import { ImageSearch, SerperImage, ImageSearchResult } from '../plugins/image-search/ImageSearch.js';

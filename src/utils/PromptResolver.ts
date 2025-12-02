@@ -1,4 +1,4 @@
-// @ts-nocheck
+// 
 import OpenAI from 'openai';
 import { resolvePromptInput } from './fileUtils.js';
 import Handlebars from 'handlebars';

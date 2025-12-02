@@ -1,4 +1,4 @@
-// @ts-nocheck
+// 
 import * as dotenv from 'dotenv';
 import { z } from 'zod';
 // import { createCache } from 'cache-manager';
@@ -7,9 +7,13 @@ import Keyv from 'keyv';
 import OpenAI from "openai";
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
-import { ImageSearch } from './utils/ImageSearch.js';
+import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { AiImageSearch } from './utils/AiImageSearch.js';
 import { createCachedFetcher } from './utils/createCachedFetcher.js';
+import { ModelFlags } from './cli/ModelFlags.js';
+import { PluginRegistry } from './plugins/PluginRegistry.js';
+import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
+import { ActionRunner } from './ActionRunner.js';
 dotenv.config();
 // Helper to resolve environment variables with fallbacks
 function getEnvVar(keys) {
@@ -30,6 +34,36 @@ export const configSchema = z.object({
     SERPER_API_KEY: z.string().optional(),
     TASK_CONCURRENCY: z.coerce.number().int().positive().default(100),
 });
+export const createDefaultRegistry = () => {
+    const registry = new PluginRegistry();
+    registry.register(new ImageSearchPlugin());
+    return registry;
+};
+// Adapter to make Keyv compatible with cache-manager Cache interface
+class KeyvCacheAdapter {
+    keyv;
+    constructor(keyv) {
+        this.keyv = keyv;
+    }
+    async get(key) {
+        return this.keyv.get(key);
+    }
+    async set(key, value, ttl) {
+        await this.keyv.set(key, value, ttl);
+    }
+    async del(key) {
+        await this.keyv.delete(key);
+    }
+    async reset() {
+        await this.keyv.clear();
+    }
+    // Stubs for full Cache interface compliance
+    async mget(...keys) { return []; }
+    async mset(args, ttl) { return; }
+    async mdel(...keys) { return; }
+    async wrap(key, fn, ttl) { return fn(); }
+    store = {};
+}
 export const initConfig = async (overrides = {}) => {
     // Resolve values from multiple possible environment variable names
     const rawConfig = {
@@ -42,14 +76,23 @@ export const initConfig = async (overrides = {}) => {
     };
     const config = configSchema.parse(rawConfig);
     // Setup Cache
-    let cache;
+    let cache; // Use any to bypass strict Cache type check if needed, or use the adapter
     if (config.CACHE_ENABLED) {
-        cache = new Keyv({
+        const keyv = new Keyv({
             store: new KeyvSqlite(`sqlite://${config.SQLITE_PATH}`),
             serialize: JSON.stringify,
             deserialize: JSON.parse
         });
+        cache = new KeyvCacheAdapter(keyv);
     }
+    // Setup Fetcher (Global)
+    const fetcher = createCachedFetcher({
+        cache,
+        prefix: 'fetch',
+        ttl: 24 * 60 * 60 * 1000, // 24 hours
+        timeout: 30000, // 30 seconds
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    });
     const openAi = new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
@@ -68,7 +111,7 @@ export const initConfig = async (overrides = {}) => {
         console.error(`[Queue] Task error:`, error);
     });
     const llm = createLlm({
-        openai: openAi,
+        openai: openAi, // Cast to any to avoid version mismatch issues
         defaultModel: config.MODEL,
         cache: cache,
         queue: gptQueue,
@@ -77,22 +120,25 @@ export const initConfig = async (overrides = {}) => {
     let imageSearch;
     let aiImageSearch;
     if (config.SERPER_API_KEY) {
-        const cachedFetcher = createCachedFetcher({
-            cache,
-            prefix: 'fetch',
-            ttl: 24 * 60 * 60 * 1000, // 24 hours
-            timeout: 30000, // 30 seconds
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        });
         // Pass cache to ImageSearch for Serper results, and fetcher for downloads
-        imageSearch = new ImageSearch(config.SERPER_API_KEY, cachedFetcher);
+        imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher);
         aiImageSearch = new AiImageSearch(imageSearch, llm);
     }
+    // Initialize ModelFlags with the resolved default model
+    const modelFlags = new ModelFlags(config.MODEL);
+    // Initialize PluginRegistry
+    const pluginRegistry = createDefaultRegistry();
+    // Initialize ActionRunner
+    const actionRunner = new ActionRunner(llm, { imageSearch, aiImageSearch, fetcher }, pluginRegistry);
     return {
         config,
         llm,
         imageSearch,
-        aiImageSearch
+        aiImageSearch,
+        modelFlags,
+        fetcher,
+        pluginRegistry,
+        actionRunner
     };
 };
 let config = null;

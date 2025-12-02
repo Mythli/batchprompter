@@ -1,4 +1,4 @@
-// @ts-nocheck
+// 
 import sharp from 'sharp';
 
 export interface SpriteItem {

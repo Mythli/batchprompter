@@ -48,8 +48,8 @@ importers:
         specifier: ^5.5.4
         version: 5.5.4
       llm-fns:
-        specifier: ^1.0.9
-        version: 1.0.9
+        specifier: ^1.0.10
+        version: 1.0.10
       openai:
         specifier: ^4.104.0
         version: 4.104.0(encoding@0.1.13)(zod@4.1.13)
@@ -793,8 +793,8 @@ packages:
   keyv@5.5.4:
     resolution: {integrity: sha512-eohl3hKTiVyD1ilYdw9T0OiB4hnjef89e3dMYKz+mVKDzj+5IteTseASUsOB+EU9Tf6VNTCjDePcP6wkDGmLKQ==}
 
-  llm-fns@1.0.9:
-    resolution: {integrity: sha512-QPmj+NtzRKJKIdEajHvlTNY6fiMVn0bDYGb/sXwU2NTvnUg7zEN2uL4di4v27xSt+JrRaNxPS8GZQEGy7he8+Q==}
+  llm-fns@1.0.10:
+    resolution: {integrity: sha512-MpDBTP2O/fsNHME+2fuwZGsTy1poWimknOeiuMzUKNInfYF9pfMRK3pkFlen28lYWVNE5nM4P3Bmx6PDUZs0Sw==}
 
   lodash.get@4.4.2:
     resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
@@ -1826,7 +1826,7 @@ snapshots:
     dependencies:
       '@keyv/serialize': 1.1.1
 
-  llm-fns@1.0.9:
+  llm-fns@1.0.10:
     dependencies:
       ajv: 8.17.1
       openai: 6.9.1(zod@4.1.13)
