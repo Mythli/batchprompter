@@ -43,37 +43,58 @@ export class ModelFlags {
 
     /**
      * Extracts model configuration from the parsed options object.
+     * Supports fallback namespace and default model.
      */
-    static extract(options: Record<string, any>, namespace: string): Partial<ModelConfig> {
-        // Commander converts "judge-model" to "judgeModel"
-        // "judge-1-model" to "judge1Model" (if defined that way) or we need to handle the keys carefully.
-        // Commander camelCases flags. --judge-model -> judgeModel. --judge-1-model -> judge1Model.
+    static extract(
+        options: Record<string, any>, 
+        namespace: string, 
+        fallbackNamespace?: string,
+        defaultModel?: string
+    ): Partial<ModelConfig> {
         
         const toCamel = (s: string) => {
             return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
         };
 
-        const getKey = (suffix: string) => {
-            if (!namespace) return suffix;
-            return toCamel(`${namespace}-${suffix}`);
+        const getKey = (ns: string, suffix: string) => {
+            if (!ns) return suffix;
+            return toCamel(`${ns}-${suffix}`);
+        };
+
+        const getVal = (suffix: string) => {
+            // 1. Try specific namespace
+            const specificKey = getKey(namespace, suffix);
+            if (options[specificKey] !== undefined) return options[specificKey];
+
+            // 2. Try fallback namespace
+            if (fallbackNamespace) {
+                const fallbackKey = getKey(fallbackNamespace, suffix);
+                if (options[fallbackKey] !== undefined) return options[fallbackKey];
+            }
+
+            return undefined;
         };
 
         const config: Partial<ModelConfig> = {};
 
-        const modelKey = getKey('model');
-        if (options[modelKey]) config.model = options[modelKey];
+        const model = getVal('model');
+        if (model) {
+            config.model = model;
+        } else if (defaultModel) {
+            config.model = defaultModel;
+        }
 
-        const tempKey = getKey('temperature');
-        if (options[tempKey] !== undefined) config.temperature = options[tempKey];
+        const temp = getVal('temperature');
+        if (temp !== undefined) config.temperature = temp;
 
-        const thinkKey = getKey('thinking-level');
-        if (options[thinkKey]) config.thinkingLevel = options[thinkKey];
+        const think = getVal('thinking-level');
+        if (think) config.thinkingLevel = think;
 
-        const systemKey = getKey('system');
-        if (options[systemKey]) config.systemSource = options[systemKey];
+        const system = getVal('system');
+        if (system) config.systemSource = system;
 
-        const promptKey = getKey('prompt');
-        if (options[promptKey]) config.promptSource = options[promptKey];
+        const prompt = getVal('prompt');
+        if (prompt) config.promptSource = prompt;
 
         return config;
     }

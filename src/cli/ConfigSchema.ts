@@ -1,52 +1,13 @@
 import { z } from 'zod';
 import { ModelDefinition, StepDefinition, NormalizedConfig } from '../types.js';
 import { PluginRegistry } from '../plugins/PluginRegistry.js';
+import { ModelFlags } from './ModelFlags.js';
 
 // Helper to remove undefined keys
 const clean = <T extends object>(obj: T): T => {
     return Object.fromEntries(
         Object.entries(obj).filter(([_, v]) => v !== undefined)
     ) as T;
-};
-
-// Helper to extract Model Definition from flat options
-const extractModel = (
-    options: Record<string, any>, 
-    namespace: string, // e.g. "1", "judge-1", "judge"
-    fallbackNamespace: string | null // e.g. "judge", "" (global)
-): ModelDefinition | undefined => {
-    
-    // Helper to construct camelCase keys from namespace + suffix
-    const getKey = (ns: string, suffix: string) => {
-        if (!ns) return suffix; // global model -> options.model
-        // ns="1", suffix="model" -> "1Model"
-        // ns="judge", suffix="model" -> "judgeModel"
-        // ns="judge-1", suffix="model" -> "judge1Model"
-        return ns.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase()) + suffix.charAt(0).toUpperCase() + suffix.slice(1);
-    };
-
-    const getVal = (suffix: string): any => {
-        const specificKey = getKey(namespace, suffix);
-        if (options[specificKey] !== undefined) return options[specificKey];
-        
-        if (fallbackNamespace !== null) {
-            const fallbackKey = getKey(fallbackNamespace, suffix);
-            if (options[fallbackKey] !== undefined) return options[fallbackKey];
-        }
-        return undefined;
-    };
-
-    const model = getVal('model');
-    // If no model specified, we can't form a definition unless it's the main model falling back to global
-    if (!model) return undefined;
-
-    return clean({
-        model: String(model),
-        temperature: getVal('temperature') ? Number(getVal('temperature')) : undefined,
-        thinkingLevel: getVal('thinkingLevel') as 'low' | 'medium' | 'high' | undefined, // thinking-level -> thinkingLevel
-        systemSource: getVal('system') ? String(getVal('system')) : undefined,
-        promptSource: getVal('prompt') ? String(getVal('prompt')) : undefined
-    });
 };
 
 export const ConfigSchema = z.object({
@@ -84,7 +45,8 @@ export const ConfigSchema = z.object({
     for (let i = 1; i <= maxStep; i++) {
         // 1. Main Model
         // Namespace "1", Fallback "" (Global)
-        const mainModel = extractModel(options, `${i}`, '');
+        // We use ModelFlags.extract to handle fallback logic
+        const mainModel = ModelFlags.extract(options, `${i}`, '', globalConfig.model);
         
         // 2. Prompt Merging
         const posArg = args[i]; // args[0] is data
@@ -98,16 +60,15 @@ export const ConfigSchema = z.object({
             }
         }
 
-        // Ensure we have a base model definition even if extractModel returned undefined
-        // (e.g. if only global model is set, or only prompt is set)
+        // Ensure we have a base model definition
         const baseModel: ModelDefinition = clean({
-            ...(mainModel || { model: globalConfig.model }),
+            ...(mainModel as ModelDefinition),
             promptSource: promptSource
         });
 
         // 3. Auxiliary Models
-        const judge = extractModel(options, `judge-${i}`, 'judge');
-        const feedback = extractModel(options, `feedback-${i}`, 'feedback');
+        const judge = ModelFlags.extract(options, `judge-${i}`, 'judge', globalConfig.model) as ModelDefinition;
+        const feedback = ModelFlags.extract(options, `feedback-${i}`, 'feedback', globalConfig.model) as ModelDefinition;
         
         // 4. Step Options
         const getStepOpt = (key: string): string | undefined => {
@@ -143,8 +104,8 @@ export const ConfigSchema = z.object({
             candidates: parseInt(getStepOpt('candidates') || '1', 10),
             noCandidateCommand: !!(options[`skipCandidateCommand${i}`] || options.skipCandidateCommand),
             
-            judge,
-            feedback,
+            judge: Object.keys(judge).length > 0 ? judge : undefined,
+            feedback: Object.keys(feedback).length > 0 ? feedback : undefined,
             feedbackLoops: parseInt(getStepOpt('feedbackLoops') || '0', 10),
             
             aspectRatio: getStepOpt('aspectRatio'),

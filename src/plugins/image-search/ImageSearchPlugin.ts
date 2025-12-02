@@ -75,18 +75,21 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
     }
 
     normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): ImageSearchRawConfig | undefined {
-        // Helper to extract model config with fallback
-        const extractModel = (namespace: string, fallbackNamespace: string | null): ModelDefinition | undefined => {
-            const config = ModelFlags.extract(options, namespace);
+        
+        // Helper to extract model config using the enhanced ModelFlags.extract
+        const extractModel = (namespace: string, fallbackNamespace: string): ModelDefinition | undefined => {
+            const config = ModelFlags.extract(options, namespace, fallbackNamespace, globalConfig.model);
             
-            // Check if any key was actually set
-            const hasKeys = Object.keys(config).length > 0;
-            if (!hasKeys) return undefined;
-
-            // Fallback to global model if model is missing but other flags (like prompt) are present
-            if (!config.model) {
-                config.model = globalConfig.model;
-            }
+            // Check if any key was actually set (excluding the default model if nothing else is set)
+            // We check if promptSource or systemSource is set, OR if model was explicitly set in options
+            // But ModelFlags.extract merges everything.
+            // A better check for "is active" is if promptSource is present.
+            
+            if (!config.promptSource && !config.systemSource && !config.model) return undefined;
+            
+            // If we only have the default model, but no prompt/system, it's probably not active unless intended.
+            // For image-query, we need a prompt.
+            if (!config.promptSource && !config.systemSource) return undefined;
 
             return config as ModelDefinition;
         };
@@ -103,8 +106,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         const query = getOpt('imageSearchQuery');
 
         // 2. Check Activation
-        // Active if: query string exists OR query config exists OR select config exists
-        // OR if explicit limits are set (though that might be ambiguous, let's stick to intent)
         const isActive = !!(query || queryConfig || selectConfig);
 
         if (!isActive) return undefined;
@@ -167,29 +168,20 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         }
 
         // Initialize Services (Lazy)
-        // We create a new fetcher/searcher per execution or reuse? 
-        // Reusing is better for caching. But we don't have easy access to the global cache instance here.
-        // For now, we create a fetcher. In a real app, we'd inject the global cache.
         const fetcher = createCachedFetcher({
             prefix: 'serper',
             timeout: 30000,
             ttl: 24 * 60 * 60 * 1000 // 24h
-            // cache: ... we miss the cache instance here. 
-            // TODO: Pass cache in PluginContext
         });
         
         const imageSearch = new ImageSearch(apiKey, fetcher);
         const aiImageSearch = new AiImageSearch(imageSearch, llm, resolvedConfig.spriteSize);
 
-        // --- Execution Logic (Migrated from ImageSearchTool) ---
+        // --- Execution Logic ---
 
-        // Determine output directory
         let outputDir = globalConfig.tmpDir;
         let filePrefix = `${String(context.row.index || 0).padStart(3, '0')}_${String(stepIndex).padStart(2, '0')}`;
         
-        // We don't have easy access to the step's output path here to mirror it, 
-        // unless we pass it in context. For now, use tmpDir.
-
         const queries: string[] = [];
 
         // 1. Collect Queries
@@ -199,25 +191,14 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         if (resolvedConfig.queryConfig) {
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Generating search queries...`);
-            // Logic handled inside AiImageSearch or manually here?
-            // The original tool did it manually. Let's use the helper method if we move it to AiImageSearch, 
-            // or keep it here. Let's keep it here for clarity.
-            
-            // We need to call LLM to generate queries
-            // But wait, AiImageSearch doesn't have a "generateQueries" method exposed nicely.
-            // Let's implement it here using the LLM directly.
             
             const { z } = await import('zod');
             const QuerySchema = z.object({
                 queries: z.array(z.string()).min(1).max(resolvedConfig.queryCount)
             });
 
-            // Construct request
-            // resolvedConfig.queryConfig is already ResolvedModelConfig (content parts)
-            // We need to convert it to LlmRequest format
             const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
             if (resolvedConfig.queryConfig.systemParts) {
-                // Flatten system parts
                 const text = resolvedConfig.queryConfig.systemParts.map(p => p.type === 'text' ? p.text : '').join('\n');
                 messages.push({ role: 'system', content: text });
             }
@@ -242,7 +223,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         const searchPromises = queries.map(q => imageSearch.search(q, resolvedConfig.limit));
         const results = await Promise.all(searchPromises);
 
-        // Pool
         const pooledImages: any[] = [];
         const seenUrls = new Set<string>();
         for (const group of results) {
@@ -260,9 +240,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         let selectedImages: any[] = [];
         if (resolvedConfig.selectConfig) {
             console.log(`[Row ${context.row.index}] Step ${stepIndex} AI Selecting best images...`);
-            
-            // We need to pass the resolved select config to AiImageSearch
-            // AiImageSearch.selectFromPool expects ResolvedModelConfig, which we have.
             
             selectedImages = await aiImageSearch.selectFromPool(
                 pooledImages,
@@ -289,7 +266,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             const savePath = path.join(outputDir, filename);
 
             try {
-                // Normalize
                 const processedBuffer = await sharp(img.buffer)
                     .resize({ width: 1024, height: 1024, fit: 'inside', withoutEnlargement: true })
                     .jpeg({ quality: 80 })
