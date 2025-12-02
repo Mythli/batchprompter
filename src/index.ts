@@ -1,4 +1,4 @@
-// @ts-nocheck
+// 
 import { Command } from 'commander';
 import 'dotenv/config';
 import fsPromises from 'fs/promises';
