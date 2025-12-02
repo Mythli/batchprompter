@@ -6,10 +6,12 @@ import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { AiImageSearch } from './utils/AiImageSearch.js';
 import { ImageSearchTool } from './utils/ImageSearchTool.js';
+import { ImageSearchToolNotConfigured } from './utils/ImageSearchToolNotConfigured.js';
+import { IImageSearchTool } from './utils/IImageSearchTool.js';
 import { ModelRequestNormalizer } from './core/ModelRequestNormalizer.js';
 
 export class StepExecutor {
-    private imageSearchTool?: ImageSearchTool;
+    private imageSearchTool: IImageSearchTool;
 
     constructor(
         private llm: LlmClient,
@@ -17,6 +19,8 @@ export class StepExecutor {
     ) {
         if (aiImageSearch) {
             this.imageSearchTool = new ImageSearchTool(aiImageSearch, llm);
+        } else {
+            this.imageSearchTool = new ImageSearchToolNotConfigured();
         }
     }
 
@@ -31,17 +35,13 @@ export class StepExecutor {
         // 1. Execute Image Search (Global Context for this step)
         let effectiveUserPromptParts = [...config.userPromptParts];
         
-        // We need to handle image search config which is now nested in config.imageSearch
-        if (config.imageSearch && this.imageSearchTool) {
-            // Map StepConfig.imageSearch to the format ImageSearchTool expects (ResolvedStepConfig-like)
-            // ImageSearchTool expects the whole config object usually, but we can adapt it or pass specific params.
-            // For now, let's adapt the tool to take the specific search config or pass the StepConfig which has it.
-            
-            const searchResult = await this.imageSearchTool.execute(row, index, stepIndex, config);
-            
-            // Prepend search results
-            effectiveUserPromptParts = [...searchResult.contentParts, ...effectiveUserPromptParts];
-        }
+        // We execute the tool unconditionally. 
+        // If config.imageSearch is missing, the tool returns empty.
+        // If config.imageSearch is present but tool is NotConfigured, it throws.
+        const searchResult = await this.imageSearchTool.execute(row, index, stepIndex, config);
+        
+        // Prepend search results
+        effectiveUserPromptParts = [...searchResult.contentParts, ...effectiveUserPromptParts];
 
         // 2. Select Strategy
         // StandardStrategy needs to know the model. 

@@ -10,8 +10,9 @@ import { SerperImage, ImageSearchResult } from './ImageSearch.js';
 import { StepConfig } from '../types.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
 import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
+import { IImageSearchTool } from './IImageSearchTool.js';
 
-export class ImageSearchTool {
+export class ImageSearchTool implements IImageSearchTool {
     constructor(
         private aiImageSearch: AiImageSearch,
         private llm: LlmClient
