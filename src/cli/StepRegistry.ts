@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import fsPromises from 'fs/promises';
 import { ModelFlags } from './ModelFlags.js';
-import { RuntimeConfig, StepConfig, ResolvedModelConfig, ModelConfig } from '../types.js';
+import { RuntimeConfig, StepConfig, ModelDefinition, ResolvedModelConfig } from '../types.js';
 import { loadData } from '../utils/dataLoader.js';
 import { PromptResolver } from '../utils/PromptResolver.js';
-import { resolvePromptInput } from '../utils/fileUtils.js';
+import { ConfigSchema } from './ConfigSchema.js';
 
 export class StepRegistry {
 
@@ -69,156 +69,85 @@ export class StepRegistry {
     }
 
     static async parseConfig(options: Record<string, any>, positionalArgs: string[]): Promise<RuntimeConfig> {
-        const dataFilePath = positionalArgs[0];
-        const templateFilePaths = positionalArgs.slice(1);
+        // 1. Normalize via Zod Schema
+        const normalized = ConfigSchema.parse({ options, args: positionalArgs });
 
-        if (!dataFilePath) {
-            throw new Error("Data file path is required.");
-        }
+        // 2. Load Data
+        const data = await loadData(normalized.dataFilePath);
 
-        // Load Data
-        const data = await loadData(dataFilePath);
-
-        // Determine number of steps based on positional args or flags
-        // If templateFilePaths has 2 items, we have at least 2 steps.
-        // If flags for step 3 exist, we have 3 steps.
-        let maxStep = templateFilePaths.length;
-        for (let i = 1; i <= 10; i++) {
-            // Check if any flag for step i is set
-            if (Object.keys(options).some(k => k.endsWith(`${i}`) || k.endsWith(`${i}Model`))) {
-                maxStep = Math.max(maxStep, i);
-            }
-        }
-        if (maxStep === 0) maxStep = 1; // Default to at least 1 step
-
+        // 3. Resolve Steps (Async Content Loading)
         const steps: StepConfig[] = [];
 
-        // Helper to get option with fallback
-        const getOpt = (key: string, stepIndex: number) => {
-            // Step specific key (e.g. output-1 -> output1)
-            const stepKey = `${key}${stepIndex}`;
-            if (options[stepKey] !== undefined) return options[stepKey];
-            // Global key
-            return options[key];
-        };
-
-        // Helper to resolve Model Config
-        const resolveModelConfig = async (
-            namespace: string,
-            fallbackNamespace: string | null
-        ): Promise<ResolvedModelConfig | undefined> => {
-
-            const specific = ModelFlags.extract(options, namespace);
-            const fallback = fallbackNamespace !== null ? ModelFlags.extract(options, fallbackNamespace) : {};
-
-            // Merge: Specific > Fallback
-            const merged: ModelConfig = {
-                model: specific.model || fallback.model || options.model,
-                temperature: specific.temperature ?? fallback.temperature,
-                thinkingLevel: specific.thinkingLevel || fallback.thinkingLevel,
-                systemSource: specific.systemSource || fallback.systemSource,
-                promptSource: specific.promptSource || fallback.promptSource
-            };
-
-            if(!merged.model || !(merged.promptSource || merged.systemSource)) {
-                return undefined;
-            }
-
+        // Helper to resolve a ModelDefinition to ResolvedModelConfig
+        const resolveModel = async (def: ModelDefinition | undefined): Promise<ResolvedModelConfig | undefined> => {
+            if (!def) return undefined;
             return {
-                model: merged.model,
-                temperature: merged.temperature,
-                thinkingLevel: merged.thinkingLevel,
-                systemParts: await PromptResolver.resolve(merged.systemSource),
-                promptParts: await PromptResolver.resolve(merged.promptSource)
+                model: def.model,
+                temperature: def.temperature,
+                thinkingLevel: def.thinkingLevel,
+                systemParts: await PromptResolver.resolve(def.systemSource),
+                promptParts: await PromptResolver.resolve(def.promptSource)
             };
         };
 
-        for (let i = 1; i <= maxStep; i++) {
-            // 1. Main Model Config
-            // Namespace for step 1 is "1", fallback is "" (Global)
-            const mainConfig = await resolveModelConfig(`${i}`, '');
-            if (!mainConfig) {
-                throw new Error(`Failed to resolve configuration for step ${i}`);
+        for (const stepDef of normalized.steps) {
+            // Main Model
+            const mainResolved = await resolveModel(stepDef);
+            if (!mainResolved || !mainResolved.model) {
+                throw new Error(`Step ${stepDef.stepIndex}: Model configuration missing.`);
             }
 
-            // 2. Positional User Prompt
-            // templateFilePaths is 0-indexed, so step 1 is at index 0
-            const posArg = templateFilePaths[i - 1];
-            let userPromptParts: any[] = [];
-            if (posArg) {
-                // Check if dynamic
-                if (posArg.includes('{{')) {
-                    // Store as text for runtime resolution
-                    userPromptParts = [{ type: 'text', text: posArg }]; // Treat path as text to be rendered later
-                } else {
-                    userPromptParts = await resolvePromptInput(posArg);
-                }
-            }
+            // Auxiliary
+            const judge = await resolveModel(stepDef.judge);
+            const feedback = await resolveModel(stepDef.feedback);
+            const imageQuery = await resolveModel(stepDef.imageSearch?.queryConfig);
+            const imageSelect = await resolveModel(stepDef.imageSearch?.selectConfig);
 
-            // 3. Auxiliary Models
-            const judgeConfig = await resolveModelConfig(`judge-${i}`, 'judge');
-            const feedbackConfig = await resolveModelConfig(`feedback-${i}`, 'feedback');
-
-            // Image Search Agents
-            const imageQueryConfig = await resolveModelConfig(`image-query-${i}`, 'image-query');
-            const imageSelectConfig = await resolveModelConfig(`image-select-${i}`, 'image-select');
-
-            // 4. Workflow & IO
-            const candidates = parseInt(getOpt('candidates', i) || '1', 10);
-            const feedbackLoops = parseInt(getOpt('feedbackLoops', i) || '0', 10);
-
-            // Image Search
-            const query = getOpt('imageSearchQuery', i);
-            const imgSearch = {
-                query,
-                queryConfig: imageQueryConfig,
-                selectConfig: imageSelectConfig,
-                limit: parseInt(getOpt('imageSearchLimit', i) || '12', 10),
-                select: parseInt(getOpt('imageSearchSelect', i) || '1', 10),
-                queryCount: parseInt(getOpt('imageSearchQueryCount', i) || '3', 10),
-                spriteSize: parseInt(getOpt('imageSearchSpriteSize', i) || '4', 10),
-            };
-
-            // Schema
-            // Commander maps --json-schema-1 to jsonSchema1
-            // Global is --schema -> schema
-            const schemaPath = options[`jsonSchema${i}`] || options.schema;
+            // Schema Loading
             let jsonSchema: any = undefined;
-            if (schemaPath) {
-                // If static path, load it. If dynamic, wait.
-                if (!schemaPath.includes('{{')) {
-                    const content = await fsPromises.readFile(schemaPath, 'utf-8');
-                    jsonSchema = JSON.parse(content);
-                }
+            if (stepDef.schemaPath && !stepDef.schemaPath.includes('{{')) {
+                const content = await fsPromises.readFile(stepDef.schemaPath, 'utf-8');
+                jsonSchema = JSON.parse(content);
             }
 
+            // Construct StepConfig
             steps.push({
-                ...mainConfig,
-                tmpDir: options.tmpDir || '.tmp',
-                userPromptParts,
-                outputPath: getOpt('output', i),
-                outputColumn: getOpt('outputColumn', i),
-                outputTemplate: getOpt('output', i), // Store raw for dynamic
-                schemaPath,
+                ...mainResolved,
+                tmpDir: normalized.global.tmpDir,
+                
+                // The promptParts from mainResolved now contain the merged user prompt (flag + positional).
+                // We map this to userPromptParts for the execution engine.
+                userPromptParts: mainResolved.promptParts,
+                
+                outputPath: stepDef.outputPath,
+                outputColumn: stepDef.outputColumn,
+                outputTemplate: stepDef.outputTemplate,
+                
+                schemaPath: stepDef.schemaPath,
                 jsonSchema,
-                verifyCommand: getOpt('verifyCommand', i),
-                postProcessCommand: getOpt('command', i), // --command -> postProcessCommand
-                candidates,
-                noCandidateCommand: options[`skipCandidateCommand${i}`] || options.skipCandidateCommand,
-                judge: judgeConfig,
-                feedback: feedbackConfig,
-                feedbackLoops,
-                imageSearch: (imgSearch.query || imgSearch.queryConfig) ? imgSearch : undefined,
-                aspectRatio: getOpt('aspectRatio', i)
+                verifyCommand: stepDef.verifyCommand,
+                postProcessCommand: stepDef.postProcessCommand,
+                
+                candidates: stepDef.candidates,
+                noCandidateCommand: stepDef.noCandidateCommand,
+                
+                judge,
+                feedback,
+                feedbackLoops: stepDef.feedbackLoops,
+                
+                imageSearch: stepDef.imageSearch ? {
+                    ...stepDef.imageSearch,
+                    queryConfig: imageQuery,
+                    selectConfig: imageSelect
+                } : undefined,
+                
+                aspectRatio: stepDef.aspectRatio
             });
         }
 
         return {
-            concurrency: parseInt(options.concurrency || '20', 10),
-            taskConcurrency: parseInt(options.taskConcurrency || '100', 10),
-            tmpDir: options.tmpDir || '.tmp',
-            dataFilePath,
-            dataOutputPath: options.dataOutput,
+            ...normalized.global,
+            dataFilePath: normalized.dataFilePath,
             steps,
             data
         };

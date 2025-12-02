@@ -1,25 +1,64 @@
 import OpenAI from 'openai';
 
-// --- Model Configuration ---
+// --- Definitions (Pre-Load) ---
 
-/**
- * Represents the raw configuration for a model from CLI/Args.
- * Stores the *source* of the prompts (file path or raw text).
- */
-export interface ModelConfig {
+export interface ModelDefinition {
     model: string;
     temperature?: number;
     thinkingLevel?: 'low' | 'medium' | 'high';
-    
-    // Input Sources (File Path or Raw Text)
-    systemSource?: string; 
+    systemSource?: string;
     promptSource?: string;
 }
 
-/**
- * Represents a model configuration with prompts resolved to ContentParts.
- * This is what the execution layer uses.
- */
+export interface ImageSearchDefinition {
+    query?: string;
+    queryConfig?: ModelDefinition;
+    selectConfig?: ModelDefinition;
+    limit: number;
+    select: number;
+    queryCount: number;
+    spriteSize: number;
+}
+
+export interface StepDefinition extends ModelDefinition {
+    stepIndex: number;
+    
+    // IO
+    outputPath?: string;
+    outputColumn?: string;
+    outputTemplate?: string;
+    
+    // Validation
+    schemaPath?: string;
+    verifyCommand?: string;
+    postProcessCommand?: string;
+    
+    // Candidates
+    candidates: number;
+    noCandidateCommand: boolean;
+    
+    // Auxiliary
+    judge?: ModelDefinition;
+    feedback?: ModelDefinition;
+    feedbackLoops: number;
+    
+    imageSearch?: ImageSearchDefinition;
+    aspectRatio?: string;
+}
+
+export interface NormalizedConfig {
+    dataFilePath: string;
+    global: {
+        concurrency: number;
+        taskConcurrency: number;
+        tmpDir: string;
+        dataOutputPath?: string;
+    };
+    steps: StepDefinition[];
+}
+
+// --- Resolved Configuration (Post-Load) ---
+
 export interface ResolvedModelConfig {
     model: string;
     temperature?: number;
@@ -30,28 +69,21 @@ export interface ResolvedModelConfig {
     promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
-// --- Step Configuration ---
-
-/**
- * Configuration for a single workflow step.
- * Extends ResolvedModelConfig because the Step *is* the Main Agent.
- */
 export interface StepConfig extends ResolvedModelConfig {
     // Execution Logic
     tmpDir: string;
     
     // Inputs
-    // Content from positional arguments (template files)
     userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]; 
     
     // Outputs
     outputPath?: string;
     outputColumn?: string;
-    outputTemplate?: string; // Raw template for dynamic resolution
+    outputTemplate?: string; 
     
     // Validation & Post-processing
     schemaPath?: string;
-    jsonSchema?: any; // Loaded schema object
+    jsonSchema?: any; 
     verifyCommand?: string;
     postProcessCommand?: string;
     
@@ -59,19 +91,16 @@ export interface StepConfig extends ResolvedModelConfig {
     candidates: number;
     noCandidateCommand: boolean;
     
-    // Auxiliary Models (Judge & Feedback)
+    // Auxiliary Models
     judge?: ResolvedModelConfig;
     feedback?: ResolvedModelConfig;
     feedbackLoops: number;
     
-    // Image Search (Specific to the step)
+    // Image Search
     imageSearch?: {
-        query?: string; // Static query
-        
-        // Agents
+        query?: string;
         queryConfig?: ResolvedModelConfig;
         selectConfig?: ResolvedModelConfig;
-
         limit: number;
         select: number;
         queryCount: number;
@@ -82,22 +111,16 @@ export interface StepConfig extends ResolvedModelConfig {
     aspectRatio?: string;
 }
 
-// --- Runtime Configuration ---
-
 export interface RuntimeConfig {
     concurrency: number;
     taskConcurrency: number;
     tmpDir: string;
     dataFilePath: string;
     dataOutputPath?: string;
-    
-    // The fully resolved configuration for each step (0-based index)
-    // steps[0] = Step 1, steps[1] = Step 2...
     steps: StepConfig[];
-    
-    // Loaded Data
     data: Record<string, any>[];
 }
 
-// Deprecated but kept for compatibility during refactor if needed
+// Compatibility / Aliases
+export interface ModelConfig extends ModelDefinition {}
 export interface ActionOptions extends RuntimeConfig {}
