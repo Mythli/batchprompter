@@ -146,10 +146,15 @@ export class ActionRunner {
         }
 
         // 2. Temp Directory (Structured)
-        // Pattern: .tmp/001_02 (Row 1, Step 2)
-        const rowStr = String(rowIndex).padStart(3, '0');
-        const stepStr = String(stepIndex).padStart(2, '0');
-        resolvedStep.resolvedTempDir = path.join(globalTmpDir, `${rowStr}_${stepStr}`);
+        if (resolvedStep.resolvedOutputDir) {
+            // Mirror the output directory structure inside the temp directory
+            resolvedStep.resolvedTempDir = path.join(globalTmpDir, resolvedStep.resolvedOutputDir);
+        } else {
+            // Pattern: .tmp/001_02 (Row 1, Step 2)
+            const rowStr = String(rowIndex).padStart(3, '0');
+            const stepStr = String(stepIndex).padStart(2, '0');
+            resolvedStep.resolvedTempDir = path.join(globalTmpDir, `${rowStr}_${stepStr}`);
+        }
         await ensureDir(resolvedStep.resolvedTempDir);
 
         // 3. Schema Path

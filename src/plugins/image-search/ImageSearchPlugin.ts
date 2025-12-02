@@ -216,6 +216,17 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         if (pooledImages.length === 0) throw new Error("No images found.");
 
+        // Save raw images to temp for debugging/inspection
+        await Promise.all(pooledImages.map(async (img, idx) => {
+            const filename = `raw_${idx}.jpg`;
+            const savePath = path.join(spriteDir, filename);
+            try {
+                await ArtifactSaver.save(img.buffer, savePath);
+            } catch (e) {
+                console.warn(`Failed to save raw image ${filename}`, e);
+            }
+        }));
+
         // 3. Selection
         let selectedImages: any[] = [];
         if (resolvedConfig.selectConfig) {
