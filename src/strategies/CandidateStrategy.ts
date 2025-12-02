@@ -45,18 +45,9 @@ export class CandidateStrategy implements GenerationStrategy {
             const candidatesDir = path.join(baseTempDir, 'candidates');
             await ensureDir(candidatesDir);
 
-            if (config.outputPath) {
-                // If we have an output path, we might want to preserve the filename structure
-                const ext = path.extname(config.outputPath);
-                const name = path.basename(config.outputPath, ext);
-                candidateOutputPath = path.join(candidatesDir, `${name}_cand_${i}${ext}`);
-            } else {
-                let ext = '.txt';
-                if (config.aspectRatio) ext = '.png';
-                // If no output path, use index-based naming
-                const filename = `cand_${i}${ext}`;
-                candidateOutputPath = path.join(candidatesDir, filename);
-            }
+            const name = config.outputBasename || 'output';
+            const ext = config.outputExtension || (config.aspectRatio ? '.png' : '.txt');
+            candidateOutputPath = path.join(candidatesDir, `${name}_cand_${i}${ext}`);
 
             const salt = `${cacheSalt || ''}_cand_${i}`;
             const shouldSkipCommands = config.noCandidateCommand || skipCommands;

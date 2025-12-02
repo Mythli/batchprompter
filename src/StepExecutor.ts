@@ -45,7 +45,9 @@ export class StepExecutor {
                         services: this.services,
                         // Pass the pre-calculated paths
                         outputDirectory: config.resolvedOutputDir,
-                        tempDirectory: config.resolvedTempDir || this.tmpDir // Fallback to root tmp if something goes wrong
+                        tempDirectory: config.resolvedTempDir || this.tmpDir, // Fallback to root tmp if something goes wrong
+                        outputBasename: config.outputBasename,
+                        outputExtension: config.outputExtension
                     });
                     effectiveUserPromptParts = [...contentParts, ...effectiveUserPromptParts];
                 } catch (e: any) {

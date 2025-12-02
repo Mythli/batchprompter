@@ -143,7 +143,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
-        const { row, stepIndex, config, llm, globalConfig, services, outputDirectory, tempDirectory } = context;
+        const { row, stepIndex, config, llm, globalConfig, services, outputDirectory, tempDirectory, outputBasename, outputExtension } = context;
         const resolvedConfig = config as ImageSearchResolvedConfig;
 
         // Check Services
@@ -167,6 +167,10 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         await ensureDir(spritesDir);
         await ensureDir(selectedDir);
         
+        // Determine base naming
+        const baseName = outputBasename || 'image';
+        const ext = outputExtension || '.jpg';
+
         const queries: string[] = [];
 
         // 1. Collect Queries
@@ -223,7 +227,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         // Save raw images to 'raw' folder
         await Promise.all(pooledImages.map(async (img, idx) => {
-            const filename = `raw_${idx}.jpg`;
+            const filename = `${baseName}_raw_${idx}.jpg`;
             const savePath = path.join(rawDir, filename);
             try {
                 await ArtifactSaver.save(img.buffer, savePath);
@@ -244,7 +248,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                 resolvedConfig.select,
                 async (buffer, spriteIndex) => {
                     // Save sprites to 'sprites' folder
-                    const filename = `sprite_${spriteIndex}.jpg`;
+                    const filename = `${baseName}_sprite_${spriteIndex}.jpg`;
                     const savePath = path.join(spritesDir, filename);
                     await ArtifactSaver.save(buffer, savePath);
                 },
@@ -261,7 +265,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
             // Save selected images to 'selected' folder (intermediate)
-            const filename = `selected_${i}.jpg`;
+            const filename = `${baseName}_selected_${i}${ext}`;
             const savePath = path.join(selectedDir, filename);
 
             try {

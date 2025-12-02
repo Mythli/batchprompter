@@ -143,6 +143,15 @@ export class ActionRunner {
             // Calculate the directory for final assets
             resolvedStep.resolvedOutputDir = path.dirname(resolvedStep.outputPath);
             await ensureDir(resolvedStep.resolvedOutputDir);
+
+            // Parse filename components
+            const parsed = path.parse(resolvedStep.outputPath);
+            resolvedStep.outputBasename = parsed.name;
+            resolvedStep.outputExtension = parsed.ext;
+        } else {
+            // Default values if no output path
+            resolvedStep.outputBasename = `output_${rowIndex}_${stepIndex}`;
+            resolvedStep.outputExtension = stepConfig.aspectRatio ? '.png' : '.txt';
         }
 
         // 2. Temp Directory (Structured)

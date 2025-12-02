@@ -25,6 +25,10 @@ export interface PluginContext {
     // --- NEW: Explicit Paths ---
     outputDirectory?: string; // Where final assets go
     tempDirectory: string;    // Where intermediate assets (sprites) go
+
+    // NEW: Filename components
+    outputBasename?: string;
+    outputExtension?: string;
 }
 
 export interface ContentProviderPlugin {

@@ -101,6 +101,10 @@ export interface StepConfig {
     // --- NEW: Pre-calculated Paths ---
     resolvedOutputDir?: string; // The final destination folder (e.g., out/10-image/BoulderHall)
     resolvedTempDir?: string;   // The isolated temp folder (e.g., .tmp/001_02)
+    
+    // NEW: Filename components
+    outputBasename?: string;    // e.g. "04_AboutCourseFirstImage"
+    outputExtension?: string;   // e.g. ".jpg"
 }
 
 export interface RuntimeConfig {
