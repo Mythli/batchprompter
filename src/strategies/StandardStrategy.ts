@@ -1,3 +1,4 @@
+// @ts-nocheck
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';

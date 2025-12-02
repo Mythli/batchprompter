@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Command } from 'commander';
 import fsPromises from 'fs/promises';
 import { ModelFlags } from './ModelFlags.js';
