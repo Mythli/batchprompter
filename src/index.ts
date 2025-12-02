@@ -2,9 +2,8 @@
 import { Command } from 'commander';
 import 'dotenv/config';
 import fsPromises from 'fs/promises';
-import { runAction } from './actions.js';
 import { StepRegistry } from './cli/StepRegistry.js';
-import { createDefaultRegistry } from './getConfig.js';
+import { createDefaultRegistry, getConfig } from './getConfig.js';
 
 const program = new Command();
 
@@ -28,8 +27,11 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         // Parse configuration using the CLI registry
         const config = await StepRegistry.parseConfig(options, [dataFilePath, ...templateFilePaths], cliRegistry);
 
+        // Get the runner from DI
+        const { actionRunner } = await getConfig({ concurrency: config.concurrency });
+
         // Run
-        await runAction(config);
+        await actionRunner.run(config);
         process.exit(0);
     } catch (e) {
         console.error(e);

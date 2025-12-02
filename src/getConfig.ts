@@ -13,6 +13,7 @@ import { createCachedFetcher } from './utils/createCachedFetcher.js';
 import { ModelFlags } from './cli/ModelFlags.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
+import { ActionRunner } from './ActionRunner.js';
 
 dotenv.config();
 
@@ -123,6 +124,13 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Initialize PluginRegistry
     const pluginRegistry = createDefaultRegistry();
 
+    // Initialize ActionRunner
+    const actionRunner = new ActionRunner(
+        llm,
+        { imageSearch, aiImageSearch, fetcher },
+        pluginRegistry
+    );
+
     return {
         config,
         llm,
@@ -130,7 +138,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         aiImageSearch,
         modelFlags,
         fetcher,
-        pluginRegistry
+        pluginRegistry,
+        actionRunner
     };
 }
 

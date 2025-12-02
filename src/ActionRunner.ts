@@ -13,14 +13,13 @@ import { PluginRegistry } from './plugins/PluginRegistry.js';
 
 export class ActionRunner {
     constructor(
-        private config: RuntimeConfig,
         private llm: LlmClient,
         private services: PluginServices,
         private pluginRegistry: PluginRegistry
     ) {}
 
-    async run() {
-        const { concurrency, taskConcurrency, data, steps, dataFilePath, dataOutputPath, tmpDir } = this.config;
+    async run(config: RuntimeConfig) {
+        const { concurrency, taskConcurrency, data, steps, dataFilePath, dataOutputPath, tmpDir } = config;
 
         console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
         console.log(`Found ${data.length} rows to process.`);
