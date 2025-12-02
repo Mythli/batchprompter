@@ -1,7 +1,8 @@
-Change the source image.
+Here is the optimized prompt with grammatical corrections and improved flow while keeping changes minimal:
 
-- Change it so it has only german people with distinctly german looks in it. The look is not expressed through clothing but through a german face, hairstyle and overall looks.
-- Change the bust size of the woman to be C-D
-- Leave everything else strictly unchanged.
-- Do not add people which are not in the original image.
-- Keep the background the same. Keep female persons female.
+- Modify the subjects to have uniquely German facial features, hairstyles, and appearances, without relying on clothing to express this look.
+- Style the focal woman as a 20–30-year-old supermodel.
+- Adjust the bust size of the woman in focus to a C–D cup, ensuring it is not larger.
+- Leave all other elements strictly unchanged.
+- Do not add people who are not present in the original image.
+- Preserve the original background and maintain the gender of all subjects.
