@@ -13,7 +13,7 @@ export class StepRegistry {
         ModelFlags.register(program, '', { includeSystem: true, defaultModel: 'gpt-4o' }); // Main Model
         ModelFlags.register(program, 'judge', { includePrompt: true }); // Global Judge
         ModelFlags.register(program, 'feedback', { includePrompt: true }); // Global Feedback
-        
+
         // Global Image Search Agents
         ModelFlags.register(program, 'image-query', { includePrompt: true });
         ModelFlags.register(program, 'image-select', { includePrompt: true });
@@ -45,7 +45,7 @@ export class StepRegistry {
             ModelFlags.register(program, `${i}`, { includeSystem: true });
             ModelFlags.register(program, `judge-${i}`, { includePrompt: true });
             ModelFlags.register(program, `feedback-${i}`, { includePrompt: true });
-            
+
             // Step Image Search Agents
             ModelFlags.register(program, `image-query-${i}`, { includePrompt: true });
             ModelFlags.register(program, `image-select-${i}`, { includePrompt: true });
@@ -113,23 +113,15 @@ export class StepRegistry {
 
             // Merge: Specific > Fallback
             const merged: ModelConfig = {
-                model: specific.model || fallback.model || options.model || 'gpt-4o',
+                model: specific.model || fallback.model || options.model,
                 temperature: specific.temperature ?? fallback.temperature,
                 thinkingLevel: specific.thinkingLevel || fallback.thinkingLevel,
                 systemSource: specific.systemSource || fallback.systemSource,
                 promptSource: specific.promptSource || fallback.promptSource
             };
 
-            // If no model specified for auxiliary (Judge/Feedback/Image) and no prompt, return undefined (not active)
-            // But for Main, we always return config.
-            const isAux = namespace.includes('judge') || namespace.includes('feedback') || namespace.includes('image');
-            if (isAux && !merged.promptSource && !merged.model) {
+            if(!merged.model || !(merged.promptSource || merged.systemSource)) {
                 return undefined;
-            }
-            if (isAux && !merged.model) {
-                // If prompt exists but no model, inherit main model?
-                // Usually better to default to main model if not set.
-                merged.model = options.model || 'gpt-4o';
             }
 
             return {
@@ -145,7 +137,9 @@ export class StepRegistry {
             // 1. Main Model Config
             // Namespace for step 1 is "1", fallback is "" (Global)
             const mainConfig = await resolveModelConfig(`${i}`, '');
-            if (!mainConfig) throw new Error(`Failed to resolve configuration for step ${i}`);
+            if (!mainConfig) {
+                throw new Error(`Failed to resolve configuration for step ${i}`);
+            }
 
             // 2. Positional User Prompt
             // templateFilePaths is 0-indexed, so step 1 is at index 0
@@ -164,7 +158,7 @@ export class StepRegistry {
             // 3. Auxiliary Models
             const judgeConfig = await resolveModelConfig(`judge-${i}`, 'judge');
             const feedbackConfig = await resolveModelConfig(`feedback-${i}`, 'feedback');
-            
+
             // Image Search Agents
             const imageQueryConfig = await resolveModelConfig(`image-query-${i}`, 'image-query');
             const imageSelectConfig = await resolveModelConfig(`image-select-${i}`, 'image-select');
