@@ -9,6 +9,12 @@ import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { PluginServices } from './plugins/types.js';
 import { ArtifactSaver } from './ArtifactSaver.js';
+import Handlebars from 'handlebars';
+import util from 'util';
+import { exec } from 'child_process';
+import { aggressiveSanitize } from './utils/fileUtils.js';
+
+const execPromise = util.promisify(exec);
 
 export class StepExecutor {
     
@@ -73,12 +79,19 @@ export class StepExecutor {
             console.log(`[Row ${index}] Step ${stepIndex} No prompt detected. Saving plugin output directly...`);
             
             // Save content directly
-            await this.saveContentParts(
+            const savedPaths = await this.saveContentParts(
                 effectiveUserPromptParts, 
                 config.resolvedOutputDir || this.tmpDir, 
                 config.outputBasename || 'output',
                 config.outputExtension
             );
+
+            // Execute command if present
+            if (config.postProcessCommand) {
+                for (const filePath of savedPaths) {
+                    await this.executeCommand(config.postProcessCommand, row, index, stepIndex, filePath);
+                }
+            }
 
             return {
                 role: 'assistant',
@@ -116,7 +129,8 @@ export class StepExecutor {
         outputDir: string,
         basename: string,
         forcedExtension?: string
-    ) {
+    ): Promise<string[]> {
+        const savedPaths: string[] = [];
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
             
@@ -145,6 +159,25 @@ export class StepExecutor {
                 const buffer = Buffer.from(part.input_audio.data, 'base64');
                 await ArtifactSaver.save(buffer, savePath);
             }
+            savedPaths.push(savePath);
+        }
+        return savedPaths;
+    }
+
+    private async executeCommand(commandTemplate: string, row: Record<string, any>, index: number, stepIndex: number, filePath: string) {
+        const cmdTemplate = Handlebars.compile(commandTemplate, { noEscape: true });
+        const sanitizedRow: Record<string, string> = {};
+        for (const [key, val] of Object.entries(row)) {
+            const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+            sanitizedRow[key] = aggressiveSanitize(stringVal);
+        }
+        const cmd = cmdTemplate({ ...sanitizedRow, file: filePath });
+        console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running command: ${cmd}`);
+        try {
+            const { stdout } = await execPromise(cmd);
+            if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
+        } catch (error: any) {
+            console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error.message);
         }
     }
 }
