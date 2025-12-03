@@ -20,5 +20,5 @@ npx tsx src/index.ts generate examples/describe-website-css/data.csv \
   --style-scrape-resolution "1920x1080" \
   --style-scrape-mobile \
   --style-scrape-interactive \
-  --output-column "style_description" \
+  --output "examples/describe-website-css/output/{{website_url}}.md" \
   --model "gpt-4o"
