@@ -95,14 +95,23 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
 
             const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
             const baseName = outputBasename || 'style_scrape';
-            const assetsDir = path.join(tempDirectory, 'style_assets');
-            await ensureDir(assetsDir);
+            
+            // Organize Temp Directory
+            const screenshotsDir = path.join(tempDirectory, 'screenshots');
+            const interactiveDir = path.join(tempDirectory, 'interactive');
+            const elementsDir = path.join(interactiveDir, 'elements');
+
+            await ensureDir(screenshotsDir);
+            if (resolvedConfig.interactive) {
+                await ensureDir(interactiveDir);
+                await ensureDir(elementsDir);
+            }
 
             // 1. Desktop Screenshot
             const desktopShot = (await pageHelper.takeScreenshots([resolvedConfig.resolution]))[0];
             if (desktopShot) {
                 const filename = `${baseName}_desktop.jpg`;
-                const savePath = path.join(assetsDir, filename);
+                const savePath = path.join(screenshotsDir, filename);
                 await ArtifactSaver.save(desktopShot.screenshotBase64, savePath);
                 
                 contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${resolvedConfig.url}) ---` });
@@ -115,7 +124,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                 const mobileShot = (await pageHelper.takeScreenshots([mobileRes]))[0];
                 if (mobileShot) {
                     const filename = `${baseName}_mobile.jpg`;
-                    const savePath = path.join(assetsDir, filename);
+                    const savePath = path.join(screenshotsDir, filename);
                     await ArtifactSaver.save(mobileShot.screenshotBase64, savePath);
 
                     contentParts.push({ type: 'text', text: `\n--- Mobile Screenshot ---` });
@@ -140,7 +149,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
 
                 if (result.compositeImageBase64) {
                     const filename = `${baseName}_interactive.png`;
-                    const savePath = path.join(assetsDir, filename);
+                    const savePath = path.join(interactiveDir, filename);
                     await ArtifactSaver.save(result.compositeImageBase64, savePath);
 
                     contentParts.push({ type: 'text', text: `\n--- Interactive Elements Composite ---` });
@@ -162,6 +171,11 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                         stylesText += `\nElement: ${key}\n`;
                         for (const shot of shots) {
                             stylesText += `State: ${shot.state}\n\`\`\`css\n${shot.styles}\n\`\`\`\n`;
+                            
+                            // Save individual element screenshot
+                            const elementFilename = `${baseName}_${shot.type}_${shot.elementIndex}_${shot.state}.png`;
+                            const elementSavePath = path.join(elementsDir, elementFilename);
+                            await ArtifactSaver.save(shot.screenshotBase64, elementSavePath);
                         }
                     }
                     contentParts.push({ type: 'text', text: stylesText });
