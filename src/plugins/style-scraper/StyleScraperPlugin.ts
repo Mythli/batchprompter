@@ -21,6 +21,20 @@ interface StyleScraperResolvedConfig {
     interactive: boolean;
 }
 
+interface ScraperArtifact {
+    type: 'desktop' | 'mobile' | 'interactive_composite' | 'element';
+    subType?: string; // e.g. 'button', 'input'
+    index?: number;
+    state?: string;
+    base64: string;
+    extension: string;
+}
+
+interface StyleScraperCacheData {
+    contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+    artifacts: ScraperArtifact[];
+}
+
 export class StyleScraperPlugin implements ContentProviderPlugin {
     name = 'style-scraper';
 
@@ -85,18 +99,124 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
         const pageHelper = await puppeteerHelper.getPageHelper();
 
         try {
+            // Construct a unique cache key
+            const cacheKey = `style-scraper:${resolvedConfig.url}:${resolvedConfig.resolution.width}x${resolvedConfig.resolution.height}:${resolvedConfig.mobile}:${resolvedConfig.interactive}`;
+
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Scraping styles from: ${resolvedConfig.url}`);
 
-            // Navigate
-            await pageHelper.navigateToUrl(resolvedConfig.url, {
-                resolution: resolvedConfig.resolution,
-                dismissCookies: true
-            });
+            // Use navigateAndCache to handle the heavy lifting
+            const result = await pageHelper.navigateAndCache<StyleScraperCacheData>(
+                resolvedConfig.url,
+                async (ph) => {
+                    // --- This block runs only on Cache MISS ---
+                    
+                    // Ensure we are at the right resolution (navigateAndCache handles navigation, but we might need to reset viewport if reused)
+                    // Actually navigateAndCache calls navigateToUrl which sets resolution if provided in options.
+                    // But let's be safe and explicit about the logic inside the action.
+                    
+                    const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+                    const artifacts: ScraperArtifact[] = [];
 
-            const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-            const baseName = outputBasename || 'style_scrape';
+                    // 1. Desktop Screenshot
+                    // navigateAndCache already navigated to the URL with the resolution provided in options below.
+                    const desktopShot = (await ph.takeScreenshots([resolvedConfig.resolution]))[0];
+                    if (desktopShot) {
+                        contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${resolvedConfig.url}) ---` });
+                        contentParts.push({ type: 'image_url', image_url: { url: desktopShot.screenshotBase64 } });
+                        
+                        artifacts.push({
+                            type: 'desktop',
+                            base64: desktopShot.screenshotBase64,
+                            extension: '.jpg'
+                        });
+                    }
+
+                    // 2. Mobile Screenshot (Optional)
+                    if (resolvedConfig.mobile) {
+                        const mobileRes = { width: 375, height: 812 };
+                        const mobileShot = (await ph.takeScreenshots([mobileRes]))[0];
+                        if (mobileShot) {
+                            contentParts.push({ type: 'text', text: `\n--- Mobile Screenshot ---` });
+                            contentParts.push({ type: 'image_url', image_url: { url: mobileShot.screenshotBase64 } });
+
+                            artifacts.push({
+                                type: 'mobile',
+                                base64: mobileShot.screenshotBase64,
+                                extension: '.jpg'
+                            });
+                        }
+                        // Restore viewport
+                        await ph.getPage().setViewport(resolvedConfig.resolution);
+                    }
+
+                    // 3. Interactive Elements (Optional)
+                    if (resolvedConfig.interactive) {
+                        console.log(`[Row ${context.row.index}] Step ${stepIndex} Capturing interactive elements...`);
+                        const screenshoter = new InteractiveElementScreenshoter(puppeteerHelper);
+                        
+                        // We pass the existing pageHelper (ph)
+                        const interactiveResult = await screenshoter.screenshot(ph, {
+                            createCompositeImage: true,
+                            maxButtons: 5,
+                            maxInputs: 3,
+                            maxLinks: 3
+                        });
+
+                        if (interactiveResult.compositeImageBase64) {
+                            contentParts.push({ type: 'text', text: `\n--- Interactive Elements Composite ---` });
+                            contentParts.push({ type: 'image_url', image_url: { url: interactiveResult.compositeImageBase64 } });
+
+                            artifacts.push({
+                                type: 'interactive_composite',
+                                base64: interactiveResult.compositeImageBase64,
+                                extension: '.png'
+                            });
+                        }
+
+                        if (interactiveResult.screenshots.length > 0) {
+                            let stylesText = "\n--- Computed Styles for Interactive Elements ---\n";
+                            
+                            // Group by type for text output
+                            const grouped = interactiveResult.screenshots.reduce((acc, s) => {
+                                const key = `${s.type} #${s.elementIndex}`;
+                                if (!acc[key]) acc[key] = [];
+                                acc[key].push(s);
+                                return acc;
+                            }, {} as Record<string, typeof interactiveResult.screenshots>);
+
+                            for (const [key, shots] of Object.entries(grouped)) {
+                                stylesText += `\nElement: ${key}\n`;
+                                for (const shot of shots) {
+                                    stylesText += `State: ${shot.state}\n\`\`\`css\n${shot.styles}\n\`\`\`\n`;
+                                    
+                                    artifacts.push({
+                                        type: 'element',
+                                        subType: shot.type,
+                                        index: shot.elementIndex,
+                                        state: shot.state,
+                                        base64: shot.screenshotBase64,
+                                        extension: '.png'
+                                    });
+                                }
+                            }
+                            contentParts.push({ type: 'text', text: stylesText });
+                        }
+                    }
+
+                    return { contentParts, artifacts };
+                },
+                {
+                    cacheKey,
+                    resolution: resolvedConfig.resolution,
+                    dismissCookies: true,
+                    ttl: 24 * 60 * 60 * 1000 // 24 hours
+                }
+            );
+
+            // --- Post-Processing (Runs on both Hit and Miss) ---
+            // We need to ensure the files exist on disk for the user/commands to use.
             
-            // Organize Temp Directory
+            const baseName = outputBasename || 'style_scrape';
             const screenshotsDir = path.join(tempDirectory, 'screenshots');
             const interactiveDir = path.join(tempDirectory, 'interactive');
             const elementsDir = path.join(interactiveDir, 'elements');
@@ -107,82 +227,27 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                 await ensureDir(elementsDir);
             }
 
-            // 1. Desktop Screenshot
-            const desktopShot = (await pageHelper.takeScreenshots([resolvedConfig.resolution]))[0];
-            if (desktopShot) {
-                const filename = `${baseName}_desktop.jpg`;
-                const savePath = path.join(screenshotsDir, filename);
-                await ArtifactSaver.save(desktopShot.screenshotBase64, savePath);
+            for (const artifact of result.artifacts) {
+                let savePath = '';
                 
-                contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${resolvedConfig.url}) ---` });
-                contentParts.push({ type: 'image_url', image_url: { url: desktopShot.screenshotBase64 } });
-            }
-
-            // 2. Mobile Screenshot (Optional)
-            if (resolvedConfig.mobile) {
-                const mobileRes = { width: 375, height: 812 };
-                const mobileShot = (await pageHelper.takeScreenshots([mobileRes]))[0];
-                if (mobileShot) {
-                    const filename = `${baseName}_mobile.jpg`;
-                    const savePath = path.join(screenshotsDir, filename);
-                    await ArtifactSaver.save(mobileShot.screenshotBase64, savePath);
-
-                    contentParts.push({ type: 'text', text: `\n--- Mobile Screenshot ---` });
-                    contentParts.push({ type: 'image_url', image_url: { url: mobileShot.screenshotBase64 } });
-                }
-                // Restore viewport
-                await pageHelper.getPage().setViewport(resolvedConfig.resolution);
-            }
-
-            // 3. Interactive Elements (Optional)
-            if (resolvedConfig.interactive) {
-                console.log(`[Row ${context.row.index}] Step ${stepIndex} Capturing interactive elements...`);
-                const screenshoter = new InteractiveElementScreenshoter(puppeteerHelper);
-                
-                // We pass the existing pageHelper to avoid re-navigation
-                const result = await screenshoter.screenshot(pageHelper, {
-                    createCompositeImage: true,
-                    maxButtons: 5,
-                    maxInputs: 3,
-                    maxLinks: 3
-                });
-
-                if (result.compositeImageBase64) {
-                    const filename = `${baseName}_interactive.png`;
-                    const savePath = path.join(interactiveDir, filename);
-                    await ArtifactSaver.save(result.compositeImageBase64, savePath);
-
-                    contentParts.push({ type: 'text', text: `\n--- Interactive Elements Composite ---` });
-                    contentParts.push({ type: 'image_url', image_url: { url: result.compositeImageBase64 } });
+                if (artifact.type === 'desktop') {
+                    savePath = path.join(screenshotsDir, `${baseName}_desktop${artifact.extension}`);
+                } else if (artifact.type === 'mobile') {
+                    savePath = path.join(screenshotsDir, `${baseName}_mobile${artifact.extension}`);
+                } else if (artifact.type === 'interactive_composite') {
+                    savePath = path.join(interactiveDir, `${baseName}_interactive${artifact.extension}`);
+                } else if (artifact.type === 'element') {
+                    const filename = `${baseName}_${artifact.subType}_${artifact.index}_${artifact.state}${artifact.extension}`;
+                    savePath = path.join(elementsDir, filename);
                 }
 
-                if (result.screenshots.length > 0) {
-                    let stylesText = "\n--- Computed Styles for Interactive Elements ---\n";
-                    
-                    // Group by type
-                    const grouped = result.screenshots.reduce((acc, s) => {
-                        const key = `${s.type} #${s.elementIndex}`;
-                        if (!acc[key]) acc[key] = [];
-                        acc[key].push(s);
-                        return acc;
-                    }, {} as Record<string, typeof result.screenshots>);
-
-                    for (const [key, shots] of Object.entries(grouped)) {
-                        stylesText += `\nElement: ${key}\n`;
-                        for (const shot of shots) {
-                            stylesText += `State: ${shot.state}\n\`\`\`css\n${shot.styles}\n\`\`\`\n`;
-                            
-                            // Save individual element screenshot
-                            const elementFilename = `${baseName}_${shot.type}_${shot.elementIndex}_${shot.state}.png`;
-                            const elementSavePath = path.join(elementsDir, elementFilename);
-                            await ArtifactSaver.save(shot.screenshotBase64, elementSavePath);
-                        }
-                    }
-                    contentParts.push({ type: 'text', text: stylesText });
+                if (savePath) {
+                    // ArtifactSaver handles base64 strings (data:image/...) automatically
+                    await ArtifactSaver.save(artifact.base64, savePath);
                 }
             }
 
-            return contentParts;
+            return result.contentParts;
 
         } finally {
             await pageHelper.close();
