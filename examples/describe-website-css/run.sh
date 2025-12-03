@@ -14,4 +14,5 @@ npx tsx src/index.ts generate examples/describe-website-css/data.csv \
   --style-scrape-mobile \
   --style-scrape-interactive \
   --output "examples/describe-website-css/output/{{website_url}}.css" \
-  --model "gpt-4o"
+  --model "gpt-4o" \
+  --command "sed -i.bak '/^```/d' '{{file}}' && rm '{{file}}.bak'"
