@@ -22,7 +22,7 @@ interface StyleScraperResolvedConfig {
 }
 
 interface ScraperArtifact {
-    type: 'desktop' | 'mobile' | 'interactive_composite' | 'element';
+    type: 'desktop' | 'mobile' | 'interactive_composite' | 'element' | 'css';
     subType?: string; // e.g. 'button', 'input'
     index?: number;
     state?: string;
@@ -200,6 +200,12 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                                 }
                             }
                             contentParts.push({ type: 'text', text: stylesText });
+
+                            artifacts.push({
+                                type: 'css',
+                                base64: stylesText,
+                                extension: '.md'
+                            });
                         }
                     }
 
@@ -236,6 +242,8 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                     savePath = path.join(screenshotsDir, `${baseName}_mobile${artifact.extension}`);
                 } else if (artifact.type === 'interactive_composite') {
                     savePath = path.join(interactiveDir, `${baseName}_interactive${artifact.extension}`);
+                } else if (artifact.type === 'css') {
+                    savePath = path.join(interactiveDir, `${baseName}_styles${artifact.extension}`);
                 } else if (artifact.type === 'element') {
                     const filename = `${baseName}_${artifact.subType}_${artifact.index}_${artifact.state}${artifact.extension}`;
                     savePath = path.join(elementsDir, filename);
