@@ -100,7 +100,8 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
 
         try {
             // Construct a unique cache key
-            const cacheKey = `style-scraper:${resolvedConfig.url}:${resolvedConfig.resolution.width}x${resolvedConfig.resolution.height}:${resolvedConfig.mobile}:${resolvedConfig.interactive}`;
+            // v2: Added CSS file saving
+            const cacheKey = `style-scraper:v2:${resolvedConfig.url}:${resolvedConfig.resolution.width}x${resolvedConfig.resolution.height}:${resolvedConfig.mobile}:${resolvedConfig.interactive}`;
 
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Scraping styles from: ${resolvedConfig.url}`);
 
