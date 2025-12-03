@@ -19,6 +19,7 @@ export class AiWebSearch {
             compressConfig?: ResolvedModelConfig;
             limit: number;
             mode: WebSearchMode;
+            queryCount: number;
         }
     ): Promise<string[]> {
         
@@ -31,7 +32,7 @@ export class AiWebSearch {
         if (config.queryConfig) {
             console.log(`[AiWebSearch] Generating search queries...`);
             const QuerySchema = z.object({
-                queries: z.array(z.string()).min(1).max(3).describe("Search queries to find the requested information")
+                queries: z.array(z.string()).min(1).max(config.queryCount).describe("Search queries to find the requested information")
             });
 
             const request = ModelRequestNormalizer.normalize(config.queryConfig, row);

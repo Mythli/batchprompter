@@ -14,6 +14,7 @@ interface WebSearchRawConfig {
     compressConfig?: ModelDefinition;
     limit: number;
     mode: WebSearchMode;
+    queryCount: number;
 }
 
 interface WebSearchResolvedConfig {
@@ -23,6 +24,7 @@ interface WebSearchResolvedConfig {
     compressConfig?: ResolvedModelConfig;
     limit: number;
     mode: WebSearchMode;
+    queryCount: number;
 }
 
 export class WebSearchPlugin implements ContentProviderPlugin {
@@ -38,6 +40,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option('--web-search-query <text>', 'Static search query');
         program.option('--web-search-limit <number>', 'Max results', '5');
         program.option('--web-search-mode <mode>', 'Result mode: none, markdown, html', 'markdown');
+        program.option('--web-search-query-count <number>', 'Queries to generate', '3');
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -48,6 +51,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option(`--web-search-query-${stepIndex} <text>`, `Static search query for step ${stepIndex}`);
         program.option(`--web-search-limit-${stepIndex} <number>`, `Max results for step ${stepIndex}`);
         program.option(`--web-search-mode-${stepIndex} <mode>`, `Result mode for step ${stepIndex}`);
+        program.option(`--web-search-query-count-${stepIndex} <number>`, `Query count for step ${stepIndex}`);
     }
 
     normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): WebSearchRawConfig | undefined {
@@ -81,14 +85,16 @@ export class WebSearchPlugin implements ContentProviderPlugin {
             selectConfig,
             compressConfig,
             limit: parseInt(getOpt('webSearchLimit') || '5', 10),
-            mode: (getOpt('webSearchMode') || 'markdown') as WebSearchMode
+            mode: (getOpt('webSearchMode') || 'markdown') as WebSearchMode,
+            queryCount: parseInt(getOpt('webSearchQueryCount') || '3', 10)
         };
     }
 
     async prepare(config: WebSearchRawConfig, row: Record<string, any>): Promise<WebSearchResolvedConfig> {
         const resolved: WebSearchResolvedConfig = {
             limit: config.limit,
-            mode: config.mode
+            mode: config.mode,
+            queryCount: config.queryCount
         };
 
         if (config.query) {
@@ -97,7 +103,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
 
         if (config.queryConfig) {
             resolved.queryConfig = await PluginHelpers.resolveModelConfig(config.queryConfig, row);
-        }t
+        }
 
         if (config.selectConfig) {
             resolved.selectConfig = await PluginHelpers.resolveModelConfig(config.selectConfig, row);
