@@ -2,8 +2,6 @@
 # ------------------------------------------------------------------------------------------------
 rm -f "/Users/user/.cache.sqlite"
 # ------------------------------------------------------------------------------------------------
-export BATCHPROMPT_OPENAI_BASE_URL="https://openrouter.ai/api/v1"
-export BATCHPROMPT_OPENAI_API_KEY="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"
 # ------------------------------------------------------------------------------------------------
 echo "Let's go!"
 # ------------------------------------------------------------------------------------------------
@@ -34,41 +32,41 @@ fi
 for folder in "$BASE_DIR"/*/; do
     # Remove trailing slash and get the folder name
     folder_name=$(basename "$folder")
-    
+
     # Check if the required files exist
-    if [ -f "$folder/output_2.md" ] && 
-       [ -f "$folder/output_3.md" ] && 
-       [ -f "$folder/output_4.md" ] && 
-       [ -f "$folder/output_5.md" ] && 
+    if [ -f "$folder/output_2.md" ] &&
+       [ -f "$folder/output_3.md" ] &&
+       [ -f "$folder/output_4.md" ] &&
+       [ -f "$folder/output_5.md" ] &&
        [ -f "$folder/output_6.md" ]; then
-        
+
         # Create the final file using the folder name
         final_file="$folder/${folder_name}.md"
-        
+
         # Combine files in the specified order with empty lines between
         # No empty line before output_6.md
         cat "$folder/output_6.md" > "$final_file"
-        
+
         # Free empty line, then output_5.md
         echo "" >> "$final_file"
         echo "" >> "$final_file"
         cat "$folder/output_5.md" >> "$final_file"
-        
+
         # Free empty line, then output_4.md
         echo "" >> "$final_file"
         echo "" >> "$final_file"
         cat "$folder/output_4.md" >> "$final_file"
-        
+
         # Free empty line, then output_2.md
         echo "" >> "$final_file"
         echo "" >> "$final_file"
         cat "$folder/output_2.md" >> "$final_file"
-        
+
         # Free empty line, then output_3.md (no empty line after the last file)
         echo "" >> "$final_file"
         echo "" >> "$final_file"
         cat "$folder/output_3.md" >> "$final_file"
-        
+
         echo "Combined files for $folder_name into ${folder_name}.md"
     else
         echo "Skipping $folder_name - missing required files"
