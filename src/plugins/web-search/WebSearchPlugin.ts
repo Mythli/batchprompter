@@ -97,7 +97,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
 
         if (config.queryConfig) {
             resolved.queryConfig = await PluginHelpers.resolveModelConfig(config.queryConfig, row);
-        }
+        }t
 
         if (config.selectConfig) {
             resolved.selectConfig = await PluginHelpers.resolveModelConfig(config.selectConfig, row);
