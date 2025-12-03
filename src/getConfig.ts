@@ -9,10 +9,13 @@ import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { AiImageSearch } from './utils/AiImageSearch.js';
+import { WebSearch } from './plugins/web-search/WebSearch.js';
+import { AiWebSearch } from './utils/AiWebSearch.js';
 import { createCachedFetcher } from './utils/createCachedFetcher.js';
 import { ModelFlags } from './cli/ModelFlags.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
+import { WebSearchPlugin } from './plugins/web-search/WebSearchPlugin.js';
 import { ActionRunner } from './ActionRunner.js';
 
 dotenv.config();
@@ -44,6 +47,7 @@ export type ConfigOverrides = {
 export const createDefaultRegistry = () => {
     const registry = new PluginRegistry();
     registry.register(new ImageSearchPlugin());
+    registry.register(new WebSearchPlugin());
     return registry;
 };
 
@@ -140,11 +144,16 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     let imageSearch: ImageSearch | undefined;
     let aiImageSearch: AiImageSearch | undefined;
+    let webSearch: WebSearch | undefined;
+    let aiWebSearch: AiWebSearch | undefined;
 
     if (config.SERPER_API_KEY) {
         // Pass cache to ImageSearch for Serper results, and fetcher for downloads
         imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher);
         aiImageSearch = new AiImageSearch(imageSearch, llm);
+        
+        webSearch = new WebSearch(config.SERPER_API_KEY, fetcher);
+        aiWebSearch = new AiWebSearch(webSearch, llm);
     }
 
     // Initialize ModelFlags with the resolved default model
@@ -156,7 +165,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         llm,
-        { imageSearch, aiImageSearch, fetcher },
+        { imageSearch, aiImageSearch, webSearch, aiWebSearch, fetcher },
         pluginRegistry
     );
 
@@ -165,6 +174,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         llm,
         imageSearch,
         aiImageSearch,
+        webSearch,
+        aiWebSearch,
         modelFlags,
         fetcher,
         pluginRegistry,

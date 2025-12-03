@@ -3,11 +3,15 @@ import OpenAI from 'openai';
 import { LlmClient } from 'llm-fns';
 import { ImageSearch } from './image-search/ImageSearch.js';
 import { AiImageSearch } from '../utils/AiImageSearch.js';
+import { WebSearch } from './web-search/WebSearch.js';
+import { AiWebSearch } from '../utils/AiWebSearch.js';
 import { Fetcher } from '../utils/createCachedFetcher.js';
 
 export interface PluginServices {
     imageSearch?: ImageSearch;
     aiImageSearch?: AiImageSearch;
+    webSearch?: WebSearch;
+    aiWebSearch?: AiWebSearch;
     fetcher: Fetcher;
 }
 
