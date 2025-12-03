@@ -1,9 +1,9 @@
-// 
-import sharp from 'sharp';
-import fs from 'fs';
-import path from 'path';
-import { Command } from 'commander';
-import { z } from 'zod';
+//
+import sharp from "sharp";
+import fs from "fs";
+import path from "path";
+import { Command } from "commander";
+import { z } from "zod";
 
 interface Rectangle {
     x: number;
@@ -31,21 +31,23 @@ const BookingFormDataSchema = z.object({
     header: z.object({
         title: z.string(),
         subtitle: z.string(),
-        details: z.array(z.string())
+        details: z.array(z.string()),
     }),
     stepper: z.object({
         step1: z.string(),
         step2: z.string(),
-        step3: z.string()
+        step3: z.string(),
     }),
-    inputs: z.array(z.object({
-        label: z.string(),
-        value: z.string()
-    })),
+    inputs: z.array(
+        z.object({
+            label: z.string(),
+            value: z.string(),
+        })
+    ),
     footer: z.object({
         backText: z.string(),
-        nextText: z.string()
-    })
+        nextText: z.string(),
+    }),
 });
 
 type BookingFormData = z.infer<typeof BookingFormDataSchema>;
@@ -62,12 +64,18 @@ interface ScalingOptions {
 function escapeXml(unsafe: string): string {
     return unsafe.replace(/[<>&'"]/g, (c) => {
         switch (c) {
-            case '<': return '&lt;';
-            case '>': return '&gt;';
-            case '&': return '&amp;';
-            case '\'': return '&apos;';
-            case '"': return '&quot;';
-            default: return c;
+            case "<":
+                return "&lt;";
+            case ">":
+                return "&gt;";
+            case "&":
+                return "&amp;";
+            case "'":
+                return "&apos;";
+            case '"':
+                return "&quot;";
+            default:
+                return c;
         }
     });
 }
@@ -75,24 +83,25 @@ function escapeXml(unsafe: string): string {
 function normalizeFormData(data: BookingFormData): BookingFormData {
     return {
         companyName: escapeXml(data.companyName),
+        primaryColor: data.primaryColor, // Color codes don't need XML escaping
         header: {
             title: escapeXml(data.header.title),
             subtitle: escapeXml(data.header.subtitle),
-            details: data.header.details.map(escapeXml)
+            details: data.header.details.map(escapeXml),
         },
         stepper: {
             step1: escapeXml(data.stepper.step1),
             step2: escapeXml(data.stepper.step2),
-            step3: escapeXml(data.stepper.step3)
+            step3: escapeXml(data.stepper.step3),
         },
-        inputs: data.inputs.map(input => ({
+        inputs: data.inputs.map((input) => ({
             label: escapeXml(input.label),
-            value: escapeXml(input.value)
+            value: escapeXml(input.value),
         })),
         footer: {
             backText: escapeXml(data.footer.backText),
-            nextText: escapeXml(data.footer.nextText)
-        }
+            nextText: escapeXml(data.footer.nextText),
+        },
     };
 }
 
@@ -111,17 +120,23 @@ function createDebugSvg(
             const x = c * blockSize;
             const y = r * blockSize;
             // Green for match, Red for no match. Semi-transparent.
-            const color = grid[r][c] ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 0, 0, 0.3)';
-            elements.push(`<rect x="${x}" y="${y}" width="${blockSize}" height="${blockSize}" fill="${color}" />`);
+            const color = grid[r][c]
+                ? "rgba(0, 255, 0, 0.3)"
+                : "rgba(255, 0, 0, 0.3)";
+            elements.push(
+                `<rect x="${x}" y="${y}" width="${blockSize}" height="${blockSize}" fill="${color}" />`
+            );
         }
     }
 
     // Draw found rectangle outline in Green
-    elements.push(`<rect x="${foundRect.x}" y="${foundRect.y}" width="${foundRect.width}" height="${foundRect.height}" fill="none" stroke="#00FF00" stroke-width="4" />`);
+    elements.push(
+        `<rect x="${foundRect.x}" y="${foundRect.y}" width="${foundRect.width}" height="${foundRect.height}" fill="none" stroke="#00FF00" stroke-width="4" />`
+    );
 
     return `
     <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-        ${elements.join('\n')}
+        ${elements.join("\n")}
     </svg>
     `;
 }
@@ -136,7 +151,7 @@ async function detectScreenArea(
     const metadata = await image.metadata();
 
     if (!metadata.width || !metadata.height) {
-        throw new Error('Unable to retrieve image metadata');
+        throw new Error("Unable to retrieve image metadata");
     }
 
     const { width, height } = metadata;
@@ -151,10 +166,12 @@ async function detectScreenArea(
     const blockSize = 10;
     const rows = Math.ceil(height / blockSize);
     const cols = Math.ceil(width / blockSize);
-    const grid: boolean[][] = Array(rows).fill(null).map(() => Array(cols).fill(false));
+    const grid: boolean[][] = Array(rows)
+        .fill(null)
+        .map(() => Array(cols).fill(false));
 
     // Parse target color
-    const hex = options.targetColor.replace(/^#/, '');
+    const hex = options.targetColor.replace(/^#/, "");
     const targetR = parseInt(hex.substring(0, 2), 16);
     const targetG = parseInt(hex.substring(2, 4), 16);
     const targetB = parseInt(hex.substring(4, 6), 16);
@@ -180,9 +197,10 @@ async function detectScreenArea(
                     const green = data[offset + 1];
                     const blue = data[offset + 2];
 
-                    const distSq = Math.pow(red - targetR, 2) +
-                                   Math.pow(green - targetG, 2) +
-                                   Math.pow(blue - targetB, 2);
+                    const distSq =
+                        Math.pow(red - targetR, 2) +
+                        Math.pow(green - targetG, 2) +
+                        Math.pow(blue - targetB, 2);
 
                     if (distSq <= thresholdSq) {
                         matchCount++;
@@ -191,7 +209,7 @@ async function detectScreenArea(
             }
 
             // If > 90% pixels match, consider the block a match
-            if (totalCount > 0 && (matchCount / totalCount) > 0.9) {
+            if (totalCount > 0 && matchCount / totalCount > 0.9) {
                 grid[r][c] = true;
             }
         }
@@ -215,10 +233,11 @@ async function detectScreenArea(
         // Largest rectangle in histogram
         const stack: number[] = [];
         for (let c = 0; c <= cols; c++) {
-            const h = (c === cols) ? 0 : heights[c];
+            const h = c === cols ? 0 : heights[c];
             while (stack.length > 0 && h < heights[stack[stack.length - 1]]) {
                 const heightVal = heights[stack.pop()!];
-                const widthVal = stack.length === 0 ? c : c - stack[stack.length - 1] - 1;
+                const widthVal =
+                    stack.length === 0 ? c : c - stack[stack.length - 1] - 1;
                 const area = heightVal * widthVal;
 
                 if (area > maxArea) {
@@ -230,7 +249,7 @@ async function detectScreenArea(
                         c: c - widthVal,
                         r: r - heightVal + 1,
                         w: widthVal,
-                        h: heightVal
+                        h: heightVal,
                     };
                 }
             }
@@ -239,14 +258,14 @@ async function detectScreenArea(
     }
 
     if (maxArea === 0) {
-        throw new Error('No matching screen area found.');
+        throw new Error("No matching screen area found.");
     }
 
     const rawRect = {
         x: bestRectGrid.c * blockSize,
         y: bestRectGrid.r * blockSize,
         width: bestRectGrid.w * blockSize,
-        height: bestRectGrid.h * blockSize
+        height: bestRectGrid.h * blockSize,
     };
 
     // 3.5 Expand rectangle pixel by pixel
@@ -263,7 +282,10 @@ async function detectScreenArea(
                 const r = data[offset];
                 const g = data[offset + 1];
                 const b = data[offset + 2];
-                const distSq = Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2);
+                const distSq =
+                    Math.pow(r - targetR, 2) +
+                    Math.pow(g - targetG, 2) +
+                    Math.pow(b - targetB, 2);
                 if (distSq <= thresholdSq) matchCount++;
             }
             if (matchCount / rawRect.width > 0.9) {
@@ -282,7 +304,10 @@ async function detectScreenArea(
                 const r = data[offset];
                 const g = data[offset + 1];
                 const b = data[offset + 2];
-                const distSq = Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2);
+                const distSq =
+                    Math.pow(r - targetR, 2) +
+                    Math.pow(g - targetG, 2) +
+                    Math.pow(b - targetB, 2);
                 if (distSq <= thresholdSq) matchCount++;
             }
             if (matchCount / rawRect.width > 0.9) {
@@ -300,7 +325,10 @@ async function detectScreenArea(
                 const r = data[offset];
                 const g = data[offset + 1];
                 const b = data[offset + 2];
-                const distSq = Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2);
+                const distSq =
+                    Math.pow(r - targetR, 2) +
+                    Math.pow(g - targetG, 2) +
+                    Math.pow(b - targetB, 2);
                 if (distSq <= thresholdSq) matchCount++;
             }
             if (matchCount / rawRect.height > 0.9) {
@@ -319,7 +347,10 @@ async function detectScreenArea(
                 const r = data[offset];
                 const g = data[offset + 1];
                 const b = data[offset + 2];
-                const distSq = Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2);
+                const distSq =
+                    Math.pow(r - targetR, 2) +
+                    Math.pow(g - targetG, 2) +
+                    Math.pow(b - targetB, 2);
                 if (distSq <= thresholdSq) matchCount++;
             }
             if (matchCount / rawRect.height > 0.9) {
@@ -353,7 +384,7 @@ async function detectScreenArea(
         x: finalX,
         y: finalY,
         width: finalWidth,
-        height: finalHeight
+        height: finalHeight,
     };
 }
 
@@ -363,17 +394,24 @@ class BookingFormDrawer {
     private elements: string[] = [];
     private baseScale: number;
     private scalingOptions: ScalingOptions;
-    private logoData?: { base64: string, width: number, height: number };
+    private logoData?: { base64: string; width: number; height: number };
     private formData: BookingFormData;
     private primaryColor: string;
 
     constructor(
-        width: number, 
-        height: number, 
-        formData: BookingFormData, 
-        logoData?: { base64: string, width: number, height: number },
-        scalingOptions: ScalingOptions = { general: 1.0, stepper: 1.0, header: 1.0, content: 1.0, footer: 1.0, logo: 1.0 },
-        primaryColor: string = '#000000'
+        width: number,
+        height: number,
+        formData: BookingFormData,
+        logoData?: { base64: string; width: number; height: number },
+        scalingOptions: ScalingOptions = {
+            general: 1.0,
+            stepper: 1.0,
+            header: 1.0,
+            content: 1.0,
+            footer: 1.0,
+            logo: 1.0,
+        },
+        primaryColor: string = "#000000"
     ) {
         this.width = width;
         this.height = height;
@@ -406,7 +444,7 @@ class BookingFormDrawer {
         const barW = this.s(30, factor);
         const barH = this.s(5, factor);
         const gap = this.s(9, factor);
-        const burgerHeight = (barH * 3) + (gap * 2);
+        const burgerHeight = barH * 3 + gap * 2;
 
         if (this.logoData) {
             // Icon - Match height to burger menu * logoFactor
@@ -417,24 +455,32 @@ class BookingFormDrawer {
             // Center vertically relative to burger menu
             const logoY = y + (burgerHeight - targetHeight) / 2;
 
-            this.elements.push(`<image href="${this.logoData.base64}" x="${x}" y="${logoY}" width="${targetWidth}" height="${targetHeight}" />`);
-            
+            this.elements.push(
+                `<image href="${this.logoData.base64}" x="${x}" y="${logoY}" width="${targetWidth}" height="${targetHeight}" />`
+            );
+
             // Company Name Text
             const textX = x + targetWidth + this.s(10, factor);
-            
+
             // Font size matches burger menu height
             const fontSize = burgerHeight;
-            
+
             // Center text vertically relative to icon/burger menu
             // Approximate baseline calculation: y + fontSize * 0.85
-            const textY = y + (fontSize * 0.85);
-            
-            this.elements.push(`<text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.primaryColor}">${this.formData.companyName}</text>`);
+            const textY = y + fontSize * 0.85;
+
+            this.elements.push(
+                `<text x="${textX}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.primaryColor}">${this.formData.companyName}</text>`
+            );
         } else {
             // Fallback text if logo not loaded
             const fontSize = burgerHeight;
-            const textY = y + (fontSize * 0.85);
-            this.elements.push(`<text x="${x}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${this.primaryColor}">${this.formData.companyName || 'Butlerapp'}</text>`);
+            const textY = y + fontSize * 0.85;
+            this.elements.push(
+                `<text x="${x}" y="${textY}" font-family="Arial, sans-serif" font-weight="bold" font-size="${fontSize}" fill="${
+                    this.primaryColor
+                }">${this.formData.companyName || "Butlerapp"}</text>`
+            );
         }
 
         // Hamburger Menu
@@ -444,12 +490,31 @@ class BookingFormDrawer {
         // Align top with y
         const menuY = y;
 
-        this.elements.push(`<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
-        this.elements.push(`<rect x="${menuX}" y="${menuY + gap + barH}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
-        this.elements.push(`<rect x="${menuX}" y="${menuY + (gap + barH) * 2}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(2.5, factor)}" />`);
+        this.elements.push(
+            `<rect x="${menuX}" y="${menuY}" width="${barW}" height="${barH}" fill="#333" rx="${this.s(
+                2.5,
+                factor
+            )}" />`
+        );
+        this.elements.push(
+            `<rect x="${menuX}" y="${
+                menuY + gap + barH
+            }" width="${barW}" height="${barH}" fill="#333" rx="${this.s(
+                2.5,
+                factor
+            )}" />`
+        );
+        this.elements.push(
+            `<rect x="${menuX}" y="${
+                menuY + (gap + barH) * 2
+            }" width="${barW}" height="${barH}" fill="#333" rx="${this.s(
+                2.5,
+                factor
+            )}" />`
+        );
 
         // Return height used (burgerHeight + padding)
-        return burgerHeight + this.s(10, factor); 
+        return burgerHeight + this.s(10, factor);
     }
 
     // Returns height of stepper section
@@ -461,23 +526,55 @@ class BookingFormDrawer {
         const textOffsetY = this.s(6, factor);
 
         // Step 1 (Active)
-        this.elements.push(`<circle cx="${startX + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="${this.primaryColor}" />`);
-        this.elements.push(`<text x="${startX + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`);
+        this.elements.push(
+            `<circle cx="${startX + circleSize / 2}" cy="${
+                y + circleSize / 2
+            }" r="${circleSize / 2}" fill="${this.primaryColor}" />`
+        );
+        this.elements.push(
+            `<text x="${startX + circleSize / 2}" y="${
+                y + circleSize / 2 + textOffsetY
+            }" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="Arial" font-weight="bold">1</text>`
+        );
 
         // Text
-        this.elements.push(`<text x="${startX + circleSize + this.s(10, factor)}" y="${y + circleSize/2 + textOffsetY}" fill="${this.primaryColor}" font-size="${fontSize}" font-weight="bold" font-family="Arial">${this.formData.stepper.step1}</text>`);
+        this.elements.push(
+            `<text x="${startX + circleSize + this.s(10, factor)}" y="${
+                y + circleSize / 2 + textOffsetY
+            }" fill="${
+                this.primaryColor
+            }" font-size="${fontSize}" font-weight="bold" font-family="Arial">${
+                this.formData.stepper.step1
+            }</text>`
+        );
 
         // Step 3 (Inactive) - Right aligned
         const step3X = this.width - this.getLeftMargin() - circleSize;
         // Darker text color for inactive: #444444
-        this.elements.push(`<circle cx="${step3X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#C7C7CC" />`);
-        this.elements.push(`<text x="${step3X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">3</text>`);
+        this.elements.push(
+            `<circle cx="${step3X + circleSize / 2}" cy="${
+                y + circleSize / 2
+            }" r="${circleSize / 2}" fill="#C7C7CC" />`
+        );
+        this.elements.push(
+            `<text x="${step3X + circleSize / 2}" y="${
+                y + circleSize / 2 + textOffsetY
+            }" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">3</text>`
+        );
 
         // Step 2 (Inactive) - Left of Step 3
         const gap = this.s(16, factor);
         const step2X = step3X - gap - circleSize;
-        this.elements.push(`<circle cx="${step2X + circleSize/2}" cy="${y + circleSize/2}" r="${circleSize/2}" fill="#C7C7CC" />`);
-        this.elements.push(`<text x="${step2X + circleSize/2}" y="${y + circleSize/2 + textOffsetY}" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">2</text>`);
+        this.elements.push(
+            `<circle cx="${step2X + circleSize / 2}" cy="${
+                y + circleSize / 2
+            }" r="${circleSize / 2}" fill="#C7C7CC" />`
+        );
+        this.elements.push(
+            `<text x="${step2X + circleSize / 2}" y="${
+                y + circleSize / 2 + textOffsetY
+            }" text-anchor="middle" fill="#444444" font-size="${fontSize}" font-family="Arial">2</text>`
+        );
 
         return circleSize + this.s(20, factor); // Height + padding
     }
@@ -489,9 +586,21 @@ class BookingFormDrawer {
         const lineHeight = this.s(34, factor);
 
         // Title
-        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(26, factor)}" fill="#000">${this.formData.header.title}</text>`);
+        this.elements.push(
+            `<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${this.s(
+                26,
+                factor
+            )}" fill="#000">${this.formData.header.title}</text>`
+        );
         // Subtitle
-        this.elements.push(`<text x="${x}" y="${y + lineHeight}" font-family="Arial" font-weight="bold" font-size="${this.s(26, factor)}" fill="#000">${this.formData.header.subtitle}</text>`);
+        this.elements.push(
+            `<text x="${x}" y="${
+                y + lineHeight
+            }" font-family="Arial" font-weight="bold" font-size="${this.s(
+                26,
+                factor
+            )}" fill="#000">${this.formData.header.subtitle}</text>`
+        );
 
         // Details - Using content scale for details
         const contentFactor = this.scalingOptions.content;
@@ -501,37 +610,73 @@ class BookingFormDrawer {
         const detailX = this.getLeftMargin();
 
         this.formData.header.details.forEach((detail, index) => {
-            this.elements.push(`<text x="${detailX}" y="${detailY + (index * detailLineHeight)}" font-family="Arial" font-size="${this.s(14, contentFactor)}" fill="#333">${detail}</text>`);
+            this.elements.push(
+                `<text x="${detailX}" y="${
+                    detailY + index * detailLineHeight
+                }" font-family="Arial" font-size="${this.s(
+                    14,
+                    contentFactor
+                )}" fill="#333">${detail}</text>`
+            );
         });
 
-        const detailsHeight = this.formData.header.details.length * detailLineHeight;
+        const detailsHeight =
+            this.formData.header.details.length * detailLineHeight;
         // Reduced bottom padding (was 20)
-        return (lineHeight * 2) + this.s(2, contentFactor) + detailsHeight + this.s(5, contentFactor); 
+        return (
+            lineHeight * 2 +
+            this.s(2, contentFactor) +
+            detailsHeight +
+            this.s(5, contentFactor)
+        );
     }
 
     // Returns height of input
     drawInput(y: number, label: string, value: string): number {
         const factor = this.scalingOptions.content;
         const x = this.getLeftMargin();
-        const w = this.width - (this.getLeftMargin() * 2); // Consistent width based on margins
+        const w = this.width - this.getLeftMargin() * 2; // Consistent width based on margins
         const h = this.s(44, factor);
         const radius = this.s(6, factor);
 
         // Label
-        this.elements.push(`<text x="${x}" y="${y}" font-family="Arial" font-size="${this.s(12, factor)}" fill="#333">${label}</text>`);
+        this.elements.push(
+            `<text x="${x}" y="${y}" font-family="Arial" font-size="${this.s(
+                12,
+                factor
+            )}" fill="#333">${label}</text>`
+        );
 
         // Input Box
         const boxY = y + this.s(8, factor);
-        this.elements.push(`<rect x="${x}" y="${boxY}" width="${w}" height="${h}" rx="${radius}" fill="#F2F2F7" />`);
+        this.elements.push(
+            `<rect x="${x}" y="${boxY}" width="${w}" height="${h}" rx="${radius}" fill="#F2F2F7" />`
+        );
 
         // Value
-        this.elements.push(`<text x="${x + this.s(12, factor)}" y="${boxY + h/2 + this.s(5, factor)}" font-family="Arial" font-size="${this.s(14, factor)}" fill="#000">${value}</text>`);
+        this.elements.push(
+            `<text x="${x + this.s(12, factor)}" y="${
+                boxY + h / 2 + this.s(5, factor)
+            }" font-family="Arial" font-size="${this.s(
+                14,
+                factor
+            )}" fill="#000">${value}</text>`
+        );
 
         // Chevron Icon
         const iconSize = this.s(10, factor);
         const iconX = x + w - this.s(24, factor);
-        const iconY = boxY + h/2 - iconSize/2;
-        this.elements.push(`<path d="M${iconX} ${iconY} L${iconX + iconSize/2} ${iconY + iconSize/2} L${iconX + iconSize} ${iconY}" fill="none" stroke="#999" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        const iconY = boxY + h / 2 - iconSize / 2;
+        this.elements.push(
+            `<path d="M${iconX} ${iconY} L${iconX + iconSize / 2} ${
+                iconY + iconSize / 2
+            } L${
+                iconX + iconSize
+            } ${iconY}" fill="none" stroke="#999" stroke-width="${this.s(
+                2,
+                factor
+            )}" stroke-linecap="round" stroke-linejoin="round"/>`
+        );
 
         return this.s(12, factor) + this.s(8, factor) + h + this.s(15, factor); // Label height + gap + box height + bottom margin
     }
@@ -543,7 +688,12 @@ class BookingFormDrawer {
         const xRight = this.width - this.getLeftMargin();
 
         // Back
-        this.elements.push(`<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(16, factor)}" fill="#8E8E93">← ${this.formData.footer.backText}</text>`);
+        this.elements.push(
+            `<text x="${xLeft}" y="${y}" font-family="Arial" font-size="${this.s(
+                16,
+                factor
+            )}" fill="#8E8E93">← ${this.formData.footer.backText}</text>`
+        );
 
         // Next
         const fontSize = this.s(22, factor);
@@ -551,23 +701,53 @@ class BookingFormDrawer {
 
         // Center icon vertically relative to text baseline approx
         // Baseline is y. Cap height ~0.7em. Center ~ y - 0.35em.
-        const iconCy = y - (fontSize * 0.35);
+        const iconCy = y - fontSize * 0.35;
         const iconCx = xRight - iconR;
 
         // Draw text
-        this.elements.push(`<text x="${iconCx - iconR - this.s(10, factor)}" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="${this.primaryColor}">${this.formData.footer.nextText}</text>`);
+        this.elements.push(
+            `<text x="${
+                iconCx - iconR - this.s(10, factor)
+            }" y="${y}" text-anchor="end" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="${
+                this.primaryColor
+            }">${this.formData.footer.nextText}</text>`
+        );
 
         // Draw Icon Circle
-        this.elements.push(`<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="${this.primaryColor}" stroke-width="${this.s(2, factor)}" />`);
+        this.elements.push(
+            `<circle cx="${iconCx}" cy="${iconCy}" r="${iconR}" fill="none" stroke="${
+                this.primaryColor
+            }" stroke-width="${this.s(2, factor)}" />`
+        );
 
         // Draw Arrow
         const arrowLen = this.s(10, factor);
         const arrowHead = this.s(4, factor);
 
         // Line
-        this.elements.push(`<path d="M${iconCx - arrowLen/2} ${iconCy} L${iconCx + arrowLen/2} ${iconCy}" fill="none" stroke="${this.primaryColor}" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(
+            `<path d="M${iconCx - arrowLen / 2} ${iconCy} L${
+                iconCx + arrowLen / 2
+            } ${iconCy}" fill="none" stroke="${
+                this.primaryColor
+            }" stroke-width="${this.s(
+                2,
+                factor
+            )}" stroke-linecap="round" stroke-linejoin="round"/>`
+        );
         // Head
-        this.elements.push(`<path d="M${iconCx + arrowLen/2 - arrowHead} ${iconCy - arrowHead} L${iconCx + arrowLen/2} ${iconCy} L${iconCx + arrowLen/2 - arrowHead} ${iconCy + arrowHead}" fill="none" stroke="${this.primaryColor}" stroke-width="${this.s(2, factor)}" stroke-linecap="round" stroke-linejoin="round"/>`);
+        this.elements.push(
+            `<path d="M${iconCx + arrowLen / 2 - arrowHead} ${
+                iconCy - arrowHead
+            } L${iconCx + arrowLen / 2} ${iconCy} L${
+                iconCx + arrowLen / 2 - arrowHead
+            } ${iconCy + arrowHead}" fill="none" stroke="${
+                this.primaryColor
+            }" stroke-width="${this.s(
+                2,
+                factor
+            )}" stroke-linecap="round" stroke-linejoin="round"/>`
+        );
     }
 
     render() {
@@ -582,11 +762,15 @@ class BookingFormDrawer {
 
         const infoHeight = this.drawInfoSection(currentY);
         // Reduced margin after info section (was 20, now 10 to achieve ~50% gap reduction)
-        currentY += infoHeight + this.s(10, this.scalingOptions.general); 
+        currentY += infoHeight + this.s(10, this.scalingOptions.general);
 
         // Draw inputs sequentially
         this.formData.inputs.forEach((input) => {
-            const inputHeight = this.drawInput(currentY, input.label, input.value);
+            const inputHeight = this.drawInput(
+                currentY,
+                input.label,
+                input.value
+            );
             currentY += inputHeight; // drawInput includes bottom margin
         });
 
@@ -595,8 +779,10 @@ class BookingFormDrawer {
 
     getSvg(): string {
         return `
-        <svg width="${this.width}" height="${this.height}" viewBox="0 0 ${this.width} ${this.height}" xmlns="http://www.w3.org/2000/svg">
-            ${this.elements.join('\n')}
+        <svg width="${this.width}" height="${this.height}" viewBox="0 0 ${
+            this.width
+        } ${this.height}" xmlns="http://www.w3.org/2000/svg">
+            ${this.elements.join("\n")}
         </svg>
         `;
     }
@@ -617,7 +803,7 @@ async function drawBookingForm(
     try {
         const logoImage = sharp(logoPath, { density: 300 }); // High density for SVG
         const metadata = await logoImage.metadata();
-        
+
         // Force PNG conversion for the logo data to ensure it renders correctly in the SVG
         const logoBuffer = await logoImage.png().toBuffer();
 
@@ -628,26 +814,30 @@ async function drawBookingForm(
                     width: metadata.width,
                     height: metadata.height,
                     channels: 4,
-                    background: primaryColor
-                }
+                    background: primaryColor,
+                },
             });
 
             // Use the logo as a mask (dest-in keeps destination where source is opaque)
             const coloredBuffer = await solidColor
-                .composite([{ input: logoBuffer, blend: 'dest-in' }])
+                .composite([{ input: logoBuffer, blend: "dest-in" }])
                 .png()
                 .toBuffer();
-            
+
             logoData = {
-                base64: `data:image/png;base64,${coloredBuffer.toString('base64')}`,
+                base64: `data:image/png;base64,${coloredBuffer.toString(
+                    "base64"
+                )}`,
                 width: metadata.width,
-                height: metadata.height
+                height: metadata.height,
             };
         } else if (metadata.width && metadata.height) {
             logoData = {
-                base64: `data:image/png;base64,${logoBuffer.toString('base64')}`,
+                base64: `data:image/png;base64,${logoBuffer.toString(
+                    "base64"
+                )}`,
                 width: metadata.width,
-                height: metadata.height
+                height: metadata.height,
             };
         }
     } catch (error) {
@@ -655,7 +845,14 @@ async function drawBookingForm(
     }
 
     // Supersample to improve text rendering sharpness
-    const drawer = new BookingFormDrawer(rect.width * superSample, rect.height * superSample, formData, logoData, scalingOptions, primaryColor);
+    const drawer = new BookingFormDrawer(
+        rect.width * superSample,
+        rect.height * superSample,
+        formData,
+        logoData,
+        scalingOptions,
+        primaryColor
+    );
     drawer.render();
     const svgContent = drawer.getSvg();
 
@@ -669,11 +866,13 @@ async function drawBookingForm(
 
     // Composite the SVG onto the image
     await image
-        .composite([{
-            input: svgBuffer,
-            top: Math.round(rect.y),
-            left: Math.round(rect.x)
-        }])
+        .composite([
+            {
+                input: svgBuffer,
+                top: Math.round(rect.y),
+                left: Math.round(rect.x),
+            },
+        ])
         .toFile(outputPath);
 
     console.log(`Processed image saved to ${outputPath}`);
@@ -683,19 +882,57 @@ async function main() {
     const program = new Command();
 
     program
-        .name('insertbookingform_mobile')
-        .description('Insert a booking form into an image')
-        .argument('<input_image>', 'Path to the input image')
-        .argument('<json_data>', 'Path to the composite JSON data file (matches schema.json)')
-        .argument('<logo_image>', 'Path to the logo image')
-        .argument('<output_image>', 'Path to the output image')
-        .option('--supersample <n>', 'Supersampling factor', (val) => parseInt(val, 10), 8)
-        .option('--scale <n>', 'General scaling factor', (val) => parseFloat(val), 1.0)
-        .option('--scale-stepper <n>', 'Scaling factor for stepper', (val) => parseFloat(val), 1.0)
-        .option('--scale-header <n>', 'Scaling factor for header', (val) => parseFloat(val), 1.0)
-        .option('--scale-content <n>', 'Scaling factor for content/inputs', (val) => parseFloat(val), 1.0)
-        .option('--scale-footer <n>', 'Scaling factor for footer', (val) => parseFloat(val), 1.0)
-        .option('--scale-logo <n>', 'Scaling factor for logo', (val) => parseFloat(val), 1.0)
+        .name("insertbookingform_mobile")
+        .description("Insert a booking form into an image")
+        .argument("<input_image>", "Path to the input image")
+        .argument(
+            "<json_data>",
+            "Path to the composite JSON data file (matches schema.json)"
+        )
+        .argument("<logo_image>", "Path to the logo image")
+        .argument("<output_image>", "Path to the output image")
+        .option(
+            "--supersample <n>",
+            "Supersampling factor",
+            (val) => parseInt(val, 10),
+            8
+        )
+        .option(
+            "--scale <n>",
+            "General scaling factor",
+            (val) => parseFloat(val),
+            1.0
+        )
+        .option(
+            "--scale-stepper <n>",
+            "Scaling factor for stepper",
+            (val) => parseFloat(val),
+            1.0
+        )
+        .option(
+            "--scale-header <n>",
+            "Scaling factor for header",
+            (val) => parseFloat(val),
+            1.0
+        )
+        .option(
+            "--scale-content <n>",
+            "Scaling factor for content/inputs",
+            (val) => parseFloat(val),
+            1.0
+        )
+        .option(
+            "--scale-footer <n>",
+            "Scaling factor for footer",
+            (val) => parseFloat(val),
+            1.0
+        )
+        .option(
+            "--scale-logo <n>",
+            "Scaling factor for logo",
+            (val) => parseFloat(val),
+            1.0
+        )
         .action(async (inputPath, jsonPath, logoPath, outputPath, options) => {
             const scalingOptions: ScalingOptions = {
                 general: options.scale,
@@ -703,7 +940,7 @@ async function main() {
                 header: options.scaleHeader,
                 content: options.scaleContent,
                 footer: options.scaleFooter,
-                logo: options.scaleLogo
+                logo: options.scaleLogo,
             };
 
             // Derive debug output path
@@ -715,69 +952,55 @@ async function main() {
 
             try {
                 // Load composite JSON data (array that matches schema.json)
-                const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
-<<<<<<< HEAD:src/insertbookingform_mobile.ts
-                const parsed = JSON.parse(jsonContent);
-
-                // Extract primaryColor and booking form from composite data
-                let primaryColor: string = '#000000';
-                let bookingForm: BookingFormData | null = null;
-
-                if (Array.isArray(parsed)) {
-                    parsed.forEach((obj: any) => {
-                        if (!obj || typeof obj !== 'object') return;
-
-                        // Primary color object: { primaryColor: "#...." }
-                        if ('primaryColor' in obj && typeof obj.primaryColor === 'string') {
-                            primaryColor = obj.primaryColor;
-                        }
-
-                        // Booking form object: has header/stepper/inputs/footer, but NOT dashboard_interface
-                        if (!('dashboard_interface' in obj) &&
-                            obj.header && obj.stepper && obj.inputs && obj.footer) {
-                            bookingForm = obj as BookingFormData;
-                        }
-                    });
-                } else if (parsed && typeof parsed === 'object') {
-                    // Backwards compatibility: plain booking form JSON
-                    if ('primaryColor' in parsed && typeof parsed.primaryColor === 'string') {
-                        primaryColor = (parsed as any).primaryColor;
-                    }
-                    if (parsed.header && parsed.stepper && parsed.inputs && parsed.footer) {
-                        bookingForm = parsed as BookingFormData;
-                    }
-                }
-
-                if (!bookingForm) {
-                    throw new Error('Booking form data not found in JSON (expected second object in composite array).');
-                }
-=======
+                const jsonContent = fs.readFileSync(jsonPath, "utf-8");
                 const rawJson = JSON.parse(jsonContent);
-                const rawFormData = BookingFormDataSchema.parse(rawJson);
->>>>>>> a203bc21a948caa0d775114b6f2779d525324115:src/insertbookingform.ts
+
+                // Handle case where JSON is an array - merge all objects into one
+                let mergedJson: any;
+                if (Array.isArray(rawJson)) {
+                    mergedJson = Object.assign({}, ...rawJson);
+                } else {
+                    mergedJson = rawJson;
+                }
+
+                const rawFormData = BookingFormDataSchema.parse(mergedJson);
 
                 // Normalize data (escape XML characters)
-                const formData = normalizeFormData(bookingForm);
+                const formData = normalizeFormData(rawFormData);
 
                 // Configuration
                 const detectionOptions: DetectionOptions = {
-                    targetColor: '#E4E7EF',
+                    targetColor: "#E4E7EF",
                     threshold: 45, // Allow for some lighting variation
                     margins: {
                         top: 0.01,
                         right: 0.01,
-                        bottom: 0.00,
-                        left: 0.01
-                    }
+                        bottom: 0.0,
+                        left: 0.01,
+                    },
                 };
 
-                const rect = await detectScreenArea(inputPath, detectionOptions, debugOutputPath);
-                console.log(`Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`);
+                const rect = await detectScreenArea(
+                    inputPath,
+                    detectionOptions,
+                    debugOutputPath
+                );
+                console.log(
+                    `Detected area: x=${rect.x}, y=${rect.y}, w=${rect.width}, h=${rect.height}`
+                );
 
-                await drawBookingForm(inputPath, outputPath, rect, formData, logoPath, options.supersample, scalingOptions, primaryColor);
-
+                await drawBookingForm(
+                    inputPath,
+                    outputPath,
+                    rect,
+                    formData,
+                    logoPath,
+                    options.supersample,
+                    scalingOptions,
+                    formData.primaryColor
+                );
             } catch (error) {
-                console.error('Error processing image:', error);
+                console.error("Error processing image:", error);
                 process.exit(1);
             }
         });
