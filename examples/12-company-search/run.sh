@@ -6,10 +6,9 @@ npx tsx src/index.ts generate examples/12-company-search/data.csv \
 Rules:
 1. Return ONLY the URL (e.g., https://www.example.com).
 2. Do not include markdown formatting, explanations, or trailing punctuation.
-3. If the company is not clearly found, return 'N/A'.
+3. If the company is not clearly found, return ''.
 4. Prefer the main corporate domain over social media profiles or directories." \
-  --model "gpt-4o" \
   --output-column "website_url" \
-  --web-search-query "official website {{name}}" \
+  --web-search-query "{{name}}" \
   --web-search-limit 5 \
   --web-search-mode none
