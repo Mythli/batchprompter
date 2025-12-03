@@ -13,7 +13,7 @@ Second object (booking form) consists of:
 
 3. **Step:** The first step is usually called "Select Date," "Select Ticket," or something similar, depending on the industry.
 
-4. **Input Data:** Only 3 input fields, typical for the first step of booking (e.g., date, number of people, rate/option).
+4. **Input Data:** Only 3 input fields, typical for the first step of booking (e.g., date, number of people, rate/option). (max length of every field 26 letters)
 
 5. **Footer:** Standard navigation.
 

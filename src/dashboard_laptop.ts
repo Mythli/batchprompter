@@ -941,29 +941,6 @@ class DashboardDrawer {
                     )}" fill="#333">${card.value}</text>`
                 );
             }
-
-            // Icon/Right content - skip icon for card 3 (index 2)
-            if (card.icon && index !== 2) {
-                const iconSize = this.s(40);
-                const iconX = x + cardW - this.s(20) - iconSize;
-                const iconY = y + (cardH - iconSize) / 2;
-                const color = card.icon_color === "green" ? "#28a745" : "#333";
-
-                // Simple icon representation
-                this.elements.push(
-                    `<rect x="${iconX}" y="${iconY}" width="${iconSize}" height="${iconSize}" fill="none" stroke="${color}" stroke-width="2" rx="4" />`
-                );
-                // Arrow out for sign-out
-                if (card.icon === "sign-out-alt") {
-                    this.elements.push(
-                        `<path d="M${iconX + iconSize / 2} ${
-                            iconY + iconSize / 2
-                        } L${iconX + iconSize - 5} ${
-                            iconY + iconSize / 2
-                        }" stroke="${color}" stroke-width="2"/>`
-                    );
-                }
-            }
         });
     }
 
