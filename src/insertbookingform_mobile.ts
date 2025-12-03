@@ -1,7 +1,9 @@
+// 
 import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import { Command } from 'commander';
+import { z } from 'zod';
 
 interface Rectangle {
     x: number;
@@ -23,27 +25,30 @@ interface DetectionOptions {
     margins: Margins;
 }
 
-interface BookingFormData {
-    companyName: string;
-    header: {
-        title: string;
-        subtitle: string;
-        details: string[];
-    };
-    stepper: {
-        step1: string;
-        step2: string;
-        step3: string;
-    };
-    inputs: {
-        label: string;
-        value: string;
-    }[];
-    footer: {
-        backText: string;
-        nextText: string;
-    };
-}
+const BookingFormDataSchema = z.object({
+    companyName: z.string(),
+    primaryColor: z.string(),
+    header: z.object({
+        title: z.string(),
+        subtitle: z.string(),
+        details: z.array(z.string())
+    }),
+    stepper: z.object({
+        step1: z.string(),
+        step2: z.string(),
+        step3: z.string()
+    }),
+    inputs: z.array(z.object({
+        label: z.string(),
+        value: z.string()
+    })),
+    footer: z.object({
+        backText: z.string(),
+        nextText: z.string()
+    })
+});
+
+type BookingFormData = z.infer<typeof BookingFormDataSchema>;
 
 interface ScalingOptions {
     general: number;
@@ -711,6 +716,7 @@ async function main() {
             try {
                 // Load composite JSON data (array that matches schema.json)
                 const jsonContent = fs.readFileSync(jsonPath, 'utf-8');
+<<<<<<< HEAD:src/insertbookingform_mobile.ts
                 const parsed = JSON.parse(jsonContent);
 
                 // Extract primaryColor and booking form from composite data
@@ -745,6 +751,10 @@ async function main() {
                 if (!bookingForm) {
                     throw new Error('Booking form data not found in JSON (expected second object in composite array).');
                 }
+=======
+                const rawJson = JSON.parse(jsonContent);
+                const rawFormData = BookingFormDataSchema.parse(rawJson);
+>>>>>>> a203bc21a948caa0d775114b6f2779d525324115:src/insertbookingform.ts
 
                 // Normalize data (escape XML characters)
                 const formData = normalizeFormData(bookingForm);

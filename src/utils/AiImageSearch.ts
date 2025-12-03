@@ -1,7 +1,10 @@
+// 
 import { z } from 'zod';
 import { LlmClient } from 'llm-fns';
-import { ImageSearch, SerperImage, ImageSearchResult } from './ImageSearch.js';
+import { ImageSearch, SerperImage, ImageSearchResult } from '../plugins/image-search/ImageSearch.js';
 import { SpriteGenerator } from './SpriteGenerator.js';
+import { ResolvedModelConfig } from '../types.js';
+import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
 
 export class AiImageSearch {
     constructor(
@@ -23,23 +26,26 @@ export class AiImageSearch {
      */
     async selectFromPool(
         images: ImageSearchResult[],
-        searchContext: string,
-        selectionPrompt: string,
+        selectConfig: ResolvedModelConfig,
+        row: Record<string, any>,
         maxSelected: number = 1,
-        onSprite?: (buffer: Buffer, index: number) => Promise<void>
+        onSprite?: (buffer: Buffer, index: number) => Promise<void>,
+        spriteSizeOverride?: number
     ): Promise<ImageSearchResult[]> {
         if (images.length === 0) return [];
 
+        const spriteSize = spriteSizeOverride || this.imagesPerSprite;
+
         // Chunk images and Generate Sprites
         const chunks: ImageSearchResult[][] = [];
-        for (let i = 0; i < images.length; i += this.imagesPerSprite) {
-            chunks.push(images.slice(i, i + this.imagesPerSprite));
+        for (let i = 0; i < images.length; i += spriteSize) {
+            chunks.push(images.slice(i, i + spriteSize));
         }
 
-        console.log(`[AiImageSearch] Generating ${chunks.length} sprite(s) from ${images.length} images (Grid size: ${this.imagesPerSprite})...`);
+        console.log(`[AiImageSearch] Generating ${chunks.length} sprite(s) from ${images.length} images (Grid size: ${spriteSize})...`);
 
         const spritePromises = chunks.map(async (chunk, i) => {
-            const startNum = (i * this.imagesPerSprite) + 1;
+            const startNum = (i * spriteSize) + 1;
             try {
                 // Pass buffers directly to SpriteGenerator
                 const result = await SpriteGenerator.generate(chunk, startNum);
@@ -63,10 +69,8 @@ export class AiImageSearch {
             }
         }
 
-        // Prepare LLM Request
-        const contentParts: any[] = [
-            { type: 'text', text: `Search Context: "${searchContext}"\n\nSelection Criteria: ${selectionPrompt}\n\nReturn the index numbers (displayed in the top-left of the images) of the best matches. Select at most ${maxSelected} image(s).` }
-        ];
+        // Prepare External Content (Images)
+        const imageContentParts: any[] = [];
 
         // Map visual index -> ImageSearchResult
         const indexMap = new Map<number, ImageSearchResult>();
@@ -75,7 +79,7 @@ export class AiImageSearch {
             const base64Sprite = sprite.spriteBuffer.toString('base64');
             const dataUrl = `data:image/jpeg;base64,${base64Sprite}`;
 
-            contentParts.push({ type: 'image_url', image_url: { url: dataUrl } });
+            imageContentParts.push({ type: 'image_url', image_url: { url: dataUrl } });
 
             // Map valid indices back to original images
             sprite.validIndices.forEach((originalIndexInChunk, i) => {
@@ -84,25 +88,21 @@ export class AiImageSearch {
             });
         }
 
+        // Use Normalizer to build the request
+        // We pass the images as external content
+        const request = ModelRequestNormalizer.normalize(selectConfig, row, imageContentParts);
+
         const SelectionSchema = z.object({
             selected_indices: z.array(z.number()).describe(`The numbers visible on the selected images (1-based). Select up to ${maxSelected} indices.`),
             reasoning: z.string().describe("Why these images were selected based on the prompt")
         });
 
-        const messages = [
-            {
-                role: 'system' as const,
-                content: "You are an expert image curator. You will be presented with one or more grids of numbered images. Your job is to select the best image(s) based strictly on the user's criteria."
-            },
-            {
-                role: 'user' as const,
-                content: contentParts
-            }
-        ];
-
         // Call LLM
         console.log(`[AiImageSearch] Asking AI to select up to ${maxSelected} images...`);
-        const response = await this.llm.promptZod(messages, SelectionSchema);
+        const response = await this.llm.promptZod(request.messages, SelectionSchema, {
+            model: request.model,
+            ...request.options
+        });
 
         console.log(`[AiImageSearch] AI Selected: ${response.selected_indices.join(', ')}. Reason: ${response.reasoning}`);
 
@@ -124,27 +124,6 @@ export class AiImageSearch {
         return selectedImages;
     }
 
-    /**
-     * Searches for images, creates one or more sprites, and asks the AI to select the best one(s).
-     */
-    async searchAndSelect(
-        searchQuery: string,
-        selectionPrompt: string,
-        count: number = 20,
-        maxSelected: number = 1
-    ): Promise<ImageSearchResult[]> {
-        // 1. Search
-        console.log(`[AiImageSearch] Searching for: "${searchQuery}" (Limit: ${count})`);
-        const images = await this.search(searchQuery, count);
-
-        if (images.length === 0) {
-            throw new Error("No images found for query.");
-        }
-
-        // 2. Select
-        return this.selectFromPool(images, searchQuery, selectionPrompt, maxSelected);
-    }
-    
     // Expose the underlying ImageSearch for direct access if needed
     getImageSearch(): ImageSearch {
         return this.imageSearch;

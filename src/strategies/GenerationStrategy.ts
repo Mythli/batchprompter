@@ -1,5 +1,6 @@
+// 
 import OpenAI from 'openai';
-import { ResolvedStepConfig } from '../StepConfigurator.js';
+import { StepConfig } from '../types.js';
 
 export interface GenerationResult {
     historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
@@ -11,7 +12,7 @@ export interface GenerationStrategy {
         row: Record<string, any>,
         index: number,
         stepIndex: number,
-        config: ResolvedStepConfig,
+        config: StepConfig,
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,

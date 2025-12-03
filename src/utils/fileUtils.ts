@@ -1,3 +1,4 @@
+// 
 import fsPromises from 'fs/promises';
 import path from 'path';
 import OpenAI from 'openai';
@@ -15,14 +16,14 @@ export function getPartType(filePath: string): 'text' | 'image' | 'audio' {
 }
 
 export function aggressiveSanitize(input: string): string {
-    // 1. Remove anything that is NOT a-z, A-Z, 0-9
-    let sanitized = input.replace(/[^a-zA-Z0-9]/g, '');
+    // 1. Replace spaces with underscores for better filename compatibility
+    let sanitized = input.trim().replace(/\s+/g, '_');
     
-    // 2. Remove leading numbers
-    sanitized = sanitized.replace(/^[0-9]+/, '');
+    // 2. Remove anything that is NOT a-z, A-Z, 0-9, -, _
+    sanitized = sanitized.replace(/[^a-zA-Z0-9-_]/g, '');
     
-    // 3. Truncate to 50 chars
-    return sanitized.substring(0, 50);
+    // 3. Truncate to 100 chars
+    return sanitized.substring(0, 100);
 }
 
 export async function readPromptInput(inputPath: string): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
@@ -106,10 +107,28 @@ export async function resolvePromptInput(input: string): Promise<OpenAI.Chat.Com
         // If stat succeeds, it's a file or directory
         return await readPromptInput(input);
     } catch (error: any) {
-        // Treat as raw text if:
-        // - ENOENT: File does not exist
-        // - ENAMETOOLONG: String is too long to be a filename
-        // - EINVAL: String contains invalid characters for a filename
+        // Heuristic Check: Is this likely a file path that doesn't exist?
+        
+        const hasNewlines = input.includes('\n');
+        
+        // If it has newlines, it is definitely raw text, not a file path.
+        if (!hasNewlines) {
+            // 1. Check for path separators
+            const hasPathSeparators = input.includes('/') || input.includes('\\');
+            
+            // 2. Check for file-like characteristics
+            // - Short length (filenames are usually short)
+            // - Ends with a file extension pattern (dot followed by 2-5 alphanumeric chars)
+            //   We require at least 2 chars to avoid matching "Version 2.0" or "Item 1." as a file.
+            const isShort = input.length < 255;
+            const hasExtension = /\.[a-zA-Z0-9]{2,5}$/.test(input);
+
+            if (hasPathSeparators || (isShort && hasExtension)) {
+                throw new Error(`File not found: ${input}`);
+            }
+        }
+
+        // Treat as raw text if it doesn't look like a file path
         if (error.code === 'ENOENT' || error.code === 'ENAMETOOLONG' || error.code === 'EINVAL') {
             return [{ type: 'text', text: input }];
         }
