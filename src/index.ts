@@ -23,20 +23,32 @@ const cliRegistry = createDefaultRegistry();
 StepRegistry.registerStepArgs(generateCmd, cliRegistry);
 
 generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
+    let puppeteerHelperInstance;
     try {
         // Parse configuration using the CLI registry
         const config = await StepRegistry.parseConfig(options, [dataFilePath, ...templateFilePaths], cliRegistry);
 
         // Get the runner from DI
-        const { actionRunner } = await getConfig({ concurrency: config.concurrency });
+        const { actionRunner, puppeteerHelper } = await getConfig({ concurrency: config.concurrency });
+        puppeteerHelperInstance = puppeteerHelper;
 
         // Run
         await actionRunner.run(config);
+        
+        // Cleanup
+        if (puppeteerHelperInstance) {
+            await puppeteerHelperInstance.close();
+        }
         process.exit(0);
     } catch (e: any) {
         console.error("\n❌ Error:", e.message || e);
         console.log("\n--- Usage Help ---\n");
         generateCmd.outputHelp();
+        
+        // Cleanup on error
+        if (puppeteerHelperInstance) {
+            await puppeteerHelperInstance.close();
+        }
         process.exit(1);
     }
 });

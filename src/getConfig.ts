@@ -16,7 +16,9 @@ import { ModelFlags } from './cli/ModelFlags.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 import { WebSearchPlugin } from './plugins/web-search/WebSearchPlugin.js';
+import { StyleScraperPlugin } from './plugins/style-scraper/StyleScraperPlugin.js';
 import { ActionRunner } from './ActionRunner.js';
+import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 
 dotenv.config();
 
@@ -49,6 +51,7 @@ export const createDefaultRegistry = () => {
     const registry = new PluginRegistry();
     registry.register(new ImageSearchPlugin());
     registry.register(new WebSearchPlugin());
+    registry.register(new StyleScraperPlugin());
     return registry;
 };
 
@@ -161,6 +164,13 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         aiWebSearch = new AiWebSearch(webSearch, llm);
     }
 
+    // Initialize PuppeteerHelper
+    const puppeteerHelper = new PuppeteerHelper({
+        cache,
+        fetcher
+    });
+    // We don't await init() here, let it lazy load on first use to avoid overhead if not used.
+
     // Initialize ModelFlags with the resolved default model
     const modelFlags = new ModelFlags(config.MODEL);
 
@@ -170,7 +180,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         llm,
-        { imageSearch, aiImageSearch, webSearch, aiWebSearch, fetcher },
+        { imageSearch, aiImageSearch, webSearch, aiWebSearch, fetcher, puppeteerHelper },
         pluginRegistry
     );
 
@@ -184,7 +194,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         modelFlags,
         fetcher,
         pluginRegistry,
-        actionRunner
+        actionRunner,
+        puppeteerHelper
     };
 }
 
