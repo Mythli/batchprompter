@@ -44,6 +44,7 @@
     "llm-fns": "^1.0.10",
     "openai": "^4.104.0",
     "p-queue": "^9.0.1",
+    "puppeteer": "^24.32.0",
     "sanitize-filename": "^1.6.3",
     "tsx": "^4.20.6",
     "undici": "^7.16.0",
@@ -52,6 +53,7 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "esbuild",
+      "puppeteer",
       "sqlite3"
     ]
   }

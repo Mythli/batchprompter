@@ -9,6 +9,6 @@ Rules:
 3. If the company is not clearly found, return ''.
 4. Prefer the main corporate domain over social media profiles or directories." \
   --output-column "website_url" \
-  --web-query-prompt "Find the official website for the company '{{name}}'. Generate search queries to find their main homepage." \
+  --web-query-prompt "Find the official website for the company '{{name}}'. Generate search queries to find their main homepage. To generate the queries exclude the person and try different variants/spellings. usually it pays to just search for the company name." \
   --web-search-limit 5 \
   --web-search-mode none

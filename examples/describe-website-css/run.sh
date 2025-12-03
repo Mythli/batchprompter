@@ -13,6 +13,5 @@ npx tsx src/index.ts generate examples/describe-website-css/data.csv \
   --style-scrape-resolution "1920x1080" \
   --style-scrape-mobile \
   --style-scrape-interactive \
-  --output "examples/describe-website-css/output/{{website_url}}.css" \
-  --model "gpt-4o" \
+  --output "out/describe-website-css/{{website_url}}/booking_form.css" \
   --command "sed -i.bak '/^\`\`\`/d' '{{file}}' && rm '{{file}}.bak'"
