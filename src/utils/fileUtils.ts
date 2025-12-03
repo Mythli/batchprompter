@@ -110,9 +110,11 @@ export async function resolvePromptInput(input: string): Promise<OpenAI.Chat.Com
         // Heuristic Check: Is this likely a file path that doesn't exist?
         
         const hasNewlines = input.includes('\n');
+        const hasSpaces = input.includes(' ');
         
-        // If it has newlines, it is definitely raw text, not a file path.
-        if (!hasNewlines) {
+        // If it has newlines or spaces, it is almost certainly raw text, not a file path.
+        // (We assume users don't pass non-existent file paths containing spaces as arguments often enough to break this)
+        if (!hasNewlines && !hasSpaces) {
             // 1. Check for path separators
             const hasPathSeparators = input.includes('/') || input.includes('\\');
             
