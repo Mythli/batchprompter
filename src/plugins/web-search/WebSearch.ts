@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import PQueue from 'p-queue';
 import { Fetcher } from '../../utils/createCachedFetcher.js';
 
 // Zod Schemas for Serper
@@ -32,13 +33,14 @@ export type WebSearchMode = 'none' | 'markdown' | 'html';
 export class WebSearch {
     constructor(
         private apiKey: string,
-        private fetcher: Fetcher
+        private fetcher: Fetcher,
+        private queue: PQueue
     ) {}
 
     async search(query: string, num: number = 5): Promise<WebSearchResult[]> {
         console.log(`[WebSearch] Searching for query: "${query}"`);
 
-        const response = await this.fetcher('https://google.serper.dev/search', {
+        const response = await this.queue.add(() => this.fetcher('https://google.serper.dev/search', {
             method: 'POST',
             headers: {
                 'X-API-KEY': this.apiKey,
@@ -48,7 +50,11 @@ export class WebSearch {
                 q: query,
                 num: num
             })
-        });
+        }));
+
+        if (!response) {
+            throw new Error("Queue execution failed or returned undefined response.");
+        }
 
         if (!response.ok) {
             throw new Error(`API request failed: ${response.status} ${response.statusText}`);

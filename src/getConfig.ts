@@ -38,6 +38,7 @@ export const configSchema = z.object({
     SQLITE_PATH: z.string().default(".cache.sqlite"),
     SERPER_API_KEY: z.string().optional(),
     TASK_CONCURRENCY: z.coerce.number().int().positive().default(100),
+    SERPER_CONCURRENCY: z.coerce.number().int().positive().default(5),
 });
 
 export type ConfigOverrides = {
@@ -88,6 +89,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         MODEL: getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']),
         SERPER_API_KEY: getEnvVar(['BATCHPROMPT_SERPER_API_KEY', 'SERPER_API_KEY']),
         TASK_CONCURRENCY: getEnvVar(['BATCHPROMPT_TASK_CONCURRENCY', 'TASK_CONCURRENCY']),
+        SERPER_CONCURRENCY: getEnvVar(['BATCHPROMPT_SERPER_CONCURRENCY', 'SERPER_CONCURRENCY']),
     };
 
     const config = configSchema.parse(rawConfig);
@@ -142,6 +144,9 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         maxConversationChars: config.GPT_MAX_CONVERSATION_CHARS,
     });
 
+    // Serper Queue
+    const serperQueue = new PQueue({ concurrency: config.SERPER_CONCURRENCY });
+
     let imageSearch: ImageSearch | undefined;
     let aiImageSearch: AiImageSearch | undefined;
     let webSearch: WebSearch | undefined;
@@ -149,10 +154,10 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     if (config.SERPER_API_KEY) {
         // Pass cache to ImageSearch for Serper results, and fetcher for downloads
-        imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher);
+        imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher, serperQueue);
         aiImageSearch = new AiImageSearch(imageSearch, llm);
         
-        webSearch = new WebSearch(config.SERPER_API_KEY, fetcher);
+        webSearch = new WebSearch(config.SERPER_API_KEY, fetcher, serperQueue);
         aiWebSearch = new AiWebSearch(webSearch, llm);
     }
 

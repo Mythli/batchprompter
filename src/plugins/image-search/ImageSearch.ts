@@ -1,6 +1,7 @@
 // 
 import { z } from 'zod';
 import sharp from 'sharp';
+import PQueue from 'p-queue';
 import { Fetcher } from '../../utils/createCachedFetcher.js';
 
 // Zod Schemas
@@ -41,7 +42,8 @@ export interface ImageSearchResult {
 export class ImageSearch {
     constructor(
         private apiKey: string,
-        private fetcher: Fetcher
+        private fetcher: Fetcher,
+        private queue: PQueue
     ) {}
 
     async search(query: string, num: number = 10): Promise<ImageSearchResult[]> {
@@ -49,7 +51,8 @@ export class ImageSearch {
 
         // Use the fetcher for the network call.
         // The fetcher handles caching (including POST requests) and retries/timeouts.
-        const response = await this.fetcher('https://google.serper.dev/images', {
+        // Wrapped in queue to limit concurrency.
+        const response = await this.queue.add(() => this.fetcher('https://google.serper.dev/images', {
             method: 'POST',
             headers: {
                 'X-API-KEY': this.apiKey,
@@ -59,7 +62,11 @@ export class ImageSearch {
                 q: query,
                 num: num
             })
-        });
+        }));
+
+        if (!response) {
+            throw new Error("Queue execution failed or returned undefined response.");
+        }
 
         if (!response.ok) {
             throw new Error(`API request failed: ${response.status} ${response.statusText}`);
