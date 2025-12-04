@@ -1,4 +1,6 @@
-import * as cheerio from 'cheerio';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const cheerio = require('cheerio');
 
 export interface CompressHtmlOptions {
     /**
