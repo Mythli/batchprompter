@@ -20,21 +20,39 @@ const loadTemplate = (fileName: string) => {
     return Handlebars.compile(source, { noEscape: true });
 };
 
-const extractLinksTemplate = loadTemplate('extract-links.md');
-const extractDataTemplate = loadTemplate('extract-data.md');
-const mergeDataTemplate = loadTemplate('merge-data.md');
-
 export interface AiWebsiteAgentOptions {
     depth?: number;
     maxLinks?: number;
 }
 
 export class AiWebsiteAgent {
+    private templates: {
+        extractLinks?: Handlebars.TemplateDelegate;
+        extractData?: Handlebars.TemplateDelegate;
+        mergeData?: Handlebars.TemplateDelegate;
+    } = {};
+
     constructor(
         private puppeteerHelper: PuppeteerHelper,
         private llm: LlmClient,
         private puppeteerQueue: PQueue
     ) {}
+
+    private getTemplate(name: 'extractLinks' | 'extractData' | 'mergeData'): Handlebars.TemplateDelegate {
+        if (this.templates[name]) {
+            return this.templates[name]!;
+        }
+
+        let fileName = '';
+        switch (name) {
+            case 'extractLinks': fileName = 'extract-links.md'; break;
+            case 'extractData': fileName = 'extract-data.md'; break;
+            case 'mergeData': fileName = 'merge-data.md'; break;
+        }
+
+        this.templates[name] = loadTemplate(fileName);
+        return this.templates[name]!;
+    }
 
     private async extractRelevantLinks(
         baseUrl: string,
@@ -51,7 +69,7 @@ export class AiWebsiteAgent {
             relevant_urls: z.array(z.string()).max(maxLinks).describe("List of relevant absolute URLs found on the page.")
         });
 
-        const prompt = extractLinksTemplate({
+        const prompt = this.getTemplate('extractLinks')({
             baseUrl,
             linksText
         });
@@ -72,7 +90,7 @@ export class AiWebsiteAgent {
     ): Promise<any> {
         const truncatedMarkdown = markdown.substring(0, 20000);
 
-        const prompt = extractDataTemplate({
+        const prompt = this.getTemplate('extractData')({
             url,
             truncatedMarkdown
         });
@@ -146,7 +164,7 @@ export class AiWebsiteAgent {
         if (allData.length > 1) {
              console.log(`[AiWebsiteAgent] Merging ${allData.length} data sources...`);
 
-             const mergePrompt = mergeDataTemplate({
+             const mergePrompt = this.getTemplate('mergeData')({
                  jsonObjects: JSON.stringify(allData, null, 2)
              });
 
