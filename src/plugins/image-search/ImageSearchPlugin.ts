@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
-import { ContentProviderPlugin, PluginContext } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
@@ -142,7 +142,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         return resolved;
     }
 
-    async execute(context: PluginContext): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+    async execute(context: PluginContext): Promise<PluginResult> {
         const { row, stepIndex, config, llm, globalConfig, services, outputDirectory, tempDirectory, outputBasename, outputExtension } = context;
         const resolvedConfig = config as ImageSearchResolvedConfig;
 
@@ -205,7 +205,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Generated queries: ${response.queries.join(', ')}`);
         }
 
-        if (queries.length === 0) return [];
+        if (queries.length === 0) return { contentParts: [] };
 
         // 2. Execute Searches
         console.log(`[Row ${context.row.index}] Step ${stepIndex} Executing ${queries.length} searches...`);
@@ -261,6 +261,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         // 4. Process Output
         const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         const sharp = (await import('sharp')).default;
+        const selectedMetadata: any[] = [];
 
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
@@ -281,11 +282,20 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                     type: 'image_url',
                     image_url: { url: `data:image/jpeg;base64,${base64}` }
                 });
+
+                selectedMetadata.push({
+                    ...img.metadata,
+                    localPath: savePath
+                });
+
             } catch (e) {
                 console.warn(`Failed to process image ${img.metadata.imageUrl}`, e);
             }
         }
 
-        return contentParts;
+        return {
+            contentParts,
+            data: selectedMetadata
+        };
     }
 }

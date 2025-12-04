@@ -4,7 +4,7 @@ import { Parser } from 'json2csv';
 import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
 import { LlmClient } from 'llm-fns';
-import { RuntimeConfig, StepConfig } from './types.js';
+import { RuntimeConfig, StepConfig, PluginConfigDefinition } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PromptResolver } from './utils/PromptResolver.js';
 import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
@@ -187,11 +187,14 @@ export class ActionRunner {
         }
 
         // 5. Prepare Plugins
-        const preparedPlugins: Record<string, any> = {};
-        for (const [name, pluginConfig] of Object.entries(stepConfig.plugins)) {
-            const plugin = this.pluginRegistry.get(name);
+        const preparedPlugins: PluginConfigDefinition[] = [];
+        for (const pluginDef of stepConfig.plugins) {
+            const plugin = this.pluginRegistry.get(pluginDef.name);
             if (plugin) {
-                preparedPlugins[name] = await plugin.prepare(pluginConfig, rawRow);
+                preparedPlugins.push({
+                    name: pluginDef.name,
+                    config: await plugin.prepare(pluginDef.config, rawRow)
+                });
             }
         }
         resolvedStep.plugins = preparedPlugins;

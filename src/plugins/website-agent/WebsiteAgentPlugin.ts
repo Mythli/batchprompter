@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
-import { ContentProviderPlugin, PluginContext } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult } from '../types.js';
 import { PromptResolver } from '../../utils/PromptResolver.js';
 
 interface WebsiteAgentRawConfig {
@@ -87,7 +87,7 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         };
     }
 
-    async execute(context: PluginContext): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+    async execute(context: PluginContext): Promise<PluginResult> {
         const { row, stepIndex, config, services } = context;
         const resolvedConfig = config as WebsiteAgentResolvedConfig;
 
@@ -101,9 +101,12 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             { depth: resolvedConfig.depth }
         );
 
-        return [{
-            type: 'text',
-            text: JSON.stringify(result, null, 2)
-        }];
+        return {
+            contentParts: [{
+                type: 'text',
+                text: JSON.stringify(result, null, 2)
+            }],
+            data: result
+        };
     }
 }

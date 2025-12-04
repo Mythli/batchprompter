@@ -13,6 +13,7 @@ import Handlebars from 'handlebars';
 import util from 'util';
 import { exec } from 'child_process';
 import { aggressiveSanitize } from './utils/fileUtils.js';
+import { merge } from 'lodash-es';
 
 const execPromise = util.promisify(exec);
 
@@ -37,14 +38,14 @@ export class StepExecutor {
         // 1. Execute Plugins (Content Providers)
         let effectiveUserPromptParts = [...config.userPromptParts];
         
-        for (const [name, pluginConfig] of Object.entries(config.plugins)) {
-            const plugin = this.pluginRegistry.get(name);
+        for (const pluginDef of config.plugins) {
+            const plugin = this.pluginRegistry.get(pluginDef.name);
             if (plugin) {
                 try {
-                    const contentParts = await plugin.execute({
+                    const result = await plugin.execute({
                         row,
                         stepIndex,
-                        config: pluginConfig,
+                        config: pluginDef.config,
                         llm: this.llm,
                         globalConfig: {
                             tmpDir: this.tmpDir,
@@ -57,9 +58,28 @@ export class StepExecutor {
                         outputBasename: config.outputBasename,
                         outputExtension: config.outputExtension
                     });
-                    effectiveUserPromptParts = [...contentParts, ...effectiveUserPromptParts];
+
+                    // Append content for LLM context
+                    effectiveUserPromptParts = [...result.contentParts, ...effectiveUserPromptParts];
+
+                    // Merge structured data into row for subsequent steps
+                    if (result.data) {
+                        // Collapse Array Logic: If array, take first item for the primary namespace
+                        const primaryData = Array.isArray(result.data) ? result.data[0] : result.data;
+                        
+                        // Merge into namespaced key (e.g. row['website-agent'])
+                        // We use lodash merge for deep merging
+                        if (!row[plugin.name]) row[plugin.name] = {};
+                        merge(row[plugin.name], primaryData);
+
+                        // If it was an array, store the full list in a separate key
+                        if (Array.isArray(result.data)) {
+                            row[`${plugin.name}-all`] = result.data;
+                        }
+                    }
+
                 } catch (e: any) {
-                    console.error(`[Row ${index}] Step ${stepIndex} Plugin '${name}' failed:`, e.message);
+                    console.error(`[Row ${index}] Step ${stepIndex} Plugin '${pluginDef.name}' failed:`, e.message);
                     throw e; // Fail the step if a plugin fails
                 }
             }

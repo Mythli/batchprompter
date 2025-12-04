@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ModelDefinition, StepDefinition, NormalizedConfig } from '../types.js';
+import { ModelDefinition, StepDefinition, NormalizedConfig, PluginConfigDefinition } from '../types.js';
 import { PluginRegistry } from '../plugins/PluginRegistry.js';
 import { ModelFlags } from './ModelFlags.js';
 
@@ -96,11 +96,19 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         };
 
         // 5. Plugins
-        const plugins: Record<string, any> = {};
+        // We iterate through the registry to find active plugins.
+        // Note: Commander options don't strictly preserve order of flags passed, 
+        // but we process them in the order they are registered in the registry.
+        // If strict CLI flag order is needed, we'd need to parse raw argv.
+        // For now, registry order (which is usually fixed) determines execution order.
+        const plugins: PluginConfigDefinition[] = [];
         for (const plugin of pluginRegistry.getAll()) {
             const pluginConfig = plugin.normalize(options, i, globalConfig);
             if (pluginConfig) {
-                plugins[plugin.name] = pluginConfig;
+                plugins.push({
+                    name: plugin.name,
+                    config: pluginConfig
+                });
             }
         }
 

@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
-import { ContentProviderPlugin, PluginContext } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult } from '../types.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
@@ -87,7 +87,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
         };
     }
 
-    async execute(context: PluginContext): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+    async execute(context: PluginContext): Promise<PluginResult> {
         const { row, stepIndex, config, services, tempDirectory, outputBasename } = context;
         const resolvedConfig = config as StyleScraperResolvedConfig;
 
@@ -234,17 +234,24 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                 await ensureDir(elementsDir);
             }
 
+            const savedArtifacts: Record<string, string> = {};
+
             for (const artifact of result.artifacts) {
                 let savePath = '';
+                let key = '';
                 
                 if (artifact.type === 'desktop') {
                     savePath = path.join(screenshotsDir, `${baseName}_desktop${artifact.extension}`);
+                    key = 'desktop';
                 } else if (artifact.type === 'mobile') {
                     savePath = path.join(screenshotsDir, `${baseName}_mobile${artifact.extension}`);
+                    key = 'mobile';
                 } else if (artifact.type === 'interactive_composite') {
                     savePath = path.join(interactiveDir, `${baseName}_interactive${artifact.extension}`);
+                    key = 'interactive';
                 } else if (artifact.type === 'css') {
                     savePath = path.join(interactiveDir, `${baseName}_styles${artifact.extension}`);
+                    key = 'css';
                 } else if (artifact.type === 'element') {
                     const filename = `${baseName}_${artifact.subType}_${artifact.index}_${artifact.state}${artifact.extension}`;
                     savePath = path.join(elementsDir, filename);
@@ -253,10 +260,14 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                 if (savePath) {
                     // ArtifactSaver handles base64 strings (data:image/...) automatically
                     await ArtifactSaver.save(artifact.base64, savePath);
+                    if (key) savedArtifacts[key] = savePath;
                 }
             }
 
-            return result.contentParts;
+            return {
+                contentParts: result.contentParts,
+                data: savedArtifacts
+            };
 
         } finally {
             await pageHelper.close();

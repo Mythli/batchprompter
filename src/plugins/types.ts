@@ -39,6 +39,11 @@ export interface PluginContext {
     outputExtension?: string;
 }
 
+export interface PluginResult {
+    contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+    data?: Record<string, any> | any[]; // Structured data to merge into the row
+}
+
 export interface ContentProviderPlugin {
     name: string;
 
@@ -66,7 +71,7 @@ export interface ContentProviderPlugin {
 
     /**
      * Execute the plugin logic using the prepared configuration.
-     * Returns content parts to be added to the user prompt.
+     * Returns content parts to be added to the user prompt and optional structured data.
      */
-    execute(context: PluginContext): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]>;
+    execute(context: PluginContext): Promise<PluginResult>;
 }

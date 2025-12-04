@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
-import { ContentProviderPlugin, PluginContext } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
@@ -116,7 +116,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         return resolved;
     }
 
-    async execute(context: PluginContext): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+    async execute(context: PluginContext): Promise<PluginResult> {
         const { row, stepIndex, config, services } = context;
         const resolvedConfig = config as WebSearchResolvedConfig;
 
@@ -126,11 +126,16 @@ export class WebSearchPlugin implements ContentProviderPlugin {
 
         const results = await services.aiWebSearch.process(row, resolvedConfig);
 
-        if (results.length === 0) return [];
+        if (results.length === 0) {
+            return { contentParts: [] };
+        }
 
-        return [{
-            type: 'text',
-            text: `\n--- Web Search Results ---\n${results.join('\n\n')}\n--------------------------\n`
-        }];
+        return {
+            contentParts: [{
+                type: 'text',
+                text: `\n--- Web Search Results ---\n${results.join('\n\n')}\n--------------------------\n`
+            }],
+            data: results // Return the array of result strings
+        };
     }
 }

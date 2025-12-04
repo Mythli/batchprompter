@@ -10,6 +10,11 @@ export interface ModelDefinition {
     promptSource?: string;
 }
 
+export interface PluginConfigDefinition {
+    name: string;
+    config: any;
+}
+
 export interface StepDefinition {
     stepIndex: number;
     modelConfig: ModelDefinition;
@@ -35,8 +40,8 @@ export interface StepDefinition {
     
     aspectRatio?: string;
 
-    // Plugins
-    plugins: Record<string, any>;
+    // Plugins (Ordered List)
+    plugins: PluginConfigDefinition[];
 }
 
 export interface NormalizedConfig {
@@ -95,8 +100,8 @@ export interface StepConfig {
     // Image Generation
     aspectRatio?: string;
 
-    // Plugins
-    plugins: Record<string, any>;
+    // Plugins (Ordered List)
+    plugins: PluginConfigDefinition[];
 
     // --- NEW: Pre-calculated Paths ---
     resolvedOutputDir?: string; // The final destination folder (e.g., out/10-image/BoulderHall)
