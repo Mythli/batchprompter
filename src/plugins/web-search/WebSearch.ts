@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import PQueue from 'p-queue';
+import TurndownService from 'turndown';
 import { Fetcher } from '../../utils/createCachedFetcher.js';
 
 // Zod Schemas for Serper
@@ -99,34 +100,14 @@ export class WebSearch {
     }
 
     private htmlToMarkdown(html: string): string {
-        // Very basic HTML to Markdown stripper
-        let text = html;
+        const turndownService = new TurndownService({
+            headingStyle: 'atx',
+            codeBlockStyle: 'fenced'
+        });
+
+        // Remove scripts, styles, and other non-content elements
+        turndownService.remove(['script', 'style', 'noscript', 'iframe', 'svg']);
         
-        // Remove scripts and styles
-        text = text.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "");
-        text = text.replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "");
-        
-        // Headers
-        text = text.replace(/<h1\b[^>]*>(.*?)<\/h1>/gim, "\n# $1\n");
-        text = text.replace(/<h2\b[^>]*>(.*?)<\/h2>/gim, "\n## $1\n");
-        text = text.replace(/<h3\b[^>]*>(.*?)<\/h3>/gim, "\n### $1\n");
-        
-        // Links
-        text = text.replace(/<a\b[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gim, "[$2]($1)");
-        
-        // Paragraphs
-        text = text.replace(/<p\b[^>]*>/gim, "\n");
-        text = text.replace(/<\/p>/gim, "\n");
-        
-        // Lists
-        text = text.replace(/<li\b[^>]*>/gim, "\n- ");
-        
-        // Strip remaining tags
-        text = text.replace(/<[^>]+>/g, '');
-        
-        // Collapse whitespace
-        text = text.replace(/\s+/g, ' ').trim();
-        
-        return text;
+        return turndownService.turndown(html);
     }
 }
