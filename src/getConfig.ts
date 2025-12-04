@@ -52,10 +52,11 @@ export type ConfigOverrides = {
 
 export const createDefaultRegistry = () => {
     const registry = new PluginRegistry();
-    registry.register(new ImageSearchPlugin());
+    // Register search plugins first so their data is available to subsequent plugins
     registry.register(new WebSearchPlugin());
-    registry.register(new StyleScraperPlugin());
+    registry.register(new ImageSearchPlugin());
     registry.register(new WebsiteAgentPlugin());
+    registry.register(new StyleScraperPlugin());
     return registry;
 };
 
