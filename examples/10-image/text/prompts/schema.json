@@ -1,0 +1,388 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Branchen Page Data Schema",
+    "description": "Schema for generating branchen (industry) page content data",
+    "type": "object",
+    "required": [
+        "name",
+        "urlSlug",
+        "softwareName",
+        "menuLabel",
+        "menuIcon",
+        "menuIconAlt",
+        "iconColor",
+        "metaTitle",
+        "navBarTitle",
+        "demoButtonLabel",
+        "metaDescription",
+        "heroSection",
+        "newFeaturesSection",
+        "aboutCourse",
+        "yourBenefits",
+        "featuresSection"
+    ],
+    "properties": {
+        "name": {
+            "type": "string",
+            "description": "The display name of the software/industry"
+        },
+        "urlSlug": {
+            "type": "string",
+            "description": "URL-friendly slug for the page",
+            "pattern": "^[a-z0-9-]+$"
+        },
+        "softwareName": {
+            "type": "string",
+            "description": "Name of the software product"
+        },
+        "menuLabel": {
+            "type": "string",
+            "description": "Label for menu navigation"
+        },
+        "menuIcon": {
+            "type": "string",
+            "description": "Icon identifier for menu"
+        },
+        "menuIconAlt": {
+            "type": "string",
+            "description": "Alt text for menu icon"
+        },
+        "iconColor": {
+            "type": "string",
+            "description": "Hex color code for icon",
+            "pattern": "^#[0-9A-Fa-f]{6}$"
+        },
+        "metaTitle": {
+            "type": "string",
+            "description": "SEO meta title for the page"
+        },
+        "navBarTitle": {
+            "type": "string",
+            "description": "Title displayed in navigation bar"
+        },
+        "demoButtonLabel": {
+            "type": "string",
+            "description": "Label for demo button"
+        },
+        "metaDescription": {
+            "type": "string",
+            "description": "SEO meta description for the page"
+        },
+        "heroSection": {
+            "type": "object",
+            "required": [
+                "heroImage",
+                "heroImageAlt",
+                "title1",
+                "title2",
+                "convertTitle",
+                "convertDescription",
+                "convertActionTitle",
+                "benefits"
+            ],
+            "properties": {
+                "heroImage": {
+                    "type": "string",
+                    "description": "Hero image identifier"
+                },
+                "heroImageAlt": {
+                    "type": "string",
+                    "description": "Alt text for hero image"
+                },
+                "title1": {
+                    "type": "string",
+                    "description": "First part of hero title"
+                },
+                "title2": {
+                    "type": "string",
+                    "description": "Second part of hero title"
+                },
+                "convertTitle": {
+                    "type": "string",
+                    "description": "Title for conversion element"
+                },
+                "convertDescription": {
+                    "type": "string",
+                    "description": "Description for conversion element"
+                },
+                "convertActionTitle": {
+                    "type": "string",
+                    "description": "Action button title"
+                },
+                "benefits": {
+                    "type": "array",
+                    "description": "List of key benefits",
+                    "items": {
+                        "type": "string"
+                    },
+                    "minItems": 1
+                }
+            }
+        },
+        "newFeaturesSection": {
+            "type": "object",
+            "required": [
+                "sectionTitle",
+                "sectionSubtitle",
+                "heading",
+                "description",
+                "convertTitle",
+                "convertDescription",
+                "convertActionTitle",
+                "features"
+            ],
+            "properties": {
+                "sectionTitle": {
+                    "type": "object",
+                    "required": ["strong", "text"],
+                    "properties": {
+                        "strong": {
+                            "type": "string",
+                            "description": "Bold/emphasized part of section title"
+                        },
+                        "text": {
+                            "type": "string",
+                            "description": "Regular part of section title"
+                        }
+                    }
+                },
+                "sectionSubtitle": {
+                    "type": "string",
+                    "description": "Subtitle for the section"
+                },
+                "heading": {
+                    "type": "string",
+                    "description": "Main heading (can include HTML)"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Section description (can include HTML)"
+                },
+                "convertTitle": {
+                    "type": "string",
+                    "description": "Conversion element title"
+                },
+                "convertDescription": {
+                    "type": "string",
+                    "description": "Conversion element description"
+                },
+                "convertActionTitle": {
+                    "type": "string",
+                    "description": "Conversion action button title"
+                },
+                "features": {
+                    "type": "array",
+                    "description": "List of feature categories",
+                    "items": {
+                        "type": "object",
+                        "required": ["title", "featuresList"],
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Feature category title"
+                            },
+                            "featuresList": {
+                                "type": "array",
+                                "description": "List of individual features",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["name", "icon"],
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Feature name"
+                                        },
+                                        "icon": {
+                                            "type": "string",
+                                            "description": "Icon identifier for the feature"
+                                        }
+                                    }
+                                },
+                                "minItems": 1
+                            }
+                        }
+                    },
+                    "minItems": 1
+                }
+            }
+        },
+        "aboutCourse": {
+            "type": "object",
+            "required": ["sectionTitle", "heading", "description", "first", "second"],
+            "properties": {
+                "sectionTitle": {
+                    "type": "string",
+                    "description": "Section title"
+                },
+                "heading": {
+                    "type": "string",
+                    "description": "Main heading"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Section description (can include HTML)"
+                },
+                "first": {
+                    "type": "object",
+                    "required": ["heading", "description", "imgSrc", "imgAlt"],
+                    "properties": {
+                        "heading": {
+                            "type": "string",
+                            "description": "First subsection heading"
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "First subsection description"
+                        },
+                        "imgSrc": {
+                            "type": "string",
+                            "description": "Image identifier"
+                        },
+                        "imgAlt": {
+                            "type": "string",
+                            "description": "Image alt text"
+                        }
+                    }
+                },
+                "second": {
+                    "type": "object",
+                    "required": ["heading", "description", "imgSrc", "imgAlt"],
+                    "properties": {
+                        "heading": {
+                            "type": "string",
+                            "description": "Second subsection heading"
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "Second subsection description"
+                        },
+                        "imgSrc": {
+                            "type": "string",
+                            "description": "Image identifier"
+                        },
+                        "imgAlt": {
+                            "type": "string",
+                            "description": "Image alt text"
+                        },
+                        "withBiggerImage": {
+                            "type": "boolean",
+                            "description": "Optional flag for bigger image display"
+                        }
+                    }
+                }
+            }
+        },
+        "yourBenefits": {
+            "type": "object",
+            "required": ["sectionTitle", "heading", "bulletPoints", "imgSrc", "imgAlt"],
+            "properties": {
+                "sectionTitle": {
+                    "type": "string",
+                    "description": "Section title"
+                },
+                "heading": {
+                    "type": "string",
+                    "description": "Main heading (can include HTML)"
+                },
+                "bulletPoints": {
+                    "type": "array",
+                    "description": "List of benefit points",
+                    "items": {
+                        "type": "object",
+                        "required": ["title", "description"],
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Benefit title"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Benefit description"
+                            }
+                        }
+                    },
+                    "minItems": 1
+                },
+                "imgSrc": {
+                    "type": "string",
+                    "description": "Image identifier"
+                },
+                "imgAlt": {
+                    "type": "string",
+                    "description": "Image alt text"
+                }
+            }
+        },
+        "featuresSection": {
+            "type": "object",
+            "required": [
+                "sectionTitle",
+                "heading",
+                "description",
+                "playlistTitle",
+                "playlistDescription",
+                "features"
+            ],
+            "properties": {
+                "sectionTitle": {
+                    "type": "string",
+                    "description": "Section title"
+                },
+                "heading": {
+                    "type": "string",
+                    "description": "Main heading (can include HTML)"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Section description (can include HTML)"
+                },
+                "playlistTitle": {
+                    "type": "string",
+                    "description": "Video playlist title"
+                },
+                "playlistDescription": {
+                    "type": "string",
+                    "description": "Video playlist description"
+                },
+                "features": {
+                    "type": "array",
+                    "description": "List of feature categories",
+                    "items": {
+                        "type": "object",
+                        "required": ["title", "convertTitle", "description", "featuresList"],
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Feature category title"
+                            },
+                            "convertTitle": {
+                                "type": "string",
+                                "description": "Conversion element title"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Feature description"
+                            },
+                            "featuresList": {
+                                "type": "array",
+                                "description": "List of individual features",
+                                "items": {
+                                    "type": "object",
+                                    "required": ["name"],
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Feature name"
+                                        }
+                                    }
+                                },
+                                "minItems": 1
+                            }
+                        }
+                    },
+                    "minItems": 1
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,339 @@
+{
+    "name": "Yoga Studio Software",
+    "urlSlug": "yogastudios",
+    "softwareName": "Kursverwaltung",
+    "menuLabel": "Yoga Studios",
+    "menuIcon": "MenuBarIcon",
+    "menuIconAlt": "Lotusblüten Icon Symbol für Yoga Studios und Meditation",
+    "iconColor": "#8B5CF6",
+    "metaTitle": "Yoga Studio Software: Kurse, Retreats und Termine online verwalten",
+    "navBarTitle": "Yoga Studio Software",
+    "demoButtonLabel": "Demo öffnen",
+    "metaDescription": "Das Buchungssystem für Yoga Studios: Automatisiere Klassen, Workshops & Retreats. Teilnehmerverwaltung & Wartelisten leicht gemacht. Inkl. E-Rechnung.",
+    "heroSection": {
+        "heroImage": "HeroImage",
+        "heroImageAlt": "Entspannte Teilnehmer in einem Yoga-Kurs im Shavasana und bei der Meditation",
+        "title1": "Yoga Studio Software",
+        "title2": "für mehr Flow im Business",
+        "convertTitle": "Demo öffnen",
+        "convertDescription": "Erhalte deinen Link zur kostenlosen Yoga-Studio Demo.",
+        "convertActionTitle": "Demo öffnen",
+        "benefits": [
+            "Yoga-Klassen & Retreats 24/7 online buchen",
+            "Wartelisten füllen Matten automatisch",
+            "Gutscheine & 10er-Karten einfach verwalten",
+            "E-Rechnung & Buchhaltung stressfrei"
+        ]
+    },
+    "newFeaturesSection": {
+        "sectionTitle": { "strong": "Studio-Funktionen", "text": "testen" },
+        "sectionSubtitle": "Entdecke alle Tools für dein Yoga Business",
+        "heading": "Features,<br> die dein Studio entspannen",
+        "description": "Die Butlerapp Funktionen arbeiten <strong>im Hintergrund</strong>, damit du dich auf das Wichtigste konzentrieren kannst: Deine Schüler und die Praxis.",
+        "convertTitle": "Demo öffnen",
+        "convertDescription": "Erhalte deinen Link zur kostenlosen Yoga-Studio Demo.",
+        "convertActionTitle": "Demo öffnen",
+        "features": [
+            {
+                "title": "Buchungsformular",
+                "featuresList": [
+                    { "name": "Warenkorb für mehrere Klassen", "icon": "BuchungsformularIcon01" },
+                    { "name": "Kursgebühr direkt online zahlen", "icon": "BuchungsformularIcon02" },
+                    { "name": "Design passend zum Studio", "icon": "BuchungsformularIcon03" },
+                    { "name": "Auto-Bestätigung & Namasté", "icon": "BuchungsformularIcon04" },
+                    { "name": "Anmeldung für Retreats", "icon": "BuchungsformularIcon05" },
+                    { "name": "Haftungsausschluss akzeptieren", "icon": "BuchungsformularIcon06" },
+                    { "name": "Wordpress Kurs-Plugin", "icon": "BuchungsformularIcon07" },
+                    { "name": "Wix Integration", "icon": "BuchungsformularIcon15" },
+                    { "name": "Typo3 Integration", "icon": "BuchungsformularIcon08" },
+                    { "name": "Joomla Integration", "icon": "BuchungsformularIcon09" },
+                    { "name": "Stundenplan-Übersicht", "icon": "BuchungsformularIcon10" },
+                    { "name": "Abfrage von Verletzungen", "icon": "BuchungsformularIcon11" },
+                    { "name": "Ratenzahlung für Teacher Training", "icon": "BuchungsformularIcon12" },
+                    { "name": "Integration in Studio-Webseite", "icon": "BuchungsformularIcon13" },
+                    { "name": "Eigene Kurs-Webseite erstellen", "icon": "BuchungsformularIcon14" }
+                ]
+            },
+            {
+                "title": "Rabatte & Gutscheine",
+                "featuresList": [
+                    { "name": "Early-Bird für Retreats", "icon": "RabatteGutscheineIcon01" },
+                    { "name": "Upselling (z.B. Yogamatten)", "icon": "RabatteGutscheineIcon02" },
+                    { "name": "Links für Influencer / Partner", "icon": "RabatteGutscheineIcon03" },
+                    { "name": "Geschenkgutscheine verkaufen", "icon": "RabatteGutscheineIcon04" }
+                ]
+            },
+            {
+                "title": "Teilnehmer-Verwaltung",
+                "featuresList": [
+                    {
+                        "name": "Check-in Listen für Lehrer",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon01"
+                    },
+                    {
+                        "name": "Stornos & Umbuchen managen",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon02"
+                    },
+                    {
+                        "name": "Infos für Retreat-Teilnehmer",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon03"
+                    },
+                    {
+                        "name": "Teilnahme-Zertifikate senden",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon05"
+                    }
+                ]
+            },
+            {
+                "title": "Kunden-Verwaltung",
+                "featuresList": [
+                    { "name": "Schnellsuche für Buchungen", "icon": "KundenVerwaltungIcon01" },
+                    { "name": "Schüler-Kartei mit Historie", "icon": "KundenVerwaltungIcon02" },
+                    { "name": "Infos an Kursteilnehmer", "icon": "KundenVerwaltungIcon03" },
+                    { "name": "Daten exportieren & importieren", "icon": "KundenVerwaltungIcon04" },
+                    { "name": "Stammkunden schnell buchen", "icon": "KundenVerwaltungIcon05" }
+                ]
+            },
+            {
+                "title": "Rechnungs-Wesen",
+                "featuresList": [
+                    { "name": "Rechnungen für Workshops", "icon": "RechnungsWesenIcon01" },
+                    { "name": "Export für den Steuerberater", "icon": "RechnungsWesenIcon02" },
+                    { "name": "Einfache Beleg-Korrektur", "icon": "RechnungsWesenIcon03" },
+                    { "name": "Auto-Abgleich mit Bankkonto", "icon": "RechnungsWesenIcon04" },
+                    { "name": "Mahnwesen bei Zahlungsverzug", "icon": "RechnungsWesenIcon05" },
+                    { "name": "Stornorechnung erstellen", "icon": "RechnungsWesenIcon06" },
+                    { "name": "Zahlungseingang bestätigen", "icon": "RechnungsWesenIcon07" },
+                    { "name": "Auto-Erinnerung bei Offenen Posten", "icon": "RechnungsWesenIcon08" },
+                    { "name": "GoBD-konforme Buchführung", "icon": "RechnungsWesenIcon09" },
+                    { "name": "Direkte DATEV Schnittstelle", "icon": "RechnungsWesenIcon10" },
+                    { "name": "Lexoffice Verbindung", "icon": "RechnungsWesenIcon11" },
+                    { "name": "Reverse Charge (Ausland)", "icon": "RechnungsWesenIcon12" },
+                    { "name": "E-Rechnung bereit", "icon": "RechnungsWesenIcon13" }
+                ]
+            },
+            {
+                "title": "Automatisierung",
+                "featuresList": [
+                    {
+                        "name": "Erinnerung vor Yoga-Klasse",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon01"
+                    },
+                    {
+                        "name": "Automatische Mahnung",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon02"
+                    },
+                    {
+                        "name": "Zahlungserinnerung senden",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon03"
+                    },
+                    {
+                        "name": "Mail vor Retreat-Start (Infos)",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon04"
+                    },
+                    {
+                        "name": "Mail nach Workshop (Dank)",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon05"
+                    },
+                    {
+                        "name": "Geburtstagsgrüße an Yogis",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon06"
+                    },
+                    {
+                        "name": "Ausbildungs-Zertifikate per Mail",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon07"
+                    },
+                    {
+                        "name": "Sofort-Versand Gutscheine",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon08"
+                    },
+                    { "name": "Auto-Bankabgleich", "icon": "AutomatisierungsmoeglichkeitenIcon09" },
+                    {
+                        "name": "Warteliste füllt freie Plätze",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon10"
+                    }
+                ]
+            },
+            {
+                "title": "Bezahlmöglichkeiten",
+                "featuresList": [
+                    { "name": "SEPA Lastschrift", "icon": "SepaLogo" },
+                    { "name": "Visa", "icon": "VisaLogo" },
+                    { "name": "MasterCard", "icon": "MasterCardLogo" },
+                    { "name": "Vorkasse Überweisung", "icon": "VorkasseLogo" },
+                    { "name": "PayPal", "icon": "PaypalLogo" },
+                    { "name": "Apple Pay", "icon": "ApplePayLogo" },
+                    { "name": "Twint", "icon": "TwintLogo" },
+                    { "name": "EPS Überweisung", "icon": "EPSLogo" },
+                    { "name": "Google Pay", "icon": "GooglePayLogo" },
+                    { "name": "Klarna", "icon": "KlarnaLogo" },
+                    { "name": "GiroPay", "icon": "GiroPayLogo" },
+                    { "name": "PaySafe", "icon": "PaySafeCardLogo" }
+                ]
+            },
+            {
+                "title": "Administration",
+                "featuresList": [
+                    { "name": "Zugriffsrechte für Yogalehrer", "icon": "AdministrationIcon01" },
+                    { "name": "Kursleiter verwalten", "icon": "AdministrationIcon02" },
+                    { "name": "DSGVO-konformer Datenschutz", "icon": "AdministrationIcon03" }
+                ]
+            }
+        ]
+    },
+    "aboutCourse": {
+        "sectionTitle": "Für dein Yoga Studio",
+        "heading": "Mehr Zeit auf der Matte, weniger im Büro",
+        "description": "Du liebst es zu unterrichten, aber die Bürokratie stört deinen Flow? Mit Butlerapp digitalisierst du dein Yoga Studio. Egal ob Drop-In Klasse, Wochenend-Workshop oder Teacher Training: Deine Schüler buchen ihre Plätze bequem online. Du behältst den Überblick über Teilnehmerzahlen, Wartelisten und Zahlungen – inklusive stressfreier E-Rechnung.",
+        "first": {
+            "heading": "Volle Yoga-Klassen ohne Verwaltungs-Stress",
+            "description": "Schluss mit unübersichtlichen E-Mail-Listen oder WhatsApp-Nachrichten zur Platzvergabe. Butlerapp bietet dir ein professionelles Buchungssystem für deinen Stundenplan. Deine Schüler sehen online sofort, welche Plätze im Vinyasa Flow oder Yin Yoga noch verfügbar sind und buchen direkt. Ist eine beliebte Klasse ausgebucht, regelt die automatische Warteliste das Nachrücken ganz ohne dein Zutun. So maximierst du deine Auslastung und vermeidest leere Matten durch kurzfristige Absagen.",
+            "imgSrc": "AboutCourseFirstImage",
+            "imgAlt": "Online Anmeldung für Yoga Stundenplan und Yogakurse mit automatischer Warteliste"
+        },
+        "second": {
+            "heading": "Workshops, Retreats & Gutscheine vermarkten",
+            "description": "Yoga Studios leben nicht nur von offenen Klassen, sondern oft von speziellen Events und Retreats. Butlerapp macht die Organisation dieser Highlights einfach. Verkaufe Tickets für Workshops oder nimm Anzahlungen für Retreats entgegen. Auch Geschenkgutscheine sind ein wichtiger Umsatzbringer: Deine Kunden kaufen online, zahlen sofort, und das System versendet den Gutschein als PDF. Für teurere Ausbildungen kannst du sogar Ratenzahlungen anbieten. Dabei bist du rechtlich sicher, da unsere Software E-Rechnung kompatibel ist.",
+            "imgSrc": "AboutCourseSecondImage",
+            "imgAlt": "Geschenkgutscheine für Yoga kaufen und Organisation von Retreats und Workshops"
+        }
+    },
+    "yourBenefits": {
+        "sectionTitle": "Deine Vorteile",
+        "heading": "Der Sonnengruß<br/><span class=\"gradient-text\">für dein Business</span>",
+        "bulletPoints": [
+            {
+                "title": "Sichere Vorauszahlung",
+                "description":
+                    "Kassiere Gebühren für Klassen und Workshops direkt bei Buchung via PayPal & Co. – Schluss mit Bargeld."
+            },
+            {
+                "title": "Smarte Warteliste",
+                "description":
+                    "Ist der Kurs voll? Die Warteliste informiert Nachrücker automatisch, sobald eine Matte frei wird."
+            },
+            {
+                "title": "Rechtssichere Finanzen",
+                "description":
+                    "Erstelle korrekte Rechnungen für Präventionskurse oder Firmen-Yoga, inkl. E-Rechnung Standard."
+            },
+            {
+                "title": "Professioneller Auftritt",
+                "description":
+                    "Das Buchungstool integriert sich nahtlos in deine Studio-Webseite – in deinem Design."
+            }
+        ],
+        "imgSrc": "YourBenefitsImage",
+        "imgAlt": "Online Buchung und Verwaltung für Yoga Studios, Meditationskurse und Retreats"
+    },
+    "featuresSection": {
+        "sectionTitle": "Studio-Funktionen",
+        "heading": "<span class=\"gradient-text\">Features</span><br> für dein Yoga Studio",
+        "description": "Die Butlerapp Funktionen arbeiten <strong>im Hintergrund</strong>, damit du dich <br /> auf deine Praxis konzentrieren kannst: Unterrichten & Heilen.",
+        "playlistTitle": "Studio-Features",
+        "playlistDescription": "Die Funktionen für dein Yoga Studio als kurze Videos erklärt",
+        "features": [
+            {
+                "title": "Buchungs-Formular",
+                "convertTitle": "Demo öffnen",
+                "description": "Deine Schüler werden es lieben: 24/7 Klassen buchen & direkt zahlen.",
+                "featuresList": [
+                    {
+                        "name": "Warenkorb - Mehrere Workshops oder Klassen buchen"
+                    },
+                    {
+                        "name": "Einfacher Check-in Prozess im Studio"
+                    },
+                    {
+                        "name": "Online-Zahlung sichert deinen Umsatz"
+                    },
+                    {
+                        "name": "Automatische Bestätigung & Infos per Mail"
+                    }
+                ]
+            },
+            {
+                "title": "Rabatte & Gutscheine",
+                "convertTitle": "Demo öffnen",
+                "description": "Fülle deine Retreats frühzeitig und steigere den Umsatz mit Gutscheinen.",
+                "featuresList": [
+                    {
+                        "name": "Early-Bird Preise für Frühentschlossene"
+                    },
+                    {
+                        "name": "Gutschein-Verkauf als perfektes Geschenk"
+                    },
+                    {
+                        "name": "Upselling von Equipment im Buchungsprozess"
+                    },
+                    {
+                        "name": "Promo-Codes für Treue-Aktionen"
+                    }
+                ]
+            },
+            {
+                "title": "Buchungs-Verwaltung",
+                "convertTitle": "Demo öffnen",
+                "description": "Verwalte Anmeldungen und Wartelisten völlig entspannt.",
+                "featuresList": [
+                    {
+                        "name": "Digitale Teilnehmerlisten immer aktuell"
+                    },
+                    {
+                        "name": "Automatische Warteliste füllt leere Plätze"
+                    },
+                    {
+                        "name": "Abfrage von Gesundheitsinfos bei Buchung"
+                    },
+                    {
+                        "name": "Automatisierter Mailversand vor und nach Kursen"
+                    }
+                ]
+            },
+            {
+                "title": "Kunden-Verwaltung",
+                "convertTitle": "Demo öffnen",
+                "description": "Lerne deine Community kennen und pflege die Beziehungen.",
+                "featuresList": [
+                    {
+                        "name": "Alle Schüler-Infos auf einen Blick"
+                    },
+                    {
+                        "name": "Historie aller besuchten Klassen & Workshops"
+                    },
+                    {
+                        "name": "Newsletter & Infos an Teilnehmer senden"
+                    },
+                    {
+                        "name": "Einfacher Export für Listen und Marketing"
+                    },
+                    {
+                        "name": "Schnelle Buchung für Stammkunden vor Ort"
+                    }
+                ]
+            },
+            {
+                "title": "Rechnungs-Wesen",
+                "convertTitle": "Demo öffnen",
+                "description": "Buchhaltung im Flow: Zeit sparen und Finanzamt glücklich machen.",
+                "featuresList": [
+                    {
+                        "name": "Automatisierte Rechnungen für Klassen & Events"
+                    },
+                    {
+                        "name": "Kompatibel mit dem E-Rechnungs-Standard"
+                    },
+                    {
+                        "name": "DATEV-Export für den Steuerberater"
+                    },
+                    {
+                        "name": "Automatischer Abgleich der Bankzahlungen"
+                    },
+                    {
+                        "name": "Sanfte Zahlungserinnerungen per Klick"
+                    }
+                ]
+            }
+        ]
+    }
+}

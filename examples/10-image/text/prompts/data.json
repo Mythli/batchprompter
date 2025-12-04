@@ -1,0 +1,339 @@
+{
+    "name": "Backschul Software",
+    "urlSlug": "backschulen",
+    "softwareName": "Kursverwaltung",
+    "menuLabel": "Backschulen",
+    "menuIcon": "MenuBarIcon",
+    "menuIconAlt": "Warenkorb Icon Symbol für Backkurse Konditorei und Brotbacken",
+    "iconColor": "#F59E0B",
+    "metaTitle": "Backschul-Software für Kurse und Firmenevents effizient verwalten",
+    "navBarTitle": "Backschul Software",
+    "demoButtonLabel": "Demo öffnen",
+    "metaDescription": "Das Buchungssystem für Backschulen: Automatisiere Kursbuchungen, Firmenevents & Gutscheinverkauf mit Butlerapp. Inkl. E-Rechnung. Jetzt testen!",
+    "heroSection": {
+        "heroImage": "HeroImage",
+        "heroImageAlt": "Fröhliche Teilnehmer in einer Backstube beim gemeinsamen Brotbackkurs und Torten dekorieren Workshop",
+        "title1": "Backschul Software",
+        "title2": "richtig gedacht",
+        "convertTitle": "Demo öffnen",
+        "convertDescription": "Du erhältst einen Link zu deiner kostenlosen Backschul-Demo.",
+        "convertActionTitle": "Demo öffnen",
+        "benefits": [
+            "Backkurse & Events 24/7 online buchen",
+            "Gutscheine & Geschenke automatisiert verkaufen",
+            "Teilnehmer & Allergien einfach verwalten",
+            "E-Rechnung & Buchhaltung gesetzeskonform"
+        ]
+    },
+    "newFeaturesSection": {
+        "sectionTitle": { "strong": "Backschul-Funktionen", "text": "testen" },
+        "sectionSubtitle": "Probiere alle Funktionen für deine Backschule aus",
+        "heading": "Features,<br> die dein Back-Business stärken",
+        "description": "Die Butlerapp Funktionen arbeiten <strong>hinter der Kulisse</strong>, damit du dich aufs Wesentliche konzentrieren kannst: Backen und Lehren.",
+        "convertTitle": "Demo öffnen",
+        "convertDescription": "Du erhältst einen Link zu deiner kostenlosen Backschul-Demo.",
+        "convertActionTitle": "Demo öffnen",
+        "features": [
+            {
+                "title": "Buchungsformular",
+                "featuresList": [
+                    { "name": "Warenkorb für Mehrfachbuchung", "icon": "BuchungsformularIcon01" },
+                    { "name": "Kursgebühr online zahlen", "icon": "BuchungsformularIcon02" },
+                    { "name": "Design im Backschul-Look", "icon": "BuchungsformularIcon03" },
+                    { "name": "Auto-Bestätigung an Teilnehmer", "icon": "BuchungsformularIcon04" },
+                    { "name": "Flexible Seminaranmeldung", "icon": "BuchungsformularIcon05" },
+                    { "name": "Haftungsausschluss & Hygiene", "icon": "BuchungsformularIcon06" },
+                    { "name": "Wordpress Kurs-Plugin", "icon": "BuchungsformularIcon07" },
+                    { "name": "Wix Integration", "icon": "BuchungsformularIcon15" },
+                    { "name": "Typo3 Integration", "icon": "BuchungsformularIcon08" },
+                    { "name": "Joomla Integration", "icon": "BuchungsformularIcon09" },
+                    { "name": "Kurstermine-Übersicht", "icon": "BuchungsformularIcon10" },
+                    { "name": "Abfrage von Allergien", "icon": "BuchungsformularIcon11" },
+                    { "name": "Ratenzahlung für Masterclasses", "icon": "BuchungsformularIcon12" },
+                    { "name": "Integration in Back-Homepage", "icon": "BuchungsformularIcon13" },
+                    { "name": "Eigene Kurs-Webseite erstellen", "icon": "BuchungsformularIcon14" }
+                ]
+            },
+            {
+                "title": "Rabatte & Gutscheine",
+                "featuresList": [
+                    { "name": "Frühbucher-Rabatte", "icon": "RabatteGutscheineIcon01" },
+                    { "name": "Upselling (z.B. Schürzen)", "icon": "RabatteGutscheineIcon02" },
+                    { "name": "Links für Food-Blogger", "icon": "RabatteGutscheineIcon03" },
+                    { "name": "Geschenkgutscheine verkaufen", "icon": "RabatteGutscheineIcon04" }
+                ]
+            },
+            {
+                "title": "Teilnehmer-Verwaltung",
+                "featuresList": [
+                    {
+                        "name": "Teilnehmerlisten für den Kurs",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon01"
+                    },
+                    {
+                        "name": "Stornos & Umbuchen managen",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon02"
+                    },
+                    {
+                        "name": "Vorlagen für Rezept-Infos",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon03"
+                    },
+                    {
+                        "name": "Teilnahme-Zertifikate senden",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon05"
+                    }
+                ]
+            },
+            {
+                "title": "Kunden-Verwaltung",
+                "featuresList": [
+                    { "name": "Schnellsuche für Buchungen", "icon": "KundenVerwaltungIcon01" },
+                    { "name": "Gäste-Kartei mit Historie", "icon": "KundenVerwaltungIcon02" },
+                    { "name": "Infos an Kursteilnehmer", "icon": "KundenVerwaltungIcon03" },
+                    { "name": "Daten exportieren & importieren", "icon": "KundenVerwaltungIcon04" },
+                    { "name": "Stammkunden schnell buchen", "icon": "KundenVerwaltungIcon05" }
+                ]
+            },
+            {
+                "title": "Rechnungs-Wesen",
+                "featuresList": [
+                    { "name": "Rechnungen für Events", "icon": "RechnungsWesenIcon01" },
+                    { "name": "Export für den Steuerberater", "icon": "RechnungsWesenIcon02" },
+                    { "name": "Einfache Beleg-Korrektur", "icon": "RechnungsWesenIcon03" },
+                    { "name": "Auto-Abgleich mit Bankkonto", "icon": "RechnungsWesenIcon04" },
+                    { "name": "Mahnwesen auf Knopfdruck", "icon": "RechnungsWesenIcon05" },
+                    { "name": "Stornorechnung erstellen", "icon": "RechnungsWesenIcon06" },
+                    { "name": "Zahlungseingang bestätigen", "icon": "RechnungsWesenIcon07" },
+                    { "name": "Auto-Erinnerung bei Verzug", "icon": "RechnungsWesenIcon08" },
+                    { "name": "GoBD-konforme Buchführung", "icon": "RechnungsWesenIcon09" },
+                    { "name": "Direkte DATEV Schnittstelle", "icon": "RechnungsWesenIcon10" },
+                    { "name": "Lexoffice Verbindung", "icon": "RechnungsWesenIcon11" },
+                    { "name": "Reverse Charge (B2B)", "icon": "RechnungsWesenIcon12" },
+                    { "name": "E-Rechnung bereit", "icon": "RechnungsWesenIcon13" }
+                ]
+            },
+            {
+                "title": "Automatisierung",
+                "featuresList": [
+                    {
+                        "name": "Erinnerung vor Backkurs",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon01"
+                    },
+                    {
+                        "name": "Automatische Mahnung",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon02"
+                    },
+                    {
+                        "name": "Zahlungserinnerung senden",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon03"
+                    },
+                    {
+                        "name": "Mail vor Kursstart (Infos)",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon04"
+                    },
+                    {
+                        "name": "Mail nach Kurs (Rezepte)",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon05"
+                    },
+                    {
+                        "name": "Geburtstagsgrüße an Kunden",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon06"
+                    },
+                    {
+                        "name": "Kurs-Zertifikate per Mail",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon07"
+                    },
+                    {
+                        "name": "Sofort-Versand Gutscheine",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon08"
+                    },
+                    { "name": "Auto-Bankabgleich", "icon": "AutomatisierungsmoeglichkeitenIcon09" },
+                    {
+                        "name": "Warteliste für volle Kurse",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon10"
+                    }
+                ]
+            },
+            {
+                "title": "Bezahlmöglichkeiten",
+                "featuresList": [
+                    { "name": "SEPA Lastschrift", "icon": "SepaLogo" },
+                    { "name": "Visa", "icon": "VisaLogo" },
+                    { "name": "MasterCard", "icon": "MasterCardLogo" },
+                    { "name": "Vorkasse Überweisung", "icon": "VorkasseLogo" },
+                    { "name": "PayPal", "icon": "PaypalLogo" },
+                    { "name": "Apple Pay", "icon": "ApplePayLogo" },
+                    { "name": "Twint", "icon": "TwintLogo" },
+                    { "name": "EPS Überweisung", "icon": "EPSLogo" },
+                    { "name": "Google Pay", "icon": "GooglePayLogo" },
+                    { "name": "Klarna", "icon": "KlarnaLogo" },
+                    { "name": "GiroPay", "icon": "GiroPayLogo" },
+                    { "name": "PaySafe", "icon": "PaySafeCardLogo" }
+                ]
+            },
+            {
+                "title": "Administration",
+                "featuresList": [
+                    { "name": "Zugriffsrechte für Mitarbeiter", "icon": "AdministrationIcon01" },
+                    { "name": "Backkurs-Leiter verwalten", "icon": "AdministrationIcon02" },
+                    { "name": "DSGVO-konformer Datenschutz", "icon": "AdministrationIcon03" }
+                ]
+            }
+        ]
+    },
+    "aboutCourse": {
+        "sectionTitle": "Für deine Backschule",
+        "heading": "Mehr Zeit am Ofen, weniger im Büro",
+        "description": "Du liebst es, dein Handwerk weiterzugeben, aber die Verwaltung nervt? Mit Butlerapp digitalisierst du deine Backschule. Egal ob Sauerteig-Workshop, Macaron-Masterclass oder Firmenevent: Deine Kunden buchen Termine bequem online. Du behältst den Überblick über Teilnehmer und Finanzen – inklusive kompatibler E-Rechnung.",
+        "first": {
+            "heading": "Deine Backkurse immer ausgebucht – ganz automatisch",
+            "description": "Vergiss das Hin und Her mit E-Mails und Tabellenkalkulationen, um deine Kurstermine zu koordinieren. Butlerapp bietet dir ein professionelles Buchungssystem, das perfekt auf deinen Kursplan abgestimmt ist. Deine Kunden sehen auf deiner Webseite sofort, wann der nächste Brotbackkurs oder die Torten-Dekorations-Schulung stattfindet und können ihren Platz direkt sichern. Dank der intuitiven Online-Kursbuchung füllen sich deine Seminare wie von selbst, rund um die Uhr. Sollte ein Kurs voll sein, rücken Interessenten über die automatische Warteliste nach. So maximierst du deine Auslastung ohne manuellen Aufwand.",
+            "imgSrc": "AboutCourseFirstImage",
+            "imgAlt": "Online Anmeldung für Brotbackkurse und Tortenkurse mit automatischer Warteliste"
+        },
+        "second": {
+            "heading": "Umsatzbooster: Gutscheine und Firmenevents",
+            "description": "Gerade in der Backbranche sind Geschenkgutscheine und Teamevents riesige Umsatztreiber. Butlerapp macht es dir leicht, genau diese Potenziale zu nutzen. Verkaufe Gutscheine für deine Backkurse digital: Der Kunde kauft online, zahlt direkt, und das System versendet den Gutschein vollautomatisch als PDF. Auch individuelle Gruppenbuchungen für Weihnachtsfeiern oder Teambuilding-Events wickelst du professionell ab. Die Teilnehmerverwaltung sorgt dafür, dass du immer weißt, wer kommt (und wer welche Unverträglichkeiten hat). Zudem bist du mit dem integrierten Rechnungswesen sicher aufgestellt, denn unsere Software ist natürlich E-Rechnung kompatibel.",
+            "imgSrc": "AboutCourseSecondImage",
+            "imgAlt": "Geschenkgutscheine für Backkurse kaufen und Organisation von Firmenevents Backschule"
+        }
+    },
+    "yourBenefits": {
+        "sectionTitle": "Deine Vorteile",
+        "heading": "Das Rezept<br/><span class=\"gradient-text\">für deinen Erfolg</span>",
+        "bulletPoints": [
+            {
+                "title": "Sichere Online-Zahlung",
+                "description":
+                    "Kassiere Kursgebühren direkt bei der Buchung via PayPal, Kreditkarte & Co. für mehr Planungssicherheit."
+            },
+            {
+                "title": "Automatische Warteliste",
+                "description":
+                    "Ist der Backkurs voll? Die Warteliste füllt frei gewordene Plätze automatisch wieder auf."
+            },
+            {
+                "title": "B2B & E-Rechnung",
+                "description":
+                    "Erstelle professionelle Angebote für Firmenevents und versende E-Rechnung konforme Belege."
+            },
+            {
+                "title": "Alles im Corporate Design",
+                "description":
+                    "Das Buchungstool passt sich optisch nahtlos in die Webseite deiner Backschule ein."
+            }
+        ],
+        "imgSrc": "YourBenefitsImage",
+        "imgAlt": "Online Buchung und Verwaltung für Backkurse, Torten-Seminare und Backschulen"
+    },
+    "featuresSection": {
+        "sectionTitle": "Backschul-Funktionen",
+        "heading": "<span class=\"gradient-text\">Features</span><br> für deine Backschule",
+        "description": "Die Butlerapp Funktionen arbeiten <strong>hinter der Kulisse</strong>, damit du dich <br /> aufs Wesentliche konzentrieren kannst: Backen & Kurse.",
+        "playlistTitle": "Backschul-Features",
+        "playlistDescription": "Die Funktionen für deine Backschule als kurze Videos erklärt",
+        "features": [
+            {
+                "title": "Buchungs-Formular",
+                "convertTitle": "Demo öffnen",
+                "description": "Deine Kunden werden dich dafür lieben: 24/7 Kursbuchung & Online-Zahlung.",
+                "featuresList": [
+                    {
+                        "name": "Warenkorb - Kunden buchen mehrere Backkurse"
+                    },
+                    {
+                        "name": "Einfache Kursanmeldung in deinem Design"
+                    },
+                    {
+                        "name": "Online- & Ratenzahlung für deine Teilnehmer"
+                    },
+                    {
+                        "name": "Automatische Buchungsbestätigung per Mail"
+                    }
+                ]
+            },
+            {
+                "title": "Rabatte & Gutscheine",
+                "convertTitle": "Demo öffnen",
+                "description": "Rabatte, die deine Teilnehmer lieben, ein Kontoauszug, der sich sehen lässt.",
+                "featuresList": [
+                    {
+                        "name": "Mit Frühbucher-Rabatten Backkurse füllen"
+                    },
+                    {
+                        "name": "Einfaches Upselling für Schürzen & Zubehör"
+                    },
+                    {
+                        "name": "Affiliate-Links für Food-Blogger Partner"
+                    },
+                    {
+                        "name": "Gutschein-Verkauf für Geschenke automatisiert"
+                    }
+                ]
+            },
+            {
+                "title": "Buchungs-Verwaltung",
+                "convertTitle": "Demo öffnen",
+                "description": "Lasse die Verwaltung deiner Backschule auf Auto-Pilot laufen.",
+                "featuresList": [
+                    {
+                        "name": "Teilnehmerlisten & Allergie-Updates auf Knopfdruck"
+                    },
+                    {
+                        "name": "Stornieren & umbuchen bei Krankheit leicht gemacht"
+                    },
+                    {
+                        "name": "Nachrichtenvorlagen für Rezepte & Infos nutzen"
+                    },
+                    {
+                        "name": "Hunderte Automatisierungsmöglichkeiten"
+                    }
+                ]
+            },
+            {
+                "title": "Kunden-Verwaltung",
+                "convertTitle": "Demo öffnen",
+                "description": "Deine Teilnehmer perfekt informiert, deine Verwaltung perfekt organisiert.",
+                "featuresList": [
+                    {
+                        "name": "Supersuche findet jede Event-Buchung sofort"
+                    },
+                    {
+                        "name": "Alle Infos deiner Kunden auf einen Blick"
+                    },
+                    {
+                        "name": "E-Mails & SMS an ganze Gruppen senden"
+                    },
+                    {
+                        "name": "Export & Import für schnelle Listen"
+                    },
+                    {
+                        "name": "Stammkunden im Nullkommanix einbuchen"
+                    }
+                ]
+            },
+            {
+                "title": "Rechnungs-Wesen",
+                "convertTitle": "Demo öffnen",
+                "description": "Das geht: Zeit sparen und das Finanzamt glücklich machen.",
+                "featuresList": [
+                    {
+                        "name": "Automatisierte Rechnungsstellung für Kurse"
+                    },
+                    {
+                        "name": "Rechnungsexport & Schnittstelle zu DATEV"
+                    },
+                    {
+                        "name": "Rechnungskorrektur im Handumdrehen"
+                    },
+                    {
+                        "name": "Automatisierter Kontoumsatzabgleich"
+                    },
+                    {
+                        "name": "Zahlungserinnerungen & Mahnungen mit einem Klick"
+                    }
+                ]
+            }
+        ]
+    }
+}

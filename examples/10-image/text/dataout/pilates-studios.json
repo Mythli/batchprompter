@@ -1,0 +1,339 @@
+{
+    "name": "Pilates Studio Software",
+    "urlSlug": "pilates-studios",
+    "softwareName": "Studio Management",
+    "menuLabel": "Pilates Studios",
+    "menuIcon": "MenuBarIcon",
+    "menuIconAlt": "Calendar icon symbol for pilates reformer classes and mat sessions",
+    "iconColor": "#F59E0B",
+    "metaTitle": "Pilates Studio Software: Efficiently manage classes, private sessions & memberships",
+    "navBarTitle": "Pilates Studio Software",
+    "demoButtonLabel": "Open Demo",
+    "metaDescription": "The booking system for Pilates studios: Automate reformer classes, mat groups, private sessions & block card sales with Butlerapp. Incl. E-Invoicing. Test now!",
+    "heroSection": {
+        "heroImage": "HeroImage",
+        "heroImageAlt": "Pilates instructor adjusting a participant on a reformer machine while others practice on mats",
+        "title1": "Pilates Studio Software",
+        "title2": "flexibly managed",
+        "convertTitle": "Open Demo",
+        "convertDescription": "You will receive a link to your free Pilates studio demo.",
+        "convertActionTitle": "Open Demo",
+        "benefits": [
+            "Book Reformer & Mat classes 24/7",
+            "Sell 10-class passes & memberships automatically",
+            "Manage participants & health forms easily",
+            "E-invoicing & bookkeeping legally compliant"
+        ]
+    },
+    "newFeaturesSection": {
+        "sectionTitle": { "strong": "Studio Functions", "text": "test" },
+        "sectionSubtitle": "Try out all functions for your Pilates studio",
+        "heading": "Features,<br> that strengthen your studio core",
+        "description": "The Butlerapp functions work <strong>behind the scenes</strong> so you can concentrate on the essentials: Teaching and correcting posture.",
+        "convertTitle": "Open Demo",
+        "convertDescription": "You will receive a link to your free Pilates studio demo.",
+        "convertActionTitle": "Open Demo",
+        "features": [
+            {
+                "title": "Booking System",
+                "featuresList": [
+                    { "name": "Shopping cart for multiple classes", "icon": "BuchungsformularIcon01" },
+                    { "name": "Pay course fees online", "icon": "BuchungsformularIcon02" },
+                    { "name": "Design in your Studio look", "icon": "BuchungsformularIcon03" },
+                    { "name": "Auto-confirmation to participants", "icon": "BuchungsformularIcon04" },
+                    { "name": "Flexible workshop registration", "icon": "BuchungsformularIcon05" },
+                    { "name": "Liability waiver & Health info", "icon": "BuchungsformularIcon06" },
+                    { "name": "Wordpress Studio Plugin", "icon": "BuchungsformularIcon07" },
+                    { "name": "Wix Integration", "icon": "BuchungsformularIcon15" },
+                    { "name": "Typo3 Integration", "icon": "BuchungsformularIcon08" },
+                    { "name": "Joomla Integration", "icon": "BuchungsformularIcon09" },
+                    { "name": "Class schedule overview", "icon": "BuchungsformularIcon10" },
+                    { "name": "Inquire about injuries/reqs", "icon": "BuchungsformularIcon11" },
+                    { "name": "Installments for Teacher Training", "icon": "BuchungsformularIcon12" },
+                    { "name": "Integration into Studio Homepage", "icon": "BuchungsformularIcon13" },
+                    { "name": "Create your own booking site", "icon": "BuchungsformularIcon14" }
+                ]
+            },
+            {
+                "title": "Discounts & Passes",
+                "featuresList": [
+                    { "name": "Early bird for Retreats", "icon": "RabatteGutscheineIcon01" },
+                    { "name": "Upselling (e.g. Grip Socks)", "icon": "RabatteGutscheineIcon02" },
+                    { "name": "Links for Influencer partners", "icon": "RabatteGutscheineIcon03" },
+                    { "name": "Sell Gift Vouchers", "icon": "RabatteGutscheineIcon04" }
+                ]
+            },
+            {
+                "title": "Participant Management",
+                "featuresList": [
+                    {
+                        "name": "Digital attendance lists",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon01"
+                    },
+                    {
+                        "name": "Manage late cancellations",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon02"
+                    },
+                    {
+                        "name": "Templates for class info",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon03"
+                    },
+                    {
+                        "name": "Send course certificates",
+                        "icon": "TeilnehmerBuchungsverwaltungIcon05"
+                    }
+                ]
+            },
+            {
+                "title": "Client Management",
+                "featuresList": [
+                    { "name": "Quick search for bookings", "icon": "KundenVerwaltungIcon01" },
+                    { "name": "Client file with history", "icon": "KundenVerwaltungIcon02" },
+                    { "name": "Info to class participants", "icon": "KundenVerwaltungIcon03" },
+                    { "name": "Export & import data", "icon": "KundenVerwaltungIcon04" },
+                    { "name": "Book regulars quickly", "icon": "KundenVerwaltungIcon05" }
+                ]
+            },
+            {
+                "title": "Invoicing & Finance",
+                "featuresList": [
+                    { "name": "Invoices for memberships", "icon": "RechnungsWesenIcon01" },
+                    { "name": "Export for tax advisor", "icon": "RechnungsWesenIcon02" },
+                    { "name": "Simple receipt correction", "icon": "RechnungsWesenIcon03" },
+                    { "name": "Auto-reconciliation with bank", "icon": "RechnungsWesenIcon04" },
+                    { "name": "Dunning for open fees", "icon": "RechnungsWesenIcon05" },
+                    { "name": "Create credit notes", "icon": "RechnungsWesenIcon06" },
+                    { "name": "Confirm payment receipt", "icon": "RechnungsWesenIcon07" },
+                    { "name": "Auto-reminder for delays", "icon": "RechnungsWesenIcon08" },
+                    { "name": "GoBD-compliant bookkeeping", "icon": "RechnungsWesenIcon09" },
+                    { "name": "Direct DATEV interface", "icon": "RechnungsWesenIcon10" },
+                    { "name": "Lexoffice connection", "icon": "RechnungsWesenIcon11" },
+                    { "name": "Reverse Charge (B2B)", "icon": "RechnungsWesenIcon12" },
+                    { "name": "E-invoice ready", "icon": "RechnungsWesenIcon13" }
+                ]
+            },
+            {
+                "title": "Automation",
+                "featuresList": [
+                    {
+                        "name": "Reminder before class",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon01"
+                    },
+                    {
+                        "name": "Automatic dunning",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon02"
+                    },
+                    {
+                        "name": "Send payment reminders",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon03"
+                    },
+                    {
+                        "name": "Mail before workshop (Info)",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon04"
+                    },
+                    {
+                        "name": "Mail after class (Feedback)",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon05"
+                    },
+                    {
+                        "name": "Birthday greetings to clients",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon06"
+                    },
+                    {
+                        "name": "Training certificates via mail",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon07"
+                    },
+                    {
+                        "name": "Instant voucher delivery",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon08"
+                    },
+                    { "name": "Auto-bank reconciliation", "icon": "AutomatisierungsmoeglichkeitenIcon09" },
+                    {
+                        "name": "Waitlist for full classes",
+                        "icon": "AutomatisierungsmoeglichkeitenIcon10"
+                    }
+                ]
+            },
+            {
+                "title": "Payment Methods",
+                "featuresList": [
+                    { "name": "SEPA Direct Debit", "icon": "SepaLogo" },
+                    { "name": "Visa", "icon": "VisaLogo" },
+                    { "name": "MasterCard", "icon": "MasterCardLogo" },
+                    { "name": "Prepayment / Bank Transfer", "icon": "VorkasseLogo" },
+                    { "name": "PayPal", "icon": "PaypalLogo" },
+                    { "name": "Apple Pay", "icon": "ApplePayLogo" },
+                    { "name": "Twint", "icon": "TwintLogo" },
+                    { "name": "EPS Transfer", "icon": "EPSLogo" },
+                    { "name": "Google Pay", "icon": "GooglePayLogo" },
+                    { "name": "Klarna", "icon": "KlarnaLogo" },
+                    { "name": "GiroPay", "icon": "GiroPayLogo" },
+                    { "name": "PaySafe", "icon": "PaySafeCardLogo" }
+                ]
+            },
+            {
+                "title": "Administration",
+                "featuresList": [
+                    { "name": "Access rights for trainers", "icon": "AdministrationIcon01" },
+                    { "name": "Manage Pilates instructors", "icon": "AdministrationIcon02" },
+                    { "name": "GDPR-compliant data protection", "icon": "AdministrationIcon03" }
+                ]
+            }
+        ]
+    },
+    "aboutCourse": {
+        "sectionTitle": "For your Pilates Studio",
+        "heading": "More flow in the studio, less stress in the office",
+        "description": "You love teaching precision and control, but administration disrupts your flow? With Butlerapp you digitalize your Pilates studio. Whether it's Reformer groups, Mat Pilates courses, or 1-on-1 private training: Your clients book spots comfortably online. You keep track of block cards, memberships, and finances – including compatible e-invoicing.",
+        "first": {
+            "heading": "Reformer & Mat classes always full – automatically",
+            "description": "Stop the endless text messages and emails to coordinate your limited Reformer spots. Butlerapp offers a professional booking system tailored to your studio schedule. Your clients see instantly on your website when the next 'Pilates Flow' or 'Beginner Mat' class takes place and secure their spot. Thanks to 24/7 online booking, your classes fill up by themselves. If a popular Reformer class is full, clients move up via the automatic waiting list as soon as a spot opens – crucial for strictly limited equipment classes. This maximizes your studio utilization without manual effort.",
+            "imgSrc": "AboutCourseFirstImage",
+            "imgAlt": "Online booking for Pilates reformer classes and mat courses with automatic waitlist management"
+        },
+        "second": {
+            "heading": "Revenue Booster: Block cards, Private sessions, and Workshops",
+            "description": "In the Pilates business, 10-class passes (block cards) and private sessions are essential revenue streams. Butlerapp simplifies this process completely. Sell credit packs or memberships digitally: The client buys online, pays directly, and the system tracks their remaining credits automatically. You can also handle specific workshops or Corporate Pilates events professionally. The participant management ensures you track health waivers and injuries. Plus, with the integrated financial tools, you are safe and compliant with e-invoicing standards.",
+            "imgSrc": "AboutCourseSecondImage",
+            "imgAlt": "Sell digital class passes for Pilates and organize private training sessions"
+        }
+    },
+    "yourBenefits": {
+        "sectionTitle": "Your Benefits",
+        "heading": "The posture<br/><span class=\"gradient-text\">for your success</span>",
+        "bulletPoints": [
+            {
+                "title": "Secure Online Payment",
+                "description":
+                    "Collect fees for single classes or block cards directly upon booking via PayPal & Co."
+            },
+            {
+                "title": "Automatic Waiting List",
+                "description":
+                    "Is the Reformer class full? The waiting list automatically refills vacated spots instantly."
+            },
+            {
+                "title": "B2B & E-Invoicing",
+                "description":
+                    "Create professional offers for Corporate Health Days and send e-invoice compliant receipts."
+            },
+            {
+                "title": "Perfectly Branded",
+                "description":
+                    "The booking tool adapts seamlessly visually to the calm and professional look of your studio website."
+            }
+        ],
+        "imgSrc": "YourBenefitsImage",
+        "imgAlt": "Online booking and administration for Pilates studios and health centers"
+    },
+    "featuresSection": {
+        "sectionTitle": "Studio Functions",
+        "heading": "<span class=\"gradient-text\">Features</span><br> for your Pilates Studio",
+        "description": "The Butlerapp functions work <strong>behind the scenes</strong>, so you can <br /> concentrate on the essentials: The training & your clients.",
+        "playlistTitle": "Studio Features",
+        "playlistDescription": "The functions for your Pilates studio explained as short videos",
+        "features": [
+            {
+                "title": "Booking Form",
+                "convertTitle": "Open Demo",
+                "description": "Your clients will love you for it: 24/7 class booking & online payment.",
+                "featuresList": [
+                    {
+                        "name": "Shopping cart - Clients book multiple classes/passes"
+                    },
+                    {
+                        "name": "Simple session registration in your design"
+                    },
+                    {
+                        "name": "Online & installment payments for Teacher Training"
+                    },
+                    {
+                        "name": "Automatic booking confirmation via email"
+                    }
+                ]
+            },
+            {
+                "title": "Discounts & Vouchers",
+                "convertTitle": "Open Demo",
+                "description": "Discounts your participants love, a bank statement that looks great.",
+                "featuresList": [
+                    {
+                        "name": "Fill workshops with early bird discounts"
+                    },
+                    {
+                        "name": "Simple upselling for Grip Socks & Mats"
+                    },
+                    {
+                        "name": "Affiliate links for Health Partners"
+                    },
+                    {
+                        "name": "Automated gift voucher sales"
+                    }
+                ]
+            },
+            {
+                "title": "Booking Management",
+                "convertTitle": "Open Demo",
+                "description": "Let the administration of your studio run on auto-pilot.",
+                "featuresList": [
+                    {
+                        "name": "Class lists & health updates at the push of a button"
+                    },
+                    {
+                        "name": "Cancellations & Credit return made easy"
+                    },
+                    {
+                        "name": "Use message templates for studio announcements"
+                    },
+                    {
+                        "name": "Hundreds of automation possibilities"
+                    }
+                ]
+            },
+            {
+                "title": "Client Management",
+                "convertTitle": "Open Demo",
+                "description": "Your yogis & pilates fans informed, your admin organized.",
+                "featuresList": [
+                    {
+                        "name": "Super search finds every booking immediately"
+                    },
+                    {
+                        "name": "All info on your clients at a glance"
+                    },
+                    {
+                        "name": "Send emails & SMS to class groups"
+                    },
+                    {
+                        "name": "Export & Import for lists"
+                    },
+                    {
+                        "name": "Book regulars/VIPs in seconds"
+                    }
+                ]
+            },
+            {
+                "title": "Invoicing & Finance",
+                "convertTitle": "Open Demo",
+                "description": "It works: Save time and make the tax office happy.",
+                "featuresList": [
+                    {
+                        "name": "Automated invoicing for block cards"
+                    },
+                    {
+                        "name": "Invoice export & interface to DATEV"
+                    },
+                    {
+                        "name": "Invoice correction in an instant"
+                    },
+                    {
+                        "name": "Automated account transaction reconciliation"
+                    },
+                    {
+                        "name": "Payment reminders & dunning with one click"
+                    }
+                ]
+            }
+        ]
+    }
+}
