@@ -5,59 +5,29 @@ import { LlmClient } from 'llm-fns';
 import { PuppeteerHelper } from './puppeteer/PuppeteerHelper.js';
 import { PuppeteerPageHelper, LinkData } from './puppeteer/PuppeteerPageHelper.js';
 import { compressHtml } from './compressHtml.js';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import Handlebars from 'handlebars';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROMPTS_DIR = path.resolve(__dirname, '../prompts/website-agent');
-
-// Helper to load templates
-const loadTemplate = (fileName: string) => {
-    const filePath = path.join(PROMPTS_DIR, fileName);
-    const source = fs.readFileSync(filePath, 'utf-8');
-    return Handlebars.compile(source, { noEscape: true });
-};
+import { PromptResolver } from './PromptResolver.js';
 
 export interface AiWebsiteAgentOptions {
     depth?: number;
     maxLinks?: number;
+    extractLinksPrompt?: string;
+    extractDataPrompt?: string;
+    mergeDataPrompt?: string;
 }
 
 export class AiWebsiteAgent {
-    private templates: {
-        extractLinks?: Handlebars.TemplateDelegate;
-        extractData?: Handlebars.TemplateDelegate;
-        mergeData?: Handlebars.TemplateDelegate;
-    } = {};
-
+    
     constructor(
         private puppeteerHelper: PuppeteerHelper,
         private llm: LlmClient,
         private puppeteerQueue: PQueue
     ) {}
 
-    private getTemplate(name: 'extractLinks' | 'extractData' | 'mergeData'): Handlebars.TemplateDelegate {
-        if (this.templates[name]) {
-            return this.templates[name]!;
-        }
-
-        let fileName = '';
-        switch (name) {
-            case 'extractLinks': fileName = 'extract-links.md'; break;
-            case 'extractData': fileName = 'extract-data.md'; break;
-            case 'mergeData': fileName = 'merge-data.md'; break;
-        }
-
-        this.templates[name] = loadTemplate(fileName);
-        return this.templates[name]!;
-    }
-
     private async extractRelevantLinks(
         baseUrl: string,
         links: LinkData[],
-        maxLinks: number
+        maxLinks: number,
+        promptSource?: string
     ): Promise<string[]> {
         const linksText = links
             .filter(l => l.text.length > 0)
@@ -69,13 +39,16 @@ export class AiWebsiteAgent {
             relevant_urls: z.array(z.string()).max(maxLinks).describe("List of relevant absolute URLs found on the page.")
         });
 
-        const prompt = this.getTemplate('extractLinks')({
+        // Use provided prompt source or a minimal fallback
+        const source = promptSource || `Identify the most relevant URLs for scraping additional information from {{baseUrl}}.\n\nLinks:\n{{linksText}}`;
+
+        const contentParts = await PromptResolver.resolve(source, {
             baseUrl,
             linksText
         });
 
         const response = await this.llm.promptZod(
-            [{ role: 'user', content: prompt }],
+            [{ role: 'user', content: contentParts }],
             LinkSchema,
             { model: 'gpt-4o' }
         );
@@ -86,17 +59,20 @@ export class AiWebsiteAgent {
     private async extractDataFromMarkdown(
         url: string,
         markdown: string,
-        schema: any // JSON Schema Object
+        schema: any, // JSON Schema Object
+        promptSource?: string
     ): Promise<any> {
         const truncatedMarkdown = markdown.substring(0, 20000);
 
-        const prompt = this.getTemplate('extractData')({
+        const source = promptSource || `Extract information from {{url}} to populate the schema.\n\nContent:\n{{truncatedMarkdown}}`;
+
+        const contentParts = await PromptResolver.resolve(source, {
             url,
             truncatedMarkdown
         });
 
         return await this.llm.promptJson(
-            [{ role: 'user', content: prompt }],
+            [{ role: 'user', content: contentParts }],
             schema,
             { model: 'gpt-4o' }
         );
@@ -137,20 +113,20 @@ export class AiWebsiteAgent {
         console.log(`[AiWebsiteAgent] Scraping ${url} (Depth: ${depth})...`);
 
         const mainPage = await this.getPageContent(url);
-        const mainDataPromise = this.extractDataFromMarkdown(url, mainPage.markdown, schema);
+        const mainDataPromise = this.extractDataFromMarkdown(url, mainPage.markdown, schema, options.extractDataPrompt);
 
         let subPagesDataPromises: Promise<any>[] = [];
 
         if (depth > 0) {
             console.log(`[AiWebsiteAgent] Analyzing links on ${url}...`);
-            const relevantUrls = await this.extractRelevantLinks(url, mainPage.links, maxLinks);
+            const relevantUrls = await this.extractRelevantLinks(url, mainPage.links, maxLinks, options.extractLinksPrompt);
             const uniqueUrls = relevantUrls.filter(u => u !== url && u.startsWith('http'));
             console.log(`[AiWebsiteAgent] Found sub-pages: ${uniqueUrls.join(', ')}`);
 
             subPagesDataPromises = uniqueUrls.map(async (subUrl) => {
                 try {
                     const subPage = await this.getPageContent(subUrl);
-                    return await this.extractDataFromMarkdown(subUrl, subPage.markdown, schema);
+                    return await this.extractDataFromMarkdown(subUrl, subPage.markdown, schema, options.extractDataPrompt);
                 } catch (e) {
                     console.warn(`[AiWebsiteAgent] Failed to scrape sub-page ${subUrl}:`, e);
                     return {};
@@ -164,12 +140,14 @@ export class AiWebsiteAgent {
         if (allData.length > 1) {
              console.log(`[AiWebsiteAgent] Merging ${allData.length} data sources...`);
 
-             const mergePrompt = this.getTemplate('mergeData')({
+             const source = options.mergeDataPrompt || `Merge these objects:\n{{jsonObjects}}`;
+             
+             const contentParts = await PromptResolver.resolve(source, {
                  jsonObjects: JSON.stringify(allData, null, 2)
              });
 
              return await this.llm.promptJson(
-                 [{ role: 'user', content: mergePrompt }],
+                 [{ role: 'user', content: contentParts }],
                  schema,
                  { model: 'gpt-4o' }
              );
