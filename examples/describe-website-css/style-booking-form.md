@@ -369,7 +369,7 @@ Example 1
 ```
 
 Now go ahead and style the booking form for the given website {{website_url}}.
-Answer with CSS and nothing else. no code block wrapping it, only css which make the table, booking form and payment page look like they are really part of that website.
+Answer with CSS and nothing else. Only css which make the table, booking form and payment page look like they are really part of that website.
 
 **EXAMPLE CSS:**
 ```css
@@ -385,6 +385,7 @@ Answer with CSS and nothing else. no code block wrapping it, only css which make
 .websail button.submit:hover {
   background-color: #0065ff;
 } 
+```
 
 
 
