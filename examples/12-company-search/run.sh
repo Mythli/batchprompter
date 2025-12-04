@@ -13,26 +13,7 @@ Rules:
   --web-search-limit 5 \
   --web-search-mode none \
   --website-agent-url-2 "{{website_url}}" \
-  --website-agent-schema-2 '{
-    "type": "object",
-    "properties": {
-      "ceo": {
-        "type": "object",
-        "properties": {
-          "firstName": { "type": "string" },
-          "lastName": { "type": "string" }
-        }
-      },
-      "contact": {
-        "type": "object",
-        "properties": {
-          "email": { "type": "string" },
-          "phone": { "type": "string" }
-        }
-      }
-    },
-    "required": ["ceo", "contact"]
-  }' \
+  --website-agent-schema-2 "examples/12-company-search/schema.json" \
   --website-agent-depth-2 1 \
   --output-column-2 "company_info" \
   "Extract the CEO/Decision Maker's name and company contact details from the website data."

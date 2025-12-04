@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "ceo": {
+      "type": "object",
+      "properties": {
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" }
+      }
+    },
+    "contact": {
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "phone": { "type": "string" }
+      }
+    }
+  },
+  "required": ["ceo", "contact"]
+}
