@@ -17,8 +17,10 @@ import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 import { WebSearchPlugin } from './plugins/web-search/WebSearchPlugin.js';
 import { StyleScraperPlugin } from './plugins/style-scraper/StyleScraperPlugin.js';
+import { WebsiteAgentPlugin } from './plugins/website-agent/WebsiteAgentPlugin.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
+import { AiWebsiteAgent } from './utils/AiWebsiteAgent.js';
 
 dotenv.config();
 
@@ -41,6 +43,7 @@ export const configSchema = z.object({
     SERPER_API_KEY: z.string().optional(),
     TASK_CONCURRENCY: z.coerce.number().int().positive().default(100),
     SERPER_CONCURRENCY: z.coerce.number().int().positive().default(5),
+    PUPPETEER_CONCURRENCY: z.coerce.number().int().positive().default(3),
 });
 
 export type ConfigOverrides = {
@@ -52,6 +55,7 @@ export const createDefaultRegistry = () => {
     registry.register(new ImageSearchPlugin());
     registry.register(new WebSearchPlugin());
     registry.register(new StyleScraperPlugin());
+    registry.register(new WebsiteAgentPlugin());
     return registry;
 };
 
@@ -93,6 +97,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         SERPER_API_KEY: getEnvVar(['BATCHPROMPT_SERPER_API_KEY', 'SERPER_API_KEY']),
         TASK_CONCURRENCY: getEnvVar(['BATCHPROMPT_TASK_CONCURRENCY', 'TASK_CONCURRENCY']),
         SERPER_CONCURRENCY: getEnvVar(['BATCHPROMPT_SERPER_CONCURRENCY', 'SERPER_CONCURRENCY']),
+        PUPPETEER_CONCURRENCY: getEnvVar(['BATCHPROMPT_PUPPETEER_CONCURRENCY', 'PUPPETEER_CONCURRENCY']),
     };
 
     const config = configSchema.parse(rawConfig);
@@ -171,6 +176,12 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     });
     // We don't await init() here, let it lazy load on first use to avoid overhead if not used.
 
+    // Initialize Puppeteer Queue
+    const puppeteerQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
+
+    // Initialize AiWebsiteAgent
+    const aiWebsiteAgent = new AiWebsiteAgent(puppeteerHelper, llm, puppeteerQueue);
+
     // Initialize ModelFlags with the resolved default model
     const modelFlags = new ModelFlags(config.MODEL);
 
@@ -180,7 +191,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         llm,
-        { imageSearch, aiImageSearch, webSearch, aiWebSearch, fetcher, puppeteerHelper },
+        { imageSearch, aiImageSearch, webSearch, aiWebSearch, fetcher, puppeteerHelper, aiWebsiteAgent },
         pluginRegistry
     );
 
@@ -195,7 +206,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         fetcher,
         pluginRegistry,
         actionRunner,
-        puppeteerHelper
+        puppeteerHelper,
+        aiWebsiteAgent
     };
 }
 

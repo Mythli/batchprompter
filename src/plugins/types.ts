@@ -7,6 +7,7 @@ import { WebSearch } from './web-search/WebSearch.js';
 import { AiWebSearch } from '../utils/AiWebSearch.js';
 import { Fetcher } from '../utils/createCachedFetcher.js';
 import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
+import { AiWebsiteAgent } from '../utils/AiWebsiteAgent.js';
 
 export interface PluginServices {
     imageSearch?: ImageSearch;
@@ -15,6 +16,7 @@ export interface PluginServices {
     aiWebSearch?: AiWebSearch;
     fetcher: Fetcher;
     puppeteerHelper?: PuppeteerHelper;
+    aiWebsiteAgent?: AiWebsiteAgent;
 }
 
 export interface PluginContext {
