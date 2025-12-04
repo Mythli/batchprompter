@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { compressHtml } from './compressHtml.js';
 
 describe('compressHtml', () => {

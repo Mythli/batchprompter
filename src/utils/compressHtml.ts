@@ -61,12 +61,12 @@ export function compressHtml(html: string, options: CompressHtmlOptions = {}): s
     $('script, style').remove();
 
     // 3. Remove all HTML comments
-    $('*').contents().filter(function() {
+    $('*').contents().filter(function(this: any) {
         return this.type === 'comment';
     }).remove();
 
     // 4. Process attributes to shorten long values
-    $('*').each((_, element) => {
+    $('*').each((_: any, element: any) => {
         const el = $(element);
         // @ts-ignore
         if (!element.attribs) {
