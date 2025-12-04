@@ -107,7 +107,7 @@ export class WebSearch {
         });
 
         // Remove scripts, styles, and other non-content elements
-        turndownService.remove(['script', 'style', 'noscript', 'iframe', 'svg']);
+        turndownService.remove(['script', 'style', 'noscript', 'iframe']);
 
         return turndownService.turndown(html);
     }

@@ -92,13 +92,13 @@ export class AiWebsiteAgent {
                     dismissCookies: true,
                     htmlOnly: true
                 });
-                
+
                 const html = await pageHelper.getFinalHtml();
                 const links = await pageHelper.extractLinksWithText();
-                
+
                 const compressed = compressHtml(html);
                 const turndownService = new TurndownService();
-                turndownService.remove(['script', 'style', 'noscript', 'iframe', 'svg']);
+                turndownService.remove(['script', 'style', 'noscript', 'iframe']);
                 const markdown = turndownService.turndown(compressed);
 
                 return { html, markdown, links };
@@ -142,14 +142,14 @@ export class AiWebsiteAgent {
 
         const [mainData, ...subPagesData] = await Promise.all([mainDataPromise, ...subPagesDataPromises]);
         const allData = [mainData, ...subPagesData];
-        
+
         if (allData.length > 1) {
              console.log(`[AiWebsiteAgent] Merging ${allData.length} data sources...`);
-             
+
              const mergePrompt = mergeDataTemplate({
                  jsonObjects: JSON.stringify(allData, null, 2)
              });
-             
+
              return await this.llm.promptJson(
                  [{ role: 'user', content: mergePrompt }],
                  schema,
