@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
-import { ContentProviderPlugin, PluginContext, PluginResult } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
@@ -45,6 +45,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
         program.option('--style-scrape-resolution <res>', 'Viewport resolution (e.g. 1920x1080)', '1920x1080');
         program.option('--style-scrape-mobile', 'Capture mobile screenshot as well', false);
         program.option('--style-scrape-interactive', 'Capture interactive elements and styles', false);
+        program.option('--style-scrape-export', 'Export scraped data to output row', false);
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -52,9 +53,10 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
         program.option(`--style-scrape-resolution-${stepIndex} <res>`, `Viewport resolution for step ${stepIndex}`);
         program.option(`--style-scrape-mobile-${stepIndex}`, `Capture mobile screenshot for step ${stepIndex}`);
         program.option(`--style-scrape-interactive-${stepIndex}`, `Capture interactive elements for step ${stepIndex}`);
+        program.option(`--style-scrape-export-${stepIndex}`, `Export scraped data to output row for step ${stepIndex}`);
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): StyleScraperRawConfig | undefined {
+    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
         const getOpt = (key: string) => {
             const specific = options[`${key}${stepIndex}`];
             if (specific !== undefined) return specific;
@@ -64,11 +66,16 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
         const url = getOpt('styleScrapeUrl');
         if (!url) return undefined;
 
-        return {
+        const config: StyleScraperRawConfig = {
             url,
             resolution: getOpt('styleScrapeResolution') || '1920x1080',
             mobile: !!getOpt('styleScrapeMobile'),
             interactive: !!getOpt('styleScrapeInteractive')
+        };
+
+        return {
+            config,
+            exportData: !!getOpt('styleScrapeExport')
         };
     }
 
@@ -100,26 +107,17 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
 
         try {
             // Construct a unique cache key
-            // v2: Added CSS file saving
             const cacheKey = `style-scraper:v2:${resolvedConfig.url}:${resolvedConfig.resolution.width}x${resolvedConfig.resolution.height}:${resolvedConfig.mobile}:${resolvedConfig.interactive}`;
 
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Scraping styles from: ${resolvedConfig.url}`);
 
-            // Use navigateAndCache to handle the heavy lifting
             const result = await pageHelper.navigateAndCache<StyleScraperCacheData>(
                 resolvedConfig.url,
                 async (ph) => {
-                    // --- This block runs only on Cache MISS ---
-                    
-                    // Ensure we are at the right resolution (navigateAndCache handles navigation, but we might need to reset viewport if reused)
-                    // Actually navigateAndCache calls navigateToUrl which sets resolution if provided in options.
-                    // But let's be safe and explicit about the logic inside the action.
-                    
                     const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
                     const artifacts: ScraperArtifact[] = [];
 
                     // 1. Desktop Screenshot
-                    // navigateAndCache already navigated to the URL with the resolution provided in options below.
                     const desktopShot = (await ph.takeScreenshots([resolvedConfig.resolution]))[0];
                     if (desktopShot) {
                         contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${resolvedConfig.url}) ---` });
@@ -155,7 +153,6 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                         console.log(`[Row ${context.row.index}] Step ${stepIndex} Capturing interactive elements...`);
                         const screenshoter = new InteractiveElementScreenshoter(puppeteerHelper);
                         
-                        // We pass the existing pageHelper (ph)
                         const interactiveResult = await screenshoter.screenshot(ph, {
                             createCompositeImage: true,
                             maxButtons: 5,
@@ -177,7 +174,6 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                         if (interactiveResult.screenshots.length > 0) {
                             let stylesText = "\n--- Computed Styles for Interactive Elements ---\n";
                             
-                            // Group by type for text output
                             const grouped = interactiveResult.screenshots.reduce((acc, s) => {
                                 const key = `${s.type} #${s.elementIndex}`;
                                 if (!acc[key]) acc[key] = [];
@@ -220,9 +216,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                 }
             );
 
-            // --- Post-Processing (Runs on both Hit and Miss) ---
-            // We need to ensure the files exist on disk for the user/commands to use.
-            
+            // --- Post-Processing ---
             const baseName = outputBasename || 'style_scrape';
             const screenshotsDir = path.join(tempDirectory, 'screenshots');
             const interactiveDir = path.join(tempDirectory, 'interactive');
@@ -258,7 +252,6 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                 }
 
                 if (savePath) {
-                    // ArtifactSaver handles base64 strings (data:image/...) automatically
                     await ArtifactSaver.save(artifact.base64, savePath);
                     if (key) savedArtifacts[key] = savePath;
                 }

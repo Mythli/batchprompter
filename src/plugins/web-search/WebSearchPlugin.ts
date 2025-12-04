@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
-import { ContentProviderPlugin, PluginContext, PluginResult } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
@@ -41,6 +41,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option('--web-search-limit <number>', 'Max results', '5');
         program.option('--web-search-mode <mode>', 'Result mode: none, markdown, html', 'markdown');
         program.option('--web-search-query-count <number>', 'Queries to generate', '3');
+        program.option('--web-search-export', 'Export search data to output row', false);
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -52,9 +53,10 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option(`--web-search-limit-${stepIndex} <number>`, `Max results for step ${stepIndex}`);
         program.option(`--web-search-mode-${stepIndex} <mode>`, `Result mode for step ${stepIndex}`);
         program.option(`--web-search-query-count-${stepIndex} <number>`, `Query count for step ${stepIndex}`);
+        program.option(`--web-search-export-${stepIndex}`, `Export search data to output row for step ${stepIndex}`);
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): WebSearchRawConfig | undefined {
+    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
         const modelFlags = new ModelFlags(globalConfig.model);
 
         const extractModel = (namespace: string, fallbackNamespace: string): ModelDefinition | undefined => {
@@ -79,7 +81,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
 
         if (!isActive) return undefined;
 
-        return {
+        const config: WebSearchRawConfig = {
             query,
             queryConfig,
             selectConfig,
@@ -87,6 +89,11 @@ export class WebSearchPlugin implements ContentProviderPlugin {
             limit: parseInt(getOpt('webSearchLimit') || '5', 10),
             mode: (getOpt('webSearchMode') || 'markdown') as WebSearchMode,
             queryCount: parseInt(getOpt('webSearchQueryCount') || '3', 10)
+        };
+
+        return {
+            config,
+            exportData: !!getOpt('webSearchExport')
         };
     }
 

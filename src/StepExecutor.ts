@@ -1,4 +1,3 @@
-// 
 import OpenAI from 'openai';
 import path from 'path';
 import { LlmClient } from 'llm-fns';
@@ -13,9 +12,14 @@ import Handlebars from 'handlebars';
 import util from 'util';
 import { exec } from 'child_process';
 import { aggressiveSanitize } from './utils/fileUtils.js';
-import { merge } from 'lodash-es';
 
 const execPromise = util.promisify(exec);
+
+export interface StepExecutionResult {
+    historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
+    pluginResults: Record<string, any>;
+    modelResult: any; // The raw result (string or object)
+}
 
 export class StepExecutor {
     
@@ -28,22 +32,23 @@ export class StepExecutor {
     ) {}
 
     async execute(
-        row: Record<string, any>,
+        viewContext: Record<string, any>, // The merged context (row + history)
         index: number,
         stepIndex: number,
         config: StepConfig,
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam> {
+    ): Promise<StepExecutionResult> {
         
-        // 1. Execute Plugins (Content Providers)
+        const pluginResults: Record<string, any> = {};
         let effectiveUserPromptParts = [...config.userPromptParts];
         
+        // 1. Execute Plugins (Content Providers)
         for (const pluginDef of config.plugins) {
             const plugin = this.pluginRegistry.get(pluginDef.name);
             if (plugin) {
                 try {
                     const result = await plugin.execute({
-                        row,
+                        row: viewContext, // Pass the full view context
                         stepIndex,
                         config: pluginDef.config,
                         llm: this.llm,
@@ -52,9 +57,8 @@ export class StepExecutor {
                             concurrency: this.concurrency
                         },
                         services: this.services,
-                        // Pass the pre-calculated paths
                         outputDirectory: config.resolvedOutputDir,
-                        tempDirectory: config.resolvedTempDir || this.tmpDir, // Fallback to root tmp if something goes wrong
+                        tempDirectory: config.resolvedTempDir || this.tmpDir,
                         outputBasename: config.outputBasename,
                         outputExtension: config.outputExtension
                     });
@@ -62,31 +66,19 @@ export class StepExecutor {
                     // Append content for LLM context
                     effectiveUserPromptParts = [...result.contentParts, ...effectiveUserPromptParts];
 
-                    // Merge structured data into row for subsequent steps
+                    // Store structured data
                     if (result.data) {
-                        // Collapse Array Logic: If array, take first item for the primary namespace
-                        const primaryData = Array.isArray(result.data) ? result.data[0] : result.data;
-                        
-                        // Merge into namespaced key (e.g. row['website-agent'])
-                        // We use lodash merge for deep merging
-                        if (!row[plugin.name]) row[plugin.name] = {};
-                        merge(row[plugin.name], primaryData);
-
-                        // If it was an array, store the full list in a separate key
-                        if (Array.isArray(result.data)) {
-                            row[`${plugin.name}-all`] = result.data;
-                        }
+                        pluginResults[plugin.name] = result.data;
                     }
 
                 } catch (e: any) {
                     console.error(`[Row ${index}] Step ${stepIndex} Plugin '${pluginDef.name}' failed:`, e.message);
-                    throw e; // Fail the step if a plugin fails
+                    throw e;
                 }
             }
         }
 
         // 2. Check for "Pass-through" Mode
-        // If there are no user prompts and no system prompts, we assume the user just wants to save the plugin output.
         const hasUserPrompt = config.userPromptParts.length > 0;
         const hasSystemPrompt = config.modelConfig.systemParts.length > 0;
         const hasModelPrompt = config.modelConfig.promptParts.length > 0;
@@ -98,7 +90,6 @@ export class StepExecutor {
 
             console.log(`[Row ${index}] Step ${stepIndex} No prompt detected. Saving plugin output directly...`);
             
-            // Save content directly
             const savedPaths = await this.saveContentParts(
                 effectiveUserPromptParts, 
                 config.resolvedOutputDir || this.tmpDir, 
@@ -106,30 +97,32 @@ export class StepExecutor {
                 config.outputExtension
             );
 
-            // Execute command if present
             if (config.postProcessCommand) {
                 for (const filePath of savedPaths) {
-                    await this.executeCommand(config.postProcessCommand, row, index, stepIndex, filePath);
+                    await this.executeCommand(config.postProcessCommand, viewContext, index, stepIndex, filePath);
                 }
             }
 
             return {
-                role: 'assistant',
-                content: `[Saved ${effectiveUserPromptParts.length} items from plugins]`
+                historyMessage: {
+                    role: 'assistant',
+                    content: `[Saved ${effectiveUserPromptParts.length} items from plugins]`
+                },
+                pluginResults,
+                modelResult: null
             };
         }
 
         // 3. Select Strategy
         let strategy: GenerationStrategy = new StandardStrategy(this.llm, config.modelConfig.model);
         
-        // Wrap in Candidate Strategy if needed
         if (config.candidates > 1) {
             strategy = new CandidateStrategy(strategy as StandardStrategy, this.llm);
         }
 
         // 4. Execute Strategy
         const result = await strategy.execute(
-            row,
+            viewContext,
             index,
             stepIndex,
             config,
@@ -137,11 +130,11 @@ export class StepExecutor {
             history
         );
 
-        if (config.outputColumn && result.columnValue) {
-            row[config.outputColumn] = result.columnValue;
-        }
-
-        return result.historyMessage;
+        return {
+            historyMessage: result.historyMessage,
+            pluginResults,
+            modelResult: result.columnValue
+        };
     }
 
     private async saveContentParts(
@@ -154,16 +147,13 @@ export class StepExecutor {
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
             
-            // Determine extension
             let ext = forcedExtension;
             if (!ext) {
-                if (part.type === 'image_url') ext = '.jpg'; // Default to jpg for images if unknown
+                if (part.type === 'image_url') ext = '.jpg';
                 else if (part.type === 'input_audio') ext = `.${part.input_audio.format}`;
                 else ext = '.txt';
             }
 
-            // Construct filename
-            // If there's only one part, use the basename directly. Otherwise append index.
             const filename = parts.length === 1 
                 ? `${basename}${ext}`
                 : `${basename}_${i}${ext}`;
@@ -175,7 +165,6 @@ export class StepExecutor {
             } else if (part.type === 'image_url') {
                 await ArtifactSaver.save(part.image_url.url, savePath);
             } else if (part.type === 'input_audio') {
-                // input_audio.data is base64
                 const buffer = Buffer.from(part.input_audio.data, 'base64');
                 await ArtifactSaver.save(buffer, savePath);
             }

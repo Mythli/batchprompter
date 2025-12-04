@@ -20,7 +20,7 @@ export interface PluginServices {
 }
 
 export interface PluginContext {
-    row: Record<string, any>;
+    row: Record<string, any>; // This is now the "View Context" (merged data)
     stepIndex: number;
     config: any; // The resolved plugin config
     llm: LlmClient;
@@ -41,7 +41,12 @@ export interface PluginContext {
 
 export interface PluginResult {
     contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-    data?: Record<string, any> | any[]; // Structured data to merge into the row
+    data?: any; // Structured data (can be object, array, string, etc.)
+}
+
+export interface NormalizedPluginConfig {
+    config: any;
+    exportData: boolean;
 }
 
 export interface ContentProviderPlugin {
@@ -61,7 +66,7 @@ export interface ContentProviderPlugin {
      * Parse and validate CLI options to produce a raw configuration.
      * Returns undefined if the plugin is not active for this step.
      */
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): any | undefined;
+    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined;
 
     /**
      * Resolve templates, load files, and prepare the configuration for execution.

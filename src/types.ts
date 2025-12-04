@@ -13,6 +13,7 @@ export interface ModelDefinition {
 export interface PluginConfigDefinition {
     name: string;
     config: any;
+    exportData: boolean; // NEW: Whether to merge plugin data into the final output row
 }
 
 export interface StepDefinition {
@@ -23,6 +24,7 @@ export interface StepDefinition {
     outputPath?: string;
     outputColumn?: string;
     outputTemplate?: string;
+    exportResult: boolean; // NEW: Whether to merge the LLM result into the final output row
     
     // Validation
     schemaPath?: string;
@@ -81,6 +83,7 @@ export interface StepConfig {
     outputPath?: string;
     outputColumn?: string;
     outputTemplate?: string; 
+    exportResult: boolean; // NEW
     
     // Validation & Post-processing
     schemaPath?: string;

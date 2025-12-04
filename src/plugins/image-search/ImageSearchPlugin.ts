@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
-import { ContentProviderPlugin, PluginContext, PluginResult } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
@@ -45,6 +45,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         program.option('--image-search-select <number>', 'Images to select', '1');
         program.option('--image-search-query-count <number>', 'Queries to generate', '3');
         program.option('--image-search-sprite-size <number>', 'Images per sprite', '4');
+        program.option('--image-search-export', 'Export image data to output row', false);
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -56,9 +57,10 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         program.option(`--image-search-select-${stepIndex} <number>`, `Select count for step ${stepIndex}`);
         program.option(`--image-search-query-count-${stepIndex} <number>`, `Query count for step ${stepIndex}`);
         program.option(`--image-search-sprite-size-${stepIndex} <number>`, `Sprite size for step ${stepIndex}`);
+        program.option(`--image-search-export-${stepIndex}`, `Export image data to output row for step ${stepIndex}`);
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): ImageSearchRawConfig | undefined {
+    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
         
         // Instantiate ModelFlags with the global default model
         const modelFlags = new ModelFlags(globalConfig.model);
@@ -67,15 +69,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         const extractModel = (namespace: string, fallbackNamespace: string): ModelDefinition | undefined => {
             const config = modelFlags.extract(options, namespace, fallbackNamespace);
             
-            // Check if any key was actually set (excluding the default model if nothing else is set)
-            // We check if promptSource or systemSource is set, OR if model was explicitly set in options
-            // But ModelFlags.extract merges everything.
-            // A better check for "is active" is if promptSource is present.
-            
             if (!config.promptSource && !config.systemSource && !config.model) return undefined;
-            
-            // If we only have the default model, but no prompt/system, it's probably not active unless intended.
-            // For image-query, we need a prompt.
             if (!config.promptSource && !config.systemSource) return undefined;
 
             return config as ModelDefinition;
@@ -105,7 +99,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             );
         }
 
-        return {
+        const config: ImageSearchRawConfig = {
             query,
             queryConfig,
             selectConfig,
@@ -113,6 +107,11 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             select: parseInt(getOpt('imageSearchSelect') || '1', 10),
             queryCount: parseInt(getOpt('imageSearchQueryCount') || '3', 10),
             spriteSize: parseInt(getOpt('imageSearchSpriteSize') || '4', 10)
+        };
+
+        return {
+            config,
+            exportData: !!getOpt('imageSearchExport')
         };
     }
 

@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
-import { ContentProviderPlugin, PluginContext, PluginResult } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { PromptResolver } from '../../utils/PromptResolver.js';
 
 interface WebsiteAgentRawConfig {
@@ -25,15 +25,17 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         program.option('--website-agent-url <url>', 'Starting URL for the agent');
         program.option('--website-agent-schema <path>', 'Path to JSON schema for extraction');
         program.option('--website-agent-depth <number>', 'Depth of navigation (0=single page, 1=subpages)', '0');
+        program.option('--website-agent-export', 'Export agent data to output row', false);
     }
 
     registerStep(program: Command, stepIndex: number): void {
         program.option(`--website-agent-url-${stepIndex} <url>`, `Starting URL for step ${stepIndex}`);
         program.option(`--website-agent-schema-${stepIndex} <path>`, `Schema path for step ${stepIndex}`);
         program.option(`--website-agent-depth-${stepIndex} <number>`, `Depth for step ${stepIndex}`);
+        program.option(`--website-agent-export-${stepIndex}`, `Export agent data to output row for step ${stepIndex}`);
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): WebsiteAgentRawConfig | undefined {
+    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
         const getOpt = (key: string) => {
             const specific = options[`${key}${stepIndex}`];
             if (specific !== undefined) return specific;
@@ -45,10 +47,15 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
 
         if (!url) return undefined;
 
-        return {
+        const config: WebsiteAgentRawConfig = {
             url,
             schemaPath,
             depth: parseInt(getOpt('websiteAgentDepth') || '0', 10)
+        };
+
+        return {
+            config,
+            exportData: !!getOpt('websiteAgentExport')
         };
     }
 

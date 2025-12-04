@@ -95,19 +95,24 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
             return undefined;
         };
 
+        const outputColumn = getStepOpt('outputColumn');
+        
+        // Determine exportResult
+        // Explicit flag > implied by outputColumn > default false
+        let exportResult = false;
+        if (options[`exportResult${i}`] !== undefined) exportResult = !!options[`exportResult${i}`];
+        else if (options.exportResult !== undefined) exportResult = !!options.exportResult;
+        else if (outputColumn) exportResult = true;
+
         // 5. Plugins
-        // We iterate through the registry to find active plugins.
-        // Note: Commander options don't strictly preserve order of flags passed, 
-        // but we process them in the order they are registered in the registry.
-        // If strict CLI flag order is needed, we'd need to parse raw argv.
-        // For now, registry order (which is usually fixed) determines execution order.
         const plugins: PluginConfigDefinition[] = [];
         for (const plugin of pluginRegistry.getAll()) {
-            const pluginConfig = plugin.normalize(options, i, globalConfig);
-            if (pluginConfig) {
+            const normalized = plugin.normalize(options, i, globalConfig);
+            if (normalized) {
                 plugins.push({
                     name: plugin.name,
-                    config: pluginConfig
+                    config: normalized.config,
+                    exportData: normalized.exportData
                 });
             }
         }
@@ -117,8 +122,9 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
             modelConfig: baseModel,
             
             outputPath: getStepOpt('output'),
-            outputColumn: getStepOpt('outputColumn'),
+            outputColumn: outputColumn,
             outputTemplate: getStepOpt('output'), // Alias
+            exportResult,
             
             schemaPath: options[`jsonSchema${i}`] ? String(options[`jsonSchema${i}`]) : (options.schema ? String(options.schema) : undefined),
             verifyCommand: getStepOpt('verifyCommand'),
