@@ -95,6 +95,7 @@ export class StepRegistry {
                 outputPath: stepDef.outputPath,
                 outputColumn: stepDef.outputColumn,
                 outputTemplate: stepDef.outputTemplate,
+                exportResult: stepDef.exportResult,
                 
                 schemaPath: stepDef.schemaPath,
                 jsonSchema: undefined, // Resolved per-row in ActionRunner
