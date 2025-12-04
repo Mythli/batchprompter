@@ -5,6 +5,24 @@ import { LlmClient } from 'llm-fns';
 import { PuppeteerHelper } from './puppeteer/PuppeteerHelper.js';
 import { PuppeteerPageHelper, LinkData } from './puppeteer/PuppeteerPageHelper.js';
 import { compressHtml } from './compressHtml.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import Handlebars from 'handlebars';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROMPTS_DIR = path.resolve(__dirname, '../prompts/website-agent');
+
+// Helper to load templates
+const loadTemplate = (fileName: string) => {
+    const filePath = path.join(PROMPTS_DIR, fileName);
+    const source = fs.readFileSync(filePath, 'utf-8');
+    return Handlebars.compile(source, { noEscape: true });
+};
+
+const extractLinksTemplate = loadTemplate('extract-links.md');
+const extractDataTemplate = loadTemplate('extract-data.md');
+const mergeDataTemplate = loadTemplate('merge-data.md');
 
 export interface AiWebsiteAgentOptions {
     depth?: number;
@@ -33,12 +51,10 @@ export class AiWebsiteAgent {
             relevant_urls: z.array(z.string()).max(maxLinks).describe("List of relevant absolute URLs found on the page.")
         });
 
-        const prompt = `You are a web scraper assistant. Your task is to identify the most relevant URLs for scraping additional company information (like About Us, Contact, Imprint, Team, Products) from the provided list of links found on the website ${baseUrl}.
-
-Base URL: ${baseUrl}
-
-List of links:
-${linksText}`;
+        const prompt = extractLinksTemplate({
+            baseUrl,
+            linksText
+        });
 
         const response = await this.llm.promptZod(
             [{ role: 'user', content: prompt }],
@@ -56,10 +72,10 @@ ${linksText}`;
     ): Promise<any> {
         const truncatedMarkdown = markdown.substring(0, 20000);
 
-        const prompt = `You are given the website content of ${url} (converted to markdown). Your primary goal is to extract information from this content to accurately populate the provided JSON schema.
-
-Website content:
-${truncatedMarkdown}`;
+        const prompt = extractDataTemplate({
+            url,
+            truncatedMarkdown
+        });
 
         return await this.llm.promptJson(
             [{ role: 'user', content: prompt }],
@@ -129,10 +145,10 @@ ${truncatedMarkdown}`;
         
         if (allData.length > 1) {
              console.log(`[AiWebsiteAgent] Merging ${allData.length} data sources...`);
-             const mergePrompt = `You are a data consolidation expert. Merge the following JSON objects extracted from different pages of the same website into a single comprehensive object adhering to the schema.
              
-             Objects:
-             ${JSON.stringify(allData, null, 2)}`;
+             const mergePrompt = mergeDataTemplate({
+                 jsonObjects: JSON.stringify(allData, null, 2)
+             });
              
              return await this.llm.promptJson(
                  [{ role: 'user', content: mergePrompt }],
