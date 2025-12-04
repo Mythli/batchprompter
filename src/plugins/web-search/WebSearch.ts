@@ -58,11 +58,12 @@ export class WebSearch {
         }
 
         if (!response.ok) {
+            const data = await response.text();
             throw new Error(`API request failed: ${response.status} ${response.statusText}`);
         }
 
         const json = await response.json();
-        
+
         try {
             const parsed = SerperResponseSchema.parse(json);
             return parsed.organic || [];
@@ -91,7 +92,7 @@ export class WebSearch {
 
             if (mode === 'html') return html;
             if (mode === 'markdown') return this.htmlToMarkdown(html);
-            
+
             return '';
         } catch (e: any) {
             console.warn(`[WebSearch] Error fetching ${url}: ${e.message}`);
@@ -107,7 +108,7 @@ export class WebSearch {
 
         // Remove scripts, styles, and other non-content elements
         turndownService.remove(['script', 'style', 'noscript', 'iframe', 'svg']);
-        
+
         return turndownService.turndown(html);
     }
 }

@@ -14,7 +14,7 @@
   "scripts": {
     "test": "echo \"Error: no examples specified\" && exit 1",
     "serptest": "tsx src/serptest.ts",
-    "debug": "examples/10-image/run.sh",
+    "debug": "examples/12-company-search/run.sh",
     "build": "tsc",
     "release": "bash scripts/release.sh"
   },
@@ -22,8 +22,10 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/cheerio": "^1.0.0",
     "@types/json2csv": "^5.0.7",
     "@types/node": "^20.19.25",
+    "@types/turndown": "^5.0.6",
     "sharp": "^0.34.5",
     "typescript": "^5.9.3"
   },
@@ -42,6 +44,7 @@
     "json2csv": "6.0.0-alpha.2",
     "keyv": "^5.5.4",
     "llm-fns": "^1.0.10",
+    "lodash-es": "^4.17.21",
     "openai": "^4.104.0",
     "p-queue": "^9.0.1",
     "puppeteer": "^24.32.0",
