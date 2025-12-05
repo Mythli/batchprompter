@@ -35,6 +35,15 @@ interface StyleScraperCacheData {
     artifacts: ScraperArtifact[];
 }
 
+// Strongly typed output for the plugin
+export interface StyleScraperOutput {
+    desktop?: string;
+    mobile?: string;
+    interactive?: string;
+    css?: string;
+    elements?: Record<string, string>; // Keyed by "type_index_state" e.g. "button_1_hover"
+}
+
 export class StyleScraperPlugin implements ContentProviderPlugin {
     name = 'style-scraper';
 
@@ -228,38 +237,40 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                 await ensureDir(elementsDir);
             }
 
-            const savedArtifacts: Record<string, string> = {};
+            const outputData: StyleScraperOutput = {};
 
             for (const artifact of result.artifacts) {
                 let savePath = '';
-                let key = '';
                 
                 if (artifact.type === 'desktop') {
                     savePath = path.join(screenshotsDir, `${baseName}_desktop${artifact.extension}`);
-                    key = 'desktop';
+                    outputData.desktop = savePath;
                 } else if (artifact.type === 'mobile') {
                     savePath = path.join(screenshotsDir, `${baseName}_mobile${artifact.extension}`);
-                    key = 'mobile';
+                    outputData.mobile = savePath;
                 } else if (artifact.type === 'interactive_composite') {
                     savePath = path.join(interactiveDir, `${baseName}_interactive${artifact.extension}`);
-                    key = 'interactive';
+                    outputData.interactive = savePath;
                 } else if (artifact.type === 'css') {
                     savePath = path.join(interactiveDir, `${baseName}_styles${artifact.extension}`);
-                    key = 'css';
+                    outputData.css = savePath;
                 } else if (artifact.type === 'element') {
                     const filename = `${baseName}_${artifact.subType}_${artifact.index}_${artifact.state}${artifact.extension}`;
                     savePath = path.join(elementsDir, filename);
+                    
+                    if (!outputData.elements) outputData.elements = {};
+                    const key = `${artifact.subType}_${artifact.index}_${artifact.state}`;
+                    outputData.elements[key] = savePath;
                 }
 
                 if (savePath) {
                     await ArtifactSaver.save(artifact.base64, savePath);
-                    if (key) savedArtifacts[key] = savePath;
                 }
             }
 
             return {
                 contentParts: result.contentParts,
-                data: savedArtifacts
+                data: outputData
             };
 
         } finally {
