@@ -21,7 +21,7 @@ export class AiWebSearch {
             mode: WebSearchMode;
             queryCount: number;
         }
-    ): Promise<{ formatted: string[], raw: WebSearchResult[] }> {
+    ): Promise<{ contentParts: string[], raw: WebSearchResult[] }> {
         
         // 1. Determine Queries
         const queries: string[] = [];
@@ -44,7 +44,7 @@ export class AiWebSearch {
             console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
         }
 
-        if (queries.length === 0) return { formatted: [], raw: [] };
+        if (queries.length === 0) return { contentParts: [], raw: [] };
 
         // 2. Execute Search
         const allResults: WebSearchResult[] = [];
@@ -60,7 +60,7 @@ export class AiWebSearch {
             }
         }
 
-        if (allResults.length === 0) return { formatted: ["No results found."], raw: [] };
+        if (allResults.length === 0) return { contentParts: ["No results found."], raw: [] };
 
         // 3. Selection (Optional)
         let selectedResults = allResults;
@@ -138,6 +138,6 @@ export class AiWebSearch {
             });
         }
 
-        return { formatted: finalOutputs, raw: processedResults };
+        return { contentParts: finalOutputs, raw: processedResults };
     }
 }
