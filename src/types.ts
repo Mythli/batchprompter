@@ -138,3 +138,19 @@ export interface RuntimeConfig {
 // Compatibility / Aliases
 export interface ModelConfig extends ModelDefinition {}
 export interface ActionOptions extends RuntimeConfig {}
+
+// --- Execution Architecture ---
+
+export interface PipelineItem {
+    // The persistent data that will eventually be saved to the CSV/JSON
+    row: Record<string, any>;
+    
+    // The transient data available for templating ({{webSearch.link}}, {{steps.0.result}})
+    // This accumulates results from plugins and previous steps but is NOT saved to output unless exported.
+    workspace: Record<string, any>;
+    
+    // Metadata for execution tracking
+    stepHistory: Record<string, any>[]; // Results from previous steps
+    history: any[]; // LLM Conversation History
+    originalIndex: number; // For logging/debugging
+}

@@ -1,21 +1,21 @@
-import { OutputStrategy } from '../types.js';
+import { OutputStrategy, PipelineItem } from '../types.js';
 
 export class ResultProcessor {
     /**
-     * Applies a result (from a plugin or model) to the current list of rows.
-     * Handles merging, column assignment, and explosion.
+     * Applies a result (from a plugin or model) to the current list of PipelineItems.
+     * 
+     * 1. Always updates `item.workspace[namespace]` with the result (or exploded slice).
+     * 2. Conditionally updates `item.row` based on the OutputStrategy.
+     * 3. Handles explosion by creating multiple PipelineItems.
      */
     static process(
-        currentRows: Record<string, any>[], 
+        currentItems: PipelineItem[], 
         resultData: any, 
-        strategy: OutputStrategy
-    ): Record<string, any>[] {
+        strategy: OutputStrategy,
+        namespace: string
+    ): PipelineItem[] {
         
         // 1. Normalize resultData to an array if we are exploding
-        // If explode is true, and resultData is an array, we use it.
-        // If explode is true, and resultData is NOT an array, we treat it as [resultData].
-        // If explode is false, we treat it as [resultData] (single item applied to row).
-        
         let items: any[];
         if (strategy.explode && Array.isArray(resultData)) {
             items = resultData;
@@ -23,35 +23,38 @@ export class ResultProcessor {
             items = [resultData];
         }
 
-        const nextRows: Record<string, any>[] = [];
+        const nextItems: PipelineItem[] = [];
 
         // 2. Cartesian Product / Application
-        for (const row of currentRows) {
-            for (const item of items) {
-                const newRow = { ...row };
+        for (const item of currentItems) {
+            for (const resultItem of items) {
+                // Deep clone the item to ensure isolation
+                const newItem: PipelineItem = {
+                    row: { ...item.row },
+                    workspace: { ...item.workspace },
+                    stepHistory: [...item.stepHistory],
+                    history: [...item.history],
+                    originalIndex: item.originalIndex
+                };
 
+                // A. Always update Workspace (Transient Data)
+                // This ensures {{webSearch}} is available even if not exported to CSV
+                newItem.workspace[namespace] = resultItem;
+
+                // B. Conditionally update Row (Persistent Data)
                 if (strategy.mode === 'column' && strategy.columnName) {
-                    newRow[strategy.columnName] = item;
+                    newItem.row[strategy.columnName] = resultItem;
                 } else if (strategy.mode === 'merge') {
-                    if (typeof item === 'object' && item !== null) {
-                        Object.assign(newRow, item);
-                    } else if (strategy.columnName) {
-                        // Fallback if they asked to merge a primitive string but provided a column name (via output-column implies merge logic in some contexts, but here we separate them)
-                        // Actually, if mode is merge, we expect object. 
-                        // If item is primitive, we can't merge it unless we have a key.
-                        // But 'merge' usually implies "spread".
-                        // If we have a columnName, we treat it as assignment? No, that's 'column' mode.
-                        // Let's stick to: Merge = Object.assign.
-                        // If item is primitive and mode is merge, we do nothing or warn?
-                        // In the old logic: "if (typeof dataToMerge === 'object') Object.assign(row, dataToMerge)"
-                        // So we ignore primitives in merge mode.
+                    if (typeof resultItem === 'object' && resultItem !== null) {
+                        Object.assign(newItem.row, resultItem);
                     }
                 }
-                
-                nextRows.push(newRow);
+                // If mode === 'ignore', we do nothing to newItem.row
+
+                nextItems.push(newItem);
             }
         }
 
-        return nextRows;
+        return nextItems;
     }
 }

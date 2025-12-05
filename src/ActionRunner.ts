@@ -4,7 +4,7 @@ import { Parser, transforms } from 'json2csv';
 import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
 import { LlmClient } from 'llm-fns';
-import { RuntimeConfig, StepConfig } from './types.js';
+import { RuntimeConfig, StepConfig, PipelineItem } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PromptResolver } from './utils/PromptResolver.js';
 import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
@@ -15,11 +15,8 @@ import { ResultProcessor } from './core/ResultProcessor.js';
 import OpenAI from 'openai';
 
 interface TaskPayload {
-    data: Record<string, any>; // The accumulated row data
-    stepHistory: Record<string, any>[]; // Array of results from previous steps
-    stepIndex: number; // The index of the step to execute
-    history: any[]; // Conversation history (User + Assistant)
-    originalIndex: number; // For logging/debugging
+    item: PipelineItem;
+    stepIndex: number;
 }
 
 export class ActionRunner {
@@ -57,17 +54,19 @@ export class ActionRunner {
 
         // Helper to process a single task (Row @ Step)
         const processTask = async (payload: TaskPayload) => {
-            const { data: currentData, stepHistory, stepIndex, history, originalIndex } = payload;
+            const { item, stepIndex } = payload;
             const stepConfig = steps[stepIndex];
             const stepNum = stepIndex + 1;
 
             try {
                 // 1. Prepare View Context (Merge Data Sources)
-                // Priority: Current Data > History
+                // Priority: Workspace > Row > History
+                // This allows {{webSearch.link}} to work even if not in row
                 const viewContext = {
-                    ...currentData,
-                    steps: stepHistory,
-                    index: originalIndex
+                    ...item.row,
+                    ...item.workspace,
+                    steps: item.stepHistory,
+                    index: item.originalIndex
                 };
 
                 // Compute sanitized version for file system operations
@@ -82,28 +81,26 @@ export class ActionRunner {
                     stepConfig, 
                     viewContext, 
                     sanitizedRow, 
-                    originalIndex, 
+                    item.originalIndex, 
                     stepNum, 
                     tmpDir
                 );
 
-                console.log(`[Row ${originalIndex}] Step ${stepNum} Processing...`);
+                console.log(`[Row ${item.originalIndex}] Step ${stepNum} Processing...`);
 
                 // --- EXECUTION LOOP ---
                 
-                // We start with one row (the current one), but plugins might explode it into multiple.
-                // We track the rows and the accumulated content parts (prompts) for the model.
-                // Note: If a plugin explodes the row, the content parts must be duplicated/associated with each new row.
-                // To simplify, we will maintain a list of "Active Contexts".
+                // We start with one item (the current one), but plugins might explode it into multiple.
+                // We track the items and the accumulated content parts (prompts) for the model.
                 
                 interface ActiveContext {
-                    row: Record<string, any>;
+                    item: PipelineItem;
                     contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
                     stepResult: Record<string, any>; // Accumulates results for this step
                 }
 
                 let activeContexts: ActiveContext[] = [{
-                    row: viewContext,
+                    item: item,
                     contentParts: [],
                     stepResult: {}
                 }];
@@ -113,10 +110,18 @@ export class ActionRunner {
                     const nextContexts: ActiveContext[] = [];
 
                     for (const ctx of activeContexts) {
-                        // Execute Plugin for this specific row context
-                        const { context: updatedRow, contentParts, pluginResults } = await pluginRunner.run(
+                        // Prepare View Context for this specific item state
+                        const pluginViewContext = {
+                            ...ctx.item.row,
+                            ...ctx.item.workspace,
+                            steps: ctx.item.stepHistory,
+                            index: ctx.item.originalIndex
+                        };
+
+                        // Execute Plugin
+                        const { context: updatedContext, contentParts, pluginResults } = await pluginRunner.run(
                             [pluginDef], // Run one plugin
-                            ctx.row,
+                            pluginViewContext,
                             stepNum,
                             {
                                 outputDir: resolvedStep.resolvedOutputDir,
@@ -130,21 +135,23 @@ export class ActionRunner {
                         const resultData = pluginResults[pluginDef.name];
                         
                         // Apply Output Strategy (Merge/Explode)
-                        // ResultProcessor returns new rows based on the strategy
-                        const processedRows = ResultProcessor.process([ctx.row], resultData, pluginDef.output);
+                        // ResultProcessor returns new PipelineItems based on the strategy
+                        // It handles updating workspace and row
+                        const processedItems = ResultProcessor.process(
+                            [ctx.item], 
+                            resultData, 
+                            pluginDef.output,
+                            toCamel(pluginDef.name) // Ensure consistent camelCase key in workspace
+                        );
 
                         // Create new contexts for the next plugin/model
-                        for (const newRow of processedRows) {
-                            // We must preserve the accumulated content parts
-                            // And add the new content parts from this plugin execution
+                        for (const newItem of processedItems) {
                             nextContexts.push({
-                                row: newRow,
+                                item: newItem,
                                 contentParts: [...ctx.contentParts, ...contentParts],
                                 stepResult: { 
                                     ...ctx.stepResult, 
-                                    [pluginDef.name]: resultData,
-                                    // If the plugin merged data into the row, it's already in newRow.
-                                    // But we also keep it in stepResult for history tracking.
+                                    [toCamel(pluginDef.name)]: resultData
                                 }
                             });
                         }
@@ -153,17 +160,24 @@ export class ActionRunner {
                 }
 
                 // 4. Execute Model (for each active context)
-                const nextRowsForQueue: Record<string, any>[] = [];
-                const nextStepHistoryForQueue: Record<string, any>[] = []; // We need to pair history with rows
+                const nextItemsForQueue: PipelineItem[] = [];
 
                 for (const ctx of activeContexts) {
+                    // Prepare View Context for Model
+                    const modelViewContext = {
+                        ...ctx.item.row,
+                        ...ctx.item.workspace,
+                        steps: ctx.item.stepHistory,
+                        index: ctx.item.originalIndex
+                    };
+
                     // Execute Model
                     const result = await executor.executeModel(
-                        ctx.row,
-                        originalIndex,
+                        modelViewContext,
+                        ctx.item.originalIndex,
                         stepNum,
                         resolvedStep,
-                        history,
+                        ctx.item.history,
                         ctx.contentParts
                     );
 
@@ -174,62 +188,63 @@ export class ActionRunner {
                     };
 
                     // Apply Model Output Strategy
-                    const processedRows = ResultProcessor.process([ctx.row], result.modelResult, resolvedStep.output);
+                    const processedItems = ResultProcessor.process(
+                        [ctx.item], 
+                        result.modelResult, 
+                        resolvedStep.output,
+                        'modelOutput'
+                    );
 
                     // Prepare for next step
-                    for (const finalRow of processedRows) {
-                        nextRowsForQueue.push(finalRow);
-                        
+                    for (const finalItem of processedItems) {
                         // Update history for this branch
-                        // Note: We are duplicating the history message for all exploded rows from the model
-                        // This is acceptable as they share the same generation origin.
-                        nextStepHistoryForQueue.push({
-                            history: [
-                                ...history,
-                                { role: 'user', content: resolvedStep.userPromptParts },
-                                result.historyMessage
-                            ],
-                            stepHistory: [...stepHistory, currentStepResult]
-                        });
+                        finalItem.history = [
+                            ...finalItem.history,
+                            { role: 'user', content: resolvedStep.userPromptParts },
+                            result.historyMessage
+                        ];
+                        finalItem.stepHistory = [...finalItem.stepHistory, currentStepResult];
+                        
+                        nextItemsForQueue.push(finalItem);
                     }
                 }
 
                 // 5. Queue Next Steps or Save
                 if (stepIndex === steps.length - 1) {
-                    // Finished pipeline for these rows
-                    finalResults.push(...nextRowsForQueue);
+                    // Finished pipeline for these items
+                    // We only save the 'row' part of the PipelineItem
+                    finalResults.push(...nextItemsForQueue.map(i => i.row));
                 } else {
                     // Queue next step
-                    for (let i = 0; i < nextRowsForQueue.length; i++) {
-                        const row = nextRowsForQueue[i];
-                        const hist = nextStepHistoryForQueue[i];
-                        
+                    for (const nextItem of nextItemsForQueue) {
                         queue.add(() => processTask({
-                            data: row,
-                            stepIndex: stepIndex + 1,
-                            stepHistory: hist.stepHistory,
-                            history: hist.history,
-                            originalIndex
+                            item: nextItem,
+                            stepIndex: stepIndex + 1
                         }));
                     }
                 }
 
             } catch (err) {
-                console.error(`[Row ${originalIndex}] Step ${stepNum} Error:`, err);
-                rowErrors.push({ index: originalIndex, error: err });
-                finalResults.push(currentData);
+                console.error(`[Row ${item.originalIndex}] Step ${stepNum} Error:`, err);
+                rowErrors.push({ index: item.originalIndex, error: err });
+                finalResults.push(item.row);
             }
         };
 
         try {
             // Initial Queue Population
             for (let index = 0; index < data.length; index++) {
-                queue.add(() => processTask({
-                    data: data[index],
+                const initialItem: PipelineItem = {
+                    row: data[index],
+                    workspace: {},
                     stepHistory: [],
-                    stepIndex: 0,
                     history: [],
                     originalIndex: index
+                };
+
+                queue.add(() => processTask({
+                    item: initialItem,
+                    stepIndex: 0
                 }));
             }
 
@@ -348,3 +363,8 @@ export class ActionRunner {
         return resolvedStep;
     }
 }
+
+// Helper to convert kebab-case plugin name to camelCase for workspace keys
+const toCamel = (s: string) => {
+    return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
+};
