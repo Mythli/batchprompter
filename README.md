@@ -85,6 +85,7 @@ Searches Google (via Serper), retrieves content, and optionally summarizes it.
 *   **Auto-Query:** Use `--web-query-prompt "Generate a search query for..."` to let the AI decide what to search.
 *   **Options:**
     *   `--web-search-limit 5`: Number of results.
+    *   `--web-search-query-count 3`: Number of queries to generate when using Auto-Query.
     *   `--web-search-mode markdown`: Fetches the full page content and converts to Markdown. (Options: `none`, `markdown`, `html`).
     *   `--web-search-merge`: Merges results into the row data.
 
@@ -92,9 +93,11 @@ Searches Google (via Serper), retrieves content, and optionally summarizes it.
 Finds images on the web to use as reference or context.
 
 *   **Enable:** `--image-search-query "{{landmark}}"`
+*   **Auto-Query:** Use `--image-query-prompt "Find images of..."` to let the AI generate search queries.
 *   **AI Selection:** Use `--image-select-prompt "Pick the best photo"` to have an AI judge select the best image from the results.
 *   **Options:**
     *   `--image-search-limit 10`: How many images to fetch.
+    *   `--image-search-query-count 3`: Number of queries to generate when using Auto-Query.
     *   `--image-search-sprite-size 4`: How many images to show the AI at once during selection.
 
 ### 🕷️ Website Agent (Scraper)
