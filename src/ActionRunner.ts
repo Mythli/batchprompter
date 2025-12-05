@@ -1,6 +1,6 @@
 import fsPromises from 'fs/promises';
 import path from 'path';
-import { Parser } from 'json2csv';
+import { Parser, transforms } from 'json2csv';
 import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
 import { LlmClient } from 'llm-fns';
@@ -290,7 +290,12 @@ export class ActionRunner {
                 await fsPromises.writeFile(finalOutputPath, JSON.stringify(validResults, null, 2));
             } else {
                 try {
-                    const parser = new Parser();
+                    // Flatten nested objects (e.g. { ceo: { name: "..." } } -> "ceo.name")
+                    const parser = new Parser({
+                        transforms: [
+                            transforms.flatten({ separator: '.', objects: true, arrays: false })
+                        ]
+                    });
                     const csv = parser.parse(validResults);
                     await fsPromises.writeFile(finalOutputPath, csv);
                 } catch (e) {
