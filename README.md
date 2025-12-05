@@ -234,8 +234,15 @@ batchprompt generate tasks.csv code_prompt.md \
 | `CACHE_ENABLED` | Set to `false` to disable caching. |
 
 ### Step-Specific Overrides
-For multi-step pipelines, append the step number to almost any flag:
-*   `--model-1 gpt-4o`
-*   `--model-2 claude-3-haiku`
-*   `--web-search-query-1 ...`
-*   `--output-2 ...`
+For multi-step pipelines, you can override almost any configuration flag for a specific step by appending the step number (1-10) to the flag name.
+
+**Common Overrides:**
+*   `--model-2 gpt-4o` (Use a different model for step 2)
+*   `--temperature-1 0.7` (Set creativity for step 1)
+*   `--system-2 "You are a critic..."` (Different system prompt for step 2)
+*   `--output-3 "final_report.md"` (Specific output path for step 3)
+*   `--json-schema-1 schema.json` (Validation schema for step 1)
+*   `--web-search-query-1 "..."` (Search query for step 1)
+
+**Pattern:**
+`--{flag}-{stepNumber} {value}`
