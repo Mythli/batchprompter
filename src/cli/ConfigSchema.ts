@@ -19,6 +19,11 @@ function getEnvVar(keys: string[]): string | undefined {
     return undefined;
 }
 
+// Helper to convert kebab-case plugin name to camelCase for option lookup
+const toCamel = (s: string) => {
+    return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
+};
+
 export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
     options: z.record(z.string(), z.any()),
     args: z.array(z.string())
@@ -122,10 +127,22 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         for (const plugin of pluginRegistry.getAll()) {
             const normalized = plugin.normalize(options, i, globalConfig);
             if (normalized) {
+                // Resolve Output Strategies
+                const camelName = toCamel(plugin.name);
+                
+                // Check for --{plugin}-output-{i} or --{plugin}-output
+                const outputKey = `${camelName}Output`;
+                const outputCol = options[`${outputKey}${i}`] || options[outputKey];
+
+                // Check for --{plugin}-merge-{i} or --{plugin}-merge
+                const mergeKey = `${camelName}Merge`;
+                const merge = !!(options[`${mergeKey}${i}`] || options[mergeKey]);
+
                 plugins.push({
                     name: plugin.name,
                     config: normalized.config,
-                    exportData: normalized.exportData
+                    outputColumn: outputCol ? String(outputCol) : undefined,
+                    merge: merge
                 });
             }
         }

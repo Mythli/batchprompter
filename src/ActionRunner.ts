@@ -98,15 +98,24 @@ export class ActionRunner {
                 for (const [pluginName, pluginData] of Object.entries(result.pluginResults)) {
                     currentStepResult[pluginName] = pluginData;
                     
-                    // Check if this plugin should export data to the row
                     const pluginDef = resolvedStep.plugins.find(p => p.name === pluginName);
-                    if (pluginDef && pluginDef.exportData) {
-                        // If pluginData is an object (and not array/null), spread it into the row
-                        if (typeof pluginData === 'object' && pluginData !== null && !Array.isArray(pluginData)) {
-                            Object.assign(nextDataBase, pluginData);
-                        } else {
-                            // Otherwise assign to the plugin name key
-                            nextDataBase[pluginName] = pluginData;
+                    if (pluginDef) {
+                        // 1. Handle Merge
+                        if (pluginDef.merge) {
+                            if (Array.isArray(pluginData)) {
+                                throw new Error(`[Row ${originalIndex}] Step ${stepNum}: Plugin '${pluginName}' returned an Array but --${pluginName}-merge is enabled. Cannot merge an Array into the root row.`);
+                            } else if (typeof pluginData === 'object' && pluginData !== null) {
+                                Object.assign(nextDataBase, pluginData);
+                            } else {
+                                // Primitive value? Merge implies object spreading. 
+                                // Fallback: assign to plugin name, but warn?
+                                nextDataBase[pluginName] = pluginData;
+                            }
+                        }
+
+                        // 2. Handle Output Column
+                        if (pluginDef.outputColumn) {
+                            nextDataBase[pluginDef.outputColumn] = pluginData;
                         }
                     }
                 }
@@ -135,7 +144,6 @@ export class ActionRunner {
                                 Object.assign(rowClone, item);
                             } else {
                                 // Primitive value without output column? 
-                                // We can't merge "5" into an object. 
                                 // Fallback: assign to 'value' or 'modelOutput'
                                 rowClone.modelOutput = item;
                             }
@@ -160,7 +168,6 @@ export class ActionRunner {
                     if (resolvedStep.exportResult && modelResult) {
                         if (resolvedStep.outputColumn) {
                             // If output column is specified, we can save anything (including arrays) there
-                            // If it's an array/object, it will be stringified by CSV parser later, or we can keep it as object for JSON output
                             rowClone[resolvedStep.outputColumn] = modelResult;
                         } else {
                             // No output column -> Merge into root

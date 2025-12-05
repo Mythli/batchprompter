@@ -45,7 +45,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         program.option('--image-search-select <number>', 'Images to select', '1');
         program.option('--image-search-query-count <number>', 'Queries to generate', '3');
         program.option('--image-search-sprite-size <number>', 'Images per sprite', '4');
-        program.option('--image-search-export', 'Export image data to output row', false);
+        // Removed manual export flag registration as it's now handled automatically
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -57,7 +57,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         program.option(`--image-search-select-${stepIndex} <number>`, `Select count for step ${stepIndex}`);
         program.option(`--image-search-query-count-${stepIndex} <number>`, `Query count for step ${stepIndex}`);
         program.option(`--image-search-sprite-size-${stepIndex} <number>`, `Sprite size for step ${stepIndex}`);
-        program.option(`--image-search-export-${stepIndex}`, `Export image data to output row for step ${stepIndex}`);
+        // Removed manual export flag registration as it's now handled automatically
     }
 
     normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
@@ -111,7 +111,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         return {
             config,
-            exportData: !!getOpt('imageSearchExport')
+            exportData: false // Deprecated field, now handled by ConfigSchema
         };
     }
 

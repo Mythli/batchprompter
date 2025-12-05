@@ -54,7 +54,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
         program.option('--style-scrape-resolution <res>', 'Viewport resolution (e.g. 1920x1080)', '1920x1080');
         program.option('--style-scrape-mobile', 'Capture mobile screenshot as well', false);
         program.option('--style-scrape-interactive', 'Capture interactive elements and styles', false);
-        program.option('--style-scrape-export', 'Export scraped data to output row', false);
+        // Removed manual export flag registration as it's now handled automatically
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -62,7 +62,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
         program.option(`--style-scrape-resolution-${stepIndex} <res>`, `Viewport resolution for step ${stepIndex}`);
         program.option(`--style-scrape-mobile-${stepIndex}`, `Capture mobile screenshot for step ${stepIndex}`);
         program.option(`--style-scrape-interactive-${stepIndex}`, `Capture interactive elements for step ${stepIndex}`);
-        program.option(`--style-scrape-export-${stepIndex}`, `Export scraped data to output row for step ${stepIndex}`);
+        // Removed manual export flag registration as it's now handled automatically
     }
 
     normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
@@ -84,7 +84,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
 
         return {
             config,
-            exportData: !!getOpt('styleScrapeExport')
+            exportData: false // Deprecated field, now handled by ConfigSchema
         };
     }
 

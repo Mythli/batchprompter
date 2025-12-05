@@ -13,7 +13,9 @@ export interface ModelDefinition {
 export interface PluginConfigDefinition {
     name: string;
     config: any;
-    exportData: boolean; // NEW: Whether to merge plugin data into the final output row
+    // Output Strategies
+    outputColumn?: string; // NEW: Save to specific column
+    merge: boolean;        // NEW: Merge into row
 }
 
 export interface StepDefinition {

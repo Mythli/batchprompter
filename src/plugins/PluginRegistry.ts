@@ -24,12 +24,18 @@ export class PluginRegistry {
         // 1. Global Registration
         for (const plugin of plugins) {
             plugin.register(program);
+            // Auto-register standard output flags
+            program.option(`--${plugin.name}-output <column>`, `Save ${plugin.name} result to column`);
+            program.option(`--${plugin.name}-merge`, `Merge ${plugin.name} result into row`);
         }
 
         // 2. Step Registration (1-10)
         for (let i = 1; i <= 10; i++) {
             for (const plugin of plugins) {
                 plugin.registerStep(program, i);
+                // Auto-register standard output flags
+                program.option(`--${plugin.name}-output-${i} <column>`, `Save ${plugin.name} result to column for step ${i}`);
+                program.option(`--${plugin.name}-merge-${i}`, `Merge ${plugin.name} result into row for step ${i}`);
             }
         }
     }

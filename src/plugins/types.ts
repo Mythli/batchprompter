@@ -46,7 +46,7 @@ export interface PluginResult {
 
 export interface NormalizedPluginConfig {
     config: any;
-    exportData: boolean;
+    // Output Strategies are now handled in ConfigSchema, not here
 }
 
 export interface ContentProviderPlugin {
