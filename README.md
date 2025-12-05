@@ -64,7 +64,7 @@ When a step finishes, its result is stored.
 ### 3. Plugin Data
 Plugins (like Web Search) inject their data into variables.
 *   **Default:** `{{web-search}}`, `{{image-search}}`, `{{website-agent}}`.
-*   **Merging:** Use `--web-search-merge` to flatten the result into your main data.
+*   **Merging:** Use `--web-search-export` to flatten the result into your main data.
     *   *Example:* If the website agent finds `{"email": "..."}`, merging lets you use `{{email}}` directly in the next step.
 
 ### 4. Dynamic Configuration
@@ -87,7 +87,7 @@ Searches Google (via Serper), retrieves content, and optionally summarizes it.
     *   `--web-search-limit 5`: Number of results.
     *   `--web-search-query-count 3`: Number of queries to generate when using Auto-Query.
     *   `--web-search-mode markdown`: Fetches the full page content and converts to Markdown. (Options: `none`, `markdown`, `html`).
-    *   `--web-search-merge`: Merges results into the row data.
+    *   `--web-search-export`: Merges results into the row data.
 
 ### 🖼️ Image Search
 Finds images on the web to use as reference or context.

@@ -15,7 +15,7 @@ export interface PluginConfigDefinition {
     config: any;
     // Output Strategies
     outputColumn?: string; // NEW: Save to specific column
-    merge: boolean;        // NEW: Merge into row
+    export: boolean;       // NEW: Merge into row (Renamed from merge)
 }
 
 export interface StepDefinition {

@@ -26,7 +26,7 @@ export class PluginRegistry {
             plugin.register(program);
             // Auto-register standard output flags
             program.option(`--${plugin.name}-output <column>`, `Save ${plugin.name} result to column`);
-            program.option(`--${plugin.name}-merge`, `Merge ${plugin.name} result into row`);
+            program.option(`--${plugin.name}-export`, `Merge ${plugin.name} result into row`);
         }
 
         // 2. Step Registration (1-10)
@@ -35,7 +35,7 @@ export class PluginRegistry {
                 plugin.registerStep(program, i);
                 // Auto-register standard output flags
                 program.option(`--${plugin.name}-output-${i} <column>`, `Save ${plugin.name} result to column for step ${i}`);
-                program.option(`--${plugin.name}-merge-${i}`, `Merge ${plugin.name} result into row for step ${i}`);
+                program.option(`--${plugin.name}-export-${i}`, `Merge ${plugin.name} result into row for step ${i}`);
             }
         }
     }

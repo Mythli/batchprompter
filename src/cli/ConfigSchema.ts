@@ -134,15 +134,15 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
                 const outputKey = `${camelName}Output`;
                 const outputCol = options[`${outputKey}${i}`] || options[outputKey];
 
-                // Check for --{plugin}-merge-{i} or --{plugin}-merge
-                const mergeKey = `${camelName}Merge`;
-                const merge = !!(options[`${mergeKey}${i}`] || options[mergeKey]);
+                // Check for --{plugin}-export-{i} or --{plugin}-export
+                const exportKey = `${camelName}Export`;
+                const exportVal = !!(options[`${exportKey}${i}`] || options[exportKey]);
 
                 plugins.push({
                     name: plugin.name,
                     config: normalized.config,
                     outputColumn: outputCol ? String(outputCol) : undefined,
-                    merge: merge
+                    export: exportVal
                 });
             }
         }

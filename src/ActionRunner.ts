@@ -100,8 +100,8 @@ export class ActionRunner {
                     
                     const pluginDef = resolvedStep.plugins.find(p => p.name === pluginName);
                     if (pluginDef) {
-                        // 1. Handle Merge
-                        if (pluginDef.merge) {
+                        // 1. Handle Export (Merge)
+                        if (pluginDef.export) {
                             let dataToMerge = pluginData;
 
                             // Handle single-element arrays gracefully
@@ -109,7 +109,7 @@ export class ActionRunner {
                                 if (pluginData.length === 1) {
                                     dataToMerge = pluginData[0];
                                 } else if (pluginData.length > 1) {
-                                    throw new Error(`[Row ${originalIndex}] Step ${stepNum}: Plugin '${pluginName}' returned an Array of length ${pluginData.length} but --${pluginName}-merge is enabled. Cannot merge multiple items into the root row.`);
+                                    throw new Error(`[Row ${originalIndex}] Step ${stepNum}: Plugin '${pluginName}' returned an Array of length ${pluginData.length} but --${pluginName}-export is enabled. Cannot merge multiple items into the root row.`);
                                 } else {
                                     // Empty array, nothing to merge
                                     dataToMerge = null;
