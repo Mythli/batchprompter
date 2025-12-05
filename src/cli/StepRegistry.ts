@@ -17,6 +17,7 @@ export class StepRegistry {
         // Global Workflow
         program.option('-o, --output <path>', 'Template path for the output');
         program.option('--output-column <column>', 'Column name to write output to');
+        program.option('--export', 'Export step result to output row');
         program.option('--data-output <path>', 'Path to save the processed data file');
         program.option('--tmp-dir <path>', 'Directory for temporary files', '.tmp');
         program.option('-c, --concurrency <number>', 'Number of concurrent requests', '20');
@@ -38,6 +39,7 @@ export class StepRegistry {
 
             program.option(`--output-${i} <path>`, `Output path for step ${i}`);
             program.option(`--output-column-${i} <column>`, `Output column for step ${i}`);
+            program.option(`--export-${i}`, `Export result for step ${i}`);
             program.option(`--json-schema-${i} <file>`, `Schema for step ${i}`); // Commander camelCases to jsonSchema1
             program.option(`--verify-command-${i} <cmd>`, `Verify command for step ${i}`);
             program.option(`--command-${i} <cmd>`, `Post-process command for step ${i}`);

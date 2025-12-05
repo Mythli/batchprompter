@@ -101,12 +101,13 @@ export class ActionRunner {
                     // Check if this plugin should export data to the row
                     const pluginDef = resolvedStep.plugins.find(p => p.name === pluginName);
                     if (pluginDef && pluginDef.exportData) {
-                        // Direct assignment / Merge
-                        // If pluginData is object, merge? Or assign to key?
-                        // Previous logic was: context.outputData[pluginName] = pluginData;
-                        // But if it's an object, maybe we want to merge properties?
-                        // For now, stick to assignment to avoid collisions unless explicitly handled.
-                        nextDataBase[pluginName] = pluginData;
+                        // If pluginData is an object (and not array/null), spread it into the row
+                        if (typeof pluginData === 'object' && pluginData !== null && !Array.isArray(pluginData)) {
+                            Object.assign(nextDataBase, pluginData);
+                        } else {
+                            // Otherwise assign to the plugin name key
+                            nextDataBase[pluginName] = pluginData;
+                        }
                     }
                 }
 
@@ -153,7 +154,7 @@ export class ActionRunner {
                         nextRows = [rowClone];
                     }
                 } else {
-                    // MERGE STRATEGY (Default)
+                    // RUN STRATEGY (Default - Linear)
                     const rowClone = { ...nextDataBase };
                     
                     if (resolvedStep.exportResult && modelResult) {

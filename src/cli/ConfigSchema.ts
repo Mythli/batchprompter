@@ -109,11 +109,13 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         // Explicit flag > implied by outputColumn > default false
         let exportResult = false;
         if (options[`exportResult${i}`] !== undefined) exportResult = !!options[`exportResult${i}`];
+        else if (options[`export${i}`] !== undefined) exportResult = !!options[`export${i}`];
         else if (options.exportResult !== undefined) exportResult = !!options.exportResult;
+        else if (options.export !== undefined) exportResult = !!options.export;
         else if (outputColumn) exportResult = true;
 
         // Determine Strategy
-        const strategy = (options[`explode${i}`] || options.explode) ? 'explode' : 'merge';
+        const strategy = (options[`explode${i}`] || options.explode) ? 'explode' : 'run';
 
         // 5. Plugins
         const plugins: PluginConfigDefinition[] = [];
