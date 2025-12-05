@@ -1,259 +1,238 @@
 # BatchPrompt
 
-BatchPrompt is a command-line tool that lets you generate text and images in bulk using AI.
+BatchPrompt is a command-line tool for building **AI pipelines**. It lets you chain together LLMs, Web Search, Image Search, and Web Scraping to process data in bulk.
 
-## ⚠️ The Core Concept: Data-Driven Generation
-
-BatchPrompt is designed for bulk operations. It **requires** a data file (CSV or JSON) to function. You cannot run it without one.
-
-*   **The Data File (Mandatory):** You provide a CSV file where every row represents one task.
-*   **Variables:** The column headers in your CSV (e.g., `id`, `topic`, `name`) become variables (placeholders) available throughout the process.
-*   **One Row = One Output:** The tool iterates through every row in your CSV and generates a unique result for it.
-    *   **File Output:** Save each result as a separate file (e.g., `out/1.txt`).
-    *   **Column Output:** Write the result back into the CSV as a new column.
-
-### Where can I use these variables?
-You can use `{{variable_name}}` placeholders in almost every argument and file content:
-
-1.  **Inside Prompt Files:** Dynamically insert data into your text prompts.
-    *   *Example:* `Write a blog post about {{topic}}.`
-2.  **Inside System Prompts:** Customize the AI persona per row.
-    *   *Example:* `You are an expert in {{industry}}.`
-3.  **In Prompt File Paths:** Dynamically choose which prompt file to load based on the data.
-    *   *Example:* `prompts/{{type}}.md` (If type is "vip", it loads `prompts/vip.md`).
-4.  **In Output Paths:** Organize your results into folders.
-    *   *Example:* `output/{{category}}/{{id}}.txt`
-
-**Example:**
-If your CSV has 50 rows of products, BatchPrompt will generate 50 product descriptions.
+Unlike simple "chat" bots, BatchPrompt is **data-driven**: it takes a CSV/JSON file as input, and for every row, it executes a series of steps (prompts, searches, scrapes) to generate files or structured data.
 
 ---
 
-## 1. Prerequisite: Installing Node.js (For Beginners)
+## 🚀 Quick Start
 
-To run this tool, you need **Node.js** and **npm** (Node Package Manager) installed on your computer.
-
-### Windows / macOS
-1.  Go to the official [Node.js website](https://nodejs.org/).
-2.  Download the **LTS (Long Term Support)** version.
-3.  Run the installer and follow the on-screen instructions.
-4.  Once finished, open your Command Prompt (cmd.exe), PowerShell, or Terminal.
-5.  Type the following to verify it worked:
-    ```bash
-    node -v
-    npm -v
-    ```
-    You should see version numbers appear (e.g., `v20.11.0`).
-
-### Linux (Ubuntu/Debian)
-Open your terminal and run these commands:
-
-```bash
-# 1. Update your package list
-sudo apt update
-
-# 2. Install Node.js and npm
-sudo apt install nodejs npm
-
-# 3. Verify installation
-node -v
-npm -v
-```
-
----
-
-## 2. Installation
-
-Once Node.js is installed, you can install BatchPrompt globally. This allows you to run the `batchprompt` command from any folder on your computer.
-
-### Option A: Install from NPM (Recommended)
+### 1. Install
+Requires Node.js 18+.
 ```bash
 npm install -g batchprompt
 ```
 
-### Option B: Install from Source (If developing)
-Open your terminal inside this project folder and run:
-```bash
-# Install dependencies
-npm install
+### 2. Configure Keys
+We recommend **[OpenRouter](https://openrouter.ai/)** to access OpenAI, Anthropic, and Google models with one key.
 
-# Build the project
-npm run build
-
-# Link the command globally
-npm link
-```
-Now you can simply type `batchprompt` in your terminal to play with it.
-
----
-
-## 3. Setup: API Key & OpenRouter (Recommended)
-
-While this tool works with OpenAI-compatible APIs, we **highly recommend using [OpenRouter](https://openrouter.ai/)**. OpenRouter allows you to use models from Google (Gemini), Anthropic (Claude), and OpenAI using a single API key.
-
-**Crucially**, this tool uses the unified Chat API for image generation. It relies on **Text+Image models** (like Gemini 3 or generally Multimodal models). It does **not** support the standalone DALL-E endpoint. To use these modern models effectively, you should configure the Base URL for OpenRouter.
-
-### Configuration for OpenRouter (Best Practice)
-
-1.  Get your key from [openrouter.ai](https://openrouter.ai/).
-2.  Set the Base URL to OpenRouter.
-3.  Set your API Key.
-
-*Mac/Linux:*
+**Mac/Linux:**
 ```bash
 export BATCHPROMPT_OPENAI_BASE_URL="https://openrouter.ai/api/v1"
-export BATCHPROMPT_OPENAI_API_KEY="sk-or-v1-..."
+export BATCHPROMPT_OPENAI_API_KEY="sk-or-..."
+export BATCHPROMPT_SERPER_API_KEY="your-serper-key" # Optional: For Search/Scraping
 ```
 
-*Windows (PowerShell):*
+**Windows (PowerShell):**
 ```powershell
 $env:BATCHPROMPT_OPENAI_BASE_URL="https://openrouter.ai/api/v1"
-$env:BATCHPROMPT_OPENAI_API_KEY="sk-or-v1-..."
+$env:BATCHPROMPT_OPENAI_API_KEY="sk-or-..."
+$env:BATCHPROMPT_SERPER_API_KEY="your-serper-key"
 ```
 
-### Variable Priority & Fallbacks
-BatchPrompt looks for variables in this order. If you have existing OpenAI variables set, specific `BATCHPROMPT_` keys will override them.
+### 3. Run Your First Batch
+Create a file named `topics.csv`:
+```csv
+id,topic
+1,Black Holes
+2,Quantum Computing
+```
 
-| Setting | Preferred Variable | Fallback 1 | Fallback 2 |
-| :--- | :--- | :--- | :--- |
-| **Base URL** | `BATCHPROMPT_OPENAI_BASE_URL` | `OPENAI_BASE_URL` | `AI_API_URL` |
-| **API Key** | `BATCHPROMPT_OPENAI_API_KEY` | `OPENAI_API_KEY` | `AI_API_KEY` |
-| **Model** | `BATCHPROMPT_OPENAI_MODEL` | `OPENAI_MODEL` | `MODEL` |
-
-### Advanced Configuration (Environment Variables)
-You can further configure BatchPrompt using these environment variables:
-
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `CACHE_ENABLED` | `true` | Set to `false` to disable caching of API responses. |
-| `SQLITE_PATH` | `.cache.sqlite` | Path to the SQLite file used for caching. |
-| `GPT_MAX_CONVERSATION_CHARS` | (None) | Limit the number of characters in the conversation history (truncates older messages). |
-
----
-
-## 4. Comprehensive Workflows
-
-These 3 scenarios demonstrate the full power of BatchPrompt, combining multiple features into realistic workflows.
-
-### Scenario 1: The "Content Machine"
-**Features:** Text Generation, Dynamic Prompt Paths, Feedback Loops, Data Enrichment.
-
-**Goal:** Generate SEO-optimized product descriptions. We use different prompt files based on the product category, force the AI to critique and refine its own work, and save the result to both a file and a new column in the CSV.
-
-**Command:**
+Run:
 ```bash
-batchprompt generate \
-  products.csv \
-  "prompts/{{category}}.md" \
-  --output "output/{{category}}/{{id}}_desc.md" \
-  --output-column "description_summary" \
-  --feedback-loops 1 \
-  --feedback-prompt "Critique the draft for SEO keywords and persuasive tone. Identify any fluff." \
-  --model google/gemini-3-pro-preview
+batchprompt generate topics.csv "Write a haiku about {{topic}}" --model gpt-4o
 ```
-
-**What happens:**
-1.  **Dynamic Loading:** For a row where `category` is "electronics", it loads `prompts/electronics.md`.
-2.  **Draft & Refine:** The AI generates a draft. Then, the **Feedback Model** critiques it. The AI generates a final version based on the critique.
-3.  **Dual Output:**
-    *   Saves the full text to `output/electronics/123_desc.md`.
-    *   Adds the text to a new column `description_summary` in `products_processed.csv`.
 
 ---
 
-### Scenario 2: The "Art Director"
-**Features:** Image Search (RAG), Image Generation, Candidate Generation, AI Judging.
+## 🧠 Core Concepts: Data Flow & Variables
 
-**Goal:** Create the perfect marketing visual for travel destinations. Instead of hallucinating details, the AI searches for real photos of the location, uses them as reference, generates 4 variations, and picks the best one.
+BatchPrompt relies entirely on **Variables**. Understanding how data flows between steps is key to building complex agents.
 
-**Command:**
+### 1. Input Variables
+Every column in your input CSV/JSON becomes a variable.
+*   **CSV:** `id, product_name` -> `{{id}}`, `{{product_name}}`
+*   **Usage:** You can use these in prompts, file paths, and even configuration flags.
+
+### 2. Step Outputs
+When a step finishes, its result is stored.
+*   **Default:** The result is stored in `{{modelOutput}}`.
+*   **Named Column:** Use `--output-column my_summary` to save the result to `{{my_summary}}`.
+*   **History:** You can access results from specific steps using the `steps` array: `{{steps.[0].modelOutput}}` (0-based index).
+
+### 3. Plugin Data
+Plugins (like Web Search) inject their data into variables.
+*   **Default:** `{{web-search}}`, `{{image-search}}`, `{{website-agent}}`.
+*   **Merging:** Use `--web-search-merge` to flatten the result into your main data.
+    *   *Example:* If the website agent finds `{"email": "..."}`, merging lets you use `{{email}}` directly in the next step.
+
+### 4. Dynamic Configuration
+You can use variables to change *how* the tool runs per row.
+*   **Dynamic Schemas:** `--json-schema "schemas/{{category}}.json"` (Loads different validation schemas based on row data).
+*   **Dynamic Prompts:** `batchprompt generate data.csv "prompts/{{type}}.md"` (Loads different prompt files).
+
+---
+
+## 🔌 Plugins
+
+Plugins add capabilities to the AI. They run *before* the LLM generates its response, providing context.
+
+### 🌐 Web Search (RAG)
+Searches Google (via Serper), retrieves content, and optionally summarizes it.
+
+*   **Enable:** `--web-search-query "latest news about {{topic}}"`
+*   **Auto-Query:** Use `--web-query-prompt "Generate a search query for..."` to let the AI decide what to search.
+*   **Options:**
+    *   `--web-search-limit 5`: Number of results.
+    *   `--web-search-mode markdown`: Fetches the full page content and converts to Markdown. (Options: `none`, `markdown`, `html`).
+    *   `--web-search-merge`: Merges results into the row data.
+
+### 🖼️ Image Search
+Finds images on the web to use as reference or context.
+
+*   **Enable:** `--image-search-query "{{landmark}}"`
+*   **AI Selection:** Use `--image-select-prompt "Pick the best photo"` to have an AI judge select the best image from the results.
+*   **Options:**
+    *   `--image-search-limit 10`: How many images to fetch.
+    *   `--image-search-sprite-size 4`: How many images to show the AI at once during selection.
+
+### 🕷️ Website Agent (Scraper)
+Crawls a specific URL and extracts structured data matching a JSON schema.
+
+*   **Enable:** `--website-agent-url "{{url}}"`
+*   **Schema:** `--website-agent-schema "schema.json"` (Defines what to extract).
+*   **Depth:** `--website-agent-depth 1` (0 = Single Page, 1 = Follow links to subpages).
+*   **Prompts:** You can override the internal prompts using `--website-agent-extract-data-prompt`.
+
+### 🎨 Style Scraper
+Captures screenshots (Desktop & Mobile) and extracts CSS styles from interactive elements (buttons, inputs). Great for UI/UX analysis.
+
+*   **Enable:** `--style-scrape-url "{{url}}"`
+*   **Options:**
+    *   `--style-scrape-mobile`: Also capture a mobile viewport screenshot.
+    *   `--style-scrape-interactive`: Click buttons/inputs to capture `:hover` and `:focus` states and computed CSS.
+    *   `--style-scrape-resolution 1920x1080`.
+
+---
+
+## 🛠️ Advanced Logic
+
+### 💥 The "Explode" Strategy
+Turn one row into many. If your LLM returns a JSON Array, `--explode` creates a new task for every item in that array.
+
+**Example:**
+1.  **Input:** 1 Row (`topic: "Fruit"`).
+2.  **Step 1:** Generates `["Apple", "Banana", "Cherry"]`.
+3.  **Flag:** `--explode` is set.
+4.  **Step 2:** Runs **3 times**, once for each fruit.
+
+### 🧪 Verification & Self-Healing
+BatchPrompt can run a shell command to verify the output. If it fails, the error is fed back to the AI to fix it.
+
+*   `--verify-command "node {{file}}"`: Runs this command. If exit code != 0, it retries.
+*   `--json-schema schema.json`: Enforces valid JSON structure. Retries if parsing fails.
+
+### 🏆 Candidates & Judging
+Generate multiple variations and pick the best one.
+
+*   `--candidates 4`: Generate 4 versions in parallel.
+*   `--judge-prompt "Pick the most creative one"`: An AI Judge evaluates all 4 and selects the winner.
+*   `--skip-candidate-command`: Only run post-process commands on the *winner*, not the drafts.
+
+---
+
+## 📚 Workflow Scenarios
+
+### Scenario 1: The "Deep Researcher" (Web Search + Explode)
+**Goal:** Take a list of companies, find their latest news, and generate a separate report for each news item.
+
 ```bash
-batchprompt generate \
-  destinations.csv \
-  prompt.md \
-  --output "output/{{city}}.png" \
-  --aspect-ratio "16:9" \
-  --image-search-prompt "Find high-quality, scenic photography of {{city}} landmarks." \
-  --image-select-prompt "Select the most breathtaking landscape shot." \
-  --candidates 4 \
-  --judge-model "google/gemini-3-pro-preview" \
-  --judge-prompt "Select the most photorealistic image with the best lighting. Return the index of the best candidate." \
-  --model google/gemini-3-pro-image-preview
+batchprompt generate companies.csv \
+  step1_find_news.md \
+  step2_write_report.md \
+  --web-search-query-1 "Latest news for {{company_name}}" \
+  --web-search-mode-1 markdown \
+  --json-schema-1 news_items_schema.json \
+  --explode-1 \
+  --output-2 "reports/{{company_name}}/{{news_title}}.md" \
+  --model gpt-4o
 ```
 
-**What happens:**
-1.  **Research:** The AI searches the web for images of the city and selects the best reference photo.
-2.  **Generate x4:** It generates 4 different images in parallel, using the reference photo for accuracy.
-3.  **Judge:** The Judge Model looks at all 4 candidates and picks the winner based on your criteria.
-4.  **Save:** Only the winning image is saved.
+### Scenario 2: The "UI/UX Auditor" (Style Scraper + Vision)
+**Goal:** Audit a list of websites for mobile responsiveness and color contrast.
 
----
-
-### Scenario 3: The "Software Engineer"
-**Features:** Multi-Step Workflow, JSON Schema, System Prompt Overrides, Self-Healing Code.
-
-**Goal:** A robust code generation pipeline. Step 1 defines a technical specification (JSON). Step 2 writes the code. If the code fails to run, the AI fixes it automatically.
-
-**Command:**
 ```bash
-batchprompt generate \
-  features.csv \
-  step1_spec.md \
-  step2_code.md \
-  --output-2 "src/{{id}}.ts" \
-  --system-prompt-1 "You are a Product Manager." \
-  --json-schema-1 spec_schema.json \
-  --system-prompt-2 "You are a Senior TypeScript Developer." \
-  --verify-command-2 "npx tsc --noEmit {{file}}" \
-  --model google/gemini-3-pro-preview
+batchprompt generate sites.csv audit_prompt.md \
+  --style-scrape-url "{{url}}" \
+  --style-scrape-mobile \
+  --style-scrape-interactive \
+  --output "audits/{{domain}}.md" \
+  --model google/gemini-2.0-flash-exp
 ```
+*Note: Requires a multimodal model like Gemini 2.0 or GPT-4o.*
 
-**What happens:**
-1.  **Step 1 (Spec):** Acts as a Product Manager. Generates a JSON spec validated against `spec_schema.json`.
-2.  **Step 2 (Code):** Acts as a Developer. Reads the spec from Step 1 and writes TypeScript code.
-3.  **Verify & Heal:** BatchPrompt runs `npx tsc` on the generated file. If it fails, the error is fed back to the AI, which generates a fix. This repeats up to 3 times until the code compiles.
+### Scenario 3: The "Code Generator" (Verification Loop)
+**Goal:** Write a Python script and ensure it actually runs.
+
+```bash
+batchprompt generate tasks.csv code_prompt.md \
+  --output "src/{{filename}}.py" \
+  --verify-command "python {{file}}" \
+  --feedback-loops 2 \
+  --model claude-3-5-sonnet
+```
 
 ---
 
-## 5. Command Flags Reference
+## ⚙️ Configuration Reference
 
-Here is an explanation of the flags used above.
+### General Flags
+| Flag | Description |
+| :--- | :--- |
+| `-c, --concurrency` | Max concurrent LLM requests (Default: 20). |
+| `--task-concurrency` | Max concurrent rows processed (Default: 100). |
+| `--tmp-dir` | Directory for temp files (Default: `.tmp`). |
+| `--data-output` | Path to save the processed CSV/JSON data file. |
 
-| Flag / Argument | Example | Description |
-| :--- | :--- | :--- |
-| **Argument 1** | `data.csv` | **Required.** The path to your data file (CSV or JSON). The first row of a CSV must be headers (e.g., `id,name`). |
-| **Argument 2+** | `prompt.md` | **Optional.** One or more text files (or directories) containing your prompt templates. Directories can contain Text, Images, or Audio. |
-| `-o` / `--output` | `out/{{id}}.txt` | Template for saving results to individual files. |
-| `--output-column` | `summary` | Save the result into a specific column in the data file instead of separate files. |
-| `--data-output` | `data_new.csv` | Path to save the processed data file (used with `--output-column`). Defaults to `*_processed.csv`. |
-| `-s` / `--system` | `system.md` | The path to a system prompt file or directory (sets the AI behavior/persona). |
-| `-S` / `--schema` | `schema.json` | Path to a JSON Schema file. Enforces valid JSON output and enables auto-retry on validation failure. |
-| `--verify-command` | `"node {{file}}"` | A shell command to verify the output. Use `{{file}}` as a placeholder. Enables auto-retry on failure. |
-| `-c` / `--concurrency` | `10` | How many items to process at once. Defaults to 20. Lower this if you hit Rate Limits. |
-| `-m` / `--model` | `google/gemini...` | Which AI model to use. **Note:** For images, you must use a unified text+image model. |
-| `--aspect-ratio` | `16:9` | Triggers **Text+Image mode**. Common values: `1:1`, `16:9`, `3:2`. |
-| `--image-search-query` | `"cats"` | Raw search query for image search. |
-| `--image-search-prompt` | `"Find images of..."` | Prompt to generate search queries dynamically. |
-| `--image-select-prompt` | `"Pick the best..."` | Prompt for the AI to select the best image from results. |
-| `--image-search-limit` | `10` | Images to fetch per query. |
-| `--image-search-select` | `1` | How many images to select. |
-| `--image-search-query-count` | `3` | Number of search queries to generate. |
-| `--image-search-sprite-size` | `4` | Number of images per grid sent to the AI judge. |
+### Model Configuration
+| Flag | Description |
+| :--- | :--- |
+| `-m, --model` | Model ID (e.g., `gpt-4o`, `claude-3-5-sonnet`). |
+| `--temperature` | Creativity (0.0 - 1.0). |
+| `--thinking-level` | For reasoning models (o1/o3). `low`, `medium`, `high`. |
+| `-s, --system` | System prompt (File path or text). |
 
-### Step-Specific Overrides (Flags ending in -N)
-When running a multi-step generation (by providing multiple prompt files), you can configure each step individually.
-BatchPrompt supports overrides for steps 1 through 10. Simply append the step number to the flag.
+### Output Control
+| Flag | Description |
+| :--- | :--- |
+| `-o, --output` | Template for output file path (e.g., `out/{{id}}.txt`). |
+| `--output-column` | Save result to a column in the data file. |
+| `--export` | Merge the result into the row data for future steps. |
+| `--command` | Shell command to run *after* success (e.g., `cp {{file}} ./deploy`). |
 
-**Available flags (replace `N` with `1`, `2`, ... `10`):**
+### Logic & Flow
+| Flag | Description |
+| :--- | :--- |
+| `--explode` | Split array results into multiple rows for the next step. |
+| `--candidates` | Number of parallel variations to generate. |
+| `--judge-prompt` | Prompt for the AI judge to select the best candidate. |
+| `--feedback-loops` | Number of critique/refine cycles (Default: 0). |
+| `--verify-command` | Command to validate output (triggers retry on failure). |
 
-| Flag Pattern | Example | Description |
-| :--- | :--- | :--- |
-| `--system-prompt-N` | `--system-prompt-2` | Override system prompt for step N. |
-| `--json-schema-N` | `--json-schema-2` | Override JSON Schema for step N. |
-| `--verify-command-N` | `--verify-command-2` | Override verification command for step N. |
-| `--output-N` | `--output-2` | Override output file path for step N. |
-| `--output-column-N` | `--output-column-2` | Override output column for step N. |
-| `--aspect-ratio-N` | `--aspect-ratio-2` | Override aspect ratio for step N. |
-| `--image-search-query-N` | `--image-search-query-2` | Override search query for step N. |
-| `--image-search-prompt-N` | `--image-search-prompt-2` | Override search prompt for step N. |
-| `--image-select-prompt-N` | `--image-select-prompt-2` | Override select prompt for step N. |
+### Environment Variables
+| Variable | Description |
+| :--- | :--- |
+| `BATCHPROMPT_OPENAI_API_KEY` | API Key (OpenAI/OpenRouter). |
+| `BATCHPROMPT_OPENAI_BASE_URL` | API Base URL. |
+| `BATCHPROMPT_SERPER_API_KEY` | Key for Serper.dev (Google Search). |
+| `SERPER_CONCURRENCY` | Max parallel search requests (Default: 5). |
+| `PUPPETEER_CONCURRENCY` | Max parallel browser instances (Default: 3). |
+| `CACHE_ENABLED` | Set to `false` to disable caching. |
+
+### Step-Specific Overrides
+For multi-step pipelines, append the step number to almost any flag:
+*   `--model-1 gpt-4o`
+*   `--model-2 claude-3-haiku`
+*   `--web-search-query-1 ...`
+*   `--output-2 ...`
