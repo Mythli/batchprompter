@@ -150,9 +150,10 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         const candidates = parseInt(getStepOpt('candidates') || '1', 10);
 
         // Validation: Require explicit judge configuration if multiple candidates are requested
-        if (candidates > 1 && !isJudgeConfigured) {
-             throw new Error(`Step ${i} Error: Multiple candidates (${candidates}) requested without a judge configuration. Please configure a judge (e.g. --judge-model, --judge-prompt) or set candidates to 1.`);
-        }
+        // REMOVED: We now allow multiple candidates without a judge (defaults to first candidate)
+        // if (candidates > 1 && !isJudgeConfigured) {
+        //      throw new Error(`Step ${i} Error: Multiple candidates (${candidates}) requested without a judge configuration. Please configure a judge (e.g. --judge-model, --judge-prompt) or set candidates to 1.`);
+        // }
 
         steps.push(clean({
             stepIndex: i,

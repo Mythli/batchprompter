@@ -82,14 +82,20 @@ export class CandidateStrategy implements GenerationStrategy {
                 console.log(`[Row ${index}] Step ${stepIndex} Only 1 candidate succeeded. Skipping judge.`);
             }
         } else {
-            // We have > 1 candidates. We enforced config.judge exists at the start.
-            console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates with ${config.judge!.model}...`);
-            try {
-                winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex);
-                console.log(`[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}`);
-            } catch (e: any) {
-                console.error(`[Row ${index}] Step ${stepIndex} Judging failed: ${e.message}`);
-                throw e;
+            // We have > 1 candidates.
+            if (config.judge) {
+                console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates with ${config.judge.model}...`);
+                try {
+                    winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex);
+                    console.log(`[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}`);
+                } catch (e: any) {
+                    console.error(`[Row ${index}] Step ${stepIndex} Judging failed: ${e.message}`);
+                    throw e;
+                }
+            } else {
+                // No judge configured. Warn and pick the first one.
+                console.warn(`[Row ${index}] Step ${stepIndex} ⚠️  Multiple candidates generated but no judge configured. Defaulting to Candidate #1.`);
+                winner = successfulCandidates[0];
             }
         }
 
