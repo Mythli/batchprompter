@@ -13,6 +13,7 @@ export interface AiWebsiteAgentOptions {
     extractLinksPrompt?: string;
     extractDataPrompt?: string;
     mergeDataPrompt?: string;
+    model?: string; // Added model option
 }
 
 export class AiWebsiteAgent {
@@ -27,6 +28,7 @@ export class AiWebsiteAgent {
         baseUrl: string,
         links: LinkData[],
         maxLinks: number,
+        model: string,
         promptSource?: string
     ): Promise<string[]> {
         const linksText = links
@@ -50,7 +52,7 @@ export class AiWebsiteAgent {
         const response = await this.llm.promptZod(
             [{ role: 'user', content: contentParts }],
             LinkSchema,
-            { model: 'gpt-4o' }
+            { model: model }
         );
 
         return response.relevant_urls;
@@ -60,6 +62,7 @@ export class AiWebsiteAgent {
         url: string,
         markdown: string,
         schema: any, // JSON Schema Object
+        model: string,
         promptSource?: string
     ): Promise<any> {
         const truncatedMarkdown = markdown.substring(0, 20000);
@@ -74,7 +77,7 @@ export class AiWebsiteAgent {
         return await this.llm.promptJson(
             [{ role: 'user', content: contentParts }],
             schema,
-            { model: 'gpt-4o' }
+            { model: model }
         );
     }
 
@@ -109,24 +112,25 @@ export class AiWebsiteAgent {
     ): Promise<any> {
         const depth = options.depth ?? 0;
         const maxLinks = options.maxLinks ?? 3;
+        const model = options.model || 'gpt-4o'; // Default fallback if not provided
 
-        console.log(`[AiWebsiteAgent] Scraping ${url} (Depth: ${depth})...`);
+        console.log(`[AiWebsiteAgent] Scraping ${url} (Depth: ${depth}, Model: ${model})...`);
 
         const mainPage = await this.getPageContent(url);
-        const mainDataPromise = this.extractDataFromMarkdown(url, mainPage.markdown, schema, options.extractDataPrompt);
+        const mainDataPromise = this.extractDataFromMarkdown(url, mainPage.markdown, schema, model, options.extractDataPrompt);
 
         let subPagesDataPromises: Promise<any>[] = [];
 
         if (depth > 0) {
             console.log(`[AiWebsiteAgent] Analyzing links on ${url}...`);
-            const relevantUrls = await this.extractRelevantLinks(url, mainPage.links, maxLinks, options.extractLinksPrompt);
+            const relevantUrls = await this.extractRelevantLinks(url, mainPage.links, maxLinks, model, options.extractLinksPrompt);
             const uniqueUrls = relevantUrls.filter(u => u !== url && u.startsWith('http'));
             console.log(`[AiWebsiteAgent] Found sub-pages: ${uniqueUrls.join(', ')}`);
 
             subPagesDataPromises = uniqueUrls.map(async (subUrl) => {
                 try {
                     const subPage = await this.getPageContent(subUrl);
-                    return await this.extractDataFromMarkdown(subUrl, subPage.markdown, schema, options.extractDataPrompt);
+                    return await this.extractDataFromMarkdown(subUrl, subPage.markdown, schema, model, options.extractDataPrompt);
                 } catch (e) {
                     console.warn(`[AiWebsiteAgent] Failed to scrape sub-page ${subUrl}:`, e);
                     return {};
@@ -149,7 +153,7 @@ export class AiWebsiteAgent {
              return await this.llm.promptJson(
                  [{ role: 'user', content: contentParts }],
                  schema,
-                 { model: 'gpt-4o' }
+                 { model: model }
              );
         }
 

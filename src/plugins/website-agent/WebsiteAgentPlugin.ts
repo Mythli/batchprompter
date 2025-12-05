@@ -131,7 +131,7 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, services } = context;
+        const { row, stepIndex, config, services, globalConfig } = context;
         const resolvedConfig = config as WebsiteAgentResolvedConfig;
 
         if (!services.aiWebsiteAgent) {
@@ -149,6 +149,13 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             throw new Error(`[WebsiteAgent] Step ${stepIndex}: Invalid URL format (must start with http/https): "${resolvedConfig.url}"`);
         }
 
+        // Use the global model configuration
+        // Note: Currently plugins don't have their own model override flags in CLI, 
+        // so we use the global default model which is passed via globalConfig.
+        // If we wanted per-step model overrides for plugins, we'd need to register --website-agent-model flags.
+        // For now, using the global model (which defaults to gpt-4o or env var) is the correct fix.
+        const model = globalConfig.model || 'gpt-4o';
+
         const result = await services.aiWebsiteAgent.scrape(
             resolvedConfig.url,
             resolvedConfig.schema,
@@ -156,7 +163,8 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
                 depth: resolvedConfig.depth,
                 extractLinksPrompt: resolvedConfig.extractLinksPrompt,
                 extractDataPrompt: resolvedConfig.extractDataPrompt,
-                mergeDataPrompt: resolvedConfig.mergeDataPrompt
+                mergeDataPrompt: resolvedConfig.mergeDataPrompt,
+                model: model
             }
         );
 
