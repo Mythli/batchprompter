@@ -112,6 +112,9 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         else if (options.exportResult !== undefined) exportResult = !!options.exportResult;
         else if (outputColumn) exportResult = true;
 
+        // Determine Strategy
+        const strategy = (options[`explode${i}`] || options.explode) ? 'explode' : 'merge';
+
         // 5. Plugins
         const plugins: PluginConfigDefinition[] = [];
         for (const plugin of pluginRegistry.getAll()) {
@@ -140,6 +143,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
             outputColumn: outputColumn,
             outputTemplate: getStepOpt('output'), // Alias
             exportResult,
+            strategy,
             
             schemaPath: options[`jsonSchema${i}`] ? String(options[`jsonSchema${i}`]) : (options.schema ? String(options.schema) : undefined),
             verifyCommand: getStepOpt('verifyCommand'),

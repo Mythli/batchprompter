@@ -28,6 +28,7 @@ export class StepRegistry {
         program.option('--skip-candidate-command', 'Skip commands for candidates');
         program.option('--feedback-loops <number>', 'Number of feedback loops', '0');
         program.option('--aspect-ratio <ratio>', 'Aspect ratio for image generation');
+        program.option('--explode', 'Explode array results into multiple rows');
 
         // --- Step Level (1-10) ---
         for (let i = 1; i <= 10; i++) {
@@ -44,6 +45,7 @@ export class StepRegistry {
             program.option(`--skip-candidate-command-${i}`, `Skip candidate commands for step ${i}`);
             program.option(`--feedback-loops-${i} <number>`, `Feedback loops for step ${i}`);
             program.option(`--aspect-ratio-${i} <ratio>`, `Aspect ratio for step ${i}`);
+            program.option(`--explode-${i}`, `Explode results for step ${i}`);
         }
 
         // --- Plugins ---
@@ -96,6 +98,7 @@ export class StepRegistry {
                 outputColumn: stepDef.outputColumn,
                 outputTemplate: stepDef.outputTemplate,
                 exportResult: stepDef.exportResult,
+                strategy: stepDef.strategy,
                 
                 schemaPath: stepDef.schemaPath,
                 jsonSchema: undefined, // Resolved per-row in ActionRunner

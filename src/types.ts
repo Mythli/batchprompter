@@ -25,6 +25,7 @@ export interface StepDefinition {
     outputColumn?: string;
     outputTemplate?: string;
     exportResult: boolean; // NEW: Whether to merge the LLM result into the final output row
+    strategy: 'merge' | 'explode'; // NEW: How to handle the output (expand row vs multiply rows)
     
     // Validation
     schemaPath?: string;
@@ -84,6 +85,7 @@ export interface StepConfig {
     outputColumn?: string;
     outputTemplate?: string; 
     exportResult: boolean; // NEW
+    strategy: 'merge' | 'explode'; // NEW
     
     // Validation & Post-processing
     schemaPath?: string;
