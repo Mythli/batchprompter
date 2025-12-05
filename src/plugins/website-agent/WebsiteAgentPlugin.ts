@@ -141,10 +141,9 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             throw new Error("AiWebsiteAgent service is not available.");
         }
 
-        // Gracefully handle empty URLs (e.g. if upstream search failed)
+        // Throw error if URL is empty so the row is skipped by ActionRunner
         if (!resolvedConfig.url || resolvedConfig.url.trim() === '') {
-            console.log(`[WebsiteAgent] Step ${stepIndex}: No URL provided (or empty). Skipping.`);
-            return { contentParts: [], data: null };
+            throw new Error(`[WebsiteAgent] Step ${stepIndex}: No URL provided.`);
         }
 
         const result = await services.aiWebsiteAgent.scrape(
