@@ -4,12 +4,15 @@ import { Parser, transforms } from 'json2csv';
 import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
 import { LlmClient } from 'llm-fns';
-import { RuntimeConfig, StepConfig, PluginConfigDefinition } from './types.js';
+import { RuntimeConfig, StepConfig } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PromptResolver } from './utils/PromptResolver.js';
 import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
 import { PluginServices } from './plugins/types.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
+import { PluginRunner } from './core/PluginRunner.js';
+import { ResultProcessor } from './core/ResultProcessor.js';
+import OpenAI from 'openai';
 
 interface TaskPayload {
     data: Record<string, any>; // The accumulated row data
@@ -40,6 +43,14 @@ export class ActionRunner {
 
         // Initialize Executor
         const executor = new StepExecutor(this.llm, tmpDir, concurrency, this.services, this.pluginRegistry);
+
+        // Initialize Plugin Runner
+        const pluginRunner = new PluginRunner(
+            this.pluginRegistry,
+            this.services,
+            this.llm,
+            { tmpDir, concurrency }
+        );
 
         // Store final results here. Since rows can multiply, this is a dynamic array.
         const finalResults: Record<string, any>[] = [];
@@ -78,152 +89,126 @@ export class ActionRunner {
 
                 console.log(`[Row ${originalIndex}] Step ${stepNum} Processing...`);
 
-                // 3. Execute Step
-                const result = await executor.execute(
-                    viewContext,
-                    originalIndex,
-                    stepNum,
-                    resolvedStep,
-                    history
-                );
-
-                // 4. Process Results & Determine Next State
-                // We need to build the "currentStep" object to add to stepHistory
-                const currentStepResult: Record<string, any> = {};
+                // --- EXECUTION LOOP ---
                 
-                // Start with a list containing the base row for the next step
-                let nextRows: Record<string, any>[] = [{ ...currentData }];
+                // We start with one row (the current one), but plugins might explode it into multiple.
+                // We track the rows and the accumulated content parts (prompts) for the model.
+                // Note: If a plugin explodes the row, the content parts must be duplicated/associated with each new row.
+                // To simplify, we will maintain a list of "Active Contexts".
+                
+                interface ActiveContext {
+                    row: Record<string, any>;
+                    contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+                    stepResult: Record<string, any>; // Accumulates results for this step
+                }
 
-                // A. Handle Plugin Results
-                for (const [pluginName, pluginData] of Object.entries(result.pluginResults)) {
-                    currentStepResult[pluginName] = pluginData;
-                    
-                    const pluginDef = resolvedStep.plugins.find(p => p.name === pluginName);
-                    if (pluginDef) {
-                        if (pluginDef.explode) {
-                            // Explode Logic
-                            const items = Array.isArray(pluginData) ? pluginData : [pluginData];
-                            const newNextRows: Record<string, any>[] = [];
-                            
-                            for (const row of nextRows) {
-                                for (const item of items) {
-                                    const rowClone = { ...row };
-                                    
-                                    if (pluginDef.outputColumn) {
-                                        rowClone[pluginDef.outputColumn] = item;
-                                    } else if (pluginDef.export) {
-                                        if (typeof item === 'object' && item !== null) {
-                                            Object.assign(rowClone, item);
-                                        } else {
-                                            rowClone[pluginName] = item; // Fallback
-                                        }
-                                    }
-                                    newNextRows.push(rowClone);
-                                }
+                let activeContexts: ActiveContext[] = [{
+                    row: viewContext,
+                    contentParts: [],
+                    stepResult: {}
+                }];
+
+                // 3. Execute Plugins Sequentially
+                for (const pluginDef of resolvedStep.plugins) {
+                    const nextContexts: ActiveContext[] = [];
+
+                    for (const ctx of activeContexts) {
+                        // Execute Plugin for this specific row context
+                        const { context: updatedRow, contentParts, pluginResults } = await pluginRunner.run(
+                            [pluginDef], // Run one plugin
+                            ctx.row,
+                            stepNum,
+                            {
+                                outputDir: resolvedStep.resolvedOutputDir,
+                                tempDir: resolvedStep.resolvedTempDir || tmpDir,
+                                basename: resolvedStep.outputBasename,
+                                ext: resolvedStep.outputExtension
                             }
-                            nextRows = newNextRows;
-                        } else {
-                            // Standard Merge Logic
-                            for (const row of nextRows) {
-                                if (pluginDef.outputColumn) {
-                                    row[pluginDef.outputColumn] = pluginData;
-                                } else if (pluginDef.export) {
-                                    let dataToMerge = pluginData;
-                                    if (Array.isArray(pluginData)) {
-                                        if (pluginData.length === 1) dataToMerge = pluginData[0];
-                                        else if (pluginData.length > 1) {
-                                            // If array > 1 and no explode, we can't merge safely into root.
-                                            // We skip merging to avoid data corruption/confusion.
-                                            dataToMerge = null; 
-                                        } else {
-                                            dataToMerge = null;
-                                        }
-                                    }
-                                    
-                                    if (dataToMerge !== null) {
-                                        if (typeof dataToMerge === 'object') {
-                                            Object.assign(row, dataToMerge);
-                                        } else {
-                                            row[pluginName] = dataToMerge;
-                                        }
-                                    }
+                        );
+
+                        // Get the specific result for this plugin
+                        const resultData = pluginResults[pluginDef.name];
+                        
+                        // Apply Output Strategy (Merge/Explode)
+                        // ResultProcessor returns new rows based on the strategy
+                        const processedRows = ResultProcessor.process([ctx.row], resultData, pluginDef.output);
+
+                        // Create new contexts for the next plugin/model
+                        for (const newRow of processedRows) {
+                            // We must preserve the accumulated content parts
+                            // And add the new content parts from this plugin execution
+                            nextContexts.push({
+                                row: newRow,
+                                contentParts: [...ctx.contentParts, ...contentParts],
+                                stepResult: { 
+                                    ...ctx.stepResult, 
+                                    [pluginDef.name]: resultData,
+                                    // If the plugin merged data into the row, it's already in newRow.
+                                    // But we also keep it in stepResult for history tracking.
                                 }
-                            }
+                            });
                         }
+                    }
+                    activeContexts = nextContexts;
+                }
+
+                // 4. Execute Model (for each active context)
+                const nextRowsForQueue: Record<string, any>[] = [];
+                const nextStepHistoryForQueue: Record<string, any>[] = []; // We need to pair history with rows
+
+                for (const ctx of activeContexts) {
+                    // Execute Model
+                    const result = await executor.executeModel(
+                        ctx.row,
+                        originalIndex,
+                        stepNum,
+                        resolvedStep,
+                        history,
+                        ctx.contentParts
+                    );
+
+                    // Update Step Result
+                    const currentStepResult = {
+                        ...ctx.stepResult,
+                        modelOutput: result.modelResult
+                    };
+
+                    // Apply Model Output Strategy
+                    const processedRows = ResultProcessor.process([ctx.row], result.modelResult, resolvedStep.output);
+
+                    // Prepare for next step
+                    for (const finalRow of processedRows) {
+                        nextRowsForQueue.push(finalRow);
+                        
+                        // Update history for this branch
+                        // Note: We are duplicating the history message for all exploded rows from the model
+                        // This is acceptable as they share the same generation origin.
+                        nextStepHistoryForQueue.push({
+                            history: [
+                                ...history,
+                                { role: 'user', content: resolvedStep.userPromptParts },
+                                result.historyMessage
+                            ],
+                            stepHistory: [...stepHistory, currentStepResult]
+                        });
                     }
                 }
 
-                // B. Handle Model Result
-                if (result.modelResult) {
-                    currentStepResult.modelOutput = result.modelResult;
-                }
-
-                const modelResult = result.modelResult;
-                
-                if (resolvedStep.strategy === 'explode') {
-                    // EXPLODE STRATEGY
-                    const items = Array.isArray(modelResult) ? modelResult : [modelResult];
-                    const newNextRows: Record<string, any>[] = [];
-                    
-                    for (const row of nextRows) {
-                        for (const item of items) {
-                            const rowClone = { ...row };
-                            
-                            if (resolvedStep.outputColumn) {
-                                rowClone[resolvedStep.outputColumn] = item;
-                            } else if (resolvedStep.exportResult) {
-                                if (typeof item === 'object' && item !== null) {
-                                    Object.assign(rowClone, item);
-                                } else {
-                                    rowClone.modelOutput = item;
-                                }
-                            }
-                            newNextRows.push(rowClone);
-                        }
-                    }
-                    nextRows = newNextRows;
-                } else {
-                    // RUN STRATEGY
-                    for (const row of nextRows) {
-                        if (resolvedStep.exportResult && modelResult) {
-                            if (resolvedStep.outputColumn) {
-                                row[resolvedStep.outputColumn] = modelResult;
-                            } else {
-                                let dataToMerge = modelResult;
-                                if (Array.isArray(modelResult)) {
-                                    if (modelResult.length === 1) dataToMerge = modelResult[0];
-                                    else dataToMerge = null; // Don't merge arrays into root
-                                }
-                                
-                                if (dataToMerge !== null && typeof dataToMerge === 'object') {
-                                    Object.assign(row, dataToMerge);
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // 5. Update History
-                const newHistoryItems = [
-                    { role: 'user', content: resolvedStep.userPromptParts },
-                    result.historyMessage
-                ];
-                const nextHistory = [...history, ...newHistoryItems];
-                
-                const nextStepHistory = [...stepHistory, currentStepResult];
-
-                // 6. Queue Next Steps or Save
+                // 5. Queue Next Steps or Save
                 if (stepIndex === steps.length - 1) {
                     // Finished pipeline for these rows
-                    finalResults.push(...nextRows);
+                    finalResults.push(...nextRowsForQueue);
                 } else {
                     // Queue next step
-                    for (const row of nextRows) {
+                    for (let i = 0; i < nextRowsForQueue.length; i++) {
+                        const row = nextRowsForQueue[i];
+                        const hist = nextStepHistoryForQueue[i];
+                        
                         queue.add(() => processTask({
                             data: row,
                             stepIndex: stepIndex + 1,
-                            stepHistory: nextStepHistory,
-                            history: nextHistory,
+                            stepHistory: hist.stepHistory,
+                            history: hist.history,
                             originalIndex
                         }));
                     }
@@ -232,11 +217,6 @@ export class ActionRunner {
             } catch (err) {
                 console.error(`[Row ${originalIndex}] Step ${stepNum} Error:`, err);
                 rowErrors.push({ index: originalIndex, error: err });
-                // On error, we stop this branch. 
-                // Optionally, we could push the current state to finalResults to preserve partial data?
-                // For now, let's push the *original* data to ensure we don't lose the row entirely, 
-                // or maybe the current accumulated data?
-                // Let's push current accumulated data so we see how far we got.
                 finalResults.push(currentData);
             }
         };

@@ -10,13 +10,18 @@ export interface ModelDefinition {
     promptSource?: string;
 }
 
+export type OutputMode = 'merge' | 'column' | 'ignore';
+
+export interface OutputStrategy {
+    mode: OutputMode;
+    columnName?: string; // The target key (if mode is 'column' or fallback for 'merge')
+    explode: boolean;    // Whether to split array results into multiple rows
+}
+
 export interface PluginConfigDefinition {
     name: string;
     config: any;
-    // Output Strategies
-    outputColumn?: string; // NEW: Save to specific column
-    export: boolean;       // NEW: Merge into row (Renamed from merge)
-    explode: boolean;      // NEW: Explode array result
+    output: OutputStrategy;
 }
 
 export interface StepDefinition {
@@ -25,10 +30,10 @@ export interface StepDefinition {
     
     // IO
     outputPath?: string;
-    outputColumn?: string;
     outputTemplate?: string;
-    exportResult: boolean; // NEW: Whether to merge the LLM result into the final output row
-    strategy: 'run' | 'explode'; // NEW: 'run' (linear, optional merge) vs 'explode' (branching)
+    
+    // Replaces exportResult, outputColumn, strategy
+    output: OutputStrategy;
     
     // Validation
     schemaPath?: string;
@@ -85,10 +90,10 @@ export interface StepConfig {
     
     // Outputs
     outputPath?: string;
-    outputColumn?: string;
     outputTemplate?: string; 
-    exportResult: boolean; // NEW
-    strategy: 'run' | 'explode'; // NEW
+    
+    // Replaces exportResult, outputColumn, strategy
+    output: OutputStrategy;
     
     // Validation & Post-processing
     schemaPath?: string;

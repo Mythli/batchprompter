@@ -12,13 +12,11 @@ import Handlebars from 'handlebars';
 import util from 'util';
 import { exec } from 'child_process';
 import { aggressiveSanitize } from './utils/fileUtils.js';
-import { PluginRunner } from './core/PluginRunner.js';
 
 const execPromise = util.promisify(exec);
 
 export interface StepExecutionResult {
     historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
-    pluginResults: Record<string, any>;
     modelResult: any; // The raw result (string or object)
 }
 
@@ -32,36 +30,21 @@ export class StepExecutor {
         private pluginRegistry: PluginRegistry
     ) {}
 
-    async execute(
+    /**
+     * Executes the Model generation part of a step.
+     * Plugins are assumed to have been executed by ActionRunner.
+     */
+    async executeModel(
         viewContext: Record<string, any>, // The merged context (row + history)
         index: number,
         stepIndex: number,
         config: StepConfig,
-        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        pluginContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): Promise<StepExecutionResult> {
         
-        // 1. Execute Plugins via PluginRunner
-        const pluginRunner = new PluginRunner(
-            this.pluginRegistry,
-            this.services,
-            this.llm,
-            { tmpDir: this.tmpDir, concurrency: this.concurrency }
-        );
-
-        const { context: updatedContext, contentParts, pluginResults } = await pluginRunner.run(
-            config.plugins,
-            viewContext,
-            stepIndex,
-            {
-                outputDir: config.resolvedOutputDir,
-                tempDir: config.resolvedTempDir || this.tmpDir,
-                basename: config.outputBasename,
-                ext: config.outputExtension
-            }
-        );
-
         // Prepend plugin content to user prompt
-        let effectiveUserPromptParts = [...contentParts, ...config.userPromptParts];
+        let effectiveUserPromptParts = [...pluginContentParts, ...config.userPromptParts];
 
         // 2. Check for "Pass-through" Mode
         const hasUserPrompt = config.userPromptParts.length > 0;
@@ -84,7 +67,7 @@ export class StepExecutor {
 
             if (config.postProcessCommand) {
                 for (const filePath of savedPaths) {
-                    await this.executeCommand(config.postProcessCommand, updatedContext, index, stepIndex, filePath);
+                    await this.executeCommand(config.postProcessCommand, viewContext, index, stepIndex, filePath);
                 }
             }
 
@@ -93,7 +76,6 @@ export class StepExecutor {
                     role: 'assistant',
                     content: `[Saved ${effectiveUserPromptParts.length} items from plugins]`
                 },
-                pluginResults,
                 modelResult: null
             };
         }
@@ -106,10 +88,8 @@ export class StepExecutor {
         }
 
         // 4. Execute Strategy
-        // We pass updatedContext so that the strategy (and ModelRequestNormalizer) 
-        // can resolve variables that might have been added by plugins in this step.
         const result = await strategy.execute(
-            updatedContext,
+            viewContext,
             index,
             stepIndex,
             config,
@@ -119,7 +99,6 @@ export class StepExecutor {
 
         return {
             historyMessage: result.historyMessage,
-            pluginResults,
             modelResult: result.columnValue
         };
     }

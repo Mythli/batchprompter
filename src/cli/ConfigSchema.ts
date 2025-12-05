@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ModelDefinition, StepDefinition, NormalizedConfig, PluginConfigDefinition } from '../types.js';
+import { ModelDefinition, StepDefinition, NormalizedConfig, PluginConfigDefinition, OutputStrategy } from '../types.js';
 import { PluginRegistry } from '../plugins/PluginRegistry.js';
 import { ModelFlags } from './ModelFlags.js';
 
@@ -22,6 +22,50 @@ function getEnvVar(keys: string[]): string | undefined {
 // Helper to convert kebab-case plugin name to camelCase for option lookup
 const toCamel = (s: string) => {
     return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
+};
+
+// Helper to resolve OutputStrategy
+const resolveOutputStrategy = (options: Record<string, any>, prefix: string, stepIndex: number): OutputStrategy => {
+    // Prefix is e.g. "webSearch" or "" (for main model)
+    
+    const getOpt = (suffix: string) => {
+        // Try specific step: prefix + Suffix + stepIndex (e.g. webSearchExplode1)
+        // Or global: prefix + Suffix (e.g. webSearchExplode)
+        const key = prefix ? `${prefix}${suffix}` : suffix.toLowerCase(); // for main model, suffix is "Explode" -> "explode"
+        
+        // Handle main model case where prefix is empty
+        const specificKey = prefix ? `${key}${stepIndex}` : `${suffix.toLowerCase()}${stepIndex}`;
+        const globalKey = prefix ? key : suffix.toLowerCase();
+
+        return options[specificKey] || options[globalKey];
+    };
+
+    const explode = !!getOpt('Explode');
+    const outputCol = getOpt('Output') || getOpt('OutputColumn'); // Support both --output and --output-column aliases if needed, mostly --output-column for plugins
+    const exportVal = !!getOpt('Export');
+
+    let mode: 'merge' | 'column' | 'ignore' = 'ignore';
+    let columnName: string | undefined = undefined;
+
+    if (outputCol) {
+        mode = 'column';
+        columnName = String(outputCol);
+    } else if (exportVal) {
+        mode = 'merge';
+    } else if (!prefix && outputCol) { 
+        // Main model specific: if outputColumn is set (via --output-column), it implies column mode.
+        // The getOpt logic above handles the lookup.
+    } 
+    
+    // Special case for Main Model: 
+    // In the old logic: "else if (outputColumn) exportResult = true;"
+    // If it's the main model (prefix == ''), and we have an output column, we definitely want to save it.
+    
+    return {
+        mode,
+        columnName,
+        explode
+    };
 };
 
 export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
@@ -67,7 +111,6 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
 
     for (let i = 1; i <= maxStep; i++) {
         // 1. Main Model
-        // Namespace "1", Fallback "" (Global)
         const mainModel = modelFlags.extract(options, `${i}`, '');
         
         // 2. Prompt Merging
@@ -82,25 +125,23 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
             }
         }
 
-        // Ensure we have a base model definition
         const baseModel: ModelDefinition = clean({
             ...(mainModel as ModelDefinition),
             promptSource: promptSource
         });
 
         // 3. Auxiliary Models
-        // Check if judge is explicitly configured (ignoring default model)
         const strictJudge = strictModelFlags.extract(options, `judge-${i}`, 'judge');
         const isJudgeConfigured = Object.keys(strictJudge).length > 0;
-        
-        // Get full judge config (with default model if needed, though we only use it if configured)
         const judge = modelFlags.extract(options, `judge-${i}`, 'judge') as ModelDefinition;
-        
         const feedback = modelFlags.extract(options, `feedback-${i}`, 'feedback') as ModelDefinition;
         
-        // 4. Step Options
+        // 4. Step Options & Output Strategy
+        // Main Model Output Strategy
+        // We need to handle the specific logic for main model output flags
+        // --output-column, --export, --explode
+        
         const getStepOpt = (key: string): string | undefined => {
-            // Try "output1" then "output"
             const specific = options[`${key}${i}`];
             if (specific !== undefined) return String(specific);
             const global = options[key];
@@ -109,75 +150,53 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         };
 
         const outputColumn = getStepOpt('outputColumn');
-        
-        // Determine exportResult
-        // Explicit flag > implied by outputColumn > default false
-        let exportResult = false;
-        if (options[`exportResult${i}`] !== undefined) exportResult = !!options[`exportResult${i}`];
-        else if (options[`export${i}`] !== undefined) exportResult = !!options[`export${i}`];
-        else if (options.exportResult !== undefined) exportResult = !!options.exportResult;
-        else if (options.export !== undefined) exportResult = !!options.export;
-        else if (outputColumn) exportResult = true;
+        const exportFlag = !!(options[`exportResult${i}`] || options[`export${i}`] || options.exportResult || options.export);
+        const explodeFlag = !!(options[`explode${i}`] || options.explode);
 
-        // Determine Strategy
-        const strategy = (options[`explode${i}`] || options.explode) ? 'explode' : 'run';
+        let modelOutputMode: 'merge' | 'column' | 'ignore' = 'ignore';
+        if (outputColumn) modelOutputMode = 'column';
+        else if (exportFlag) modelOutputMode = 'merge';
+
+        const modelOutputStrategy: OutputStrategy = {
+            mode: modelOutputMode,
+            columnName: outputColumn,
+            explode: explodeFlag
+        };
 
         // 5. Plugins
         const plugins: PluginConfigDefinition[] = [];
         for (const plugin of pluginRegistry.getAll()) {
             const normalized = plugin.normalize(options, i, globalConfig);
             if (normalized) {
-                // Resolve Output Strategies
                 const camelName = toCamel(plugin.name);
-                
-                // Check for --{plugin}-output-{i} or --{plugin}-output
-                const outputKey = `${camelName}Output`;
-                const outputCol = options[`${outputKey}${i}`] || options[outputKey];
-
-                // Check for --{plugin}-export-{i} or --{plugin}-export
-                const exportKey = `${camelName}Export`;
-                const exportVal = !!(options[`${exportKey}${i}`] || options[exportKey]);
-
-                // Check for --{plugin}-explode-{i} or --{plugin}-explode
-                const explodeKey = `${camelName}Explode`;
-                const explodeVal = !!(options[`${explodeKey}${i}`] || options[explodeKey]);
+                const pluginOutputStrategy = resolveOutputStrategy(options, camelName, i);
 
                 plugins.push({
                     name: plugin.name,
                     config: normalized.config,
-                    outputColumn: outputCol ? String(outputCol) : undefined,
-                    export: exportVal,
-                    explode: explodeVal
+                    output: pluginOutputStrategy
                 });
             }
         }
 
         const candidates = parseInt(getStepOpt('candidates') || '1', 10);
 
-        // Validation: Require explicit judge configuration if multiple candidates are requested
-        // REMOVED: We now allow multiple candidates without a judge (defaults to first candidate)
-        // if (candidates > 1 && !isJudgeConfigured) {
-        //      throw new Error(`Step ${i} Error: Multiple candidates (${candidates}) requested without a judge configuration. Please configure a judge (e.g. --judge-model, --judge-prompt) or set candidates to 1.`);
-        // }
-
         steps.push(clean({
             stepIndex: i,
             modelConfig: baseModel,
             
             outputPath: getStepOpt('output'),
-            outputColumn: outputColumn,
             outputTemplate: getStepOpt('output'), // Alias
-            exportResult,
-            strategy,
+            
+            output: modelOutputStrategy,
             
             schemaPath: options[`jsonSchema${i}`] ? String(options[`jsonSchema${i}`]) : (options.schema ? String(options.schema) : undefined),
             verifyCommand: getStepOpt('verifyCommand'),
-            postProcessCommand: getStepOpt('command'), // --command -> command1 -> postProcessCommand
+            postProcessCommand: getStepOpt('command'),
             
             candidates: candidates,
             noCandidateCommand: !!(options[`skipCandidateCommand${i}`] || options.skipCandidateCommand),
             
-            // Only pass the judge config if it was explicitly configured
             judge: isJudgeConfigured ? judge : undefined,
             feedback: Object.keys(feedback).length > 0 ? feedback : undefined,
             feedbackLoops: parseInt(getStepOpt('feedbackLoops') || '0', 10),
