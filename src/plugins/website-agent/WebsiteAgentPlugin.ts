@@ -49,7 +49,6 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         program.option('--website-agent-url <url>', 'Starting URL for the agent');
         program.option('--website-agent-schema <path>', 'Path to JSON schema for extraction');
         program.option('--website-agent-depth <number>', 'Depth of navigation (0=single page, 1=subpages)', '0');
-        // Removed manual export flag registration as it's now handled automatically
         
         // Prompt Overrides
         program.option('--website-agent-extract-links-prompt <prompt>', 'Prompt for link extraction (file or text)');
@@ -61,7 +60,6 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         program.option(`--website-agent-url-${stepIndex} <url>`, `Starting URL for step ${stepIndex}`);
         program.option(`--website-agent-schema-${stepIndex} <path>`, `Schema path for step ${stepIndex}`);
         program.option(`--website-agent-depth-${stepIndex} <number>`, `Depth for step ${stepIndex}`);
-        // Removed manual export flag registration as it's now handled automatically
 
         program.option(`--website-agent-extract-links-prompt-${stepIndex} <prompt>`, `Link extraction prompt for step ${stepIndex}`);
         program.option(`--website-agent-extract-data-prompt-${stepIndex} <prompt>`, `Data extraction prompt for step ${stepIndex}`);
@@ -90,8 +88,7 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         };
 
         return {
-            config,
-            exportData: false // Deprecated field, now handled by ConfigSchema
+            config
         };
     }
 

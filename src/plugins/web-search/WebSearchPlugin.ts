@@ -41,7 +41,6 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option('--web-search-limit <number>', 'Max results', '5');
         program.option('--web-search-mode <mode>', 'Result mode: none, markdown, html', 'markdown');
         program.option('--web-search-query-count <number>', 'Queries to generate', '3');
-        // Removed manual export flag registration as it's now handled automatically
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -53,7 +52,6 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option(`--web-search-limit-${stepIndex} <number>`, `Max results for step ${stepIndex}`);
         program.option(`--web-search-mode-${stepIndex} <mode>`, `Result mode for step ${stepIndex}`);
         program.option(`--web-search-query-count-${stepIndex} <number>`, `Query count for step ${stepIndex}`);
-        // Removed manual export flag registration as it's now handled automatically
     }
 
     normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
@@ -92,8 +90,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         };
 
         return {
-            config,
-            exportData: false // Deprecated field, now handled by ConfigSchema
+            config
         };
     }
 
