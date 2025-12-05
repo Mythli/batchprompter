@@ -55,6 +55,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
 
     // Instantiate ModelFlags with the resolved global model
     const modelFlags = new ModelFlags(globalModel);
+    // Instantiate a strict ModelFlags (no default) to check for explicit configuration
+    const strictModelFlags = new ModelFlags();
 
     const steps: StepDefinition[] = [];
 
@@ -82,7 +84,13 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         });
 
         // 3. Auxiliary Models
+        // Check if judge is explicitly configured (ignoring default model)
+        const strictJudge = strictModelFlags.extract(options, `judge-${i}`, 'judge');
+        const isJudgeConfigured = Object.keys(strictJudge).length > 0;
+        
+        // Get full judge config (with default model if needed, though we only use it if configured)
         const judge = modelFlags.extract(options, `judge-${i}`, 'judge') as ModelDefinition;
+        
         const feedback = modelFlags.extract(options, `feedback-${i}`, 'feedback') as ModelDefinition;
         
         // 4. Step Options
@@ -117,6 +125,13 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
             }
         }
 
+        const candidates = parseInt(getStepOpt('candidates') || '1', 10);
+
+        // Validation: Require explicit judge configuration if multiple candidates are requested
+        if (candidates > 1 && !isJudgeConfigured) {
+             throw new Error(`Step ${i} Error: Multiple candidates (${candidates}) requested without a judge configuration. Please configure a judge (e.g. --judge-model, --judge-prompt) or set candidates to 1.`);
+        }
+
         steps.push(clean({
             stepIndex: i,
             modelConfig: baseModel,
@@ -130,10 +145,11 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
             verifyCommand: getStepOpt('verifyCommand'),
             postProcessCommand: getStepOpt('command'), // --command -> command1 -> postProcessCommand
             
-            candidates: parseInt(getStepOpt('candidates') || '1', 10),
+            candidates: candidates,
             noCandidateCommand: !!(options[`skipCandidateCommand${i}`] || options.skipCandidateCommand),
             
-            judge: Object.keys(judge).length > 0 ? judge : undefined,
+            // Only pass the judge config if it was explicitly configured
+            judge: isJudgeConfigured ? judge : undefined,
             feedback: Object.keys(feedback).length > 0 ? feedback : undefined,
             feedbackLoops: parseInt(getStepOpt('feedbackLoops') || '0', 10),
             

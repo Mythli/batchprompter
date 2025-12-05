@@ -33,10 +33,6 @@ export class CandidateStrategy implements GenerationStrategy {
     ): Promise<GenerationResult> {
         const candidateCount = config.candidates;
 
-        if (candidateCount > 1 && !config.judge) {
-            throw new Error(`[Row ${index}] Step ${stepIndex} Error: Multiple candidates (${candidateCount}) requested without a judge configuration. Please configure a judge (e.g. --judge-model) or set candidates to 1.`);
-        }
-
         console.log(`[Row ${index}] Step ${stepIndex} Generating ${candidateCount} candidates...`);
 
         const promises: Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }>[] = [];
