@@ -102,14 +102,28 @@ export class ActionRunner {
                     if (pluginDef) {
                         // 1. Handle Merge
                         if (pluginDef.merge) {
+                            let dataToMerge = pluginData;
+
+                            // Handle single-element arrays gracefully
                             if (Array.isArray(pluginData)) {
-                                throw new Error(`[Row ${originalIndex}] Step ${stepNum}: Plugin '${pluginName}' returned an Array but --${pluginName}-merge is enabled. Cannot merge an Array into the root row.`);
-                            } else if (typeof pluginData === 'object' && pluginData !== null) {
-                                Object.assign(nextDataBase, pluginData);
-                            } else {
-                                // Primitive value? Merge implies object spreading. 
-                                // Fallback: assign to plugin name, but warn?
-                                nextDataBase[pluginName] = pluginData;
+                                if (pluginData.length === 1) {
+                                    dataToMerge = pluginData[0];
+                                } else if (pluginData.length > 1) {
+                                    throw new Error(`[Row ${originalIndex}] Step ${stepNum}: Plugin '${pluginName}' returned an Array of length ${pluginData.length} but --${pluginName}-merge is enabled. Cannot merge multiple items into the root row.`);
+                                } else {
+                                    // Empty array, nothing to merge
+                                    dataToMerge = null;
+                                }
+                            }
+
+                            if (dataToMerge !== null) {
+                                if (typeof dataToMerge === 'object') {
+                                    Object.assign(nextDataBase, dataToMerge);
+                                } else {
+                                    // Primitive value? Merge implies object spreading. 
+                                    // Fallback: assign to plugin name, but warn?
+                                    nextDataBase[pluginName] = dataToMerge;
+                                }
                             }
                         }
 
@@ -171,12 +185,20 @@ export class ActionRunner {
                             rowClone[resolvedStep.outputColumn] = modelResult;
                         } else {
                             // No output column -> Merge into root
+                            let dataToMerge = modelResult;
+
                             if (Array.isArray(modelResult)) {
-                                throw new Error(`[Row ${originalIndex}] Step ${stepNum}: Cannot merge an Array result into the root row. Use --explode to create multiple rows, or --output-column to save the array to a specific field.`);
+                                if (modelResult.length === 1) {
+                                    dataToMerge = modelResult[0];
+                                } else if (modelResult.length > 1) {
+                                    throw new Error(`[Row ${originalIndex}] Step ${stepNum}: Cannot merge an Array result of length ${modelResult.length} into the root row. Use --explode to create multiple rows, or --output-column to save the array to a specific field.`);
+                                } else {
+                                    dataToMerge = null;
+                                }
                             }
                             
-                            if (typeof modelResult === 'object' && modelResult !== null) {
-                                Object.assign(rowClone, modelResult);
+                            if (dataToMerge !== null && typeof dataToMerge === 'object') {
+                                Object.assign(rowClone, dataToMerge);
                             }
                             // If primitive and no output column, it's effectively lost/ignored for the row data, 
                             // but kept in stepHistory.
