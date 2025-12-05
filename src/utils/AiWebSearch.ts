@@ -21,7 +21,7 @@ export class AiWebSearch {
             mode: WebSearchMode;
             queryCount: number;
         }
-    ): Promise<string[]> {
+    ): Promise<{ formatted: string[], raw: WebSearchResult[] }> {
         
         // 1. Determine Queries
         const queries: string[] = [];
@@ -44,11 +44,9 @@ export class AiWebSearch {
             console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
         }
 
-        if (queries.length === 0) return [];
+        if (queries.length === 0) return { formatted: [], raw: [] };
 
         // 2. Execute Search
-        // We only run the first query for now to respect the limit strictly, or we could pool them.
-        // Let's pool them but respect limit after selection.
         const allResults: WebSearchResult[] = [];
         const seenLinks = new Set<string>();
 
@@ -62,7 +60,7 @@ export class AiWebSearch {
             }
         }
 
-        if (allResults.length === 0) return ["No results found."];
+        if (allResults.length === 0) return { formatted: ["No results found."], raw: [] };
 
         // 3. Selection (Optional)
         let selectedResults = allResults;
@@ -96,6 +94,7 @@ export class AiWebSearch {
 
         // 4. Fetch Content & Compress
         const finalOutputs: string[] = [];
+        const processedResults: WebSearchResult[] = [];
 
         for (const result of selectedResults) {
             let content = "";
@@ -127,12 +126,18 @@ export class AiWebSearch {
                 });
 
                 const summary = response.choices[0].message.content || "";
+                content = summary;
                 finalOutputs.push(`Source: ${result.title} (${result.link})\nSummary:\n${summary}`);
             } else {
                 finalOutputs.push(`Source: ${result.title} (${result.link})\nContent:\n${content}`);
             }
+
+            processedResults.push({
+                ...result,
+                content
+            });
         }
 
-        return finalOutputs;
+        return { formatted: finalOutputs, raw: processedResults };
     }
 }
