@@ -131,18 +131,11 @@ export class WebSearchPlugin implements ContentProviderPlugin {
             throw new Error(`Step ${stepIndex} requires Web Search, but SERPER_API_KEY is missing.`);
         }
 
-        const { contentParts, raw } = await services.aiWebSearch.process(row, resolvedConfig);
-
-        if (contentParts.length === 0) {
-            return { contentParts: [] };
-        }
+        const { contentParts, data } = await services.aiWebSearch.process(row, resolvedConfig);
 
         return {
-            contentParts: [{
-                type: 'text',
-                text: `\n--- Web Search Results ---\n${contentParts.join('\n\n')}\n--------------------------\n`
-            }],
-            data: raw // Return the array of structured result objects
+            contentParts,
+            data
         };
     }
 }

@@ -1,3 +1,4 @@
+import OpenAI from 'openai';
 import { z } from 'zod';
 import { LlmClient } from 'llm-fns';
 import { WebSearch, WebSearchResult, WebSearchMode } from '../plugins/web-search/WebSearch.js';
@@ -21,7 +22,7 @@ export class AiWebSearch {
             mode: WebSearchMode;
             queryCount: number;
         }
-    ): Promise<{ contentParts: string[], raw: WebSearchResult[] }> {
+    ): Promise<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[], data: WebSearchResult[] }> {
         
         // 1. Determine Queries
         const queries: string[] = [];
@@ -44,7 +45,7 @@ export class AiWebSearch {
             console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
         }
 
-        if (queries.length === 0) return { contentParts: [], raw: [] };
+        if (queries.length === 0) return { contentParts: [], data: [] };
 
         // 2. Execute Search
         const allResults: WebSearchResult[] = [];
@@ -60,7 +61,7 @@ export class AiWebSearch {
             }
         }
 
-        if (allResults.length === 0) return { contentParts: ["No results found."], raw: [] };
+        if (allResults.length === 0) return { contentParts: [{ type: 'text', text: "No results found." }], data: [] };
 
         // 3. Selection (Optional)
         let selectedResults = allResults;
@@ -138,6 +139,13 @@ export class AiWebSearch {
             });
         }
 
-        return { contentParts: finalOutputs, raw: processedResults };
+        const text = finalOutputs.length > 0
+            ? `\n--- Web Search Results ---\n${finalOutputs.join('\n\n')}\n--------------------------\n`
+            : "No results found.";
+
+        return { 
+            contentParts: [{ type: 'text', text }], 
+            data: processedResults 
+        };
     }
 }
