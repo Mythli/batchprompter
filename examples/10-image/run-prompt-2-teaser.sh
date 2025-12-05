@@ -5,8 +5,8 @@ npx tsx src/index.ts generate examples/10-image/data.csv examples/10-image/promp
   --aspect-ratio "3:2" \
   --model "google/gemini-3-pro-image-preview" \
   --image-query-prompt "Generate search queries for {{industry}} related keywords. Specifically look for images with a girl or female person in focus doing the core activity of {{industry}} or in an {{industry}} setting." \
-  --image-select-prompt "Select the image that best shows a girl or female person 20-30 years old, in focus doing the core activity of {{industry}} with her face visible. Prefer alive amateur shots over polished Shutterstock style images. We want to capture real moments. Disqualify pictures that have a lot of people in focus, where the focal person is a child, the picture includes a mirror, is likely AI generated, has a low quality in general or has any visible watermarks or digitally added overlays." \
-  --candidates 5 \
+  --image-select-prompt "Select the image that has a girl, 18-30 years old, as the focal person doing the core activity of {{industry}}. Her face and chest must be visible. Prefer alive shots over polished Shutterstock images. We want to capture real moments. Disqualify pictures where the focal person is a child, the picture includes a mirror, has low quality or has any visible watermarks or digitally added overlays." \
+  --candidates 8 \
   --judge-model "google/gemini-3-pro-preview" \
   --judge-prompt examples/10-image/select-best-image.md \
   --skip-candidate-command \

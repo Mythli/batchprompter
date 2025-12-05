@@ -14,7 +14,8 @@
   "scripts": {
     "test": "echo \"Error: no examples specified\" && exit 1",
     "serptest": "tsx src/serptest.ts",
-    "debug": "examples/12-company-search/run.sh",
+    "debug-company-search": "examples/12-company-search/run.sh",
+    "debug-": "examples/10-image/run.sh",
     "build": "tsc",
     "release": "bash scripts/release.sh"
   },
