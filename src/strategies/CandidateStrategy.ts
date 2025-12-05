@@ -1,4 +1,4 @@
-// 
+//
 import OpenAI from 'openai';
 import path from 'path';
 import Handlebars from 'handlebars';
@@ -94,7 +94,7 @@ export class CandidateStrategy implements GenerationStrategy {
                 if (winner.outputPath !== config.outputPath) {
                     await fs.copyFile(winner.outputPath, config.outputPath);
                 }
-                
+
                 // Run deferred commands
                 if (config.noCandidateCommand && config.postProcessCommand) {
                     const cmdTemplate = Handlebars.compile(config.postProcessCommand, { noEscape: true });
@@ -131,7 +131,7 @@ export class CandidateStrategy implements GenerationStrategy {
         index: number,
         stepIndex: number
     ): Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }> {
-        
+
         if (!config.judge) throw new Error("No judge configuration found");
 
         // Prepare Candidate Presentation
@@ -170,7 +170,8 @@ export class CandidateStrategy implements GenerationStrategy {
 
         const JudgeSchema = z.object({
             best_candidate_index: z.number().int().min(0).max(candidates.length - 1).describe("The index of the best candidate (0-based)"),
-            reason: z.string().describe("The reason for selecting this candidate")
+            reason: z.string().describe("The reason for selecting this candidate"),
+            // prompt: z.string().describe("The original prompt")
         });
 
         const result = await this.llm.promptZod(request.messages, JudgeSchema, {
