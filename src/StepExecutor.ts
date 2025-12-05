@@ -12,6 +12,7 @@ import Handlebars from 'handlebars';
 import util from 'util';
 import { exec } from 'child_process';
 import { aggressiveSanitize } from './utils/fileUtils.js';
+import { PluginRunner } from './core/PluginRunner.js';
 
 const execPromise = util.promisify(exec);
 
@@ -39,44 +40,28 @@ export class StepExecutor {
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
     ): Promise<StepExecutionResult> {
         
-        const pluginResults: Record<string, any> = {};
-        let effectiveUserPromptParts = [...config.userPromptParts];
-        
-        // 1. Execute Plugins (Content Providers)
-        for (const pluginDef of config.plugins) {
-            const plugin = this.pluginRegistry.get(pluginDef.name);
-            if (plugin) {
-                try {
-                    const result = await plugin.execute({
-                        row: viewContext, // Pass the full view context
-                        stepIndex,
-                        config: pluginDef.config,
-                        llm: this.llm,
-                        globalConfig: {
-                            tmpDir: this.tmpDir,
-                            concurrency: this.concurrency
-                        },
-                        services: this.services,
-                        outputDirectory: config.resolvedOutputDir,
-                        tempDirectory: config.resolvedTempDir || this.tmpDir,
-                        outputBasename: config.outputBasename,
-                        outputExtension: config.outputExtension
-                    });
+        // 1. Execute Plugins via PluginRunner
+        const pluginRunner = new PluginRunner(
+            this.pluginRegistry,
+            this.services,
+            this.llm,
+            { tmpDir: this.tmpDir, concurrency: this.concurrency }
+        );
 
-                    // Append content for LLM context
-                    effectiveUserPromptParts = [...result.contentParts, ...effectiveUserPromptParts];
-
-                    // Store structured data
-                    if (result.data) {
-                        pluginResults[plugin.name] = result.data;
-                    }
-
-                } catch (e: any) {
-                    console.error(`[Row ${index}] Step ${stepIndex} Plugin '${pluginDef.name}' failed:`, e.message);
-                    throw e;
-                }
+        const { context: updatedContext, contentParts, pluginResults } = await pluginRunner.run(
+            config.plugins,
+            viewContext,
+            stepIndex,
+            {
+                outputDir: config.resolvedOutputDir,
+                tempDir: config.resolvedTempDir || this.tmpDir,
+                basename: config.outputBasename,
+                ext: config.outputExtension
             }
-        }
+        );
+
+        // Prepend plugin content to user prompt
+        let effectiveUserPromptParts = [...contentParts, ...config.userPromptParts];
 
         // 2. Check for "Pass-through" Mode
         const hasUserPrompt = config.userPromptParts.length > 0;
@@ -99,7 +84,7 @@ export class StepExecutor {
 
             if (config.postProcessCommand) {
                 for (const filePath of savedPaths) {
-                    await this.executeCommand(config.postProcessCommand, viewContext, index, stepIndex, filePath);
+                    await this.executeCommand(config.postProcessCommand, updatedContext, index, stepIndex, filePath);
                 }
             }
 
@@ -121,8 +106,10 @@ export class StepExecutor {
         }
 
         // 4. Execute Strategy
+        // We pass updatedContext so that the strategy (and ModelRequestNormalizer) 
+        // can resolve variables that might have been added by plugins in this step.
         const result = await strategy.execute(
-            viewContext,
+            updatedContext,
             index,
             stepIndex,
             config,

@@ -255,19 +255,9 @@ export class ActionRunner {
             resolvedStep.userPromptParts = await PromptResolver.resolve(template, viewContext);
         }
 
-        // 5. Prepare Plugins
-        const preparedPlugins: PluginConfigDefinition[] = [];
-        for (const pluginDef of stepConfig.plugins) {
-            const plugin = this.pluginRegistry.get(pluginDef.name);
-            if (plugin) {
-                preparedPlugins.push({
-                    name: pluginDef.name,
-                    config: await plugin.prepare(pluginDef.config, viewContext),
-                    exportData: pluginDef.exportData
-                });
-            }
-        }
-        resolvedStep.plugins = preparedPlugins;
+        // 5. Pass Plugins (Raw)
+        // We no longer prepare them here. They are prepared JIT in PluginRunner to allow chaining.
+        resolvedStep.plugins = stepConfig.plugins;
 
         return resolvedStep;
     }
