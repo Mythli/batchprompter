@@ -7,4 +7,4 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --web-search-limit 5 \
   --website-agent-url "{{web-search.0.link}}" \
   --website-agent-schema examples/13-industry-search/schemas/companies_array.json \
-  --explode
+  --website-agent-explode

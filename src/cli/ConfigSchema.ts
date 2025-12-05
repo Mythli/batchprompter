@@ -138,11 +138,16 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
                 const exportKey = `${camelName}Export`;
                 const exportVal = !!(options[`${exportKey}${i}`] || options[exportKey]);
 
+                // Check for --{plugin}-explode-{i} or --{plugin}-explode
+                const explodeKey = `${camelName}Explode`;
+                const explodeVal = !!(options[`${explodeKey}${i}`] || options[explodeKey]);
+
                 plugins.push({
                     name: plugin.name,
                     config: normalized.config,
                     outputColumn: outputCol ? String(outputCol) : undefined,
-                    export: exportVal
+                    export: exportVal,
+                    explode: explodeVal
                 });
             }
         }

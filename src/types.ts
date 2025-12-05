@@ -16,6 +16,7 @@ export interface PluginConfigDefinition {
     // Output Strategies
     outputColumn?: string; // NEW: Save to specific column
     export: boolean;       // NEW: Merge into row (Renamed from merge)
+    explode: boolean;      // NEW: Explode array result
 }
 
 export interface StepDefinition {

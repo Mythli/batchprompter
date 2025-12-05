@@ -91,8 +91,8 @@ export class ActionRunner {
                 // We need to build the "currentStep" object to add to stepHistory
                 const currentStepResult: Record<string, any> = {};
                 
-                // Start with a clone of the current data
-                let nextDataBase = { ...currentData };
+                // Start with a list containing the base row for the next step
+                let nextRows: Record<string, any>[] = [{ ...currentData }];
 
                 // A. Handle Plugin Results
                 for (const [pluginName, pluginData] of Object.entries(result.pluginResults)) {
@@ -100,36 +100,55 @@ export class ActionRunner {
                     
                     const pluginDef = resolvedStep.plugins.find(p => p.name === pluginName);
                     if (pluginDef) {
-                        // 1. Handle Export (Merge)
-                        if (pluginDef.export) {
-                            let dataToMerge = pluginData;
-
-                            // Handle single-element arrays gracefully
-                            if (Array.isArray(pluginData)) {
-                                if (pluginData.length === 1) {
-                                    dataToMerge = pluginData[0];
-                                } else if (pluginData.length > 1) {
-                                    throw new Error(`[Row ${originalIndex}] Step ${stepNum}: Plugin '${pluginName}' returned an Array of length ${pluginData.length} but --${pluginName}-export is enabled. Cannot merge multiple items into the root row.`);
-                                } else {
-                                    // Empty array, nothing to merge
-                                    dataToMerge = null;
+                        if (pluginDef.explode) {
+                            // Explode Logic
+                            const items = Array.isArray(pluginData) ? pluginData : [pluginData];
+                            const newNextRows: Record<string, any>[] = [];
+                            
+                            for (const row of nextRows) {
+                                for (const item of items) {
+                                    const rowClone = { ...row };
+                                    
+                                    if (pluginDef.outputColumn) {
+                                        rowClone[pluginDef.outputColumn] = item;
+                                    } else if (pluginDef.export) {
+                                        if (typeof item === 'object' && item !== null) {
+                                            Object.assign(rowClone, item);
+                                        } else {
+                                            rowClone[pluginName] = item; // Fallback
+                                        }
+                                    }
+                                    newNextRows.push(rowClone);
                                 }
                             }
-
-                            if (dataToMerge !== null) {
-                                if (typeof dataToMerge === 'object') {
-                                    Object.assign(nextDataBase, dataToMerge);
-                                } else {
-                                    // Primitive value? Merge implies object spreading. 
-                                    // Fallback: assign to plugin name, but warn?
-                                    nextDataBase[pluginName] = dataToMerge;
+                            nextRows = newNextRows;
+                        } else {
+                            // Standard Merge Logic
+                            for (const row of nextRows) {
+                                if (pluginDef.outputColumn) {
+                                    row[pluginDef.outputColumn] = pluginData;
+                                } else if (pluginDef.export) {
+                                    let dataToMerge = pluginData;
+                                    if (Array.isArray(pluginData)) {
+                                        if (pluginData.length === 1) dataToMerge = pluginData[0];
+                                        else if (pluginData.length > 1) {
+                                            // If array > 1 and no explode, we can't merge safely into root.
+                                            // We skip merging to avoid data corruption/confusion.
+                                            dataToMerge = null; 
+                                        } else {
+                                            dataToMerge = null;
+                                        }
+                                    }
+                                    
+                                    if (dataToMerge !== null) {
+                                        if (typeof dataToMerge === 'object') {
+                                            Object.assign(row, dataToMerge);
+                                        } else {
+                                            row[pluginName] = dataToMerge;
+                                        }
+                                    }
                                 }
                             }
-                        }
-
-                        // 2. Handle Output Column
-                        if (pluginDef.outputColumn) {
-                            nextDataBase[pluginDef.outputColumn] = pluginData;
                         }
                     }
                 }
@@ -139,72 +158,49 @@ export class ActionRunner {
                     currentStepResult.modelOutput = result.modelResult;
                 }
 
-                // C. Determine Next Rows (Branching Logic)
-                let nextRows: Record<string, any>[] = [];
                 const modelResult = result.modelResult;
-
+                
                 if (resolvedStep.strategy === 'explode') {
                     // EXPLODE STRATEGY
-                    if (Array.isArray(modelResult)) {
-                        // Create a new row for each item
-                        nextRows = modelResult.map(item => {
-                            const rowClone = { ...nextDataBase };
+                    const items = Array.isArray(modelResult) ? modelResult : [modelResult];
+                    const newNextRows: Record<string, any>[] = [];
+                    
+                    for (const row of nextRows) {
+                        for (const item of items) {
+                            const rowClone = { ...row };
                             
                             if (resolvedStep.outputColumn) {
-                                // Assign item to specific column
                                 rowClone[resolvedStep.outputColumn] = item;
-                            } else if (typeof item === 'object' && item !== null) {
-                                // Merge item properties into row
-                                Object.assign(rowClone, item);
-                            } else {
-                                // Primitive value without output column? 
-                                // Fallback: assign to 'value' or 'modelOutput'
-                                rowClone.modelOutput = item;
-                            }
-                            return rowClone;
-                        });
-                    } else {
-                        // Not an array, treat as single item (Explode of 1)
-                        const rowClone = { ...nextDataBase };
-                        if (resolvedStep.exportResult) {
-                            if (resolvedStep.outputColumn) {
-                                rowClone[resolvedStep.outputColumn] = modelResult;
-                            } else if (typeof modelResult === 'object' && modelResult !== null) {
-                                Object.assign(rowClone, modelResult);
-                            }
-                        }
-                        nextRows = [rowClone];
-                    }
-                } else {
-                    // RUN STRATEGY (Default - Linear)
-                    const rowClone = { ...nextDataBase };
-                    
-                    if (resolvedStep.exportResult && modelResult) {
-                        if (resolvedStep.outputColumn) {
-                            // If output column is specified, we can save anything (including arrays) there
-                            rowClone[resolvedStep.outputColumn] = modelResult;
-                        } else {
-                            // No output column -> Merge into root
-                            let dataToMerge = modelResult;
-
-                            if (Array.isArray(modelResult)) {
-                                if (modelResult.length === 1) {
-                                    dataToMerge = modelResult[0];
-                                } else if (modelResult.length > 1) {
-                                    throw new Error(`[Row ${originalIndex}] Step ${stepNum}: Cannot merge an Array result of length ${modelResult.length} into the root row. Use --explode to create multiple rows, or --output-column to save the array to a specific field.`);
+                            } else if (resolvedStep.exportResult) {
+                                if (typeof item === 'object' && item !== null) {
+                                    Object.assign(rowClone, item);
                                 } else {
-                                    dataToMerge = null;
+                                    rowClone.modelOutput = item;
                                 }
                             }
-                            
-                            if (dataToMerge !== null && typeof dataToMerge === 'object') {
-                                Object.assign(rowClone, dataToMerge);
-                            }
-                            // If primitive and no output column, it's effectively lost/ignored for the row data, 
-                            // but kept in stepHistory.
+                            newNextRows.push(rowClone);
                         }
                     }
-                    nextRows = [rowClone];
+                    nextRows = newNextRows;
+                } else {
+                    // RUN STRATEGY
+                    for (const row of nextRows) {
+                        if (resolvedStep.exportResult && modelResult) {
+                            if (resolvedStep.outputColumn) {
+                                row[resolvedStep.outputColumn] = modelResult;
+                            } else {
+                                let dataToMerge = modelResult;
+                                if (Array.isArray(modelResult)) {
+                                    if (modelResult.length === 1) dataToMerge = modelResult[0];
+                                    else dataToMerge = null; // Don't merge arrays into root
+                                }
+                                
+                                if (dataToMerge !== null && typeof dataToMerge === 'object') {
+                                    Object.assign(row, dataToMerge);
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // 5. Update History
