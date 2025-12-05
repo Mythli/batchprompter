@@ -32,6 +32,11 @@ export class CandidateStrategy implements GenerationStrategy {
         skipCommands?: boolean
     ): Promise<GenerationResult> {
         const candidateCount = config.candidates;
+
+        if (candidateCount > 1 && !config.judge) {
+            throw new Error(`[Row ${index}] Step ${stepIndex} Error: Multiple candidates (${candidateCount}) requested without a judge configuration. Please configure a judge (e.g. --judge-model) or set candidates to 1.`);
+        }
+
         console.log(`[Row ${index}] Step ${stepIndex} Generating ${candidateCount} candidates...`);
 
         const promises: Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }>[] = [];
@@ -73,16 +78,22 @@ export class CandidateStrategy implements GenerationStrategy {
             throw new Error(`All ${candidateCount} candidates failed to generate.`);
         }
 
-        let winner = successfulCandidates[0];
+        let winner: GenerationResult & { candidateIndex: number, outputPath: string | null };
 
-        // If we have a judge and more than one candidate, run the judge
-        if (config.judge && successfulCandidates.length > 1) {
-            console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates with ${config.judge.model}...`);
+        if (successfulCandidates.length === 1) {
+            winner = successfulCandidates[0];
+            if (candidateCount > 1) {
+                console.log(`[Row ${index}] Step ${stepIndex} Only 1 candidate succeeded. Skipping judge.`);
+            }
+        } else {
+            // We have > 1 candidates. We enforced config.judge exists at the start.
+            console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates with ${config.judge!.model}...`);
             try {
                 winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex);
                 console.log(`[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}`);
             } catch (e: any) {
-                console.error(`[Row ${index}] Step ${stepIndex} Judging failed, falling back to first candidate. Error: ${e.message}`);
+                console.error(`[Row ${index}] Step ${stepIndex} Judging failed: ${e.message}`);
+                throw e;
             }
         }
 
