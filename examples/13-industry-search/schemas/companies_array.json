@@ -4,22 +4,8 @@
     "type": "object",
     "properties": {
       "name": { "type": "string" },
-      "url": { "type": "string" },
-      "ceo": {
-        "type": "object",
-        "properties": {
-          "firstName": { "type": "string" },
-          "lastName": { "type": "string" }
-        }
-      },
-      "contact": {
-        "type": "object",
-        "properties": {
-          "email": { "type": "string" },
-          "phone": { "type": "string" }
-        }
-      }
+      "url": { "type": "string" }
     },
-    "required": ["name"]
+    "required": ["name", "url"]
   }
 }
