@@ -146,6 +146,12 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             throw new Error(`[WebsiteAgent] Step ${stepIndex}: No URL provided.`);
         }
 
+        // Validate URL with Regex
+        const urlRegex = /^https?:\/\/[^\s/$.?#].[^\s]*$/i;
+        if (!urlRegex.test(resolvedConfig.url)) {
+            throw new Error(`[WebsiteAgent] Step ${stepIndex}: Invalid URL format (must start with http/https): "${resolvedConfig.url}"`);
+        }
+
         const result = await services.aiWebsiteAgent.scrape(
             resolvedConfig.url,
             resolvedConfig.schema,
