@@ -3,6 +3,9 @@ import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { PromptResolver } from '../../utils/PromptResolver.js';
+import { ModelFlags } from '../../cli/ModelFlags.js';
+import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
+import { PluginHelpers } from '../../utils/PluginHelpers.js';
 
 // Default Prompts
 const DEFAULT_EXTRACT_LINKS = `You are a web scraper assistant. Your task is to identify the most relevant URLs for scraping additional company information (like About Us, Contact, Imprint, Team, Products) from the provided list of links found on the website {{baseUrl}}.
@@ -26,18 +29,18 @@ interface WebsiteAgentRawConfig {
     url?: string;
     schemaPath?: string;
     depth: number;
-    extractLinksPrompt?: string;
-    extractDataPrompt?: string;
-    mergeDataPrompt?: string;
+    linksConfig?: ModelDefinition;
+    extractConfig?: ModelDefinition;
+    mergeConfig?: ModelDefinition;
 }
 
 interface WebsiteAgentResolvedConfig {
     url: string;
     schema: any; // JSON Schema object
     depth: number;
-    extractLinksPrompt: string;
-    extractDataPrompt: string;
-    mergeDataPrompt: string;
+    linksConfig: ResolvedModelConfig;
+    extractConfig: ResolvedModelConfig;
+    mergeConfig: ResolvedModelConfig;
 }
 
 export class WebsiteAgentPlugin implements ContentProviderPlugin {
@@ -50,10 +53,10 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         program.option('--website-agent-schema <path>', 'Path to JSON schema for extraction');
         program.option('--website-agent-depth <number>', 'Depth of navigation (0=single page, 1=subpages)', '0');
         
-        // Prompt Overrides
-        program.option('--website-agent-extract-links-prompt <prompt>', 'Prompt for link extraction (file or text)');
-        program.option('--website-agent-extract-data-prompt <prompt>', 'Prompt for data extraction (file or text)');
-        program.option('--website-agent-merge-data-prompt <prompt>', 'Prompt for data merging (file or text)');
+        // Register Model Flags for the 3 operations
+        ModelFlags.register(program, 'website-links', { includePrompt: true });
+        ModelFlags.register(program, 'website-extract', { includePrompt: true });
+        ModelFlags.register(program, 'website-merge', { includePrompt: true });
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -61,9 +64,9 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         program.option(`--website-agent-schema-${stepIndex} <path>`, `Schema path for step ${stepIndex}`);
         program.option(`--website-agent-depth-${stepIndex} <number>`, `Depth for step ${stepIndex}`);
 
-        program.option(`--website-agent-extract-links-prompt-${stepIndex} <prompt>`, `Link extraction prompt for step ${stepIndex}`);
-        program.option(`--website-agent-extract-data-prompt-${stepIndex} <prompt>`, `Data extraction prompt for step ${stepIndex}`);
-        program.option(`--website-agent-merge-data-prompt-${stepIndex} <prompt>`, `Data merging prompt for step ${stepIndex}`);
+        ModelFlags.register(program, `website-links-${stepIndex}`, { includePrompt: true });
+        ModelFlags.register(program, `website-extract-${stepIndex}`, { includePrompt: true });
+        ModelFlags.register(program, `website-merge-${stepIndex}`, { includePrompt: true });
     }
 
     normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
@@ -78,13 +81,22 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
 
         if (!url) return undefined;
 
+        // Helper to extract model config
+        const modelFlags = new ModelFlags(globalConfig.model);
+        const extractModel = (namespace: string, fallbackNamespace: string): ModelDefinition => {
+            const config = modelFlags.extract(options, namespace, fallbackNamespace);
+            // Ensure we have a model, defaulting to global if not set
+            if (!config.model) config.model = globalConfig.model;
+            return config as ModelDefinition;
+        };
+
         const config: WebsiteAgentRawConfig = {
             url,
             schemaPath,
             depth: parseInt(getOpt('websiteAgentDepth') || '0', 10),
-            extractLinksPrompt: getOpt('websiteAgentExtractLinksPrompt'),
-            extractDataPrompt: getOpt('websiteAgentExtractDataPrompt'),
-            mergeDataPrompt: getOpt('websiteAgentMergeDataPrompt')
+            linksConfig: extractModel(`website-links-${stepIndex}`, 'website-links'),
+            extractConfig: extractModel(`website-extract-${stepIndex}`, 'website-extract'),
+            mergeConfig: extractModel(`website-merge-${stepIndex}`, 'website-merge')
         };
 
         return {
@@ -120,18 +132,42 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             };
         }
 
+        // Resolve Model Configs
+        const linksConfig = config.linksConfig 
+            ? await PluginHelpers.resolveModelConfig(config.linksConfig, row)
+            : { model: 'gpt-4o', systemParts: [], promptParts: [] }; // Should be covered by normalize, but safe fallback
+
+        const extractConfig = config.extractConfig
+            ? await PluginHelpers.resolveModelConfig(config.extractConfig, row)
+            : { model: 'gpt-4o', systemParts: [], promptParts: [] };
+
+        const mergeConfig = config.mergeConfig
+            ? await PluginHelpers.resolveModelConfig(config.mergeConfig, row)
+            : { model: 'gpt-4o', systemParts: [], promptParts: [] };
+
+        // Apply Default Prompts if none provided
+        if (linksConfig.promptParts.length === 0) {
+            linksConfig.promptParts = [{ type: 'text', text: DEFAULT_EXTRACT_LINKS }];
+        }
+        if (extractConfig.promptParts.length === 0) {
+            extractConfig.promptParts = [{ type: 'text', text: DEFAULT_EXTRACT_DATA }];
+        }
+        if (mergeConfig.promptParts.length === 0) {
+            mergeConfig.promptParts = [{ type: 'text', text: DEFAULT_MERGE_DATA }];
+        }
+
         return {
             url,
             schema,
             depth: config.depth,
-            extractLinksPrompt: config.extractLinksPrompt || DEFAULT_EXTRACT_LINKS,
-            extractDataPrompt: config.extractDataPrompt || DEFAULT_EXTRACT_DATA,
-            mergeDataPrompt: config.mergeDataPrompt || DEFAULT_MERGE_DATA
+            linksConfig,
+            extractConfig,
+            mergeConfig
         };
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, services, globalConfig } = context;
+        const { row, stepIndex, config, services } = context;
         const resolvedConfig = config as WebsiteAgentResolvedConfig;
 
         if (!services.aiWebsiteAgent) {
@@ -149,22 +185,15 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             throw new Error(`[WebsiteAgent] Step ${stepIndex}: Invalid URL format (must start with http/https): "${resolvedConfig.url}"`);
         }
 
-        // Use the global model configuration
-        // Note: Currently plugins don't have their own model override flags in CLI, 
-        // so we use the global default model which is passed via globalConfig.
-        // If we wanted per-step model overrides for plugins, we'd need to register --website-agent-model flags.
-        // For now, using the global model (which defaults to gpt-4o or env var) is the correct fix.
-        const model = globalConfig.model || 'gpt-4o';
-
         const result = await services.aiWebsiteAgent.scrape(
             resolvedConfig.url,
             resolvedConfig.schema,
             { 
                 depth: resolvedConfig.depth,
-                extractLinksPrompt: resolvedConfig.extractLinksPrompt,
-                extractDataPrompt: resolvedConfig.extractDataPrompt,
-                mergeDataPrompt: resolvedConfig.mergeDataPrompt,
-                model: model
+                linksConfig: resolvedConfig.linksConfig,
+                extractConfig: resolvedConfig.extractConfig,
+                mergeConfig: resolvedConfig.mergeConfig,
+                row: row // Pass row for template rendering in AiWebsiteAgent
             }
         );
 

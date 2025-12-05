@@ -5,15 +5,16 @@ import { LlmClient } from 'llm-fns';
 import { PuppeteerHelper } from './puppeteer/PuppeteerHelper.js';
 import { PuppeteerPageHelper, LinkData } from './puppeteer/PuppeteerPageHelper.js';
 import { compressHtml } from './compressHtml.js';
-import { PromptResolver } from './PromptResolver.js';
+import { ResolvedModelConfig } from '../types.js';
+import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
 
 export interface AiWebsiteAgentOptions {
     depth?: number;
     maxLinks?: number;
-    extractLinksPrompt?: string;
-    extractDataPrompt?: string;
-    mergeDataPrompt?: string;
-    model?: string; // Added model option
+    linksConfig: ResolvedModelConfig;
+    extractConfig: ResolvedModelConfig;
+    mergeConfig: ResolvedModelConfig;
+    row: Record<string, any>;
 }
 
 export class AiWebsiteAgent {
@@ -28,8 +29,8 @@ export class AiWebsiteAgent {
         baseUrl: string,
         links: LinkData[],
         maxLinks: number,
-        model: string,
-        promptSource?: string
+        config: ResolvedModelConfig,
+        row: Record<string, any>
     ): Promise<string[]> {
         const linksText = links
             .filter(l => l.text.length > 0)
@@ -41,18 +42,20 @@ export class AiWebsiteAgent {
             relevant_urls: z.array(z.string()).max(maxLinks).describe("List of relevant absolute URLs found on the page.")
         });
 
-        // Use provided prompt source or a minimal fallback
-        const source = promptSource || `Identify the most relevant URLs for scraping additional information from {{baseUrl}}.\n\nLinks:\n{{linksText}}`;
+        // Prepare context for template rendering
+        const context = { ...row, baseUrl, linksText };
 
-        const contentParts = await PromptResolver.resolve(source, {
-            baseUrl,
-            linksText
-        });
+        // Use Normalizer to build request
+        // Note: The prompt in config.promptParts likely contains {{baseUrl}} and {{linksText}}
+        // We need to re-render the prompt parts with this new context.
+        // Since ModelRequestNormalizer renders templates, we pass the merged context.
+        
+        const request = ModelRequestNormalizer.normalize(config, context);
 
         const response = await this.llm.promptZod(
-            [{ role: 'user', content: contentParts }],
+            request.messages,
             LinkSchema,
-            { model: model }
+            { model: request.model, ...request.options }
         );
 
         return response.relevant_urls;
@@ -62,22 +65,18 @@ export class AiWebsiteAgent {
         url: string,
         markdown: string,
         schema: any, // JSON Schema Object
-        model: string,
-        promptSource?: string
+        config: ResolvedModelConfig,
+        row: Record<string, any>
     ): Promise<any> {
         const truncatedMarkdown = markdown.substring(0, 20000);
 
-        const source = promptSource || `Extract information from {{url}} to populate the schema.\n\nContent:\n{{truncatedMarkdown}}`;
-
-        const contentParts = await PromptResolver.resolve(source, {
-            url,
-            truncatedMarkdown
-        });
+        const context = { ...row, url, truncatedMarkdown };
+        const request = ModelRequestNormalizer.normalize(config, context);
 
         return await this.llm.promptJson(
-            [{ role: 'user', content: contentParts }],
+            request.messages,
             schema,
-            { model: model }
+            { model: request.model, ...request.options }
         );
     }
 
@@ -108,29 +107,47 @@ export class AiWebsiteAgent {
     async scrape(
         url: string,
         schema: any, // JSON Schema Object
-        options: AiWebsiteAgentOptions = {}
+        options: AiWebsiteAgentOptions
     ): Promise<any> {
         const depth = options.depth ?? 0;
         const maxLinks = options.maxLinks ?? 3;
-        const model = options.model || 'gpt-4o'; // Default fallback if not provided
-
-        console.log(`[AiWebsiteAgent] Scraping ${url} (Depth: ${depth}, Model: ${model})...`);
+        
+        console.log(`[AiWebsiteAgent] Scraping ${url} (Depth: ${depth})...`);
 
         const mainPage = await this.getPageContent(url);
-        const mainDataPromise = this.extractDataFromMarkdown(url, mainPage.markdown, schema, model, options.extractDataPrompt);
+        const mainDataPromise = this.extractDataFromMarkdown(
+            url, 
+            mainPage.markdown, 
+            schema, 
+            options.extractConfig, 
+            options.row
+        );
 
         let subPagesDataPromises: Promise<any>[] = [];
 
         if (depth > 0) {
             console.log(`[AiWebsiteAgent] Analyzing links on ${url}...`);
-            const relevantUrls = await this.extractRelevantLinks(url, mainPage.links, maxLinks, model, options.extractLinksPrompt);
+            const relevantUrls = await this.extractRelevantLinks(
+                url, 
+                mainPage.links, 
+                maxLinks, 
+                options.linksConfig, 
+                options.row
+            );
+            
             const uniqueUrls = relevantUrls.filter(u => u !== url && u.startsWith('http'));
             console.log(`[AiWebsiteAgent] Found sub-pages: ${uniqueUrls.join(', ')}`);
 
             subPagesDataPromises = uniqueUrls.map(async (subUrl) => {
                 try {
                     const subPage = await this.getPageContent(subUrl);
-                    return await this.extractDataFromMarkdown(subUrl, subPage.markdown, schema, model, options.extractDataPrompt);
+                    return await this.extractDataFromMarkdown(
+                        subUrl, 
+                        subPage.markdown, 
+                        schema, 
+                        options.extractConfig, 
+                        options.row
+                    );
                 } catch (e) {
                     console.warn(`[AiWebsiteAgent] Failed to scrape sub-page ${subUrl}:`, e);
                     return {};
@@ -144,16 +161,13 @@ export class AiWebsiteAgent {
         if (allData.length > 1) {
              console.log(`[AiWebsiteAgent] Merging ${allData.length} data sources...`);
 
-             const source = options.mergeDataPrompt || `Merge these objects:\n{{jsonObjects}}`;
-             
-             const contentParts = await PromptResolver.resolve(source, {
-                 jsonObjects: JSON.stringify(allData, null, 2)
-             });
+             const context = { ...options.row, jsonObjects: JSON.stringify(allData, null, 2) };
+             const request = ModelRequestNormalizer.normalize(options.mergeConfig, context);
 
              return await this.llm.promptJson(
-                 [{ role: 'user', content: contentParts }],
+                 request.messages,
                  schema,
-                 { model: model }
+                 { model: request.model, ...request.options }
              );
         }
 
