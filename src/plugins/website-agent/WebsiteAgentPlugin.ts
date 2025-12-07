@@ -29,9 +29,9 @@ interface WebsiteAgentRawConfig {
     url?: string;
     schemaPath?: string;
     depth: number;
-    linksConfig?: ModelDefinition;
-    extractConfig?: ModelDefinition;
-    mergeConfig?: ModelDefinition;
+    linksConfig: ModelDefinition;
+    extractConfig: ModelDefinition;
+    mergeConfig: ModelDefinition;
 }
 
 interface WebsiteAgentResolvedConfig {
