@@ -12,7 +12,6 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --expand-urls-puppeteer-1 \
   --json-schema-1 examples/13-industry-search/schemas/locations.json \
   --explode-1 \
-  --model-1 gpt-4o \
   \
   "Find providers." \
   --web-search-query-2 "{{industry}} in {{location}}" \
