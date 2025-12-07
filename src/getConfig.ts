@@ -27,6 +27,7 @@ import { UrlHandlerRegistry } from './preprocessors/expander/UrlHandlerRegistry.
 import { GenericFetchHandler } from './preprocessors/expander/GenericFetchHandler.js';
 import { GenericPuppeteerHandler } from './preprocessors/expander/GenericPuppeteerHandler.js';
 import { WikipediaHandler } from './preprocessors/expander/sites/WikipediaHandler.js';
+import { createLoggingFetcher } from './utils/createLoggingFetcher.js';
 
 dotenv.config();
 
@@ -152,6 +153,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const openAi = new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
+        fetch: createLoggingFetcher(),
     });
 
     // Default to 1 if not specified in overrides, to be safe, or 10 if strictly internal.
