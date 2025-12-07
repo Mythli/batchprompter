@@ -8,6 +8,7 @@ const SearchParametersSchema = z.object({
   q: z.string(),
   type: z.string().optional(),
   num: z.number().optional(),
+  page: z.number().optional(),
   engine: z.string().optional(),
 });
 
@@ -38,8 +39,8 @@ export class WebSearch {
         private queue: PQueue
     ) {}
 
-    async search(query: string, num: number = 5): Promise<WebSearchResult[]> {
-        console.log(`[WebSearch] Searching for query: "${query}"`);
+    async search(query: string, num: number = 5, page: number = 1): Promise<WebSearchResult[]> {
+        console.log(`[WebSearch] Searching for query: "${query}" (Page: ${page}, Limit: ${num})`);
 
         const response = await this.queue.add(() => this.fetcher('https://google.serper.dev/search', {
             method: 'POST',
@@ -49,7 +50,8 @@ export class WebSearch {
             },
             body: JSON.stringify({
                 q: query,
-                num: num
+                num: num,
+                page: page
             })
         }));
 
