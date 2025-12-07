@@ -1,16 +1,10 @@
 {
-  "type": "object",
-  "properties": {
-    "locations": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "location": { "type": "string" }
-        },
-        "required": ["location"]
-      }
-    }
-  },
-  "required": ["locations"]
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "location": { "type": "string" }
+    },
+    "required": ["location"]
+  }
 }
