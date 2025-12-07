@@ -12,6 +12,7 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --expand-urls-puppeteer-1 \
   --json-schema-1 examples/13-industry-search/schemas/locations.json \
   --explode-1 \
+  --model-1 gpt-4o \
   \
   "" \
   --web-search-query-2 "{{industry}} in {{location}}" \
@@ -20,9 +21,7 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --web-search-limit-2 50 \
   --web-search-dedupe-strategy-2 domain \
   --web-search-explode-2 \
-  \
-  "" \
-  --website-agent-url-3 "{{webSearch.link}}" \
-  --website-agent-schema-3 examples/13-industry-search/schemas/contact.json \
-  --website-agent-export-3 \
-  --output-3 "leads/{{location}}_{{company_name}}.json"
+  --website-agent-url-2 "{{webSearch.link}}" \
+  --website-agent-schema-2 examples/13-industry-search/schemas/contact.json \
+  --website-agent-export-2 \
+  --output-2 "leads/{{location}}_{{company_name}}.json"
