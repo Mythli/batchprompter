@@ -7,8 +7,7 @@ export class GenericPuppeteerHandler implements GenericHandler {
 
     async handle(url: string, services: PluginServices): Promise<string | null> {
         if (!services.puppeteerHelper) {
-            console.warn("[GenericPuppeteerHandler] PuppeteerHelper not available.");
-            return null;
+            throw new Error("[GenericPuppeteerHandler] PuppeteerHelper not available.");
         }
 
         const pageHelper = await services.puppeteerHelper.getPageHelper();
@@ -27,9 +26,6 @@ export class GenericPuppeteerHandler implements GenericHandler {
                 }
             );
             return html;
-        } catch (e) {
-            console.warn(`[GenericPuppeteerHandler] Failed for ${url}`, e);
-            return null;
         } finally {
             await pageHelper.close();
         }

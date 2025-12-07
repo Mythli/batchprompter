@@ -39,9 +39,10 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
         const fallbackHandler = this.registry.getFallback(mode);
 
         const newParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        // Regex to find http/https URLs
-        // Excludes closing parenthesis to avoid capturing markdown link syntax like [text](url) incorrectly if simple
-        const urlRegex = /(https?:\/\/[^\s)]+)/g;
+        
+        // Regex to find http/https URLs. 
+        // We capture broadly (non-whitespace) and then clean up trailing punctuation in the loop.
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
         
         const turndownService = new TurndownService();
         turndownService.remove(['script', 'style', 'noscript', 'iframe']);
@@ -53,14 +54,46 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
             }
 
             const text = part.text;
-            const urls = text.match(urlRegex);
+            const rawUrls = text.match(urlRegex);
 
-            if (!urls || urls.length === 0) {
+            if (!rawUrls || rawUrls.length === 0) {
                 newParts.push(part);
                 continue;
             }
 
-            const uniqueUrls = [...new Set(urls)];
+            const uniqueUrls = new Set<string>();
+            
+            // Clean and deduplicate URLs
+            for (let url of rawUrls) {
+                // Strip common trailing punctuation often found in sentences
+                while (true) {
+                    const lastChar = url.charAt(url.length - 1);
+                    
+                    // Remove trailing sentence punctuation
+                    if (/[.,!?;:]/.test(lastChar)) {
+                        url = url.slice(0, -1);
+                        continue;
+                    }
+                    
+                    // Remove trailing closing parenthesis only if unbalanced
+                    // e.g. "Check (http://site.com)" -> "http://site.com"
+                    // e.g. "http://site.com/foo(bar)" -> "http://site.com/foo(bar)"
+                    if (lastChar === ')') {
+                        const openCount = (url.match(/\(/g) || []).length;
+                        const closeCount = (url.match(/\)/g) || []).length;
+                        if (closeCount > openCount) {
+                            url = url.slice(0, -1);
+                            continue;
+                        }
+                    }
+                    break;
+                }
+
+                if (url.length > 0) {
+                    uniqueUrls.add(url);
+                }
+            }
+
             const expansions: string[] = [];
 
             for (const url of uniqueUrls) {

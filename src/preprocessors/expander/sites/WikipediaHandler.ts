@@ -15,7 +15,9 @@ export class WikipediaHandler implements SiteHandler {
 
         // Delegate fetching to the injected generic handler
         const html = await genericHandler.handle(url, services);
-        if (!html) return null;
+        if (!html) {
+            throw new Error(`[WikipediaHandler] No content returned for ${url}`);
+        }
 
         // Specific parsing logic
         const $ = cheerio.load(html);
