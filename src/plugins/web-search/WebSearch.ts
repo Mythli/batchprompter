@@ -10,6 +10,8 @@ const SearchParametersSchema = z.object({
   num: z.number().optional(),
   page: z.number().optional(),
   engine: z.string().optional(),
+  gl: z.string().optional(),
+  hl: z.string().optional(),
 });
 
 const OrganicResultSchema = z.object({
@@ -39,8 +41,8 @@ export class WebSearch {
         private queue: PQueue
     ) {}
 
-    async search(query: string, num: number = 5, page: number = 1): Promise<WebSearchResult[]> {
-        console.log(`[WebSearch] Searching for query: "${query}" (Page: ${page}, Limit: ${num})`);
+    async search(query: string, num: number = 5, page: number = 1, gl?: string, hl?: string): Promise<WebSearchResult[]> {
+        console.log(`[WebSearch] Searching for query: "${query}" (Page: ${page}, Limit: ${num}, GL: ${gl}, HL: ${hl})`);
 
         const response = await this.queue.add(() => this.fetcher('https://google.serper.dev/search', {
             method: 'POST',
@@ -51,7 +53,9 @@ export class WebSearch {
             body: JSON.stringify({
                 q: query,
                 num: num,
-                page: page
+                page: page,
+                gl: gl,
+                hl: hl
             })
         }));
 

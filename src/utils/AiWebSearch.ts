@@ -25,6 +25,8 @@ export class AiWebSearch {
             pageSize: number;
             maxPages: number;
             dedupeStrategy: 'none' | 'domain' | 'url';
+            gl?: string;
+            hl?: string;
         }
     ): Promise<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[], data: WebSearchResult[] }> {
         
@@ -84,7 +86,7 @@ export class AiWebSearch {
                 // Stop if we've reached the global limit
                 if (allResults.length >= config.limit) break;
 
-                const results = await this.webSearch.search(q, fetchSize, page);
+                const results = await this.webSearch.search(q, fetchSize, page, config.gl, config.hl);
                 
                 if (results.length === 0) {
                     // No more results for this query

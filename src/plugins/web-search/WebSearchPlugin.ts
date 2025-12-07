@@ -21,6 +21,10 @@ interface WebSearchRawConfig {
     pageSize: number;
     maxPages: number;
     dedupeStrategy: 'none' | 'domain' | 'url';
+
+    // Localization
+    gl?: string;
+    hl?: string;
 }
 
 interface WebSearchResolvedConfig {
@@ -36,6 +40,9 @@ interface WebSearchResolvedConfig {
     pageSize: number;
     maxPages: number;
     dedupeStrategy: 'none' | 'domain' | 'url';
+
+    gl?: string;
+    hl?: string;
 }
 
 export class WebSearchPlugin implements ContentProviderPlugin {
@@ -58,6 +65,10 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option('--web-search-page-size <number>', 'Results per page (and AI batch size)', '20');
         program.option('--web-search-max-pages <number>', 'Max pages to fetch per query', '10');
         program.option('--web-search-dedupe-strategy <strategy>', 'Deduplication strategy (none, domain, url)', 'none');
+
+        // Localization
+        program.option('--web-search-gl <country>', 'Country code for search results (e.g. us, de)');
+        program.option('--web-search-hl <lang>', 'Language code for search results (e.g. en, de)');
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -74,6 +85,9 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option(`--web-search-page-size-${stepIndex} <number>`, `Page size for step ${stepIndex}`);
         program.option(`--web-search-max-pages-${stepIndex} <number>`, `Max pages for step ${stepIndex}`);
         program.option(`--web-search-dedupe-strategy-${stepIndex} <strategy>`, `Dedupe strategy for step ${stepIndex}`);
+
+        program.option(`--web-search-gl-${stepIndex} <country>`, `Country code for step ${stepIndex}`);
+        program.option(`--web-search-hl-${stepIndex} <lang>`, `Language code for step ${stepIndex}`);
     }
 
     normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
@@ -113,7 +127,10 @@ export class WebSearchPlugin implements ContentProviderPlugin {
             paginate: !!getOpt('webSearchPaginate'),
             pageSize: parseInt(getOpt('webSearchPageSize') || '20', 10),
             maxPages: parseInt(getOpt('webSearchMaxPages') || '10', 10),
-            dedupeStrategy: (getOpt('webSearchDedupeStrategy') || 'none') as 'none' | 'domain' | 'url'
+            dedupeStrategy: (getOpt('webSearchDedupeStrategy') || 'none') as 'none' | 'domain' | 'url',
+
+            gl: getOpt('webSearchGl'),
+            hl: getOpt('webSearchHl')
         };
 
         return {
@@ -129,7 +146,9 @@ export class WebSearchPlugin implements ContentProviderPlugin {
             paginate: config.paginate,
             pageSize: config.pageSize,
             maxPages: config.maxPages,
-            dedupeStrategy: config.dedupeStrategy
+            dedupeStrategy: config.dedupeStrategy,
+            gl: config.gl,
+            hl: config.hl
         };
 
         if (config.query) {
