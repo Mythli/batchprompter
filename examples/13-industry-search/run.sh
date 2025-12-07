@@ -15,7 +15,7 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --export-1 \
   \
   "" \
-  --web-search-query-2 "{{industry}} in {{location}}" \
+  --web-query-2-prompt examples/13-industry-search/prompts/2-find-url.md \
   --web-search-paginate-2 \
   --web-search-page-size-2 50 \
   --web-search-limit-2 50 \
