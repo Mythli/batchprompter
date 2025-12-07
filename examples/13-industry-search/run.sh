@@ -3,7 +3,8 @@
 npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   \
   "Read this page: https://en.wikipedia.org/wiki/List_of_cities_in_Germany_by_population. Extract all cities with a population over 25,000. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name)." \
-  --expand-urls-puppeteer-1 \
+  --expand-urls-1 \
+  --expand-urls-mode-1 puppeteer \
   --model "google/gemini-3-pro-preview" \
   --json-schema-1 examples/13-industry-search/schemas/locations.json \
   --explode-1 \
