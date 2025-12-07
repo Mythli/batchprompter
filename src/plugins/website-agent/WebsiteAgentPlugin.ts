@@ -52,7 +52,7 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         program.option('--website-agent-url <url>', 'Starting URL for the agent');
         program.option('--website-agent-schema <path>', 'Path to JSON schema for extraction');
         program.option('--website-agent-depth <number>', 'Depth of navigation (0=single page, 1=subpages)', '0');
-        
+
         // Register Model Flags for the 3 operations
         ModelFlags.register(program, 'website-links', { includePrompt: true });
         ModelFlags.register(program, 'website-extract', { includePrompt: true });
@@ -133,17 +133,9 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         }
 
         // Resolve Model Configs
-        const linksConfig = config.linksConfig 
-            ? await PluginHelpers.resolveModelConfig(config.linksConfig, row)
-            : { model: 'gpt-4o', systemParts: [], promptParts: [] }; // Should be covered by normalize, but safe fallback
-
-        const extractConfig = config.extractConfig
-            ? await PluginHelpers.resolveModelConfig(config.extractConfig, row)
-            : { model: 'gpt-4o', systemParts: [], promptParts: [] };
-
-        const mergeConfig = config.mergeConfig
-            ? await PluginHelpers.resolveModelConfig(config.mergeConfig, row)
-            : { model: 'gpt-4o', systemParts: [], promptParts: [] };
+        const linksConfig = await PluginHelpers.resolveModelConfig(config.linksConfig, row)
+        const extractConfig = await PluginHelpers.resolveModelConfig(config.extractConfig, row);
+        const mergeConfig = await PluginHelpers.resolveModelConfig(config.mergeConfig, row)
 
         // Apply Default Prompts if none provided
         if (linksConfig.promptParts.length === 0) {
@@ -188,7 +180,7 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         const result = await services.aiWebsiteAgent.scrape(
             resolvedConfig.url,
             resolvedConfig.schema,
-            { 
+            {
                 depth: resolvedConfig.depth,
                 linksConfig: resolvedConfig.linksConfig,
                 extractConfig: resolvedConfig.extractConfig,
