@@ -40,6 +40,7 @@ type ExtractedContent = {
     type: 'text' | 'image' | 'audio';
     data: string; // Text content, Image URL, or Audio Base64
     extension: string;
+    raw?: any;
 };
 
 export class StandardStrategy implements GenerationStrategy {
@@ -77,6 +78,10 @@ export class StandardStrategy implements GenerationStrategy {
                 const data = JSON.parse(validated.data);
                 // Re-serialize to ensure clean formatting
                 validated.data = JSON.stringify(data, null, 2);
+                // Ensure raw is set if it wasn't already (e.g. if we parsed it here)
+                if (validated.raw === undefined) {
+                    validated.raw = data;
+                }
             } catch (e: any) {
                 if (e.message.includes('JSON')) throw e;
                 throw new Error(`Invalid JSON: ${e.message}`);
@@ -293,7 +298,8 @@ export class StandardStrategy implements GenerationStrategy {
                 role: 'assistant',
                 content: finalContent.type === 'text' ? finalContent.data : `[Generated ${finalContent.type}]`
             },
-            columnValue: finalContent.data
+            columnValue: finalContent.data,
+            raw: finalContent.raw
         };
     }
 
@@ -330,7 +336,8 @@ export class StandardStrategy implements GenerationStrategy {
                     extracted = {
                         type: 'text',
                         data: JSON.stringify(jsonResult, null, 2),
-                        extension: 'json'
+                        extension: 'json',
+                        raw: jsonResult
                     };
                 } 
                 // BRANCH 2: Standard Text/Image/Audio Mode

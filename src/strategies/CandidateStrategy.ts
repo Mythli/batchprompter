@@ -132,7 +132,8 @@ export class CandidateStrategy implements GenerationStrategy {
 
         return {
             historyMessage: winner.historyMessage,
-            columnValue: winner.columnValue
+            columnValue: winner.columnValue,
+            raw: winner.raw
         };
     }
 

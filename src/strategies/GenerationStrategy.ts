@@ -5,6 +5,7 @@ import { StepConfig } from '../types.js';
 export interface GenerationResult {
     historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
     columnValue: string | null;
+    raw?: any;
 }
 
 export interface GenerationStrategy {
