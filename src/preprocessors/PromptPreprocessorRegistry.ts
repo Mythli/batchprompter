@@ -15,6 +15,9 @@ export class PromptPreprocessorRegistry {
     configureCLI(program: Command) {
         for (const plugin of this.getAll()) {
             plugin.register(program);
+            for (let i = 1; i <= 10; i++) {
+                plugin.registerStep(program, i);
+            }
         }
     }
 }

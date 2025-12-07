@@ -12,6 +12,10 @@ export abstract class UrlExpanderBase implements PromptPreprocessorPlugin {
         program.option(`--${this.flagName}`, `Enable ${this.name} to expand URLs in prompts`);
     }
 
+    registerStep(program: any, stepIndex: number): void {
+        program.option(`--${this.flagName}-${stepIndex}`, `Enable ${this.name} to expand URLs in prompts for step ${stepIndex}`);
+    }
+
     async process(
         parts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         context: PreprocessorContext
@@ -19,7 +23,9 @@ export abstract class UrlExpanderBase implements PromptPreprocessorPlugin {
         // Check if enabled via CLI options
         // We need to convert kebab-case flag to camelCase property
         const camelFlag = this.toCamel(this.flagName);
-        if (!context.options[camelFlag]) {
+        const stepCamelFlag = this.toCamel(`${this.flagName}-${context.stepIndex}`);
+
+        if (!context.options[camelFlag] && !context.options[stepCamelFlag]) {
             return parts;
         }
 
@@ -74,6 +80,6 @@ export abstract class UrlExpanderBase implements PromptPreprocessorPlugin {
     }
 
     private toCamel(s: string) {
-        return s.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+        return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
     }
 }

@@ -183,7 +183,8 @@ export class ActionRunner {
                         effectiveParts = await preprocessor.process(effectiveParts, {
                             row: modelViewContext,
                             services: this.services,
-                            options: config.options || {} // Pass CLI options
+                            options: config.options || {}, // Pass CLI options
+                            stepIndex: stepNum // Pass step number (1-based)
                         });
                     }
 
