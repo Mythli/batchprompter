@@ -5,6 +5,7 @@ import { loadData } from '../utils/dataLoader.js';
 import { PromptResolver } from '../utils/PromptResolver.js';
 import { createConfigSchema } from './ConfigSchema.js';
 import { PluginRegistry } from '../plugins/PluginRegistry.js';
+import { createPreprocessorRegistry } from '../getConfig.js';
 
 export class StepRegistry {
 
@@ -52,6 +53,11 @@ export class StepRegistry {
 
         // --- Plugins ---
         registry.configureCLI(program);
+
+        // --- Preprocessors ---
+        // We create a temporary registry just to register CLI args
+        const preprocessorRegistry = createPreprocessorRegistry();
+        preprocessorRegistry.configureCLI(program);
     }
 
     static async parseConfig(options: Record<string, any>, positionalArgs: string[], registry: PluginRegistry): Promise<RuntimeConfig> {
@@ -115,7 +121,10 @@ export class StepRegistry {
                 feedbackLoops: stepDef.feedbackLoops,
                 
                 aspectRatio: stepDef.aspectRatio,
-                plugins: stepDef.plugins
+                plugins: stepDef.plugins,
+
+                // Pass raw options to allow preprocessors to check flags later
+                options: options 
             });
         }
 
@@ -123,7 +132,8 @@ export class StepRegistry {
             ...normalized.global,
             dataFilePath: normalized.dataFilePath,
             steps,
-            data
+            data,
+            options // Pass global options
         };
     }
 }

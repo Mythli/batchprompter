@@ -44,19 +44,42 @@ export class StepExecutor {
     ): Promise<StepExecutionResult> {
         
         // Prepend plugin content to user prompt
-        let effectiveUserPromptParts = [...pluginContentParts, ...config.userPromptParts];
+        // Note: In ActionRunner, we might have already combined these for preprocessing.
+        // However, executeModel expects to receive the *final* parts to send to the model.
+        // If ActionRunner passed preprocessed parts as `pluginContentParts`, we use them.
+        // But wait, ActionRunner passes `effectiveParts` which includes userPromptParts.
+        // So we should treat `pluginContentParts` here as the *full* effective user prompt if it comes from ActionRunner's new logic.
+        
+        // To maintain backward compatibility or clarity:
+        // If the caller (ActionRunner) has already merged and preprocessed everything into `pluginContentParts`,
+        // we should use that. 
+        
+        // Let's assume `pluginContentParts` passed here IS the full effective prompt.
+        let effectiveUserPromptParts = pluginContentParts;
 
         // 2. Check for "Pass-through" Mode
+        // We check config.userPromptParts just to see if *originally* there was a prompt, 
+        // but for execution we use effectiveUserPromptParts.
         const hasUserPrompt = config.userPromptParts.length > 0;
         const hasSystemPrompt = config.modelConfig.systemParts.length > 0;
         const hasModelPrompt = config.modelConfig.promptParts.length > 0;
 
-        if (!hasUserPrompt && !hasSystemPrompt && !hasModelPrompt) {
-            if (effectiveUserPromptParts.length === 0) {
-                throw new Error(`Step ${stepIndex} has no prompt and no plugin output. Nothing to process.`);
-            }
-
-            console.log(`[Row ${index}] Step ${stepIndex} No prompt detected. Saving plugin output directly...`);
+        // If effective parts are empty, and no system/model prompt, then we have nothing.
+        if (effectiveUserPromptParts.length === 0 && !hasSystemPrompt && !hasModelPrompt) {
+             throw new Error(`Step ${stepIndex} has no prompt and no plugin output. Nothing to process.`);
+        }
+        
+        // Special case: If we have NO model interaction intended (just saving plugin output),
+        // we usually detect that by lack of prompts. 
+        // However, with preprocessors, we might have expanded a URL in the prompt.
+        // So "Pass-through" mode is tricky. 
+        // If the user provided a prompt (even just a URL), they expect the model to run.
+        // Pass-through is strictly for "Plugin -> File" without LLM.
+        
+        if (!hasUserPrompt && !hasSystemPrompt && !hasModelPrompt && effectiveUserPromptParts.length > 0) {
+             // This logic was: "If no prompt, save plugin output".
+             // But if effectiveUserPromptParts has content (from plugins), we save it.
+             console.log(`[Row ${index}] Step ${stepIndex} No prompt detected. Saving plugin output directly...`);
             
             const savedPaths = await this.saveContentParts(
                 effectiveUserPromptParts, 

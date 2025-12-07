@@ -123,6 +123,9 @@ export interface StepConfig {
     // NEW: Filename components
     outputBasename?: string;    // e.g. "04_AboutCourseFirstImage"
     outputExtension?: string;   // e.g. ".jpg"
+
+    // NEW: Raw Options for Preprocessors
+    options?: Record<string, any>;
 }
 
 export interface RuntimeConfig {
@@ -133,6 +136,7 @@ export interface RuntimeConfig {
     dataOutputPath?: string;
     steps: StepConfig[];
     data: Record<string, any>[];
+    options?: Record<string, any>;
 }
 
 // Compatibility / Aliases

@@ -21,6 +21,9 @@ import { WebsiteAgentPlugin } from './plugins/website-agent/WebsiteAgentPlugin.j
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import { AiWebsiteAgent } from './utils/AiWebsiteAgent.js';
+import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
+import { FetchUrlExpanderPlugin } from './preprocessors/FetchUrlExpanderPlugin.js';
+import { PuppeteerUrlExpanderPlugin } from './preprocessors/PuppeteerUrlExpanderPlugin.js';
 
 dotenv.config();
 
@@ -57,6 +60,13 @@ export const createDefaultRegistry = () => {
     registry.register(new ImageSearchPlugin());
     registry.register(new WebsiteAgentPlugin());
     registry.register(new StyleScraperPlugin());
+    return registry;
+};
+
+export const createPreprocessorRegistry = () => {
+    const registry = new PromptPreprocessorRegistry();
+    registry.register(new FetchUrlExpanderPlugin());
+    registry.register(new PuppeteerUrlExpanderPlugin());
     return registry;
 };
 
@@ -189,11 +199,15 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Initialize PluginRegistry
     const pluginRegistry = createDefaultRegistry();
 
+    // Initialize PreprocessorRegistry
+    const preprocessorRegistry = createPreprocessorRegistry();
+
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         llm,
         { imageSearch, aiImageSearch, webSearch, aiWebSearch, fetcher, puppeteerHelper, aiWebsiteAgent },
-        pluginRegistry
+        pluginRegistry,
+        preprocessorRegistry
     );
 
     return {
@@ -206,6 +220,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         modelFlags,
         fetcher,
         pluginRegistry,
+        preprocessorRegistry,
         actionRunner,
         puppeteerHelper,
         aiWebsiteAgent

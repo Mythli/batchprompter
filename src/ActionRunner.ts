@@ -13,6 +13,7 @@ import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { PluginRunner } from './core/PluginRunner.js';
 import { ResultProcessor } from './core/ResultProcessor.js';
 import OpenAI from 'openai';
+import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -23,7 +24,8 @@ export class ActionRunner {
     constructor(
         private llm: LlmClient,
         private services: PluginServices,
-        private pluginRegistry: PluginRegistry
+        private pluginRegistry: PluginRegistry,
+        private preprocessorRegistry: PromptPreprocessorRegistry
     ) {}
 
     async run(config: RuntimeConfig) {
@@ -171,6 +173,20 @@ export class ActionRunner {
                         index: ctx.item.originalIndex
                     };
 
+                    // --- PREPROCESS PROMPTS ---
+                    // Run preprocessors on the accumulated content parts + user prompt parts
+                    // We need to combine them first to allow preprocessors to see the full context
+                    let effectiveParts = [...ctx.contentParts, ...resolvedStep.userPromptParts];
+                    
+                    // Run all registered preprocessors
+                    for (const preprocessor of this.preprocessorRegistry.getAll()) {
+                        effectiveParts = await preprocessor.process(effectiveParts, {
+                            row: modelViewContext,
+                            services: this.services,
+                            options: config.options || {} // Pass CLI options
+                        });
+                    }
+
                     // Execute Model
                     const result = await executor.executeModel(
                         modelViewContext,
@@ -178,7 +194,7 @@ export class ActionRunner {
                         stepNum,
                         resolvedStep,
                         ctx.item.history,
-                        ctx.contentParts
+                        effectiveParts // Pass the preprocessed parts
                     );
 
                     // Update Step Result
