@@ -22,8 +22,11 @@ import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import { AiWebsiteAgent } from './utils/AiWebsiteAgent.js';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
-import { FetchUrlExpanderPlugin } from './preprocessors/FetchUrlExpanderPlugin.js';
-import { PuppeteerUrlExpanderPlugin } from './preprocessors/PuppeteerUrlExpanderPlugin.js';
+import { UrlExpanderPlugin } from './preprocessors/UrlExpanderPlugin.js';
+import { UrlHandlerRegistry } from './preprocessors/expander/UrlHandlerRegistry.js';
+import { GenericFetchHandler } from './preprocessors/expander/GenericFetchHandler.js';
+import { GenericPuppeteerHandler } from './preprocessors/expander/GenericPuppeteerHandler.js';
+import { WikipediaHandler } from './preprocessors/expander/sites/WikipediaHandler.js';
 
 dotenv.config();
 
@@ -65,8 +68,21 @@ export const createDefaultRegistry = () => {
 
 export const createPreprocessorRegistry = () => {
     const registry = new PromptPreprocessorRegistry();
-    registry.register(new FetchUrlExpanderPlugin());
-    registry.register(new PuppeteerUrlExpanderPlugin());
+    
+    // --- URL Expander Setup ---
+    // 1. Instantiate Generics
+    const fetchHandler = new GenericFetchHandler();
+    const puppeteerHandler = new GenericPuppeteerHandler();
+
+    // 2. Instantiate Registry
+    const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, puppeteerHandler);
+
+    // 3. Register Specific Handlers (Injecting Generics)
+    urlHandlerRegistry.registerSpecific(new WikipediaHandler(fetchHandler));
+
+    // 4. Register Plugin
+    registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
+    
     return registry;
 };
 
