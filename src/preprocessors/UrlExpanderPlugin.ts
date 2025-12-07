@@ -35,6 +35,9 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
         const stepModeKey = this.toCamel(`${this.flagName}-mode-${context.stepIndex}`);
         const mode = context.options[stepModeKey] || context.options[modeKey] || 'auto';
 
+        // Resolve the generic handler based on mode
+        const fallbackHandler = this.registry.getFallback(mode);
+
         const newParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         // Regex to find http/https URLs
         // Excludes closing parenthesis to avoid capturing markdown link syntax like [text](url) incorrectly if simple
@@ -70,10 +73,10 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
                     if (specificHandler) {
                         handlerName = specificHandler.name;
                         // Specific handlers return processed Markdown
-                        content = await specificHandler.handle(url, context.services);
+                        // Pass the fallbackHandler (generic) to the specific handler
+                        content = await specificHandler.handle(url, context.services, fallbackHandler);
                     } else {
                         // 2. Fallback based on mode
-                        const fallbackHandler = this.registry.getFallback(mode);
                         handlerName = fallbackHandler.name;
                         
                         // Generic handlers return raw HTML

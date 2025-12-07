@@ -165,7 +165,16 @@ export class StandardStrategy implements GenerationStrategy {
         // Initial History
         // We construct the base request using Normalizer
         // This handles System Prompt, User Prompt (from config + positional), and Thinking Level
-        const baseRequest = ModelRequestNormalizer.normalize(config.modelConfig, row, userPromptParts);
+        
+        // FIX: Prevent prompt duplication.
+        // userPromptParts already contains the prompt (merged in ActionRunner/StepExecutor).
+        // We strip it from the config passed to normalizer so it's not added again.
+        const configForNormalizer = {
+            ...config.modelConfig,
+            promptParts: []
+        };
+
+        const baseRequest = ModelRequestNormalizer.normalize(configForNormalizer, row, userPromptParts);
         
         // We need to merge the persistent history passed in
         const currentMessages = [...baseRequest.messages];

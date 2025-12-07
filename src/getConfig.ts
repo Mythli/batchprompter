@@ -78,7 +78,7 @@ export const createPreprocessorRegistry = () => {
     const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, puppeteerHandler);
 
     // 3. Register Specific Handlers (Injecting Generics)
-    urlHandlerRegistry.registerSpecific(new WikipediaHandler(fetchHandler));
+    urlHandlerRegistry.registerSpecific(new WikipediaHandler());
 
     // 4. Register Plugin
     registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
