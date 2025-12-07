@@ -12,11 +12,13 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
     register(program: any): void {
         program.option(`--${this.flagName}`, `Enable URL expansion in prompts`);
         program.option(`--${this.flagName}-mode <mode>`, `Expansion mode (auto, fetch, puppeteer)`, 'auto');
+        program.option(`--${this.flagName}-max-chars <number>`, `Max characters per expanded URL`, '30000');
     }
 
     registerStep(program: any, stepIndex: number): void {
         program.option(`--${this.flagName}-${stepIndex}`, `Enable URL expansion for step ${stepIndex}`);
         program.option(`--${this.flagName}-mode-${stepIndex} <mode>`, `Expansion mode for step ${stepIndex}`);
+        program.option(`--${this.flagName}-max-chars-${stepIndex} <number>`, `Max characters per expanded URL for step ${stepIndex}`);
     }
 
     async process(
@@ -34,6 +36,11 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
         const modeKey = this.toCamel(`${this.flagName}-mode`);
         const stepModeKey = this.toCamel(`${this.flagName}-mode-${context.stepIndex}`);
         const mode = context.options[stepModeKey] || context.options[modeKey] || 'auto';
+
+        // Determine max chars
+        const maxCharsKey = this.toCamel(`${this.flagName}-max-chars`);
+        const stepMaxCharsKey = this.toCamel(`${this.flagName}-max-chars-${context.stepIndex}`);
+        const maxChars = parseInt(context.options[stepMaxCharsKey] || context.options[maxCharsKey] || '30000', 10);
 
         // Resolve the generic handler based on mode
         const fallbackHandler = this.registry.getFallback(mode);
@@ -122,7 +129,7 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
 
                     if (content) {
                         console.log(`[UrlExpander] Expanded ${url} using ${handlerName}`);
-                        const truncated = content.substring(0, 15000);
+                        const truncated = content.substring(0, maxChars);
                         expansions.push(`\n\n--- Content of ${url} ---\n${truncated}\n--------------------------\n`);
                     }
                 } catch (e: any) {
