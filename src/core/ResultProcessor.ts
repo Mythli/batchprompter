@@ -18,6 +18,7 @@ export class ResultProcessor {
         // 1. Normalize resultData to an array if we are exploding
         let items: any[];
         if (strategy.explode && Array.isArray(resultData)) {
+            console.log(`[ResultProcessor] Exploding ${resultData.length} items for namespace '${namespace}'`);
             items = resultData;
         } else {
             items = [resultData];
