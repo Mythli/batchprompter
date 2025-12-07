@@ -15,14 +15,14 @@ export class WikipediaHandler implements SiteHandler {
 
     async handle(url: string, services: PluginServices): Promise<string | null> {
         console.log(`[WikipediaHandler] Processing ${url}`);
-        
+
         // Delegate fetching to the generic handler
         const html = await this.fetchHandler.handle(url, services);
         if (!html) return null;
 
         // Specific parsing logic
         const $ = cheerio.load(html);
-        
+
         // Wikipedia stores the main article in #mw-content-text
         const content = $('#mw-content-text');
 
@@ -35,6 +35,7 @@ export class WikipediaHandler implements SiteHandler {
         content.find('style, script').remove();
 
         const turndownService = new TurndownService();
-        return turndownService.turndown(content.html() || '');
+        const wikipediaArticle = turndownService.turndown(content.html() || '');
+        return wikipediaArticle;
     }
 }
