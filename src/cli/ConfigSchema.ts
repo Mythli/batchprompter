@@ -92,7 +92,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
     // Resolve Global Model Default
     // Priority: Flag > Env Var > Hardcoded
     const envModel = getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']);
-    const globalModel = String(options.model || envModel || 'gpt-4o');
+    const globalModel = options.model || envModel;
 
     const globalConfig = {
         concurrency: parseInt(String(options.concurrency || '20'), 10),

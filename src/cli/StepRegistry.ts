@@ -11,7 +11,7 @@ export class StepRegistry {
 
     static registerStepArgs(program: Command, registry: PluginRegistry) {
         // --- Global Level ---
-        ModelFlags.register(program, '', { includeSystem: true, defaultModel: 'gpt-4o' }); // Main Model
+        ModelFlags.register(program, '', { includeSystem: true }); // Main Model
         ModelFlags.register(program, 'judge', { includePrompt: true }); // Global Judge
         ModelFlags.register(program, 'feedback', { includePrompt: true }); // Global Feedback
 

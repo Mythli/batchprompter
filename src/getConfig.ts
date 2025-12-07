@@ -39,7 +39,7 @@ function getEnvVar(keys: string[]): string | undefined {
 export const configSchema = z.object({
     AI_API_KEY: z.string().min(1, "API Key is required. Checked: BATCHPROMPT_OPENAI_API_KEY, OPENAI_API_KEY, AI_API_KEY"),
     AI_API_URL: z.string().url().default("https://api.openai.com/v1"),
-    MODEL: z.string().default("gpt-5.1"),
+    MODEL: z.string().optional(),
     GPT_MAX_CONVERSATION_CHARS: z.coerce.number().int().positive().optional(),
     CACHE_ENABLED: z.coerce.boolean().default(true),
     SQLITE_PATH: z.string().default(".cache.sqlite"),

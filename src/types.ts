@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 // --- Definitions (Pre-Load) ---
 
 export interface ModelDefinition {
-    model: string;
+    model?: string;
     temperature?: number;
     thinkingLevel?: 'low' | 'medium' | 'high';
     systemSource?: string;
@@ -62,7 +62,7 @@ export interface NormalizedConfig {
         taskConcurrency: number;
         tmpDir: string;
         dataOutputPath?: string;
-        model: string; // Global default model
+        model?: string; // Global default model
     };
     steps: StepDefinition[];
 }
@@ -70,7 +70,7 @@ export interface NormalizedConfig {
 // --- Resolved Configuration (Post-Load) ---
 
 export interface ResolvedModelConfig {
-    model: string;
+    model?: string;
     temperature?: number;
     thinkingLevel?: 'low' | 'medium' | 'high';
     

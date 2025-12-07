@@ -17,6 +17,10 @@ export class ModelRequestNormalizer {
         externalContent?: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): LlmRequest {
 
+        if (!config.model) {
+            throw new Error("Model configuration missing. Please specify a model via --model or specific flags.");
+        }
+
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
         // 1. System Message
