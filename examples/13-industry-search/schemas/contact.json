@@ -2,17 +2,17 @@
   "type": "object",
   "properties": {
     "ceo": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
-        "firstName": { "type": "string" },
-        "lastName": { "type": "string" }
+        "firstName": { "type": ["string", "null"] },
+        "lastName": { "type": ["string", "null"] }
       }
     },
     "contact": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
-        "email": { "type": "string" },
-        "phone": { "type": "string" }
+        "email": { "type": ["string", "null"] },
+        "phone": { "type": ["string", "null"] }
       }
     }
   },
