@@ -21,8 +21,6 @@ export class AiWebSearch {
             limit: number;
             mode: WebSearchMode;
             queryCount: number;
-            paginate: boolean;
-            pageSize: number;
             maxPages: number;
             dedupeStrategy: 'none' | 'domain' | 'url';
             gl?: string;
@@ -77,10 +75,9 @@ export class AiWebSearch {
             if (allResults.length >= config.limit) break;
 
             let page = 1;
-            const maxPages = config.paginate ? config.maxPages : 1;
-            // If not paginating, we use the limit as the fetch size (up to 100 max usually supported by Serper)
-            // If paginating, we use pageSize.
-            const fetchSize = config.paginate ? config.pageSize : config.limit;
+            const maxPages = config.maxPages;
+            // Fixed fetch size of 10 to mimic standard search engine behavior
+            const fetchSize = 10;
 
             while (page <= maxPages) {
                 // Stop if we've reached the global limit
@@ -139,12 +136,6 @@ export class AiWebSearch {
                     addedCount++;
                 }
 
-                // If we didn't add anything new from this page, and we are deduping, 
-                // it might mean we are looping through redundant pages (e.g. same domain results).
-                // However, we should probably keep going until maxPages or empty results 
-                // because the next page might have a new domain.
-                
-                if (!config.paginate) break; // Only run once if pagination is disabled
                 page++;
             }
         }

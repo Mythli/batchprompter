@@ -17,8 +17,6 @@ interface WebSearchRawConfig {
     queryCount: number;
     
     // Pagination & Dedupe
-    paginate: boolean;
-    pageSize: number;
     maxPages: number;
     dedupeStrategy: 'none' | 'domain' | 'url';
 
@@ -36,8 +34,6 @@ interface WebSearchResolvedConfig {
     mode: WebSearchMode;
     queryCount: number;
     
-    paginate: boolean;
-    pageSize: number;
     maxPages: number;
     dedupeStrategy: 'none' | 'domain' | 'url';
 
@@ -61,9 +57,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option('--web-search-query-count <number>', 'Queries to generate', '3');
         
         // Pagination & Dedupe
-        program.option('--web-search-paginate', 'Enable pagination loop', false);
-        program.option('--web-search-page-size <number>', 'Results per page (and AI batch size)', '20');
-        program.option('--web-search-max-pages <number>', 'Max pages to fetch per query', '10');
+        program.option('--web-search-max-pages <number>', 'Max pages to fetch per query', '1');
         program.option('--web-search-dedupe-strategy <strategy>', 'Deduplication strategy (none, domain, url)', 'none');
 
         // Localization
@@ -81,8 +75,6 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option(`--web-search-mode-${stepIndex} <mode>`, `Result mode for step ${stepIndex}`);
         program.option(`--web-search-query-count-${stepIndex} <number>`, `Query count for step ${stepIndex}`);
         
-        program.option(`--web-search-paginate-${stepIndex}`, `Enable pagination for step ${stepIndex}`);
-        program.option(`--web-search-page-size-${stepIndex} <number>`, `Page size for step ${stepIndex}`);
         program.option(`--web-search-max-pages-${stepIndex} <number>`, `Max pages for step ${stepIndex}`);
         program.option(`--web-search-dedupe-strategy-${stepIndex} <strategy>`, `Dedupe strategy for step ${stepIndex}`);
 
@@ -124,9 +116,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
             mode: (getOpt('webSearchMode') || 'markdown') as WebSearchMode,
             queryCount: parseInt(getOpt('webSearchQueryCount') || '3', 10),
             
-            paginate: !!getOpt('webSearchPaginate'),
-            pageSize: parseInt(getOpt('webSearchPageSize') || '20', 10),
-            maxPages: parseInt(getOpt('webSearchMaxPages') || '10', 10),
+            maxPages: parseInt(getOpt('webSearchMaxPages') || '1', 10),
             dedupeStrategy: (getOpt('webSearchDedupeStrategy') || 'none') as 'none' | 'domain' | 'url',
 
             gl: getOpt('webSearchGl'),
@@ -143,8 +133,6 @@ export class WebSearchPlugin implements ContentProviderPlugin {
             limit: config.limit,
             mode: config.mode,
             queryCount: config.queryCount,
-            paginate: config.paginate,
-            pageSize: config.pageSize,
             maxPages: config.maxPages,
             dedupeStrategy: config.dedupeStrategy,
             gl: config.gl,
