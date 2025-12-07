@@ -45,7 +45,7 @@ id,topic
 **2. Run:**
 ```bash
 batchprompt generate data.csv "Write a haiku about {{topic}}" \
-  --model gpt-4o \
+  --model google/gemini-3-pro-preview \
   --output "haikus/{{id}}_{{topic}}.txt"
 ```
 
@@ -79,7 +79,7 @@ batchprompt generate companies.csv "Write a summary of {{name}} based on: {{webs
   --web-search-limit 1 \
   --website-agent-url "{{webSearch.0.link}}" \
   --website-agent-depth 0 \
-  --model gpt-4o
+  --model google/gemini-3-pro-preview
 ```
 
 **How Data Flows:**
@@ -199,7 +199,7 @@ batchprompt generate data.csv "Look at this image: {{imageSearch.0.imageUrl}}" \
 | :--- | :--- | :--- |
 | **Global** | `--concurrency` | Max parallel LLM requests (Default: 20). |
 | | `--tmp-dir` | Folder for temp files (Default: `.tmp`). |
-| **Model** | `--model` | `gpt-4o`, `claude-3-5-sonnet`, etc. |
+| **Model** | `--model` | `google/gemini-3-pro-preview`, `anthropic/claude-3.5-sonnet`, etc. |
 | | `--temperature` | Creativity (0.0 - 1.0). |
 | **Output** | `--output` | File path template (e.g., `out/{{id}}.md`). |
 | | `--output-column` | Save result to the CSV data for future steps. |
@@ -210,5 +210,5 @@ batchprompt generate data.csv "Look at this image: {{imageSearch.0.imageUrl}}" \
 | | `--image-search-query` | Enable Image Search. |
 
 **Note on Multi-Step:** Append `-{step}` to flags to target specific steps.
-*   `--model-1 gpt-4o` (Step 1 only)
+*   `--model-1 google/gemini-3-pro-preview` (Step 1 only)
 *   `--web-search-query-2` (Step 2 only)
