@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import TurndownService from 'turndown';
 import { PromptPreprocessorPlugin, PreprocessorContext } from './types.js';
 import { UrlHandlerRegistry } from './expander/UrlHandlerRegistry.js';
+import { PreprocessorConfigDefinition } from '../types.js';
 
 export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
     name = 'url-expander';
@@ -21,26 +22,39 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
         program.option(`--${this.flagName}-max-chars-${stepIndex} <number>`, `Max characters per expanded URL for step ${stepIndex}`);
     }
 
-    async process(
-        parts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
-        context: PreprocessorContext
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
-        
+    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): PreprocessorConfigDefinition | undefined {
         const camelFlag = this.toCamel(this.flagName);
-        const stepCamelFlag = this.toCamel(`${this.flagName}-${context.stepIndex}`);
+        const stepCamelFlag = this.toCamel(`${this.flagName}-${stepIndex}`);
         
-        const isEnabled = context.options[camelFlag] || context.options[stepCamelFlag];
-        if (!isEnabled) return parts;
+        const isEnabled = options[camelFlag] || options[stepCamelFlag];
+        if (!isEnabled) return undefined;
 
         // Determine mode
         const modeKey = this.toCamel(`${this.flagName}-mode`);
-        const stepModeKey = this.toCamel(`${this.flagName}-mode-${context.stepIndex}`);
-        const mode = context.options[stepModeKey] || context.options[modeKey] || 'auto';
+        const stepModeKey = this.toCamel(`${this.flagName}-mode-${stepIndex}`);
+        const mode = options[stepModeKey] || options[modeKey] || 'auto';
 
         // Determine max chars
         const maxCharsKey = this.toCamel(`${this.flagName}-max-chars`);
-        const stepMaxCharsKey = this.toCamel(`${this.flagName}-max-chars-${context.stepIndex}`);
-        const maxChars = parseInt(context.options[stepMaxCharsKey] || context.options[maxCharsKey] || '30000', 10);
+        const stepMaxCharsKey = this.toCamel(`${this.flagName}-max-chars-${stepIndex}`);
+        const maxChars = parseInt(options[stepMaxCharsKey] || options[maxCharsKey] || '30000', 10);
+
+        return {
+            name: this.name,
+            config: {
+                mode,
+                maxChars
+            }
+        };
+    }
+
+    async process(
+        parts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        context: PreprocessorContext,
+        config: any
+    ): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+        
+        const { mode, maxChars } = config;
 
         // Resolve the generic handler based on mode
         const fallbackHandler = this.registry.getFallback(mode);

@@ -24,6 +24,11 @@ export interface PluginConfigDefinition {
     output: OutputStrategy;
 }
 
+export interface PreprocessorConfigDefinition {
+    name: string;
+    config: any;
+}
+
 export interface StepDefinition {
     stepIndex: number;
     modelConfig: ModelDefinition;
@@ -53,6 +58,9 @@ export interface StepDefinition {
 
     // Plugins (Ordered List)
     plugins: PluginConfigDefinition[];
+    
+    // Preprocessors
+    preprocessors: PreprocessorConfigDefinition[];
 }
 
 export interface NormalizedConfig {
@@ -115,6 +123,9 @@ export interface StepConfig {
 
     // Plugins (Ordered List)
     plugins: PluginConfigDefinition[];
+    
+    // Preprocessors
+    preprocessors: PreprocessorConfigDefinition[];
 
     // --- NEW: Pre-calculated Paths ---
     resolvedOutputDir?: string; // The final destination folder (e.g., out/10-image/BoulderHall)

@@ -8,6 +8,10 @@ export class PromptPreprocessorRegistry {
         this.plugins.set(plugin.name, plugin);
     }
 
+    get(name: string): PromptPreprocessorPlugin | undefined {
+        return this.plugins.get(name);
+    }
+
     getAll(): PromptPreprocessorPlugin[] {
         return Array.from(this.plugins.values());
     }

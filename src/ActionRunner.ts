@@ -179,13 +179,14 @@ export class ActionRunner {
                     let effectiveParts = [...ctx.contentParts, ...resolvedStep.userPromptParts];
                     
                     // Run all registered preprocessors
-                    for (const preprocessor of this.preprocessorRegistry.getAll()) {
-                        effectiveParts = await preprocessor.process(effectiveParts, {
-                            row: modelViewContext,
-                            services: this.services,
-                            options: config.options || {}, // Pass CLI options
-                            stepIndex: stepNum // Pass step number (1-based)
-                        });
+                    for (const ppDef of resolvedStep.preprocessors) {
+                        const preprocessor = this.preprocessorRegistry.get(ppDef.name);
+                        if (preprocessor) {
+                            effectiveParts = await preprocessor.process(effectiveParts, {
+                                row: modelViewContext,
+                                services: this.services
+                            }, ppDef.config);
+                        }
                     }
 
                     // Execute Model

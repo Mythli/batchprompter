@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import TurndownService from 'turndown';
 import { PromptPreprocessorPlugin, PreprocessorContext } from './types.js';
+import { PreprocessorConfigDefinition } from '../types.js';
 
 export abstract class UrlExpanderBase implements PromptPreprocessorPlugin {
     abstract name: string;
@@ -16,19 +17,26 @@ export abstract class UrlExpanderBase implements PromptPreprocessorPlugin {
         program.option(`--${this.flagName}-${stepIndex}`, `Enable ${this.name} to expand URLs in prompts for step ${stepIndex}`);
     }
 
+    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): PreprocessorConfigDefinition | undefined {
+        const camelFlag = this.toCamel(this.flagName);
+        const stepCamelFlag = this.toCamel(`${this.flagName}-${stepIndex}`);
+        
+        const isEnabled = options[camelFlag] || options[stepCamelFlag];
+        if (!isEnabled) return undefined;
+
+        return {
+            name: this.name,
+            config: {}
+        };
+    }
+
     async process(
         parts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
-        context: PreprocessorContext
+        context: PreprocessorContext,
+        config: any
     ): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
-        // Check if enabled via CLI options
-        // We need to convert kebab-case flag to camelCase property
-        const camelFlag = this.toCamel(this.flagName);
-        const stepCamelFlag = this.toCamel(`${this.flagName}-${context.stepIndex}`);
-
-        if (!context.options[camelFlag] && !context.options[stepCamelFlag]) {
-            return parts;
-        }
-
+        // Config is empty for base, but we rely on normalize having returned it to know we are active.
+        
         const newParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         // Regex to find http/https URLs
         // Excludes closing parenthesis to avoid capturing markdown link syntax like [text](url) incorrectly if simple

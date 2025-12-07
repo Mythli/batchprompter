@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { ModelFlags } from './ModelFlags.js';
-import { RuntimeConfig, StepConfig, ModelDefinition, ResolvedModelConfig } from '../types.js';
+import { RuntimeConfig, StepConfig, ModelDefinition, ResolvedModelConfig, PreprocessorConfigDefinition } from '../types.js';
 import { loadData } from '../utils/dataLoader.js';
 import { PromptResolver } from '../utils/PromptResolver.js';
 import { createConfigSchema } from './ConfigSchema.js';
@@ -82,6 +82,9 @@ export class StepRegistry {
             };
         };
 
+        // Create registry to normalize preprocessors
+        const preprocessorRegistry = createPreprocessorRegistry();
+
         for (const stepDef of normalized.steps) {
             // Main Model
             const mainResolved = await resolveModel(stepDef.modelConfig);
@@ -92,6 +95,15 @@ export class StepRegistry {
             // Auxiliary
             const judge = await resolveModel(stepDef.judge);
             const feedback = await resolveModel(stepDef.feedback);
+
+            // Normalize Preprocessors
+            const activePreprocessors: PreprocessorConfigDefinition[] = [];
+            for (const pp of preprocessorRegistry.getAll()) {
+                const normalizedPp = pp.normalize(options, stepDef.stepIndex, normalized.global);
+                if (normalizedPp) {
+                    activePreprocessors.push(normalizedPp);
+                }
+            }
 
             // Construct StepConfig
             steps.push({
@@ -122,8 +134,9 @@ export class StepRegistry {
                 
                 aspectRatio: stepDef.aspectRatio,
                 plugins: stepDef.plugins,
+                preprocessors: activePreprocessors,
 
-                // Pass raw options to allow preprocessors to check flags later
+                // Pass raw options to allow preprocessors to check flags later (Legacy support, can be removed if all preprocessors use normalize)
                 options: options 
             });
         }
