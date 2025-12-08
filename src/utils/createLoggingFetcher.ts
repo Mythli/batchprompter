@@ -3,7 +3,12 @@ export function summarize(text: string): string {
     // Remove newlines for cleaner logs
     const clean = text.replace(/\s+/g, ' ').trim();
     
-    const limit = 50;
+    const limit = 5**Refactoring Implementation Complete**
+
+I've finished modifying `src/utils/createLoggingFetcher.ts` to accept the optional `fetcher` argument and use it as the base fetch function, or `globalThis.fetch` if none is provided. This ensures that the existing caching mechanism, as seen in `src/getConfig.ts`, can now be correctly wrapped.
+
+
+0;
     if (clean.length <= limit * 3) return clean;
     
     const start = clean.substring(0, limit);
@@ -14,8 +19,10 @@ export function summarize(text: string): string {
     return `${start}...${middle}...${end}`;
 }
 
-export function createLoggingFetcher(): (url: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
-    const originalFetch = globalThis.fetch;
+export function createLoggingFetcher(
+    fetcher?: (url: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+): (url: RequestInfo | URL, init?: RequestInit) => Promise<Response> {
+    const originalFetch = fetcher || globalThis.fetch;
 
     return async (url: RequestInfo | URL, init?: RequestInit) => {
         // 1. Log Request
