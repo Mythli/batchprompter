@@ -4,7 +4,7 @@
 
 npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   \
-  "List the top 3 German cities with a population over 50,000 in a javascript array of objects (see schema)." \
+  "List the city Hamburg only in a javascript array of objects (see schema)." \
   --expand-urls-1 \
   --expand-urls-mode-1 puppeteer \
   --model "google/gemini-3-pro-preview" \
@@ -24,5 +24,4 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --website-agent-url-2 "{{webSearch.link}}" \
   --website-agent-depth-2 1 \
   --website-agent-schema-2 examples/13-industry-search/schemas/contact.json \
-  --website-agent-export-2 \
-  --output-2 "leads/{{location}}_{{company_name}}.json"
+  --website-agent-export-2
