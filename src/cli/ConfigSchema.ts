@@ -202,7 +202,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
             feedbackLoops: parseInt(getStepOpt('feedbackLoops') || '0', 10),
             
             aspectRatio: getStepOpt('aspectRatio'),
-            plugins
+            plugins,
+            preprocessors: [] // Initialized empty, populated in StepRegistry
         }));
     }
 

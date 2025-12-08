@@ -16,7 +16,7 @@ interface ValidationResolvedConfig {
 
 export class ValidationPlugin implements ContentProviderPlugin {
     name = 'validation';
-    private ajv: Ajv;
+    private ajv: any;
 
     constructor() {
         // Handle ESM/CommonJS import differences for Ajv if necessary

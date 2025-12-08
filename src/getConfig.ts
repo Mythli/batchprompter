@@ -160,7 +160,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const openAi = new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
-        fetch: createLoggingFetcher(),
+        fetch: createLoggingFetcher() as any,
     });
 
     // Default to 1 if not specified in overrides, to be safe, or 10 if strictly internal.
@@ -182,7 +182,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     const llm = createLlm({
         openai: openAi as any, // Cast to any to avoid version mismatch issues
-        defaultModel: config.MODEL,
+        defaultModel: config.MODEL || 'gpt-4o-mini',
         cache: cache,
         queue: gptQueue,
         maxConversationChars: config.GPT_MAX_CONVERSATION_CHARS,

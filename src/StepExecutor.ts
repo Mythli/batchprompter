@@ -122,7 +122,7 @@ export class StepExecutor {
 
         return {
             historyMessage: result.historyMessage,
-            modelResult: result.raw !== undefined ? result.raw : result.modelResult
+            modelResult: result.raw !== undefined ? result.raw : result.columnValue
         };
     }
 
