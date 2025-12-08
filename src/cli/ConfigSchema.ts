@@ -95,8 +95,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
     const globalModel = options.model || envModel;
 
     const globalConfig = {
-        concurrency: parseInt(String(options.concurrency || '20'), 10),
-        taskConcurrency: parseInt(String(options.taskConcurrency || '100'), 10),
+        concurrency: options.concurrency ? parseInt(String(options.concurrency), 10) : undefined,
+        taskConcurrency: options.taskConcurrency ? parseInt(String(options.taskConcurrency), 10) : undefined,
         tmpDir: String(options.tmpDir || '.tmp'),
         dataOutputPath: options.dataOutput ? String(options.dataOutput) : undefined,
         model: globalModel

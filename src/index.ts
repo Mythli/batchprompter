@@ -29,11 +29,22 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
         const config = await StepRegistry.parseConfig(options, [dataFilePath, ...templateFilePaths], cliRegistry);
 
         // Get the runner from DI
-        const { actionRunner, puppeteerHelper } = await getConfig({ concurrency: config.concurrency });
+        // Pass CLI overrides if present, otherwise getConfig uses env/defaults
+        const { actionRunner, puppeteerHelper, config: resolvedConfig } = await getConfig({ 
+            concurrency: config.concurrency 
+        });
         puppeteerHelperInstance = puppeteerHelper;
 
+        // Update the runtime config with the resolved concurrency values if they weren't in CLI args
+        // This ensures ActionRunner uses the correct values (Env > Default) if CLI didn't specify them
+        const finalConfig = {
+            ...config,
+            concurrency: config.concurrency ?? resolvedConfig.GPT_CONCURRENCY,
+            taskConcurrency: config.taskConcurrency ?? resolvedConfig.TASK_CONCURRENCY
+        };
+
         // Run
-        await actionRunner.run(config);
+        await actionRunner.run(finalConfig);
         
         // Cleanup
         if (puppeteerHelperInstance) {
