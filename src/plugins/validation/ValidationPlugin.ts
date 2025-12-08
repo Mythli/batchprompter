@@ -12,6 +12,7 @@ interface ValidationConfig {
 interface ValidationResolvedConfig {
     schema: any;
     targetTemplate?: string;
+    schemaSource: string;
 }
 
 export class ValidationPlugin implements ContentProviderPlugin {
@@ -65,9 +66,15 @@ export class ValidationPlugin implements ContentProviderPlugin {
              throw new Error(`[Validation] Schema path is required.`);
         }
 
+        let schemaSource = config.schemaPath;
+        if (schemaSource.length > 50) {
+            schemaSource = schemaSource.substring(0, 47) + '...';
+        }
+
         return {
             schema,
-            targetTemplate: config.targetTemplate
+            targetTemplate: config.targetTemplate,
+            schemaSource
         };
     }
 
@@ -97,12 +104,12 @@ export class ValidationPlugin implements ContentProviderPlugin {
 
         if (!valid) {
             const errors = this.ajv.errorsText(validate.errors);
-            console.log(`[Row ${row.index}] [Validation] ❌ Failed: ${errors}`);
+            console.log(`[Row ${row.index}] [Validation] ❌ Failed (${resolved.schemaSource}): ${errors}`);
             // console.log(`[Validation] Data was: ${JSON.stringify(dataToValidate, null, 2)}`);
             return { contentParts: [], data: [] }; // Drop
         }
 
-        console.log(`[Row ${row.index}] [Validation] ✅ Passed.`);
+        console.log(`[Row ${row.index}] [Validation] ✅ Passed (${resolved.schemaSource}).`);
         return { contentParts: [], data: [{}] }; // Pass
     }
 }
