@@ -18,6 +18,8 @@ import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 import { WebSearchPlugin } from './plugins/web-search/WebSearchPlugin.js';
 import { StyleScraperPlugin } from './plugins/style-scraper/StyleScraperPlugin.js';
 import { WebsiteAgentPlugin } from './plugins/website-agent/WebsiteAgentPlugin.js';
+import { DedupePlugin } from './plugins/dedupe/DedupePlugin.js';
+import { ValidationPlugin } from './plugins/validation/ValidationPlugin.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import { AiWebsiteAgent } from './utils/AiWebsiteAgent.js';
@@ -64,6 +66,11 @@ export const createDefaultRegistry = () => {
     registry.register(new ImageSearchPlugin());
     registry.register(new WebsiteAgentPlugin());
     registry.register(new StyleScraperPlugin());
+    
+    // New Plugins
+    registry.register(new DedupePlugin());
+    registry.register(new ValidationPlugin());
+    
     return registry;
 };
 
