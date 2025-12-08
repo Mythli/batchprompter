@@ -112,50 +112,58 @@ export class ActionRunner {
                     const nextContexts: ActiveContext[] = [];
 
                     for (const ctx of activeContexts) {
-                        // Prepare View Context for this specific item state
-                        const pluginViewContext = {
-                            ...ctx.item.row,
-                            ...ctx.item.workspace,
-                            steps: ctx.item.stepHistory,
-                            index: ctx.item.originalIndex
-                        };
+                        try {
+                            // Prepare View Context for this specific item state
+                            const pluginViewContext = {
+                                ...ctx.item.row,
+                                ...ctx.item.workspace,
+                                steps: ctx.item.stepHistory,
+                                index: ctx.item.originalIndex
+                            };
 
-                        // Execute Plugin
-                        const { context: updatedContext, contentParts, pluginResults } = await pluginRunner.run(
-                            [pluginDef], // Run one plugin
-                            pluginViewContext,
-                            stepNum,
-                            {
-                                outputDir: resolvedStep.resolvedOutputDir,
-                                tempDir: resolvedStep.resolvedTempDir || tmpDir,
-                                basename: resolvedStep.outputBasename,
-                                ext: resolvedStep.outputExtension
-                            }
-                        );
-
-                        // Get the specific result for this plugin
-                        const resultData = pluginResults[pluginDef.name];
-                        
-                        // Apply Output Strategy (Merge/Explode)
-                        // ResultProcessor returns new PipelineItems based on the strategy
-                        // It handles updating workspace and row
-                        const processedItems = ResultProcessor.process(
-                            [ctx.item], 
-                            resultData, 
-                            pluginDef.output,
-                            toCamel(pluginDef.name) // Ensure consistent camelCase key in workspace
-                        );
-
-                        // Create new contexts for the next plugin/model
-                        for (const newItem of processedItems) {
-                            nextContexts.push({
-                                item: newItem,
-                                contentParts: [...ctx.contentParts, ...contentParts],
-                                stepResult: { 
-                                    ...ctx.stepResult, 
-                                    [toCamel(pluginDef.name)]: resultData
+                            // Execute Plugin
+                            const { context: updatedContext, contentParts, pluginResults } = await pluginRunner.run(
+                                [pluginDef], // Run one plugin
+                                pluginViewContext,
+                                stepNum,
+                                {
+                                    outputDir: resolvedStep.resolvedOutputDir,
+                                    tempDir: resolvedStep.resolvedTempDir || tmpDir,
+                                    basename: resolvedStep.outputBasename,
+                                    ext: resolvedStep.outputExtension
                                 }
-                            });
+                            );
+
+                            // Get the specific result for this plugin
+                            const resultData = pluginResults[pluginDef.name];
+                            
+                            // Apply Output Strategy (Merge/Explode)
+                            // ResultProcessor returns new PipelineItems based on the strategy
+                            // It handles updating workspace and row
+                            const processedItems = ResultProcessor.process(
+                                [ctx.item], 
+                                resultData, 
+                                pluginDef.output,
+                                toCamel(pluginDef.name) // Ensure consistent camelCase key in workspace
+                            );
+
+                            // Create new contexts for the next plugin/model
+                            for (const newItem of processedItems) {
+                                nextContexts.push({
+                                    item: newItem,
+                                    contentParts: [...ctx.contentParts, ...contentParts],
+                                    stepResult: { 
+                                        ...ctx.stepResult, 
+                                        [toCamel(pluginDef.name)]: resultData
+                                    }
+                                });
+                            }
+                        } catch (pluginError: any) {
+                            console.error(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' Failed:`, pluginError.message);
+                            // Log error
+                            rowErrors.push({ index: item.originalIndex, error: pluginError });
+                            // Save current state and stop processing this branch
+                            finalResults.push(ctx.item.row);
                         }
                     }
                     activeContexts = nextContexts;
@@ -165,65 +173,73 @@ export class ActionRunner {
                 const nextItemsForQueue: PipelineItem[] = [];
 
                 for (const ctx of activeContexts) {
-                    // Prepare View Context for Model
-                    const modelViewContext = {
-                        ...ctx.item.row,
-                        ...ctx.item.workspace,
-                        steps: ctx.item.stepHistory,
-                        index: ctx.item.originalIndex
-                    };
+                    try {
+                        // Prepare View Context for Model
+                        const modelViewContext = {
+                            ...ctx.item.row,
+                            ...ctx.item.workspace,
+                            steps: ctx.item.stepHistory,
+                            index: ctx.item.originalIndex
+                        };
 
-                    // --- PREPROCESS PROMPTS ---
-                    // Run preprocessors on the accumulated content parts + user prompt parts
-                    // We need to combine them first to allow preprocessors to see the full context
-                    let effectiveParts = [...ctx.contentParts, ...resolvedStep.userPromptParts];
-                    
-                    // Run all registered preprocessors
-                    for (const ppDef of resolvedStep.preprocessors) {
-                        const preprocessor = this.preprocessorRegistry.get(ppDef.name);
-                        if (preprocessor) {
-                            effectiveParts = await preprocessor.process(effectiveParts, {
-                                row: modelViewContext,
-                                services: this.services
-                            }, ppDef.config);
-                        }
-                    }
-
-                    // Execute Model
-                    const result = await executor.executeModel(
-                        modelViewContext,
-                        ctx.item.originalIndex,
-                        stepNum,
-                        resolvedStep,
-                        ctx.item.history,
-                        effectiveParts // Pass the preprocessed parts
-                    );
-
-                    // Update Step Result
-                    const currentStepResult = {
-                        ...ctx.stepResult,
-                        modelOutput: result.modelResult
-                    };
-
-                    // Apply Model Output Strategy
-                    const processedItems = ResultProcessor.process(
-                        [ctx.item], 
-                        result.modelResult, 
-                        resolvedStep.output,
-                        'modelOutput'
-                    );
-
-                    // Prepare for next step
-                    for (const finalItem of processedItems) {
-                        // Update history for this branch
-                        finalItem.history = [
-                            ...finalItem.history,
-                            { role: 'user', content: resolvedStep.userPromptParts },
-                            result.historyMessage
-                        ];
-                        finalItem.stepHistory = [...finalItem.stepHistory, currentStepResult];
+                        // --- PREPROCESS PROMPTS ---
+                        // Run preprocessors on the accumulated content parts + user prompt parts
+                        // We need to combine them first to allow preprocessors to see the full context
+                        let effectiveParts = [...ctx.contentParts, ...resolvedStep.userPromptParts];
                         
-                        nextItemsForQueue.push(finalItem);
+                        // Run all registered preprocessors
+                        for (const ppDef of resolvedStep.preprocessors) {
+                            const preprocessor = this.preprocessorRegistry.get(ppDef.name);
+                            if (preprocessor) {
+                                effectiveParts = await preprocessor.process(effectiveParts, {
+                                    row: modelViewContext,
+                                    services: this.services
+                                }, ppDef.config);
+                            }
+                        }
+
+                        // Execute Model
+                        const result = await executor.executeModel(
+                            modelViewContext,
+                            ctx.item.originalIndex,
+                            stepNum,
+                            resolvedStep,
+                            ctx.item.history,
+                            effectiveParts // Pass the preprocessed parts
+                        );
+
+                        // Update Step Result
+                        const currentStepResult = {
+                            ...ctx.stepResult,
+                            modelOutput: result.modelResult
+                        };
+
+                        // Apply Model Output Strategy
+                        const processedItems = ResultProcessor.process(
+                            [ctx.item], 
+                            result.modelResult, 
+                            resolvedStep.output,
+                            'modelOutput'
+                        );
+
+                        // Prepare for next step
+                        for (const finalItem of processedItems) {
+                            // Update history for this branch
+                            finalItem.history = [
+                                ...finalItem.history,
+                                { role: 'user', content: resolvedStep.userPromptParts },
+                                result.historyMessage
+                            ];
+                            finalItem.stepHistory = [...finalItem.stepHistory, currentStepResult];
+                            
+                            nextItemsForQueue.push(finalItem);
+                        }
+                    } catch (modelError: any) {
+                        console.error(`[Row ${item.originalIndex}] Step ${stepNum} Model Execution Failed:`, modelError.message);
+                        // Log error
+                        rowErrors.push({ index: item.originalIndex, error: modelError });
+                        // Save current state and stop processing this branch
+                        finalResults.push(ctx.item.row);
                     }
                 }
 
@@ -243,7 +259,8 @@ export class ActionRunner {
                 }
 
             } catch (err) {
-                console.error(`[Row ${item.originalIndex}] Step ${stepNum} Error:`, err);
+                // This catches errors in the setup phase (before the loop)
+                console.error(`[Row ${item.originalIndex}] Step ${stepNum} Setup Error:`, err);
                 rowErrors.push({ index: item.originalIndex, error: err });
                 finalResults.push(item.row);
             }
