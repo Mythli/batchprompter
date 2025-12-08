@@ -99,7 +99,7 @@ export class StepExecutor {
                     role: 'assistant',
                     content: `[Saved ${effectiveUserPromptParts.length} items from plugins]`
                 },
-                modelResult: null
+                modelResult: {}
             };
         }
 
