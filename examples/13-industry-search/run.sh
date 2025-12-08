@@ -42,12 +42,11 @@ Output Rules:
   --output-column-4 "linkedinUrl" \
   \
   "Format the extracted offers into a bulleted list.
-Data: {{websiteAgent.offers}}
 
 Format:
 - **Name** (Price): Description
 
-If no offers are found, return 'No specific offers found'." \
+If no offers are found, return an empty string." \
   --website-agent-url-5 "{{link}}" \
   --website-agent-depth-5 1 \
   --website-agent-schema-5 examples/13-industry-search/schemas/offers.json \
