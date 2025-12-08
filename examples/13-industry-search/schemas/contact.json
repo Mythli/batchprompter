@@ -2,51 +2,55 @@
   "type": "object",
   "properties": {
     "companyName": {
-      "type": ["string", "null"],
+      "type": "string",
       "description": "The official name of the company (e.g. GmbH, AG, etc.)"
     },
     "address": {
-      "type": ["object", "null"],
+      "type": "object",
       "description": "The postal address of the company",
       "properties": {
-        "street": { "type": ["string", "null"] },
-        "zip": { "type": ["string", "null"] },
-        "city": { "type": ["string", "null"] }
+        "street": { "type": "string" },
+        "zip": { "type": "string" },
+        "city": { "type": "string" }
       }
     },
     "decisionMaker": {
-      "type": ["object", "null"],
+      "type": "object",
       "description": "The best person to contact for business decisions. Look for the CEO (Geschäftsführer), Owner (Inhaber), or Founder. If not available, look for Head of Department or similar high-level roles.",
       "properties": {
-        "firstName": { "type": ["string", "null"] },
-        "lastName": { "type": ["string", "null"] },
-        "role": { "type": ["string", "null"], "description": "The job title (e.g. CEO, Geschäftsführer)" }
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "role": { "type": "string", "description": "The job title (e.g. CEO, Geschäftsführer)" },
+        "email": { "type": "string", "description": "Direct email of the decision maker." },
+        "phone": { "type": "string", "description": "Direct phone number of the decision maker." }
       }
     },
     "secondDecisionMaker": {
-      "type": ["object", "null"],
+      "type": "object",
       "description": "The second best person to contact if the primary decision maker is not available. Look for other C-level executives, Directors, or Managers.",
       "properties": {
-        "firstName": { "type": ["string", "null"] },
-        "lastName": { "type": ["string", "null"] },
-        "role": { "type": ["string", "null"], "description": "The job title" }
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "role": { "type": "string", "description": "The job title" },
+        "email": { "type": "string", "description": "Direct email of the decision maker." },
+        "phone": { "type": "string", "description": "Direct phone number of the decision maker." }
       }
     },
-    "contact": {
-      "type": ["object", "null"],
+    "generalContact": {
+      "type": "object",
+      "description": "General contact information for the company if specific decision maker contact info is not available.",
       "properties": {
-        "email": { "type": ["string", "null"], "description": "Direct email of the decision maker if available, otherwise general info@ email." },
-        "phone": { "type": ["string", "null"], "description": "The phone number in a normalized international format (e.g. +49 30 123456)." }
+        "email": { "type": "string", "description": "General info@ email." },
+        "phone": { "type": "string", "description": "The phone number in a normalized international format (e.g. +49 30 123456)." }
       }
     },
     "webDesignAgency": {
-      "type": ["object", "null"],
+      "type": "object",
       "description": "Information about the agency that built the website, usually found in the footer (e.g. 'Made by...', 'Webdesign by...').",
       "properties": {
-        "name": { "type": ["string", "null"] },
-        "url": { "type": ["string", "null"], "description": "The URL of the web design agency." }
+        "name": { "type": "string" },
+        "url": { "type": "string", "description": "The URL of the web design agency." }
       }
     }
-  },
-  "required": ["companyName", "decisionMaker", "contact"]
+  }
 }
