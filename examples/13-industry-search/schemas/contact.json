@@ -23,11 +23,28 @@
         "role": { "type": ["string", "null"], "description": "The job title (e.g. CEO, Geschäftsführer)" }
       }
     },
+    "secondDecisionMaker": {
+      "type": ["object", "null"],
+      "description": "The second best person to contact if the primary decision maker is not available. Look for other C-level executives, Directors, or Managers.",
+      "properties": {
+        "firstName": { "type": ["string", "null"] },
+        "lastName": { "type": ["string", "null"] },
+        "role": { "type": ["string", "null"], "description": "The job title" }
+      }
+    },
     "contact": {
       "type": ["object", "null"],
       "properties": {
         "email": { "type": ["string", "null"], "description": "Direct email of the decision maker if available, otherwise general info@ email." },
         "phone": { "type": ["string", "null"], "description": "The phone number in a normalized international format (e.g. +49 30 123456)." }
+      }
+    },
+    "webDesignAgency": {
+      "type": ["object", "null"],
+      "description": "Information about the agency that built the website, usually found in the footer (e.g. 'Made by...', 'Webdesign by...').",
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "url": { "type": ["string", "null"], "description": "The URL of the web design agency." }
       }
     }
   },
