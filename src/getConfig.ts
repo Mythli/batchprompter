@@ -223,7 +223,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         llm,
-        { imageSearch, aiImageSearch, webSearch, aiWebSearch, fetcher, puppeteerHelper, aiWebsiteAgent },
+        { imageSearch, aiImageSearch, webSearch, aiWebSearch, fetcher, puppeteerHelper, aiWebsiteAgent, puppeteerQueue },
         pluginRegistry,
         preprocessorRegistry
     );

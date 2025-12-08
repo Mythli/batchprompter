@@ -12,31 +12,36 @@ export class PuppeteerUrlExpanderPlugin extends UrlExpanderBase {
             return null;
         }
 
-        // We use navigateAndCache to leverage existing caching logic if available
-        // However, navigateAndCache expects a return value.
-        
-        const pageHelper = await context.services.puppeteerHelper.getPageHelper();
-        try {
-            // We use navigateAndCache to ensure we don't re-scrape the same URL multiple times in a run
-            // if the cache is enabled globally.
-            const html = await pageHelper.navigateAndCache<string>(
-                url,
-                async (ph) => {
-                    const rawHtml = await ph.getFinalHtml();
-                    return compressHtml(rawHtml);
-                },
-                {
-                    dismissCookies: true,
-                    htmlOnly: true,
-                    ttl: 24 * 60 * 60 * 1000 // 24 hours
-                }
-            );
-            return html;
-        } catch (e) {
-            console.warn(`Puppeteer expansion failed for ${url}`, e);
-            return null;
-        } finally {
-            await pageHelper.close();
+        const task = async () => {
+            const pageHelper = await context.services.puppeteerHelper!.getPageHelper();
+            try {
+                // We use navigateAndCache to leverage existing caching logic if available
+                // However, navigateAndCache expects a return value.
+                const html = await pageHelper.navigateAndCache<string>(
+                    url,
+                    async (ph) => {
+                        const rawHtml = await ph.getFinalHtml();
+                        return compressHtml(rawHtml);
+                    },
+                    {
+                        dismissCookies: true,
+                        htmlOnly: true,
+                        ttl: 24 * 60 * 60 * 1000 // 24 hours
+                    }
+                );
+                return html;
+            } catch (e) {
+                console.warn(`Puppeteer expansion failed for ${url}`, e);
+                return null;
+            } finally {
+                await pageHelper.close();
+            }
+        };
+
+        if (context.services.puppeteerQueue) {
+            return context.services.puppeteerQueue.add(task) as Promise<string | null>;
         }
+
+        return task();
     }
 }

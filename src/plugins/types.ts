@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
 import { LlmClient } from 'llm-fns';
+import PQueue from 'p-queue';
 import { ImageSearch } from './image-search/ImageSearch.js';
 import { AiImageSearch } from '../utils/AiImageSearch.js';
 import { WebSearch } from './web-search/WebSearch.js';
@@ -17,6 +18,7 @@ export interface PluginServices {
     fetcher: Fetcher;
     puppeteerHelper?: PuppeteerHelper;
     aiWebsiteAgent?: AiWebsiteAgent;
+    puppeteerQueue?: PQueue;
 }
 
 export interface PluginContext {
