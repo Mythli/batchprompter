@@ -3,12 +3,13 @@
   "properties": {
     "offers": {
       "type": "array",
-      "description": "A list of up to 5 specific offers, courses, products, or services found on the website that best represent the core business.",
+      "description": "A list of up to 5 specific offers, courses, products, or services found on the website. Prioritize offers that are concrete (have specific dates, prices, or schedules) and best represent the core business (e.g. specific hunting courses rather than generic vouchers).",
       "items": {
         "type": "object",
         "properties": {
           "name": { "type": "string", "description": "The name of the offer, course, or product." },
           "price": { "type": ["string", "null"], "description": "The price, if available (e.g. '2.990 €')." },
+          "dates": { "type": ["string", "null"], "description": "Specific dates, duration, or schedule (e.g. '09.08.-18.08.2025', '2 weeks', 'Weekends')." },
           "description": { "type": "string", "description": "A brief description of what is included." }
         },
         "required": ["name", "description"]

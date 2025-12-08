@@ -41,12 +41,20 @@ Output Rules:
   --web-select-4-prompt "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything." \
   --output-column-4 "linkedinUrl" \
   \
-  "Format the extracted offers into a bulleted list.
+  "You are a content formatter.
+Task: Format the extracted offers from the provided JSON data into a readable bulleted list.
 
-Format:
-- **Name** (Price): Description
+Data: {{websiteAgent.offers}}
 
-If no offers are found, return an empty string." \
+Output Format:
+- **Name** (Price | Dates): Description
+
+Guidelines:
+- Include Price and Dates if available.
+- If Price or Dates are missing, omit them from the parentheses.
+- Return ONLY the bulleted list.
+
+If the data is empty, return 'No specific offers found'." \
   --website-agent-url-5 "{{link}}" \
   --website-agent-depth-5 1 \
   --website-agent-schema-5 examples/13-industry-search/schemas/offers.json \
