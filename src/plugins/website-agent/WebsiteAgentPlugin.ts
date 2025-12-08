@@ -194,7 +194,7 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
                 type: 'text',
                 text: JSON.stringify(result, null, 2)
             }],
-            data: result
+            data: [result] // Wrap in array to signify 1:1 mapping
         };
     }
 }

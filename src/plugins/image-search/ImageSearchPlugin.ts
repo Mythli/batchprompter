@@ -139,7 +139,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, llm, globalConfig, services, outputDirectory, tempDirectory, outputBasename, outputExtension } = context;
+        const { row, stepIndex, config, llm, globalConfig, services, outputDirectory, tempDirectory, outputBasename, outputExtension, output } = context;
         const resolvedConfig = config as ImageSearchResolvedConfig;
 
         // Check Services
@@ -201,7 +201,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Generated queries: ${response.queries.join(', ')}`);
         }
 
-        if (queries.length === 0) return { contentParts: [] };
+        if (queries.length === 0) return { contentParts: [], data: [] };
 
         // 2. Execute Searches
         console.log(`[Row ${context.row.index}] Step ${stepIndex} Executing ${queries.length} searches...`);
@@ -289,9 +289,20 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             }
         }
 
-        return {
-            contentParts,
-            data: selectedMetadata
-        };
+        // Flow Control:
+        // If explode is enabled, we return the array of images directly (1:N).
+        // If explode is disabled (default), we wrap the array in another array (1:1).
+        
+        if (output.explode) {
+            return {
+                contentParts,
+                data: selectedMetadata // Explode: [Img1, Img2, ...]
+            };
+        } else {
+            return {
+                contentParts,
+                data: [selectedMetadata] // Enrich: [ [Img1, Img2, ...] ]
+            };
+        }
     }
 }

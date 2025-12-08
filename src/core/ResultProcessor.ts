@@ -6,7 +6,7 @@ export class ResultProcessor {
      * 
      * 1. Always updates `item.workspace[namespace]` with the result (or exploded slice).
      * 2. Conditionally updates `item.row` based on the OutputStrategy.
-     * 3. Handles explosion by creating multiple PipelineItems.
+     * 3. Handles flow control (Filter/Enrich/Explode) based on the result array length.
      */
     static process(
         currentItems: PipelineItem[], 
@@ -15,18 +15,25 @@ export class ResultProcessor {
         namespace: string
     ): PipelineItem[] {
         
-        // 1. Normalize resultData to an array if we are exploding
+        // 1. Normalize resultData to an array
+        // If resultData is undefined/null, we treat it as an empty array (Filter/Drop)
+        // unless it's the model output which might be a single object/string.
+        // However, PluginRunner guarantees arrays for plugins.
+        // For Model output, it's usually a single item, so we wrap it.
+        
         let items: any[];
-        if (strategy.explode && Array.isArray(resultData)) {
-            console.log(`[ResultProcessor] Exploding ${resultData.length} items for namespace '${namespace}'`);
+        if (Array.isArray(resultData)) {
             items = resultData;
-        } else {
+        } else if (resultData !== undefined && resultData !== null) {
             items = [resultData];
+        } else {
+            items = [];
         }
 
         const nextItems: PipelineItem[] = [];
 
         // 2. Cartesian Product / Application
+        // If items is empty (Filter), this loop doesn't run, and we return empty nextItems (Drop).
         for (const item of currentItems) {
             for (const resultItem of items) {
                 // Deep clone the item to ensure isolation

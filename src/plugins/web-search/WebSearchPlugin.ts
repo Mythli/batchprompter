@@ -159,7 +159,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, services } = context;
+        const { row, stepIndex, config, services, output } = context;
         const resolvedConfig = config as WebSearchResolvedConfig;
 
         if (!services.webSearch || !services.aiWebSearch) {
@@ -168,9 +168,20 @@ export class WebSearchPlugin implements ContentProviderPlugin {
 
         const { contentParts, data } = await services.aiWebSearch.process(row, resolvedConfig);
 
-        return {
-            contentParts,
-            data
-        };
+        // Flow Control:
+        // If explode is enabled, we return the array of results directly (1:N).
+        // If explode is disabled (default), we wrap the array in another array (1:1).
+        
+        if (output.explode) {
+            return {
+                contentParts,
+                data: data // Explode: [Result1, Result2, ...]
+            };
+        } else {
+            return {
+                contentParts,
+                data: [data] // Enrich: [ [Result1, Result2, ...] ]
+            };
+        }
     }
 }

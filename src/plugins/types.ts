@@ -9,6 +9,7 @@ import { AiWebSearch } from '../utils/AiWebSearch.js';
 import { Fetcher } from '../utils/createCachedFetcher.js';
 import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
 import { AiWebsiteAgent } from '../utils/AiWebsiteAgent.js';
+import { OutputStrategy } from '../types.js';
 
 export interface PluginServices {
     imageSearch?: ImageSearch;
@@ -25,6 +26,7 @@ export interface PluginContext {
     row: Record<string, any>; // This is now the "View Context" (merged data)
     stepIndex: number;
     config: any; // The resolved plugin config
+    output: OutputStrategy; // The output strategy for this plugin (e.g. explode)
     llm: LlmClient;
     globalConfig: {
         tmpDir: string;
@@ -43,7 +45,14 @@ export interface PluginContext {
 
 export interface PluginResult {
     contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-    data?: any; // Structured data (can be object, array, string, etc.)
+    
+    /**
+     * The data produced by the plugin.
+     * - Return `[]` to filter (drop) the row.
+     * - Return `[item]` to enrich the row (1:1).
+     * - Return `[item1, item2, ...]` to explode the row (1:N).
+     */
+    data?: any[]; 
 }
 
 export interface NormalizedPluginConfig {

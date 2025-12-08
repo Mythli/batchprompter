@@ -267,7 +267,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
 
             return {
                 contentParts: result.contentParts,
-                data: outputData
+                data: [outputData] // Wrap in array to signify 1:1 mapping
             };
 
         } finally {

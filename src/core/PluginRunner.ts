@@ -20,7 +20,7 @@ export class PluginRunner {
     ) {
         let currentContext = { ...initialContext };
         const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        const pluginResults: Record<string, any> = {};
+        const pluginResults: Record<string, any[]> = {};
 
         for (const def of plugins) {
             const plugin = this.registry.get(def.name);
@@ -35,6 +35,7 @@ export class PluginRunner {
                 row: currentContext,
                 stepIndex,
                 config: preparedConfig,
+                output: def.output,
                 llm: this.llm,
                 globalConfig: this.globalConfig,
                 services: this.services,
@@ -44,17 +45,26 @@ export class PluginRunner {
                 outputExtension: paths.ext
             });
 
-            // 3. Merge Context
+            // 3. Handle Results
             if (result.data) {
-                pluginResults[def.name] = result.data;
+                // Ensure data is an array (backward compatibility safety, though types say it must be array)
+                const dataArray = Array.isArray(result.data) ? result.data : [result.data];
                 
-                // If data is an object, merge it to root context for easy access
-                if (typeof result.data === 'object' && !Array.isArray(result.data) && result.data !== null) {
-                    currentContext = { ...currentContext, ...result.data };
+                pluginResults[def.name] = dataArray;
+                
+                // Context Merging Strategy for Chaining:
+                // If the plugin returned exactly one item, we merge it into the current context
+                // so subsequent plugins in this chain can see it.
+                // If it returned 0 or >1, we cannot cleanly merge into a single context, 
+                // so we skip merging. The ActionRunner will handle the branching later.
+                if (dataArray.length === 1) {
+                    const item = dataArray[0];
+                    if (typeof item === 'object' && item !== null) {
+                        currentContext = { ...currentContext, ...item };
+                    }
+                    // Also make it available via namespace
+                    currentContext = { ...currentContext, [def.name]: item };
                 }
-                
-                // Always make it available via {{pluginName}} as well, for consistency/safety
-                currentContext = { ...currentContext, [def.name]: result.data };
             }
 
             contentParts.push(...result.contentParts);
