@@ -19,6 +19,7 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --web-search-limit-2 10 \
   --web-search-dedupe-strategy-2 domain \
   --web-search-explode-2 \
+  --web-search-export-2 \
   --web-search-gl-2 de \
   --web-search-hl-2 de \
   --website-agent-url-2 "{{webSearch.link}}" \
