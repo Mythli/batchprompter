@@ -39,4 +39,16 @@ Output Rules:
   --web-search-query-4 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company" \
   --web-search-limit-4 5 \
   --web-select-4-prompt "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything." \
-  --output-column-4 "linkedinUrl"
+  --output-column-4 "linkedinUrl" \
+  \
+  "Format the extracted offers into a bulleted list.
+Data: {{websiteAgent.offers}}
+
+Format:
+- **Name** (Price): Description
+
+If no offers are found, return 'No specific offers found'." \
+  --website-agent-url-5 "{{link}}" \
+  --website-agent-depth-5 1 \
+  --website-agent-schema-5 examples/13-industry-search/schemas/offers.json \
+  --output-column-5 "offers"

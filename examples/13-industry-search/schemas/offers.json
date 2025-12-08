@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "offers": {
+      "type": "array",
+      "description": "A list of up to 5 specific offers, courses, products, or services found on the website that best represent the core business.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "The name of the offer, course, or product." },
+          "price": { "type": ["string", "null"], "description": "The price, if available (e.g. '2.990 €')." },
+          "description": { "type": "string", "description": "A brief description of what is included." }
+        },
+        "required": ["name", "description"]
+      }
+    }
+  }
+}
