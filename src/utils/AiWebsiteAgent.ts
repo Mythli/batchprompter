@@ -84,20 +84,26 @@ export class AiWebsiteAgent {
         return this.puppeteerQueue.add(async () => {
             const pageHelper = await this.puppeteerHelper.getPageHelper();
             try {
-                await pageHelper.navigateToUrl(url, {
-                    dismissCookies: true,
-                    htmlOnly: true
-                });
+                return await pageHelper.navigateAndCache(
+                    url,
+                    async (ph) => {
+                        const html = await ph.getFinalHtml();
+                        const links = await ph.extractLinksWithText();
 
-                const html = await pageHelper.getFinalHtml();
-                const links = await pageHelper.extractLinksWithText();
+                        const compressed = compressHtml(html);
+                        const turndownService = new TurndownService();
+                        turndownService.remove(['script', 'style', 'noscript', 'iframe']);
+                        const markdown = turndownService.turndown(compressed);
 
-                const compressed = compressHtml(html);
-                const turndownService = new TurndownService();
-                turndownService.remove(['script', 'style', 'noscript', 'iframe']);
-                const markdown = turndownService.turndown(compressed);
-
-                return { html, markdown, links };
+                        return { html, markdown, links };
+                    },
+                    {
+                        dismissCookies: true,
+                        htmlOnly: true,
+                        cacheKey: `website-agent-v1:${url}`,
+                        ttl: 24 * 60 * 60 * 1000 // 24 hours
+                    }
+                );
             } finally {
                 await pageHelper.close();
             }
