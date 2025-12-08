@@ -29,7 +29,11 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --website-agent-export-2 \
   \
   "" \
-  --web-search-query-3 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}}" \
-  --web-search-limit-3 5 \
-  --web-select-3-prompt "Select the LinkedIn profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. If it's not the correct person at this company, do not select it." \
-  --output-column-3 "linkedinUrl"
+  --validate-schema-3 examples/13-industry-search/schemas/contact-validation.json \
+  --validation-explode-3 \
+  \
+  "" \
+  --web-search-query-4 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}}" \
+  --web-search-limit-4 5 \
+  --web-select-4-prompt "Select the LinkedIn profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. If it's not the correct person at this company, do not select it." \
+  --output-column-4 "linkedinUrl"

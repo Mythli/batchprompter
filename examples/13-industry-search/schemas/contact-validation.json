@@ -1,20 +1,14 @@
 {
   "type": "object",
   "properties": {
+    "companyName": { "type": "string", "minLength": 1 },
     "decisionMaker": {
       "type": "object",
       "properties": {
         "lastName": { "type": "string", "minLength": 1 }
       },
       "required": ["lastName"]
-    },
-    "contact": {
-      "type": "object",
-      "properties": {
-        "email": { "type": "string", "minLength": 5 }
-      },
-      "required": ["email"]
     }
   },
-  "required": ["decisionMaker", "contact"]
+  "required": ["companyName", "decisionMaker"]
 }
