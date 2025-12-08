@@ -21,7 +21,7 @@ export class StepRegistry {
         program.option('--export', 'Export step result to output row');
         program.option('--data-output <path>', 'Path to save the processed data file');
         program.option('--tmp-dir <path>', 'Directory for temporary files', '.tmp');
-        program.option('-c, --concurrency <number>', 'Number of concurrent requests', '20');
+        program.option('-c, --concurrency <number>', 'Number of concurrent requests');
         program.option('--task-concurrency <number>', 'Number of concurrent row tasks', '100');
         program.option('-S, --schema <file>', 'Path to the JSON Schema file');
         program.option('--verify-command <cmd>', 'Shell command to verify output');
@@ -109,35 +109,35 @@ export class StepRegistry {
             steps.push({
                 modelConfig: mainResolved,
                 tmpDir: normalized.global.tmpDir,
-                
+
                 // The promptParts from mainResolved now contain the merged user prompt (flag + positional).
                 // We map this to userPromptParts for the execution engine.
                 userPromptParts: mainResolved.promptParts,
-                
+
                 outputPath: stepDef.outputPath,
                 outputTemplate: stepDef.outputTemplate,
-                
+
                 // --- FIX: Map the output strategy ---
                 output: stepDef.output,
-                
+
                 schemaPath: stepDef.schemaPath,
                 jsonSchema: undefined, // Resolved per-row in ActionRunner
                 verifyCommand: stepDef.verifyCommand,
                 postProcessCommand: stepDef.postProcessCommand,
-                
+
                 candidates: stepDef.candidates,
                 noCandidateCommand: stepDef.noCandidateCommand,
-                
+
                 judge,
                 feedback,
                 feedbackLoops: stepDef.feedbackLoops,
-                
+
                 aspectRatio: stepDef.aspectRatio,
                 plugins: stepDef.plugins,
                 preprocessors: activePreprocessors,
 
                 // Pass raw options to allow preprocessors to check flags later (Legacy support, can be removed if all preprocessors use normalize)
-                options: options 
+                options: options
             });
         }
 
