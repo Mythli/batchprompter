@@ -60,8 +60,7 @@ export function createLoggingFetcher(
                 if (data.choices && data.choices[0]?.message?.content) {
                     console.log(`[LLM] DONE ${response.status}: ${summarize(data.choices[0].message.content)}`);
                 } else if (data.error) {
-                    console.log(`[LLM] ERROR ${response.status}: ${JSON.stringify(data.error)}`);
-                    console.trace(`[LLM] Stack Trace for ${response.status} Error`);
+                    console.error(`[LLM] ERROR ${response.status}:`, data.error);
                 } else {
                     console.log(`[LLM] DONE ${response.status}`);
                 }
