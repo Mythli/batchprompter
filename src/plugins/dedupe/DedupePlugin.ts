@@ -44,10 +44,11 @@ export class DedupePlugin implements ContentProviderPlugin {
         const key = Handlebars.compile(config.keyTemplate, { noEscape: true })(row);
         
         if (this.seenKeys.has(key)) {
-            console.log(`[Dedupe] Dropping duplicate key: "${key}"`);
+            console.log(`[Dedupe] ❌ Dropping duplicate key: "${key}"`);
             return { contentParts: [], data: [] }; // Drop
         }
         
+        console.log(`[Dedupe] ✅ Keeping new key: "${key}"`);
         this.seenKeys.add(key);
         // Return a single empty object to signify "keep this row, but add no new data"
         return { contentParts: [], data: [{}] }; 
