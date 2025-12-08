@@ -54,7 +54,7 @@ export class StepExecutor {
         // If the caller (ActionRunner) has already merged and preprocessed everything into `pluginContentParts`,
         // we should use that. 
         
-        // Let's assume `pluginContentParts` passed here IS the full effective prompt.
+        // Let's assume `pluginContentParts` passed here IS the full effective user prompt.
         let effectiveUserPromptParts = pluginContentParts;
 
         // 2. Check for "Pass-through" Mode
@@ -66,7 +66,13 @@ export class StepExecutor {
 
         // If effective parts are empty, and no system/model prompt, then we have nothing.
         if (effectiveUserPromptParts.length === 0 && !hasSystemPrompt && !hasModelPrompt) {
-             throw new Error(`Step ${stepIndex} has no prompt and no plugin output. Nothing to process.`);
+             // FIX: Allow pass-through for steps that only use plugins for filtering/data manipulation (like ValidationPlugin)
+             // Instead of throwing, we return an empty object. ResultProcessor treats {} as "keep row, merge nothing".
+             console.log(`[Row ${index}] Step ${stepIndex} No prompt and no content. Treating as pass-through.`);
+             return {
+                 historyMessage: { role: 'assistant', content: '' },
+                 modelResult: {} 
+             };
         }
         
         // Special case: If we have NO model interaction intended (just saving plugin output),
