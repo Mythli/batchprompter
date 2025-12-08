@@ -15,7 +15,7 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   \
   "" \
   --web-query-2-prompt examples/13-industry-search/prompts/2-find-url.md \
-  --web-select-2-prompt "Select only the official websites of companies offering {{industry}} in {{location}}. Ignore directories, lists, aggregators, and job boards." \
+  --web-select-2-prompt "Select only the official websites of companies offering {{industry}}. Ignore directories, lists, aggregators, and job boards." \
   --web-search-max-pages-2 5 \
   --web-search-limit-2 100 \
   --web-search-dedupe-strategy-2 domain \
@@ -23,5 +23,4 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --web-search-export-2 \
   --web-search-gl-2 de \
   --web-search-hl-2 de \
-  --dedupe-key-2 "{{webSearch.domain}}" \
-  > examples/13-industry-search/companies.csv
+  --dedupe-key-2 "{{webSearch.domain}}"
