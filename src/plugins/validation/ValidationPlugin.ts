@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import Handlebars from 'handlebars';
 import Ajv from 'ajv';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
-import { PromptResolver } from '../../utils/PromptResolver.js';
+import { SchemaHelper } from '../../utils/SchemaHelper.js';
 
 interface ValidationConfig {
     schemaPath: string;
@@ -53,18 +53,16 @@ export class ValidationPlugin implements ContentProviderPlugin {
     }
 
     async prepare(config: ValidationConfig, row: Record<string, any>): Promise<ValidationResolvedConfig> {
-        // Resolve schema path
-        const parts = await PromptResolver.resolve(config.schemaPath, row);
         let schema: any;
         
-        if (parts.length > 0 && parts[0].type === 'text') {
+        if (config.schemaPath) {
             try {
-                schema = JSON.parse(parts[0].text);
-            } catch (e) {
-                throw new Error(`[Validation] Failed to parse JSON schema from ${config.schemaPath}`);
+                schema = await SchemaHelper.loadAndRenderSchema(config.schemaPath, row);
+            } catch (e: any) {
+                throw new Error(`[Validation] ${e.message}`);
             }
         } else {
-             throw new Error(`[Validation] Could not load schema from ${config.schemaPath}`);
+             throw new Error(`[Validation] Schema path is required.`);
         }
 
         return {

@@ -7,6 +7,7 @@ import { LlmClient } from 'llm-fns';
 import { RuntimeConfig, StepConfig, PipelineItem } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PromptResolver } from './utils/PromptResolver.js';
+import { SchemaHelper } from './utils/SchemaHelper.js';
 import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
 import { PluginServices } from './plugins/types.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
@@ -376,10 +377,7 @@ export class ActionRunner {
         // 3. Schema Path
         if (stepConfig.schemaPath) {
             try {
-                const parts = await PromptResolver.resolve(stepConfig.schemaPath, sanitizedRow);
-                if (parts.length > 0 && parts[0].type === 'text') {
-                    resolvedStep.jsonSchema = JSON.parse(parts[0].text);
-                }
+                resolvedStep.jsonSchema = await SchemaHelper.loadAndRenderSchema(stepConfig.schemaPath, sanitizedRow);
             } catch (e) {
                 console.warn(`[Row ${rowIndex}] Failed to load/parse schema from '${stepConfig.schemaPath}':`, e);
             }

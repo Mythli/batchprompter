@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { PromptResolver } from '../../utils/PromptResolver.js';
+import { SchemaHelper } from '../../utils/SchemaHelper.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
@@ -110,14 +111,10 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
 
         let schema: any;
         if (config.schemaPath) {
-            // Resolve schema path (supports dynamic paths)
-            const parts = await PromptResolver.resolve(config.schemaPath, row);
-            if (parts.length > 0 && parts[0].type === 'text') {
-                try {
-                    schema = JSON.parse(parts[0].text);
-                } catch (e) {
-                    throw new Error(`Failed to parse JSON schema from ${config.schemaPath}`);
-                }
+            try {
+                schema = await SchemaHelper.loadAndRenderSchema(config.schemaPath, row);
+            } catch (e: any) {
+                throw new Error(`[WebsiteAgent] ${e.message}`);
             }
         }
 
