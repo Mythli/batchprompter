@@ -15,7 +15,7 @@ interface WebSearchRawConfig {
     limit: number;
     mode: WebSearchMode;
     queryCount: number;
-    
+
     // Pagination & Dedupe
     maxPages: number;
     dedupeStrategy: 'none' | 'domain' | 'url';
@@ -33,7 +33,7 @@ interface WebSearchResolvedConfig {
     limit: number;
     mode: WebSearchMode;
     queryCount: number;
-    
+
     maxPages: number;
     dedupeStrategy: 'none' | 'domain' | 'url';
 
@@ -53,9 +53,9 @@ export class WebSearchPlugin implements ContentProviderPlugin {
 
         program.option('--web-search-query <text>', 'Static search query');
         program.option('--web-search-limit <number>', 'Max total results (accumulated)', '5');
-        program.option('--web-search-mode <mode>', 'Result mode: none, markdown, html', 'markdown');
+        program.option('--web-search-mode <mode>', 'Result mode: none, markdown, html', 'none');
         program.option('--web-search-query-count <number>', 'Queries to generate', '3');
-        
+
         // Pagination & Dedupe
         program.option('--web-search-max-pages <number>', 'Max pages to fetch per query', '1');
         program.option('--web-search-dedupe-strategy <strategy>', 'Deduplication strategy (none, domain, url)', 'none');
@@ -74,7 +74,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option(`--web-search-limit-${stepIndex} <number>`, `Max total results for step ${stepIndex}`);
         program.option(`--web-search-mode-${stepIndex} <mode>`, `Result mode for step ${stepIndex}`);
         program.option(`--web-search-query-count-${stepIndex} <number>`, `Query count for step ${stepIndex}`);
-        
+
         program.option(`--web-search-max-pages-${stepIndex} <number>`, `Max pages for step ${stepIndex}`);
         program.option(`--web-search-dedupe-strategy-${stepIndex} <strategy>`, `Dedupe strategy for step ${stepIndex}`);
 
@@ -115,7 +115,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
             limit: parseInt(getOpt('webSearchLimit') || '5', 10),
             mode: (getOpt('webSearchMode') || 'markdown') as WebSearchMode,
             queryCount: parseInt(getOpt('webSearchQueryCount') || '3', 10),
-            
+
             maxPages: parseInt(getOpt('webSearchMaxPages') || '1', 10),
             dedupeStrategy: (getOpt('webSearchDedupeStrategy') || 'none') as 'none' | 'domain' | 'url',
 
