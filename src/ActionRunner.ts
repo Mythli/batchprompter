@@ -174,8 +174,7 @@ export class ActionRunner {
                             console.error(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' Failed:`, pluginError);
                             // Log error
                             rowErrors.push({ index: item.originalIndex, error: pluginError });
-                            // Save current state and stop processing this branch
-                            finalResults.push(ctx.item.row);
+                            // Stop processing this branch (Drop the row)
                         }
                     }
                     activeContexts = nextContexts;
@@ -250,8 +249,7 @@ export class ActionRunner {
                         console.error(`[Row ${item.originalIndex}] Step ${stepNum} Model Execution Failed:`, modelError.message);
                         // Log error
                         rowErrors.push({ index: item.originalIndex, error: modelError });
-                        // Save current state and stop processing this branch
-                        finalResults.push(ctx.item.row);
+                        // Stop processing this branch (Drop the row)
                     }
                 }
 
@@ -274,7 +272,7 @@ export class ActionRunner {
                 // This catches errors in the setup phase (before the loop)
                 console.error(`[Row ${item.originalIndex}] Step ${stepNum} Setup Error:`, err);
                 rowErrors.push({ index: item.originalIndex, error: err });
-                finalResults.push(item.row);
+                // Stop processing this branch (Drop the row)
             }
         };
 
