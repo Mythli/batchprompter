@@ -3,53 +3,53 @@
   "properties": {
     "companyName": {
       "type": "string",
-      "description": "The official name of the company (e.g. GmbH, AG, etc.)"
+      "description": "The official name of the company (e.g. GmbH, AG, etc.). Optional."
     },
     "address": {
       "type": "object",
-      "description": "The postal address of the company",
+      "description": "The postal address of the company. Optional.",
       "properties": {
-        "street": { "type": "string" },
-        "zip": { "type": "string" },
-        "city": { "type": "string" }
+        "street": { "type": "string", "description": "Optional." },
+        "zip": { "type": "string", "description": "Optional." },
+        "city": { "type": "string", "description": "Optional." }
       }
     },
     "decisionMaker": {
       "type": "object",
-      "description": "The best person to contact for business decisions. Look for the CEO (Geschäftsführer), Owner (Inhaber), or Founder. If not available, look for Head of Department or similar high-level roles.",
+      "description": "The best person to contact for business decisions. Look for the CEO (Geschäftsführer), Owner (Inhaber), or Founder. If not available, look for Head of Department or similar high-level roles. Optional.",
       "properties": {
-        "firstName": { "type": "string" },
-        "lastName": { "type": "string" },
-        "role": { "type": "string", "description": "The job title (e.g. CEO, Geschäftsführer)" },
-        "email": { "type": "string", "description": "Direct email of the decision maker." },
-        "phone": { "type": "string", "description": "Direct phone number of the decision maker." }
+        "firstName": { "type": "string", "description": "Optional." },
+        "lastName": { "type": "string", "description": "Optional." },
+        "role": { "type": "string", "description": "The job title (e.g. CEO, Geschäftsführer). Optional." },
+        "email": { "type": "string", "description": "Direct email of the decision maker. Optional." },
+        "phone": { "type": "string", "description": "Direct phone number of the decision maker. Optional." }
       }
     },
     "secondDecisionMaker": {
       "type": "object",
-      "description": "The second best person to contact if the primary decision maker is not available. Look for other C-level executives, Directors, or Managers.",
+      "description": "The second best person to contact if the primary decision maker is not available. Look for other C-level executives, Directors, or Managers. Optional.",
       "properties": {
-        "firstName": { "type": "string" },
-        "lastName": { "type": "string" },
-        "role": { "type": "string", "description": "The job title" },
-        "email": { "type": "string", "description": "Direct email of the decision maker." },
-        "phone": { "type": "string", "description": "Direct phone number of the decision maker." }
+        "firstName": { "type": "string", "description": "Optional." },
+        "lastName": { "type": "string", "description": "Optional." },
+        "role": { "type": "string", "description": "The job title. Optional." },
+        "email": { "type": "string", "description": "Direct email of the decision maker. Optional." },
+        "phone": { "type": "string", "description": "Direct phone number of the decision maker. Optional." }
       }
     },
     "generalContact": {
       "type": "object",
-      "description": "General contact information for the company if specific decision maker contact info is not available.",
+      "description": "General contact information for the company if specific decision maker contact info is not available. Optional.",
       "properties": {
-        "email": { "type": "string", "description": "General info@ email." },
-        "phone": { "type": "string", "description": "The phone number in a normalized international format (e.g. +49 30 123456)." }
+        "email": { "type": "string", "description": "General info@ email. Optional." },
+        "phone": { "type": "string", "description": "The phone number in a normalized international format (e.g. +49 30 123456). Optional." }
       }
     },
     "webDesignAgency": {
       "type": "object",
-      "description": "Information about the agency that built the website, usually found in the footer (e.g. 'Made by...', 'Webdesign by...').",
+      "description": "Information about the agency that built the website, usually found in the footer (e.g. 'Made by...', 'Webdesign by...'). Optional.",
       "properties": {
-        "name": { "type": "string" },
-        "url": { "type": "string", "description": "The URL of the web design agency." }
+        "name": { "type": "string", "description": "Optional." },
+        "url": { "type": "string", "description": "The URL of the web design agency. Optional." }
       }
     }
   }
