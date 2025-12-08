@@ -56,13 +56,14 @@ export class StandardStrategy implements GenerationStrategy {
         if (message.images && message.images.length > 0) {
             return { type: 'image', data: message.images[0].image_url.url, extension: 'png' };
         }
-        if (message.content) {
+        
+        // Check for string type explicitly to allow empty strings ("")
+        if (typeof message.content === 'string') {
             return { type: 'text', data: message.content, extension: 'md' };
         }
 
-        if (message.content) {
-            return { type: 'text', data: '', extension: 'md' };
-        }
+        // Fallback
+        return { type: 'text', data: '', extension: 'md' };
     }
 
     private async validateContent(
