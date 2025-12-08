@@ -22,7 +22,10 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --web-search-export-2 \
   --web-search-gl-2 de \
   --web-search-hl-2 de \
+  --dedupe-key-2 "{{webSearch.domain}}" \
   --website-agent-url-2 "{{webSearch.link}}" \
   --website-agent-depth-2 1 \
   --website-agent-schema-2 examples/13-industry-search/schemas/contact.json \
+  --validate-schema-2 examples/13-industry-search/schemas/contact-validation.json \
+  --validate-target-2 "{{websiteAgent}}" \
   --website-agent-export-2

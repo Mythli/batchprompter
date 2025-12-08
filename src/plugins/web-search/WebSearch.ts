@@ -30,6 +30,7 @@ const SerperResponseSchema = z.object({
 
 export type WebSearchResult = z.infer<typeof OrganicResultSchema> & {
     content?: string; // Populated if mode is markdown/html
+    domain?: string;
 };
 
 export type WebSearchMode = 'none' | 'markdown' | 'html';

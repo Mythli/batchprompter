@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "properties": {
+    "contact": {
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "minLength": 5 }
+      },
+      "required": ["email"]
+    }
+  },
+  "required": ["contact"]
+}

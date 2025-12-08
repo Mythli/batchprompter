@@ -182,9 +182,17 @@ export class AiWebSearch {
                 finalOutputs.push(`Source: ${result.title} (${result.link})\nContent:\n${content}`);
             }
 
+            let domain: string | undefined;
+            try {
+                domain = new URL(result.link).hostname;
+            } catch (e) {
+                // ignore invalid URLs
+            }
+
             processedResults.push({
                 ...result,
-                content
+                content,
+                domain
             });
         }
 
