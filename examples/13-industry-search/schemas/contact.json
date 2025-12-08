@@ -1,20 +1,35 @@
 {
   "type": "object",
   "properties": {
-    "ceo": {
+    "companyName": {
+      "type": ["string", "null"],
+      "description": "The official name of the company (e.g. GmbH, AG, etc.)"
+    },
+    "address": {
       "type": ["object", "null"],
+      "description": "The postal address of the company",
+      "properties": {
+        "street": { "type": ["string", "null"] },
+        "zip": { "type": ["string", "null"] },
+        "city": { "type": ["string", "null"] }
+      }
+    },
+    "decisionMaker": {
+      "type": ["object", "null"],
+      "description": "The best person to contact for business decisions. Look for the CEO (Geschäftsführer), Owner (Inhaber), or Founder. If not available, look for Head of Department or similar high-level roles.",
       "properties": {
         "firstName": { "type": ["string", "null"] },
-        "lastName": { "type": ["string", "null"] }
+        "lastName": { "type": ["string", "null"] },
+        "role": { "type": ["string", "null"], "description": "The job title (e.g. CEO, Geschäftsführer)" }
       }
     },
     "contact": {
       "type": ["object", "null"],
       "properties": {
-        "email": { "type": ["string", "null"] },
+        "email": { "type": ["string", "null"], "description": "Direct email of the decision maker if available, otherwise general info@ email." },
         "phone": { "type": ["string", "null"] }
       }
     }
   },
-  "required": ["ceo", "contact"]
+  "required": ["companyName", "decisionMaker", "contact"]
 }

@@ -1,6 +1,13 @@
 {
   "type": "object",
   "properties": {
+    "decisionMaker": {
+      "type": "object",
+      "properties": {
+        "lastName": { "type": "string", "minLength": 1 }
+      },
+      "required": ["lastName"]
+    },
     "contact": {
       "type": "object",
       "properties": {
@@ -9,5 +16,5 @@
       "required": ["email"]
     }
   },
-  "required": ["contact"]
+  "required": ["decisionMaker", "contact"]
 }
