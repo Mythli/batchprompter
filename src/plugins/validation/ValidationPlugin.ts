@@ -99,12 +99,12 @@ export class ValidationPlugin implements ContentProviderPlugin {
 
         if (!valid) {
             const errors = this.ajv.errorsText(validate.errors);
-            console.log(`[Validation] ❌ Row failed validation: ${errors}`);
+            console.log(`[Row ${row.index}] [Validation] ❌ Failed: ${errors}`);
             // console.log(`[Validation] Data was: ${JSON.stringify(dataToValidate, null, 2)}`);
             return { contentParts: [], data: [] }; // Drop
         }
 
-        console.log(`[Validation] ✅ Row passed validation.`);
+        console.log(`[Row ${row.index}] [Validation] ✅ Passed.`);
         return { contentParts: [], data: [{}] }; // Pass
     }
 }
