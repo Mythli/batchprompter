@@ -5,9 +5,10 @@
     "decisionMaker": {
       "type": "object",
       "properties": {
+        "firstName": { "type": "string", "minLength": 1 },
         "lastName": { "type": "string", "minLength": 1 }
       },
-      "required": ["lastName"]
+      "required": ["firstName", "lastName"]
     }
   },
   "required": ["companyName", "decisionMaker"]
