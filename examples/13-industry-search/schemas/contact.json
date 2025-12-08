@@ -46,7 +46,7 @@
     },
     "webDesignAgency": {
       "type": ["object", "null"],
-      "description": "Information about the agency that built the website, usually found in the footer (e.g. 'Made by...', 'Webdesign by...'). Optional.",
+      "description": "Information about the agency that built the website, usually found in the footer (e.g. 'Made by...', 'Webdesign by...'). Important: We need the web design agency which build the site and not the author of the theme. Optional.",
       "properties": {
         "name": { "type": ["string", "null"], "description": "Optional." },
         "url": { "type": ["string", "null"], "description": "The URL of the web design agency. Optional." }
