@@ -1,10 +1,8 @@
 #!/bin/bash
 
-#  "List all German cities with a population over 50,000 in a javascript array of objects (see schema). Be exhaustive. Leave no city that has 50k+ people in Germany out. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name)."
-
 npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   \
-  "List only Hamburg in Germany only in a javascript array of objects (see schema)." \
+  "List all German cities with a population over 50,000 in a javascript array of objects (see schema). Be exhaustive. Leave no city that has 50k+ people in Germany out. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name)." \
   --expand-urls-1 \
   --expand-urls-mode-1 puppeteer \
   --model "google/gemini-3-pro-preview" \
@@ -15,8 +13,8 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   "" \
   --web-query-2-prompt examples/13-industry-search/prompts/2-find-url.md \
   --web-select-2-prompt "Select only the official websites of companies offering {{industry}} in {{location}}. Ignore directories, lists, aggregators, and job boards." \
-  --web-search-max-pages-2 1 \
-  --web-search-limit-2 3 \
+  --web-search-max-pages-2 5 \
+  --web-search-limit-2 100 \
   --web-search-dedupe-strategy-2 domain \
   --web-search-explode-2 \
   --web-search-export-2 \
@@ -54,7 +52,7 @@ Guidelines:
 - If Price or Dates are missing, omit them from the parentheses.
 - Return ONLY the bulleted list.
 
-If the data is empty, return 'No specific offers found'." \
+If the data is empty, return an empty text" \
   --website-agent-url-5 "{{link}}" \
   --website-agent-depth-5 1 \
   --website-agent-schema-5 examples/13-industry-search/schemas/offers.json \
