@@ -30,5 +30,6 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   \
   "Find the LinkedIn profile URL for {{decisionMaker.firstName}} {{decisionMaker.lastName}} ({{decisionMaker.role}}) at {{companyName}}. Return only the URL." \
   --web-search-query-3 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}}" \
-  --web-search-limit-3 1 \
+  --web-search-limit-3 5 \
+  --web-select-3-prompt "Select the LinkedIn profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. Verify the role matches {{decisionMaker.role}}. If it's not the correct person or company, do not select it." \
   --output-column-3 "linkedinUrl"
