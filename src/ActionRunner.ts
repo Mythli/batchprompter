@@ -236,11 +236,36 @@ export class ActionRunner {
                         // Prepare for next step
                         for (const finalItem of processedItems) {
                             // Update history for this branch
-                            finalItem.history = [
-                                ...finalItem.history,
-                                { role: 'user', content: resolvedStep.userPromptParts },
-                                result.historyMessage
-                            ];
+                            const newHistory = [...finalItem.history];
+
+                            // Check if we have a valid user prompt (non-empty)
+                            const hasUserPrompt = resolvedStep.userPromptParts.length > 0 && resolvedStep.userPromptParts.some(p => {
+                                if (p.type === 'text') return p.text.trim().length > 0;
+                                return true; // Image/Audio is content
+                            });
+
+                            // Check if we have a valid assistant response (non-empty)
+                            const assistantContent = result.historyMessage.content;
+                            const hasAssistantResponse = 
+                                assistantContent !== null && 
+                                assistantContent !== undefined && 
+                                assistantContent !== '' && 
+                                !(Array.isArray(assistantContent) && assistantContent.length === 0);
+
+                            // Only append to history if we have a meaningful interaction.
+                            // If the user prompt was empty (e.g. a plugin-only step), we skip adding to history
+                            // to prevent "empty message" errors and to keep the conversation flow clean.
+                            if (hasUserPrompt) {
+                                newHistory.push({ role: 'user', content: resolvedStep.userPromptParts });
+                                
+                                // Only add assistant response if we added a user prompt.
+                                // This prevents orphaned assistant messages or double-assistant messages.
+                                if (hasAssistantResponse) {
+                                    newHistory.push(result.historyMessage);
+                                }
+                            }
+
+                            finalItem.history = newHistory;
                             finalItem.stepHistory = [...finalItem.stepHistory, currentStepResult];
                             
                             nextItemsForQueue.push(finalItem);
