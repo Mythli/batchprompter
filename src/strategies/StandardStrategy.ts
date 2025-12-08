@@ -1,4 +1,4 @@
-// 
+//
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
@@ -57,9 +57,12 @@ export class StandardStrategy implements GenerationStrategy {
             return { type: 'image', data: message.images[0].image_url.url, extension: 'png' };
         }
         if (message.content) {
-            return { type: 'text', data: message.content, extension: 'txt' };
+            return { type: 'text', data: message.content, extension: 'md' };
         }
-        throw new Error("LLM returned empty response (no text, image, or audio).");
+
+        if (message.content) {
+            return { type: 'text', data: '', extension: 'md' };
+        }
     }
 
     private async validateContent(
@@ -92,7 +95,7 @@ export class StandardStrategy implements GenerationStrategy {
         if (config.verifyCommand && !skipCommands) {
             // Create temp file
             let tempPath: string;
-            
+
             // Use resolvedTempDir if available, otherwise global tmpDir
             const baseTempDir = config.resolvedTempDir || config.tmpDir;
             const verifyDir = path.join(baseTempDir, 'verify');
@@ -103,7 +106,7 @@ export class StandardStrategy implements GenerationStrategy {
                 const name = path.basename(config.outputPath, ext);
                 const timestamp = Date.now();
                 const random = Math.random().toString(36).substring(7);
-                
+
                 tempPath = path.join(verifyDir, `${name}_verify_${timestamp}_${random}.${validated.extension}`);
             } else {
                 const tempFilename = `verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.${validated.extension}`;
@@ -114,7 +117,7 @@ export class StandardStrategy implements GenerationStrategy {
                 await this.saveArtifact(validated, tempPath);
 
                 const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
-                
+
                 // Sanitize row data
                 const sanitizedRow: Record<string, string> = {};
                 for (const [key, val] of Object.entries(row)) {
@@ -170,7 +173,7 @@ export class StandardStrategy implements GenerationStrategy {
         // Initial History
         // We construct the base request using Normalizer
         // This handles System Prompt, User Prompt (from config + positional), and Thinking Level
-        
+
         // FIX: Prevent prompt duplication.
         // userPromptParts already contains the prompt (merged in ActionRunner/StepExecutor).
         // We strip it from the config passed to normalizer so it's not added again.
@@ -180,7 +183,7 @@ export class StandardStrategy implements GenerationStrategy {
         };
 
         const baseRequest = ModelRequestNormalizer.normalize(configForNormalizer, row, userPromptParts);
-        
+
         // We need to merge the persistent history passed in
         const currentMessages = [...baseRequest.messages];
         // Insert persistent history after system prompt (if any)
@@ -227,10 +230,10 @@ export class StandardStrategy implements GenerationStrategy {
 
             // Generate with Technical Retries
             const loopSalt = isFeedbackLoop ? `${cacheSalt}_refine_${loop-1}` : cacheSalt;
-            
+
             // Update request messages
             baseRequest.messages = currentMessages;
-            
+
             finalContent = await this.generateWithRetry(
                 baseRequest, // Pass the normalized request object
                 config,
@@ -258,7 +261,7 @@ export class StandardStrategy implements GenerationStrategy {
 
             if (!filePathForCommand) {
                 isTemp = true;
-                
+
                 // Use resolvedTempDir if available, otherwise global tmpDir
                 const baseTempDir = config.resolvedTempDir || config.tmpDir;
                 const postDir = path.join(baseTempDir, 'postprocess');
@@ -339,7 +342,7 @@ export class StandardStrategy implements GenerationStrategy {
                         extension: 'json',
                         raw: jsonResult
                     };
-                } 
+                }
                 // BRANCH 2: Standard Text/Image/Audio Mode
                 else {
                     const promptOptions: any = {
@@ -388,12 +391,12 @@ export class StandardStrategy implements GenerationStrategy {
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         salt: string
     ): Promise<string> {
-        
+
         // Use Normalizer to build the critique request
         // The "User Prompt" for the critique is the content to be critiqued
-        
+
         const critiqueContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        
+
         if (content.type === 'image') {
             critiqueContentParts.push({ type: 'text', text: "\nAnalyze the image below:" });
             critiqueContentParts.push({ type: 'image_url', image_url: { url: content.data } });
@@ -412,7 +415,7 @@ export class StandardStrategy implements GenerationStrategy {
         // Insert history after system prompt
         const systemIndex = request.messages.findIndex(m => m.role === 'system');
         const historyNoSystem = history.filter(m => m.role !== 'system');
-        
+
         if (systemIndex >= 0) {
             request.messages.splice(systemIndex + 1, 0, ...historyNoSystem);
         } else {
