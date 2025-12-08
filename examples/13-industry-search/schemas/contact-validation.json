@@ -1,6 +1,7 @@
 {
   "type": "object",
   "properties": {
+    "isIndustry": { "const": true },
     "companyName": { "type": "string", "minLength": 1 },
     "decisionMaker": {
       "type": "object",
@@ -11,5 +12,5 @@
       "required": ["firstName", "lastName"]
     }
   },
-  "required": ["companyName", "decisionMaker"]
+  "required": ["companyName", "decisionMaker", "isIndustry"]
 }

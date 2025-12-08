@@ -1,6 +1,14 @@
 {
   "type": "object",
   "properties": {
+    "isIndustry": {
+      "type": "boolean",
+      "description": "Is this company offering {{industry}}?"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Reason why this company is or is not offering {{industry}}."
+    },
     "companyName": {
       "type": ["string", "null"],
       "description": "The official name of the company (e.g. GmbH, AG, etc.). Optional."
@@ -33,5 +41,6 @@
         "url": { "type": ["string", "null"], "description": "The URL of the web design agency. Optional." }
       }
     }
-  }
+  },
+  "required": ["isIndustry", "reason"]
 }
