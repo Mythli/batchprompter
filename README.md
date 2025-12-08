@@ -9,15 +9,16 @@ Unlike a chatbot, BatchPrompt is **data-driven**: it takes a CSV/JSON file, and 
 ## 📚 Table of Contents
 1. [🚀 Quick Start](#-quick-start)
 2. [🧠 How It Works (The Mental Model)](#-how-it-works-the-mental-model)
-3. [👨‍🍳 Cookbook Examples](#-cookbook-examples)
+3. [🪜 Understanding Steps](#-understanding-steps)
+4. [👨‍🍳 Cookbook Examples](#-cookbook-examples)
     - [A. The Content Creator (Basic Text Gen)](#a-the-content-creator-basic-text-gen)
     - [B. The Researcher (Search + Scrape)](#b-the-researcher-search--scrape)
     - [C. The Lead Generator (Explode Pattern)](#c-the-lead-generator-explode-pattern)
     - [D. The Designer (UI/UX Analysis)](#d-the-designer-uiux-analysis)
     - [E. The Art Director (Image Gen with RAG)](#e-the-art-director-image-gen-with-rag)
-4. [🔌 Plugins Reference](#-plugins-reference)
-5. [🛠️ Advanced Features](#-advanced-features)
-6. [⚙️ Configuration](#-configuration)
+5. [🔌 Plugins Reference](#-plugins-reference)
+6. [🛠️ Advanced Features](#-advanced-features)
+7. [⚙️ Configuration](#-configuration)
 
 ---
 
@@ -59,6 +60,54 @@ Think of BatchPrompt as an **assembly line**.
     *   **Generate:** The LLM creates content (Text, Code, JSON).
     *   **Output:** The result is saved to a file OR merged back into the row for the next step.
 4.  **Topology:** The line can split! One row can **Explode** into 10 rows (e.g., "List 10 cities" -> 10 separate tasks).
+
+### The Data Flow (Visualized)
+
+```mermaid
+graph TD
+    Input[📂 Input CSV Row] -->|Load| Workspace[📦 Workspace]
+    
+    subgraph Step 1 [Step 1: Research]
+        Workspace -->|Query| Plugin1[🔌 Web Search Plugin]
+        Plugin1 -->|Results| Workspace
+        Workspace -->|Context| LLM1[🧠 LLM (Text)]
+        LLM1 -->|Summary| Workspace
+    end
+    
+    subgraph Step 2 [Step 2: Creation]
+        Workspace -->|Ref Image| LLM2[🎨 LLM (Image Gen)]
+        LLM2 -->|New Image| Output[💾 File Output]
+    end
+    
+    Workspace -.->|--export| NextRow[Next Step / Final CSV]
+```
+
+---
+
+## 🪜 Understanding Steps
+
+BatchPrompt executes tasks in **Steps**. A single command can define multiple steps, allowing you to chain operations (e.g., "Search -> Scrape -> Summarize").
+
+### The Step Lifecycle
+For every row in your data, each step performs the following actions in order:
+
+1.  **Preparation:** Plugins run first.
+    *   Example: `--web-search-query` runs a Google search.
+    *   Result: The search results are stored in the `Workspace` (e.g., `{{webSearch}}`).
+2.  **Prompting:** The system builds the prompt for the LLM.
+    *   It combines your **Row Data** (`{{topic}}`) + **Plugin Data** (`{{webSearch}}`).
+3.  **Generation:** The LLM executes the prompt.
+    *   It generates text, code, or an image.
+4.  **Output:** The result is handled based on your flags.
+    *   **Save:** If `--output` is set, the result is written to a file.
+    *   **Export:** If `--export` is set, the result is merged back into the `Row` for the *next* step to use.
+
+### Targeting Specific Steps
+Flags without numbers apply globally or to the first step. To configure a specific step, append the step number to the flag.
+
+*   `--model`: Sets the default model for all steps.
+*   `--model-2`: Overrides the model for **Step 2 only**.
+*   `--web-search-query-1`: Runs web search in **Step 1**.
 
 ---
 
@@ -177,42 +226,43 @@ batchprompt generate urls.csv "Analyze the button styles in this image." \
 ---
 
 ### E. The Art Director (Image Gen with RAG)
-**Goal:** "Generate a marketing banner for a specific industry, using real-world references."
+**Goal:** "Generate a photorealistic image of a business, using a real-world photo as a style reference."
 
-**1. Input (`industries.csv`):**
+**1. Input (`locations.csv`):**
 ```csv
-industry
-"Coffee Shop"
-"Yoga Studio"
+location,industry
+"Tokyo","Coffee Shop"
+"Berlin","Techno Club"
 ```
 
 **2. Command:**
 ```bash
-batchprompt generate industries.csv \
-  "Generate a prompt for an image generation model based on this reference image: {{imageSearch.0.imageUrl}}" \
-  --image-search-query "interior design of {{industry}}" \
+batchprompt generate locations.csv \
+  "Generate a high-quality photo of a {{industry}} in {{location}}. Match the lighting and mood of this reference image: {{imageSearch.0.imageUrl}}" \
+  --image-search-query "interior design {{industry}} {{location}} aesthetic" \
   --image-search-select 1 \
-  --model google/gemini-3-pro-preview \
-  --output "prompts/{{industry}}.txt"
+  --model "google/gemini-3-pro-image-preview" \
+  --output "images/{{location}}_{{industry}}.jpg"
 ```
 
-**Key Concept:** **RAG for Images**.
-1.  `--image-search` finds real photos of coffee shops.
-2.  `--image-search-select` uses a Vision LLM to pick the *best* reference photo.
-3.  The Main Prompt uses that photo to write a detailed prompt for Midjourney/DALL-E.
+**Why this works (RAG for Images):**
+1.  **Retrieval:** BatchPrompt searches Google Images for real examples (`--image-search`).
+2.  **Selection:** It uses a Vision model to pick the single best image from the search results (`--image-search-select`).
+3.  **Augmentation:** It passes that real image URL to Gemini as context.
+4.  **Generation:** Gemini generates a *new* pixel-perfect image that adheres to the style of the reference.
 
 ---
 
 ## 🔌 Plugins Reference
 
-Plugins populate specific variables when they run:
+Plugins populate specific variables in the `Workspace`. You can access these in your prompts using Handlebars syntax (e.g., `{{webSearch.0.link}}`).
 
-| Plugin Flag | Variable Name | Structure |
-| :--- | :--- | :--- |
-| `--web-search` | `{{webSearch}}` | Array: `[{ title, link, snippet }, ...]` |
-| `--image-search` | `{{imageSearch}}` | Array: `[{ imageUrl, title }, ...]` |
-| `--website-agent` | `{{websiteAgent}}` | Object: The extracted JSON schema result. |
-| `--style-scraper` | `{{styleScraper}}` | Object: `{ desktop: "path.jpg", css: "..." }` |
+| Plugin Flag | Variable Name | Structure | Access Example |
+| :--- | :--- | :--- | :--- |
+| `--web-search` | `{{webSearch}}` | Array of results | `{{webSearch.0.snippet}}` |
+| `--image-search` | `{{imageSearch}}` | Array of images | `{{imageSearch.0.imageUrl}}` |
+| `--website-agent` | `{{websiteAgent}}` | Object (Schema result) | `{{websiteAgent.summary}}` |
+| `--style-scraper` | `{{styleScraper}}` | Object (Screenshots) | `{{styleScraper.desktop}}` |
 
 ---
 
