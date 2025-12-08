@@ -1,8 +1,23 @@
-# BatchPrompt
+# BatchPrompt ⚡️
 
-BatchPrompt is a CLI tool for building **AI pipelines**. It automates the process of chaining LLMs, Web Search, and Scrapers to process data in bulk.
+**BatchPrompt** is a CLI tool for building **AI pipelines**. It automates the process of chaining LLMs, Web Search, and Scrapers to process data in bulk.
 
 Unlike a chatbot, BatchPrompt is **data-driven**: it takes a CSV/JSON file, and for every row, it executes a pipeline of steps to generate files or structured data.
+
+---
+
+## 📚 Table of Contents
+1. [🚀 Quick Start](#-quick-start)
+2. [🧠 How It Works (The Mental Model)](#-how-it-works-the-mental-model)
+3. [👨‍🍳 Cookbook Examples](#-cookbook-examples)
+    - [A. The Content Creator (Basic Text Gen)](#a-the-content-creator-basic-text-gen)
+    - [B. The Researcher (Search + Scrape)](#b-the-researcher-search--scrape)
+    - [C. The Lead Generator (Explode Pattern)](#c-the-lead-generator-explode-pattern)
+    - [D. The Designer (UI/UX Analysis)](#d-the-designer-uiux-analysis)
+    - [E. The Art Director (Image Gen with RAG)](#e-the-art-director-image-gen-with-rag)
+4. [🔌 Plugins Reference](#-plugins-reference)
+5. [🛠️ Advanced Features](#-advanced-features)
+6. [⚙️ Configuration](#-configuration)
 
 ---
 
@@ -32,47 +47,58 @@ $env:BATCHPROMPT_SERPER_API_KEY="your-serper-key"
 
 ---
 
-## 🧪 Recipe 1: The Basics (Text Generation)
-**Goal:** Generate a unique Haiku for a list of topics.
+## 🧠 How It Works (The Mental Model)
 
-**1. Create `data.csv`:**
+Think of BatchPrompt as an **assembly line**.
+
+1.  **Input:** You feed it a CSV file. Each row is a "raw material".
+2.  **The Workspace:** As a row moves down the line, it accumulates data in a temporary workspace (e.g., search results, scraped content).
+3.  **The Pipeline:** You define a series of **Steps**.
+    *   **Fetch:** Plugins (Web Search, Image Search) go out and get data.
+    *   **Context:** The LLM receives the Row Data + Plugin Data.
+    *   **Generate:** The LLM creates content (Text, Code, JSON).
+    *   **Output:** The result is saved to a file OR merged back into the row for the next step.
+4.  **Topology:** The line can split! One row can **Explode** into 10 rows (e.g., "List 10 cities" -> 10 separate tasks).
+
+---
+
+## 👨‍🍳 Cookbook Examples
+
+### A. The Content Creator (Basic Text Gen)
+**Goal:** Write unique Haikus for a list of topics.
+
+**1. Input (`data.csv`):**
 ```csv
 id,topic
 1,Black Holes
 2,Quantum Computing
 ```
 
-**2. Run:**
+**2. Command:**
 ```bash
 batchprompt generate data.csv "Write a haiku about {{topic}}" \
   --model google/gemini-3-pro-preview \
   --output "haikus/{{id}}_{{topic}}.txt"
 ```
 
-**What happened?**
-1. BatchPrompt read row 1 (`Black Holes`).
-2. It replaced `{{topic}}` in your prompt.
-3. It saved the result to `haikus/1_Black Holes.txt`.
-4. It repeated this for row 2.
+**What happens:**
+*   BatchPrompt reads row 1 (`Black Holes`).
+*   It replaces `{{topic}}` in your prompt.
+*   It saves the result to `haikus/1_Black Holes.txt`.
 
 ---
 
-## 🔗 Recipe 2: Chaining Agents (Search -> Scrape -> Write)
-**Goal:** Find a company's website, scrape their "About" page, and write a summary.
+### B. The Researcher (Search + Scrape)
+**Goal:** "Find the CEO of these companies and summarize their background."
 
-**The Logic:**
-1.  **Plugin 1 (Web Search):** Find the URL.
-2.  **Plugin 2 (Scraper):** Use the URL from Plugin 1 to get content.
-3.  **LLM:** Use the content from Plugin 2 to write a summary.
-
-**1. Create `companies.csv`:**
+**1. Input (`companies.csv`):**
 ```csv
 name
 "OpenAI"
 "Anthropic"
 ```
 
-**2. Run:**
+**2. Command:**
 ```bash
 batchprompt generate companies.csv "Write a summary of {{name}} based on: {{websiteAgent.summary}}" \
   --web-search-query "official website for {{name}}" \
@@ -82,42 +108,33 @@ batchprompt generate companies.csv "Write a summary of {{name}} based on: {{webs
   --model google/gemini-3-pro-preview
 ```
 
-**How Data Flows:**
-*   `--web-search-query` runs first. It populates the variable `{{webSearch}}` (an array of results).
-*   `--website-agent-url` runs second. We pass it `{{webSearch.0.link}}` (the URL of the first search result).
-*   The agent scrapes that URL and populates `{{websiteAgent}}`.
-*   Finally, the **Main Prompt** runs, having access to all previous data.
+**Key Concept:** Passing data between plugins.
+1.  `--web-search` runs first. It finds the URL.
+2.  `--website-agent` runs second. It uses `{{webSearch.0.link}}` to scrape that URL.
+3.  **Main Prompt** runs last, using the scraped data (`{{websiteAgent}}`).
 
 ---
 
-## 💥 Recipe 3: The "Deep Dive" (Explode Strategy)
-**Goal:** Take one broad topic, generate 5 sub-topics, and write an article for *each* sub-topic.
+### C. The Lead Generator (Explode Pattern)
+**Goal:** "Find all cities in Germany > 50k population, then find specific companies in each city."
 
-**The Logic:**
-1.  **Step 1:** LLM generates a JSON array of sub-topics.
-2.  **Explode:** BatchPrompt turns that array into 5 new rows.
-3.  **Step 2:** LLM writes an article for each new row.
-
-**1. Create `topics.csv`:**
+**1. Input (`topics.csv`):**
 ```csv
 topic
 "Renewable Energy"
 ```
 
-**2. Create `schema.json` (for Step 1):**
+**2. Schema (`schema.json`):**
 ```json
 {
   "type": "object",
   "properties": {
-    "subtopics": {
-      "type": "array",
-      "items": { "type": "string" }
-    }
+    "subtopics": { "type": "array", "items": { "type": "string" } }
   }
 }
 ```
 
-**3. Run:**
+**3. Command:**
 ```bash
 batchprompt generate topics.csv \
   "List 5 sub-topics about {{topic}}" \
@@ -127,22 +144,67 @@ batchprompt generate topics.csv \
   --output-2 "articles/{{topic}}/{{subtopics}}.md"
 ```
 
-**What happened?**
-*   **Step 1** produced: `["Solar", "Wind", "Hydro", ...]`.
-*   **--explode-1** detected the array and created 5 new tasks.
-*   **Step 2** ran 5 times, once for each sub-topic.
+**Key Concept:** **Explosion**.
+*   **Step 1** produces a JSON array: `["Solar", "Wind", "Hydro", ...]`.
+*   **--explode-1** detects the array and creates 5 new tasks.
+*   **Step 2** runs 5 times, once for each sub-topic.
 
 ---
 
-## 🧠 Understanding Data Flow & Variables
+### D. The Designer (UI/UX Analysis)
+**Goal:** "Analyze the button styles of these competitors."
 
-When writing prompts or configuring plugins, you can use **Handlebars** syntax (e.g., `{{variable}}`) to access data.
+**1. Input (`urls.csv`):**
+```csv
+url
+"https://stripe.com"
+"https://airbnb.com"
+```
 
-### 1. CSV Data
-Every column in your input CSV is available as a variable.
-*   Column `product_name` -> `{{product_name}}`
+**2. Command:**
+```bash
+batchprompt generate urls.csv "Analyze the button styles in this image." \
+  --style-scrape-url "{{url}}" \
+  --style-scrape-interactive \
+  --model google/gemini-3-pro-preview \
+  --output "analysis/{{url}}.md"
+```
 
-### 2. Plugin Outputs
+**Key Concept:** **Vision**.
+*   The `StyleScraper` plugin uses Puppeteer to take screenshots and capture computed CSS.
+*   It passes the screenshot to the Vision Model automatically.
+
+---
+
+### E. The Art Director (Image Gen with RAG)
+**Goal:** "Generate a marketing banner for a specific industry, using real-world references."
+
+**1. Input (`industries.csv`):**
+```csv
+industry
+"Coffee Shop"
+"Yoga Studio"
+```
+
+**2. Command:**
+```bash
+batchprompt generate industries.csv \
+  "Generate a prompt for an image generation model based on this reference image: {{imageSearch.0.imageUrl}}" \
+  --image-search-query "interior design of {{industry}}" \
+  --image-search-select 1 \
+  --model google/gemini-3-pro-preview \
+  --output "prompts/{{industry}}.txt"
+```
+
+**Key Concept:** **RAG for Images**.
+1.  `--image-search` finds real photos of coffee shops.
+2.  `--image-search-select` uses a Vision LLM to pick the *best* reference photo.
+3.  The Main Prompt uses that photo to write a detailed prompt for Midjourney/DALL-E.
+
+---
+
+## 🔌 Plugins Reference
+
 Plugins populate specific variables when they run:
 
 | Plugin Flag | Variable Name | Structure |
@@ -151,12 +213,6 @@ Plugins populate specific variables when they run:
 | `--image-search` | `{{imageSearch}}` | Array: `[{ imageUrl, title }, ...]` |
 | `--website-agent` | `{{websiteAgent}}` | Object: The extracted JSON schema result. |
 | `--style-scraper` | `{{styleScraper}}` | Object: `{ desktop: "path.jpg", css: "..." }` |
-
-### 3. Step Outputs (Chaining Steps)
-If you have a multi-step pipeline (e.g., Step 1 -> Step 2), you can pass data forward.
-
-*   **Option A (Export):** Use `--output-column-1 my_summary`. Step 2 can now use `{{my_summary}}`.
-*   **Option B (Automatic):** Step results are accumulated in the history, but explicit columns are safer for prompting.
 
 ---
 
@@ -182,18 +238,9 @@ batchprompt generate data.csv "Write a python script" \
 ```
 *   If `python script.py` errors, the error message is sent back to the LLM to fix the code.
 
-### 🖼️ Image Selection
-Search for images and have an AI pick the best one for your context.
-```bash
-batchprompt generate data.csv "Look at this image: {{imageSearch.0.imageUrl}}" \
-  --image-search-query "{{topic}}" \
-  --image-search-limit 10 \
-  --image-select-prompt "Pick the most high-resolution, professional photo"
-```
-
 ---
 
-## ⚙️ Reference: Common Flags
+## ⚙️ Configuration
 
 | Category | Flag | Description |
 | :--- | :--- | :--- |
