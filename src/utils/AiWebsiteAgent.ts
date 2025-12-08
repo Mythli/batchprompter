@@ -120,8 +120,13 @@ export class AiWebsiteAgent {
         
         console.log(`[AiWebsiteAgent] Scraping ${url} (Depth: ${depth})...`);
 
+        // 1. Fetch Main Page (Sequential, required for everything)
         const mainPage = await this.getPageContent(url);
-        const mainDataPromise = this.extractDataFromMarkdown(
+
+        // 2. Define Tasks
+        
+        // Task A: Extract data from main page
+        const mainDataTask = this.extractDataFromMarkdown(
             url, 
             mainPage.markdown, 
             schema, 
@@ -129,9 +134,10 @@ export class AiWebsiteAgent {
             options.row
         );
 
-        let subPagesDataPromises: Promise<any>[] = [];
+        // Task B: Find and scrape sub-pages (if depth > 0)
+        const subPagesTask = (async () => {
+            if (depth <= 0) return [];
 
-        if (depth > 0) {
             console.log(`[AiWebsiteAgent] Analyzing links on ${url}...`);
             const relevantUrls = await this.extractRelevantLinks(
                 url, 
@@ -144,7 +150,7 @@ export class AiWebsiteAgent {
             const uniqueUrls = relevantUrls.filter(u => u !== url && u.startsWith('http'));
             console.log(`[AiWebsiteAgent] Found sub-pages: ${uniqueUrls.join(', ')}`);
 
-            subPagesDataPromises = uniqueUrls.map(async (subUrl) => {
+            const subPagePromises = uniqueUrls.map(async (subUrl) => {
                 try {
                     const subPage = await this.getPageContent(subUrl);
                     return await this.extractDataFromMarkdown(
@@ -159,9 +165,26 @@ export class AiWebsiteAgent {
                     return {};
                 }
             });
+
+            return Promise.all(subPagePromises);
+        })();
+
+        // 3. Execute with Safety (Promise.allSettled)
+        // This ensures that if one task fails (e.g. link extraction), we still wait for the other (main data extraction)
+        // to complete or fail, preventing unhandled promise rejections.
+        const results = await Promise.allSettled([mainDataTask, subPagesTask]);
+
+        // 4. Check for Errors
+        const rejected = results.find(r => r.status === 'rejected');
+        if (rejected) {
+            // If one failed, we throw the error so ActionRunner catches it for this row.
+            throw (rejected as PromiseRejectedResult).reason;
         }
 
-        const [mainData, ...subPagesData] = await Promise.all([mainDataPromise, ...subPagesDataPromises]);
+        // 5. Retrieve Results
+        const mainData = (results[0] as PromiseFulfilledResult<any>).value;
+        const subPagesData = (results[1] as PromiseFulfilledResult<any[]>).value;
+        
         const allData = [mainData, ...subPagesData];
 
         if (allData.length > 1) {
