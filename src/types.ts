@@ -71,6 +71,8 @@ export interface NormalizedConfig {
         tmpDir: string;
         dataOutputPath?: string;
         model?: string; // Global default model
+        offset?: number;
+        limit?: number;
     };
     steps: StepDefinition[];
 }
@@ -148,6 +150,8 @@ export interface RuntimeConfig {
     steps: StepConfig[];
     data: Record<string, any>[];
     options?: Record<string, any>;
+    offset?: number;
+    limit?: number;
 }
 
 // Compatibility / Aliases

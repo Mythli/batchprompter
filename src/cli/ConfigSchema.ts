@@ -99,7 +99,9 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         taskConcurrency: options.taskConcurrency ? parseInt(String(options.taskConcurrency), 10) : undefined,
         tmpDir: String(options.tmpDir || '.tmp'),
         dataOutputPath: options.dataOutput ? String(options.dataOutput) : undefined,
-        model: globalModel
+        model: globalModel,
+        offset: options.offset ? parseInt(String(options.offset), 10) : undefined,
+        limit: options.limit ? parseInt(String(options.limit), 10) : undefined
     };
 
     // Instantiate ModelFlags with the resolved global model

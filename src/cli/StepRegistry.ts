@@ -31,6 +31,8 @@ export class StepRegistry {
         program.option('--feedback-loops <number>', 'Number of feedback loops', '0');
         program.option('--aspect-ratio <ratio>', 'Aspect ratio for image generation');
         program.option('--explode', 'Explode array results into multiple rows');
+        program.option('--offset <number>', 'Start processing from this row index (0-based)');
+        program.option('--limit <number>', 'Limit the number of rows to process');
 
         // --- Step Level (1-10) ---
         for (let i = 1; i <= 10; i++) {
@@ -38,7 +40,7 @@ export class StepRegistry {
             ModelFlags.register(program, `judge-${i}`, { includePrompt: true });
             ModelFlags.register(program, `feedback-${i}`, { includePrompt: true });
 
-            program.option(`--output-${i} <path>`, `Output path for step ${i}`);
+            program.option(`--output-${i} <path>', 'Output path for step ${i}`);
             program.option(`--output-column-${i} <column>`, `Output column for step ${i}`);
             program.option(`--export-${i}`, `Export result for step ${i}`);
             program.option(`--json-schema-${i} <file>`, `Schema for step ${i}`); // Commander camelCases to jsonSchema1

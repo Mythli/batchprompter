@@ -30,10 +30,21 @@ export class ActionRunner {
     ) {}
 
     async run(config: RuntimeConfig) {
-        const { concurrency, taskConcurrency, data, steps, dataFilePath, dataOutputPath, tmpDir } = config;
+        const { concurrency, taskConcurrency, data, steps, dataFilePath, dataOutputPath, tmpDir, offset = 0, limit } = config;
 
         console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
-        console.log(`Found ${data.length} rows to process.`);
+        
+        // Slicing Logic
+        const endIndex = limit ? offset + limit : undefined;
+        const dataToProcess = data.slice(offset, endIndex);
+        
+        console.log(`Found ${data.length} rows in file.`);
+        if (offset > 0 || limit) {
+            console.log(`Processing subset: Rows ${offset} to ${endIndex ? endIndex - 1 : data.length - 1} (${dataToProcess.length} total).`);
+        } else {
+            console.log(`Processing all ${data.length} rows.`);
+        }
+        
         console.log(`Pipeline has ${steps.length} steps.`);
 
         const rowErrors: { index: number, error: any }[] = [];
@@ -269,13 +280,16 @@ export class ActionRunner {
 
         try {
             // Initial Queue Population
-            for (let index = 0; index < data.length; index++) {
+            for (let i = 0; i < dataToProcess.length; i++) {
+                // Calculate original index based on offset
+                const originalIndex = offset + i;
+                
                 const initialItem: PipelineItem = {
-                    row: data[index],
+                    row: dataToProcess[i],
                     workspace: {},
                     stepHistory: [],
                     history: [],
-                    originalIndex: index
+                    originalIndex: originalIndex
                 };
 
                 queue.add(() => processTask({
