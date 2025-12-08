@@ -30,6 +30,7 @@ import { GenericPuppeteerHandler } from './preprocessors/expander/GenericPuppete
 import { WikipediaHandler } from './preprocessors/expander/sites/WikipediaHandler.js';
 import { createLoggingFetcher } from './utils/createLoggingFetcher.js';
 import {createCachedFetcher} from "llm-fns";
+import { attachQueueLogger } from './utils/queueUtils.js';
 
 dotenv.config();
 
@@ -166,19 +167,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Default to 1 if not specified in overrides, to be safe, or 10 if strictly internal.
     // Based on request, CLI defaults to 1.
     const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? 1 });
-
-    gptQueue.on('active', (a: any, b: any) => {
-        console.log(`[Queue] Active. Pending: ${gptQueue.pending} | Queue: ${gptQueue.size}`);
-    });
-
-    gptQueue.on('completed', (result: any, a: any) => {
-        const id = result?.id || 'unknown';
-        console.log(`[Queue] Task completed (ID: ${id}). Pending: ${gptQueue.pending} | Queue: ${gptQueue.size}`);
-    });
-
-    gptQueue.on('error', (error, a: any, b: any) => {
-        console.error(`[Queue] Task error:`, error);
-    });
+    attachQueueLogger(gptQueue, 'GPT');
 
     const llm = createLlm({
         openai: openAi as any, // Cast to any to avoid version mismatch issues
@@ -190,6 +179,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     // Serper Queue
     const serperQueue = new PQueue({ concurrency: config.SERPER_CONCURRENCY });
+    attachQueueLogger(serperQueue, 'Serper');
 
     let imageSearch: ImageSearch | undefined;
     let aiImageSearch: AiImageSearch | undefined;
@@ -214,6 +204,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     // Initialize Puppeteer Queue
     const puppeteerQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
+    attachQueueLogger(puppeteerQueue, 'Puppeteer');
 
     // Initialize AiWebsiteAgent
     const aiWebsiteAgent = new AiWebsiteAgent(puppeteerHelper, llm, puppeteerQueue);
