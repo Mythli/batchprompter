@@ -1,4 +1,4 @@
-// 
+//
 import * as dotenv from 'dotenv';
 import { z } from 'zod';
 // import { createCache } from 'cache-manager';
@@ -11,7 +11,6 @@ import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { AiImageSearch } from './utils/AiImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
 import { AiWebSearch } from './utils/AiWebSearch.js';
-import { createCachedFetcher } from './utils/createCachedFetcher.js';
 import { ModelFlags } from './cli/ModelFlags.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
@@ -30,6 +29,7 @@ import { GenericFetchHandler } from './preprocessors/expander/GenericFetchHandle
 import { GenericPuppeteerHandler } from './preprocessors/expander/GenericPuppeteerHandler.js';
 import { WikipediaHandler } from './preprocessors/expander/sites/WikipediaHandler.js';
 import { createLoggingFetcher } from './utils/createLoggingFetcher.js';
+import {createCachedFetcher} from "llm-fns";
 
 dotenv.config();
 
@@ -66,17 +66,17 @@ export const createDefaultRegistry = () => {
     registry.register(new ImageSearchPlugin());
     registry.register(new WebsiteAgentPlugin());
     registry.register(new StyleScraperPlugin());
-    
+
     // New Plugins
     registry.register(new DedupePlugin());
     registry.register(new ValidationPlugin());
-    
+
     return registry;
 };
 
 export const createPreprocessorRegistry = () => {
     const registry = new PromptPreprocessorRegistry();
-    
+
     // --- URL Expander Setup ---
     // 1. Instantiate Generics
     const fetchHandler = new GenericFetchHandler();
@@ -90,7 +90,7 @@ export const createPreprocessorRegistry = () => {
 
     // 4. Register Plugin
     registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
-    
+
     return registry;
 };
 
@@ -160,7 +160,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const openAi = new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
-        fetch: createLoggingFetcher() as any,
+        fetch: createLoggingFetcher(fetcher) as any,
     });
 
     // Default to 1 if not specified in overrides, to be safe, or 10 if strictly internal.
@@ -200,7 +200,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         // Pass cache to ImageSearch for Serper results, and fetcher for downloads
         imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher, serperQueue);
         aiImageSearch = new AiImageSearch(imageSearch, llm);
-        
+
         webSearch = new WebSearch(config.SERPER_API_KEY, fetcher, serperQueue);
         aiWebSearch = new AiWebSearch(webSearch, llm);
     }
