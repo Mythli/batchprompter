@@ -22,7 +22,7 @@
         "lastName": { "type": ["string", "null"], "description": "Optional." },
         "role": { "type": ["string", "null"], "description": "The job title (e.g. CEO, Geschäftsführer). Optional." },
         "email": { "type": ["string", "null"], "description": "Direct email of the decision maker. Optional." },
-        "phone": { "type": ["string", "null"], "description": "Direct phone number of the decision maker. Optional." }
+        "phone": { "type": ["string", "null"], "description": "Direct phone number of the decision maker. Format: International format (e.g. +49 30 123456). Optional." }
       }
     },
     "webDesignAgency": {
