@@ -31,8 +31,8 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   "" \
   --validate-schema-3 examples/13-industry-search/schemas/contact-validation.json \
   \
-  "Give me the Linkedin URL and nothing else." \
-  --web-search-query-4 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}}" \
+  "Return the LinkedIn URL from the provided search results. If no valid personal LinkedIn profile is found in the context, return an empty string." \
+  --web-search-query-4 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company" \
   --web-search-limit-4 5 \
-  --web-select-4-prompt "Select the LinkedIn profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. If it's not the correct person at this company, do not select it." \
+  --web-select-4-prompt "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything." \
   --output-column-4 "linkedinUrl"
