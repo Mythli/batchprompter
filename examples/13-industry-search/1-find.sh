@@ -23,4 +23,5 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --web-search-export-2 \
   --web-search-gl-2 de \
   --web-search-hl-2 de \
-  --dedupe-key-2 "{{webSearch.domain}}"
+  --dedupe-key-2 "{{webSearch.domain}}" \
+  --validate-schema-2 examples/13-industry-search/schemas/link-validation.json
