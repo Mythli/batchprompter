@@ -4,7 +4,7 @@
 
 npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   \
-  "List the 3 biggest cities in Germany only in a javascript array of objects (see schema)." \
+  "List only Hamburg in Germany only in a javascript array of objects (see schema)." \
   --expand-urls-1 \
   --expand-urls-mode-1 puppeteer \
   --model "google/gemini-3-pro-preview" \
@@ -16,7 +16,7 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --web-query-2-prompt examples/13-industry-search/prompts/2-find-url.md \
   --web-select-2-prompt "Select only the official websites of companies offering {{industry}} in {{location}}. Ignore directories, lists, aggregators, and job boards." \
   --web-search-max-pages-2 1 \
-  --web-search-limit-2 10 \
+  --web-search-limit-2 3 \
   --web-search-dedupe-strategy-2 domain \
   --web-search-explode-2 \
   --web-search-export-2 \
@@ -30,9 +30,8 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   \
   "" \
   --validate-schema-3 examples/13-industry-search/schemas/contact-validation.json \
-  --validation-explode-3 \
   \
-  "" \
+  "Give me the Linkedin URL and nothing else." \
   --web-search-query-4 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}}" \
   --web-search-limit-4 5 \
   --web-select-4-prompt "Select the LinkedIn profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. If it's not the correct person at this company, do not select it." \
