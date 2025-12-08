@@ -27,7 +27,7 @@
       "type": ["object", "null"],
       "properties": {
         "email": { "type": ["string", "null"], "description": "Direct email of the decision maker if available, otherwise general info@ email." },
-        "phone": { "type": ["string", "null"] }
+        "phone": { "type": ["string", "null"], "description": "The phone number in a normalized international format (e.g. +49 30 123456)." }
       }
     }
   },
