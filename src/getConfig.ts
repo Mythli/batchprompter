@@ -52,6 +52,7 @@ export const configSchema = z.object({
     SQLITE_PATH: z.string().default(".cache.sqlite"),
     SERPER_API_KEY: z.string().optional(),
     TASK_CONCURRENCY: z.coerce.number().int().positive().default(100),
+    GPT_CONCURRENCY: z.coerce.number().int().positive().default(50),
     SERPER_CONCURRENCY: z.coerce.number().int().positive().default(5),
     PUPPETEER_CONCURRENCY: z.coerce.number().int().positive().default(3),
 });
@@ -132,6 +133,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         MODEL: getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']),
         SERPER_API_KEY: getEnvVar(['BATCHPROMPT_SERPER_API_KEY', 'SERPER_API_KEY']),
         TASK_CONCURRENCY: getEnvVar(['BATCHPROMPT_TASK_CONCURRENCY', 'TASK_CONCURRENCY']),
+        GPT_CONCURRENCY: getEnvVar(['BATCHPROMPT_GPT_CONCURRENCY', 'GPT_CONCURRENCY']),
         SERPER_CONCURRENCY: getEnvVar(['BATCHPROMPT_SERPER_CONCURRENCY', 'SERPER_CONCURRENCY']),
         PUPPETEER_CONCURRENCY: getEnvVar(['BATCHPROMPT_PUPPETEER_CONCURRENCY', 'PUPPETEER_CONCURRENCY']),
     };
@@ -164,9 +166,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         fetch: createLoggingFetcher(fetcher) as any,
     });
 
-    // Default to 1 if not specified in overrides, to be safe, or 10 if strictly internal.
-    // Based on request, CLI defaults to 1.
-    const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? 1 });
+    // Use overrides if provided (CLI), otherwise use config (Env/Default)
+    const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? config.GPT_CONCURRENCY });
     attachQueueLogger(gptQueue, 'GPT');
 
     const llm = createLlm({
