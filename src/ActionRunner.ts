@@ -160,7 +160,7 @@ export class ActionRunner {
                                 });
                             }
                         } catch (pluginError: any) {
-                            console.error(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' Failed:`, pluginError.message);
+                            console.error(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' Failed:`, pluginError);
                             // Log error
                             rowErrors.push({ index: item.originalIndex, error: pluginError });
                             // Save current state and stop processing this branch
