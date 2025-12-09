@@ -42,29 +42,35 @@
         "url": { "type": ["string", "null"], "description": "The URL of the web design agency. Optional." }
       }
     },
-    "topOfferName": {
-      "type": ["string", "null"],
-      "description": "The specific name of the single offer (e.g. 'Open Water Diver Course', 'Full Body Massage 60min'). (in German)"
-    },
-    "topOfferPrice": {
-      "type": ["number", "null"],
-      "description": "The price of this specific offer in Euros (e.g. 2990). Do not include currency symbols."
-    },
-    "topOfferDescription": {
-      "type": ["string", "null"],
-      "description": "A detailed description of exactly what is included in this specific offer. Do not list general services."
-    },
-    "topOfferLink": {
-      "type": ["string", "null"],
-      "description": "The specific URL to this offer's page."
-    },
-    "topOfferBookingPage": {
-      "type": ["string", "null"],
-      "description": "Link to the booking page, contact form, or checkout page specifically for this offer."
-    },
-    "topOfferReason": {
-      "type": ["string", "null"],
-      "description": "Reason why this specific item was selected as the top offer (e.g. 'Featured prominently on homepage', 'Core business service'). (in German)"
+    "topOffer": {
+      "type": ["object", "null"],
+      "description": "Details about the single most important offer.",
+      "properties": {
+        "name": {
+          "type": ["string", "null"],
+          "description": "The specific name of the single offer (e.g. 'Open Water Diver Course', 'Full Body Massage 60min'). (in German)"
+        },
+        "price": {
+          "type": ["number", "null"],
+          "description": "The price of this specific offer in Euros (e.g. 2990). Do not include currency symbols."
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "A detailed description of exactly what is included in this specific offer. Do not list general services."
+        },
+        "link": {
+          "type": ["string", "null"],
+          "description": "The specific URL to this offer's page."
+        },
+        "bookingPage": {
+          "type": ["string", "null"],
+          "description": "Link to the booking page, contact form, or checkout page specifically for this offer."
+        },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "Reason why this specific item was selected as the top offer (e.g. 'Featured prominently on homepage', 'Core business service'). (in German)"
+        }
+      }
     },
     "top5Offers": {
       "type": ["string", "null"],
