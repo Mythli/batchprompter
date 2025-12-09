@@ -9,12 +9,27 @@ import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
 
 // Default Prompts
-const DEFAULT_EXTRACT_LINKS = `You are a web scraper assistant. Your task is to identify the most relevant URLs for scraping additional company information (like About Us, Contact, Imprint, Team, Products) from the provided list of links found on the website {{baseUrl}}.
+const DEFAULT_NAVIGATOR_PROMPT = `You are an autonomous web scraper. Your goal is to find information to populate the provided schema.
 
-Base URL: {{baseUrl}}
+Schema Description:
+{{schemaDescription}}
 
-List of links:
-{{linksText}}`;
+Status:
+- Pages Visited: {{visitedCount}}
+- Remaining Budget: {{budget}}
+
+Current Findings (Merged State):
+{{currentData}}
+
+Available Links:
+{{linksText}}
+
+Instructions:
+1. Analyze the "Current Findings". Do you have sufficient information for all fields in the schema?
+2. If yes, set 'is_done' to true.
+3. If no, select the most promising URLs from "Available Links" to visit next.
+4. You can select up to {{batchSize}} links to visit in parallel. Prioritize pages likely to contain missing information (e.g., "About", "Contact", "Team").
+5. If no relevant links are left, set 'is_done' to true.`;
 
 const DEFAULT_EXTRACT_DATA = `You are given the website content of {{url}} (converted to markdown). Your primary goal is to extract information from this content to accurately populate the provided JSON schema.
 
@@ -29,8 +44,9 @@ Objects:
 interface WebsiteAgentRawConfig {
     url?: string;
     schemaPath?: string;
-    depth: number;
-    linksConfig: ModelDefinition;
+    budget: number;
+    batchSize: number;
+    navigatorConfig: ModelDefinition;
     extractConfig: ModelDefinition;
     mergeConfig: ModelDefinition;
 }
@@ -38,8 +54,9 @@ interface WebsiteAgentRawConfig {
 interface WebsiteAgentResolvedConfig {
     url: string;
     schema: any; // JSON Schema object
-    depth: number;
-    linksConfig: ResolvedModelConfig;
+    budget: number;
+    batchSize: number;
+    navigatorConfig: ResolvedModelConfig;
     extractConfig: ResolvedModelConfig;
     mergeConfig: ResolvedModelConfig;
 }
@@ -52,10 +69,11 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
     register(program: Command): void {
         program.option('--website-agent-url <url>', 'Starting URL for the agent');
         program.option('--website-agent-schema <path>', 'Path to JSON schema for extraction');
-        program.option('--website-agent-depth <number>', 'Depth of navigation (0=single page, 1=subpages)', '0');
+        program.option('--website-agent-budget <number>', 'Max pages to visit', '10');
+        program.option('--website-agent-batch-size <number>', 'Max pages to visit in parallel per step', '3');
 
-        // Register Model Flags for the 3 operations
-        ModelFlags.register(program, 'website-links', { includePrompt: true });
+        // Register Model Flags
+        ModelFlags.register(program, 'website-navigator', { includePrompt: true });
         ModelFlags.register(program, 'website-extract', { includePrompt: true });
         ModelFlags.register(program, 'website-merge', { includePrompt: true });
     }
@@ -63,9 +81,10 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
     registerStep(program: Command, stepIndex: number): void {
         program.option(`--website-agent-url-${stepIndex} <url>`, `Starting URL for step ${stepIndex}`);
         program.option(`--website-agent-schema-${stepIndex} <path>`, `Schema path for step ${stepIndex}`);
-        program.option(`--website-agent-depth-${stepIndex} <number>`, `Depth for step ${stepIndex}`);
+        program.option(`--website-agent-budget-${stepIndex} <number>`, `Budget for step ${stepIndex}`);
+        program.option(`--website-agent-batch-size-${stepIndex} <number>`, `Batch size for step ${stepIndex}`);
 
-        ModelFlags.register(program, `website-links-${stepIndex}`, { includePrompt: true });
+        ModelFlags.register(program, `website-navigator-${stepIndex}`, { includePrompt: true });
         ModelFlags.register(program, `website-extract-${stepIndex}`, { includePrompt: true });
         ModelFlags.register(program, `website-merge-${stepIndex}`, { includePrompt: true });
     }
@@ -94,8 +113,9 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         const config: WebsiteAgentRawConfig = {
             url,
             schemaPath,
-            depth: parseInt(getOpt('websiteAgentDepth') || '0', 10),
-            linksConfig: extractModel(`website-links-${stepIndex}`, 'website-links'),
+            budget: parseInt(getOpt('websiteAgentBudget') || '10', 10),
+            batchSize: parseInt(getOpt('websiteAgentBatchSize') || '3', 10),
+            navigatorConfig: extractModel(`website-navigator-${stepIndex}`, 'website-navigator'),
             extractConfig: extractModel(`website-extract-${stepIndex}`, 'website-extract'),
             mergeConfig: extractModel(`website-merge-${stepIndex}`, 'website-merge')
         };
@@ -130,13 +150,13 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         }
 
         // Resolve Model Configs
-        const linksConfig = await PluginHelpers.resolveModelConfig(config.linksConfig, row)
+        const navigatorConfig = await PluginHelpers.resolveModelConfig(config.navigatorConfig, row);
         const extractConfig = await PluginHelpers.resolveModelConfig(config.extractConfig, row);
-        const mergeConfig = await PluginHelpers.resolveModelConfig(config.mergeConfig, row)
+        const mergeConfig = await PluginHelpers.resolveModelConfig(config.mergeConfig, row);
 
         // Apply Default Prompts if none provided
-        if (linksConfig.promptParts.length === 0) {
-            linksConfig.promptParts = [{ type: 'text', text: DEFAULT_EXTRACT_LINKS }];
+        if (navigatorConfig.promptParts.length === 0) {
+            navigatorConfig.promptParts = [{ type: 'text', text: DEFAULT_NAVIGATOR_PROMPT }];
         }
         if (extractConfig.promptParts.length === 0) {
             extractConfig.promptParts = [{ type: 'text', text: DEFAULT_EXTRACT_DATA }];
@@ -148,8 +168,9 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         return {
             url,
             schema,
-            depth: config.depth,
-            linksConfig,
+            budget: config.budget,
+            batchSize: config.batchSize,
+            navigatorConfig,
             extractConfig,
             mergeConfig
         };
@@ -174,12 +195,13 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             throw new Error(`[WebsiteAgent] Step ${stepIndex}: Invalid URL format (must start with http/https): "${resolvedConfig.url}"`);
         }
 
-        const result = await services.aiWebsiteAgent.scrape(
+        const result = await services.aiWebsiteAgent.scrapeIterative(
             resolvedConfig.url,
             resolvedConfig.schema,
             {
-                depth: resolvedConfig.depth,
-                linksConfig: resolvedConfig.linksConfig,
+                budget: resolvedConfig.budget,
+                batchSize: resolvedConfig.batchSize,
+                navigatorConfig: resolvedConfig.navigatorConfig,
                 extractConfig: resolvedConfig.extractConfig,
                 mergeConfig: resolvedConfig.mergeConfig,
                 row: row // Pass row for template rendering in AiWebsiteAgent

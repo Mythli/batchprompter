@@ -9,12 +9,18 @@ import { ResolvedModelConfig } from '../types.js';
 import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
 
 export interface AiWebsiteAgentOptions {
-    depth?: number;
-    maxLinks?: number;
-    linksConfig: ResolvedModelConfig;
+    budget: number;
+    batchSize: number;
+    navigatorConfig: ResolvedModelConfig;
     extractConfig: ResolvedModelConfig;
     mergeConfig: ResolvedModelConfig;
     row: Record<string, any>;
+}
+
+interface ScrapedPageResult {
+    url: string;
+    data: any;
+    links: LinkData[];
 }
 
 export class AiWebsiteAgent {
@@ -24,61 +30,6 @@ export class AiWebsiteAgent {
         private llm: LlmClient,
         private puppeteerQueue: PQueue
     ) {}
-
-    private async extractRelevantLinks(
-        baseUrl: string,
-        links: LinkData[],
-        maxLinks: number,
-        config: ResolvedModelConfig,
-        row: Record<string, any>
-    ): Promise<string[]> {
-        const linksText = links
-            .filter(l => l.text.length > 0)
-            .slice(0, 200)
-            .map(link => `URL: ${link.href}\nText: ${link.text}`)
-            .join('\n\n');
-
-        const LinkSchema = z.object({
-            relevant_urls: z.array(z.string()).max(maxLinks).describe("List of relevant absolute URLs found on the page.")
-        });
-
-        // Prepare context for template rendering
-        const context = { ...row, baseUrl, linksText };
-
-        // Use Normalizer to build request
-        // Note: The prompt in config.promptParts likely contains {{baseUrl}} and {{linksText}}
-        // We need to re-render the prompt parts with this new context.
-        // Since ModelRequestNormalizer renders templates, we pass the merged context.
-        
-        const request = ModelRequestNormalizer.normalize(config, context);
-
-        const response = await this.llm.promptZod(
-            request.messages,
-            LinkSchema,
-            { model: request.model, ...request.options }
-        );
-
-        return response.relevant_urls;
-    }
-
-    private async extractDataFromMarkdown(
-        url: string,
-        markdown: string,
-        schema: any, // JSON Schema Object
-        config: ResolvedModelConfig,
-        row: Record<string, any>
-    ): Promise<any> {
-        const truncatedMarkdown = markdown.substring(0, 20000);
-
-        const context = { ...row, url, truncatedMarkdown };
-        const request = ModelRequestNormalizer.normalize(config, context);
-
-        return await this.llm.promptJson(
-            request.messages,
-            schema,
-            { model: request.model, ...request.options }
-        );
-    }
 
     private async getPageContent(url: string): Promise<{ html: string, markdown: string, links: LinkData[] }> {
         return this.puppeteerQueue.add(async () => {
@@ -110,96 +61,204 @@ export class AiWebsiteAgent {
         }) as Promise<{ html: string, markdown: string, links: LinkData[] }>;
     }
 
-    async scrape(
+    private async extractDataFromMarkdown(
         url: string,
+        markdown: string,
         schema: any, // JSON Schema Object
-        options: AiWebsiteAgentOptions
+        config: ResolvedModelConfig,
+        row: Record<string, any>
     ): Promise<any> {
-        const depth = options.depth ?? 0;
-        const maxLinks = options.maxLinks ?? 3;
-        
-        console.log(`[AiWebsiteAgent] Scraping ${url} (Depth: ${depth})...`);
+        const truncatedMarkdown = markdown.substring(0, 20000);
 
-        // 1. Fetch Main Page (Sequential, required for everything)
-        const mainPage = await this.getPageContent(url);
+        const context = { ...row, url, truncatedMarkdown };
+        const request = ModelRequestNormalizer.normalize(config, context);
 
-        // 2. Define Tasks
+        return await this.llm.promptJson(
+            request.messages,
+            schema,
+            { model: request.model, ...request.options }
+        );
+    }
+
+    private async decideNextSteps(
+        currentData: any,
+        visitedUrls: Set<string>,
+        knownLinks: LinkData[],
+        budget: number,
+        batchSize: number,
+        schema: any,
+        config: ResolvedModelConfig,
+        row: Record<string, any>
+    ): Promise<{ nextUrls: string[], isDone: boolean }> {
         
-        // Task A: Extract data from main page
-        const mainDataTask = this.extractDataFromMarkdown(
-            url, 
-            mainPage.markdown, 
-            schema, 
-            options.extractConfig, 
-            options.row
+        // Filter known links to exclude visited ones
+        const candidates = knownLinks
+            .filter(l => !visitedUrls.has(l.href) && l.href.startsWith('http'))
+            .slice(0, 50); // Limit candidates to avoid token overflow
+
+        if (candidates.length === 0) {
+            return { nextUrls: [], isDone: true };
+        }
+
+        const linksText = candidates
+            .map((l, i) => `[${i}] ${l.href} (Text: "${l.text}")`)
+            .join('\n');
+
+        const NavigatorSchema = z.object({
+            next_urls: z.array(z.string()).describe("List of URLs to visit next. Must be exact matches from the available links."),
+            reasoning: z.string().describe("Reasoning for visiting these pages or deciding to stop."),
+            is_done: z.boolean().describe("True if sufficient information has been gathered.")
+        });
+
+        const context = {
+            ...row,
+            schemaDescription: JSON.stringify(schema),
+            visitedCount: visitedUrls.size,
+            budget,
+            batchSize,
+            currentData: JSON.stringify(currentData, null, 2),
+            linksText
+        };
+
+        const request = ModelRequestNormalizer.normalize(config, context);
+
+        const response = await this.llm.promptZod(
+            request.messages,
+            NavigatorSchema,
+            { model: request.model, ...request.options }
         );
 
-        // Task B: Find and scrape sub-pages (if depth > 0)
-        const subPagesTask = (async () => {
-            if (depth <= 0) return [];
+        // Validate returned URLs exist in candidates (hallucination check)
+        const validNextUrls = response.next_urls.filter(url => 
+            candidates.some(c => c.href === url)
+        );
 
-            console.log(`[AiWebsiteAgent] Analyzing links on ${url}...`);
-            const relevantUrls = await this.extractRelevantLinks(
-                url, 
-                mainPage.links, 
-                maxLinks, 
-                options.linksConfig, 
+        return {
+            nextUrls: validNextUrls.slice(0, batchSize),
+            isDone: response.is_done
+        };
+    }
+
+    private async mergeResults(
+        results: any[],
+        schema: any,
+        config: ResolvedModelConfig,
+        row: Record<string, any>
+    ): Promise<any> {
+        if (results.length === 0) return {};
+        if (results.length === 1) return results[0];
+
+        const context = { ...row, jsonObjects: JSON.stringify(results, null, 2) };
+        const request = ModelRequestNormalizer.normalize(config, context);
+
+        return await this.llm.promptJson(
+            request.messages,
+            schema,
+            { model: request.model, ...request.options }
+        );
+    }
+
+    async scrapeIterative(
+        initialUrl: string,
+        schema: any,
+        options: AiWebsiteAgentOptions
+    ): Promise<any> {
+        let budget = options.budget;
+        const visitedUrls = new Set<string>();
+        const knownLinks: LinkData[] = [];
+        const extractedData: any[] = [];
+        
+        // 1. Initial Page
+        console.log(`[AiWebsiteAgent] Starting at ${initialUrl} (Budget: ${budget})`);
+        
+        try {
+            const initialPage = await this.getPageContent(initialUrl);
+            visitedUrls.add(initialUrl);
+            budget--;
+
+            const initialData = await this.extractDataFromMarkdown(
+                initialUrl,
+                initialPage.markdown,
+                schema,
+                options.extractConfig,
                 options.row
             );
             
-            const uniqueUrls = relevantUrls.filter(u => u !== url && u.startsWith('http'));
-            console.log(`[AiWebsiteAgent] Found sub-pages: ${uniqueUrls.join(', ')}`);
+            extractedData.push(initialData);
+            knownLinks.push(...initialPage.links);
+        } catch (e) {
+            console.error(`[AiWebsiteAgent] Failed to scrape initial URL ${initialUrl}:`, e);
+            return {}; // Fail early if initial page fails? Or return empty?
+        }
 
-            const subPagePromises = uniqueUrls.map(async (subUrl) => {
+        // 2. Iterative Loop
+        while (budget > 0) {
+            // Merge current findings to give context to Navigator
+            // We do a "soft merge" or just pass the array if it's small enough. 
+            // For robustness, let's run the merge model to get a clean state.
+            // Optimization: If we have many results, maybe just pass the last merged state + new data?
+            // For now, let's merge all.
+            const currentMerged = await this.mergeResults(extractedData, schema, options.mergeConfig, options.row);
+
+            // Decide Next Steps
+            const { nextUrls, isDone } = await this.decideNextSteps(
+                currentMerged,
+                visitedUrls,
+                knownLinks,
+                budget,
+                options.batchSize,
+                schema,
+                options.navigatorConfig,
+                options.row
+            );
+
+            if (isDone || nextUrls.length === 0) {
+                console.log(`[AiWebsiteAgent] Stopping. Done: ${isDone}, Next URLs: ${nextUrls.length}`);
+                break;
+            }
+
+            console.log(`[AiWebsiteAgent] Next batch: ${nextUrls.join(', ')}`);
+
+            // Execute Batch
+            const batchPromises = nextUrls.map(async (url) => {
+                if (visitedUrls.has(url)) return null;
+                visitedUrls.add(url);
+                
                 try {
-                    const subPage = await this.getPageContent(subUrl);
-                    return await this.extractDataFromMarkdown(
-                        subUrl, 
-                        subPage.markdown, 
-                        schema, 
-                        options.extractConfig, 
+                    const page = await this.getPageContent(url);
+                    const data = await this.extractDataFromMarkdown(
+                        url,
+                        page.markdown,
+                        schema,
+                        options.extractConfig,
                         options.row
                     );
+                    return { url, data, links: page.links };
                 } catch (e) {
-                    console.warn(`[AiWebsiteAgent] Failed to scrape sub-page ${subUrl}:`, e);
-                    return {};
+                    console.warn(`[AiWebsiteAgent] Failed to scrape ${url}:`, e);
+                    return null;
                 }
             });
 
-            return Promise.all(subPagePromises);
-        })();
+            const batchResults = await Promise.all(batchPromises);
+            const successfulResults = batchResults.filter(r => r !== null) as ScrapedPageResult[];
 
-        // 3. Execute with Safety (Promise.allSettled)
-        // This ensures that if one task fails (e.g. link extraction), we still wait for the other (main data extraction)
-        // to complete or fail, preventing unhandled promise rejections.
-        const results = await Promise.allSettled([mainDataTask, subPagesTask]);
-
-        // 4. Check for Errors
-        const rejected = results.find(r => r.status === 'rejected');
-        if (rejected) {
-            // If one failed, we throw the error so ActionRunner catches it for this row.
-            throw (rejected as PromiseRejectedResult).reason;
+            // Update State
+            budget -= successfulResults.length; // Only deduct for attempted/successful pages
+            
+            for (const res of successfulResults) {
+                extractedData.push(res.data);
+                knownLinks.push(...res.links);
+            }
         }
 
-        // 5. Retrieve Results
-        const mainData = (results[0] as PromiseFulfilledResult<any>).value;
-        const subPagesData = (results[1] as PromiseFulfilledResult<any[]>).value;
-        
-        const allData = [mainData, ...subPagesData];
+        // 3. Final Merge
+        console.log(`[AiWebsiteAgent] Final merge of ${extractedData.length} results...`);
+        return await this.mergeResults(extractedData, schema, options.mergeConfig, options.row);
+    }
 
-        if (allData.length > 1) {
-             console.log(`[AiWebsiteAgent] Merging ${allData.length} data sources...`);
-
-             const context = { ...options.row, jsonObjects: JSON.stringify(allData, null, 2) };
-             const request = ModelRequestNormalizer.normalize(options.mergeConfig, context);
-
-             return await this.llm.promptJson(
-                 request.messages,
-                 schema,
-                 { model: request.model, ...request.options }
-             );
-        }
-
-        return mainData;
+    // Legacy method kept for compatibility if needed, or redirected
+    async scrape(url: string, schema: any, options: any): Promise<any> {
+        return this.scrapeIterative(url, schema, options);
     }
 }
