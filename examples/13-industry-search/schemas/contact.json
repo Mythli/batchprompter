@@ -3,11 +3,11 @@
   "description": "Extract contact details, decision maker info, and identify the Top Offer of the business. For the Top Offer: Identify ONE single, concrete, purchasable 'Top Offer'. It must be the MAIN product or service this business is trying to sell. Look for the 'Hero' offer featured on the homepage, the core service that defines the business, or the bestseller. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').",
   "properties": {
     "isIndustry": {
-      "type": "boolean",
+      "type": ["boolean", "null"],
       "description": "Is this company offering {{industry}}?"
     },
     "isIndustryReason": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "Reason why this company is or is not offering {{industry}}."
     },
     "companyName": {
@@ -43,7 +43,7 @@
       }
     },
     "topOfferName": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "The specific name of the single offer (e.g. 'Open Water Diver Course', 'Full Body Massage 60min'). (in German)"
     },
     "topOfferPrice": {
@@ -51,7 +51,7 @@
       "description": "The price of this specific offer in Euros (e.g. 2990). Do not include currency symbols."
     },
     "topOfferDescription": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "A detailed description of exactly what is included in this specific offer. Do not list general services."
     },
     "topOfferLink": {
@@ -63,13 +63,12 @@
       "description": "Link to the booking page, contact form, or checkout page specifically for this offer."
     },
     "topOfferReason": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "Reason why this specific item was selected as the top offer (e.g. 'Featured prominently on homepage', 'Core business service'). (in German)"
     },
     "top5Offers": {
-      "type": "string",
+      "type": ["string", "null"],
       "description": "A bulleted list of the top 5 offers found on the website. Each bullet point must include the Offer Name, Price (if available), Appointment info (if relevant), and a short description of what it is."
     }
-  },
-  "required": ["isIndustry", "isIndustryReason", "topOfferName", "topOfferDescription", "topOfferReason", "top5Offers"]
+  }
 }
