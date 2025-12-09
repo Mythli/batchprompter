@@ -18,9 +18,9 @@
       "type": ["string", "null"],
       "description": "The specific URL to this offer's page."
     },
-    "topOfferPage": {
+    "topOfferBookingPage": {
       "type": ["string", "null"],
-      "description": "Link to the page describing this offer."
+      "description": "Link to the appointment booking page, contact form, or checkout page specifically for this offer."
     },
     "topOfferReason": {
       "type": "string",
