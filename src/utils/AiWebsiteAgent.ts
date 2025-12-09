@@ -81,7 +81,7 @@ export class AiWebsiteAgent {
     }
 
     private async decideNextSteps(
-        currentData: any,
+        extractedData: any[],
         visitedUrls: Set<string>,
         knownLinks: LinkData[],
         budget: number,
@@ -116,7 +116,8 @@ export class AiWebsiteAgent {
             visitedCount: visitedUrls.size,
             budget,
             batchSize,
-            currentData: JSON.stringify(currentData, null, 2),
+            // Pass the raw array of extracted data instead of a merged object
+            currentData: JSON.stringify(extractedData, null, 2),
             linksText
         };
 
@@ -184,7 +185,8 @@ export class AiWebsiteAgent {
                 options.row
             );
             
-            extractedData.push(initialData);
+            // Store with URL context for the Navigator
+            extractedData.push({ url: initialUrl, data: initialData });
             knownLinks.push(...initialPage.links);
         } catch (e) {
             console.error(`[AiWebsiteAgent] Failed to scrape initial URL ${initialUrl}:`, e);
@@ -193,16 +195,9 @@ export class AiWebsiteAgent {
 
         // 2. Iterative Loop
         while (budget > 0) {
-            // Merge current findings to give context to Navigator
-            // We do a "soft merge" or just pass the array if it's small enough. 
-            // For robustness, let's run the merge model to get a clean state.
-            // Optimization: If we have many results, maybe just pass the last merged state + new data?
-            // For now, let's merge all.
-            const currentMerged = await this.mergeResults(extractedData, schema, options.mergeConfig, options.row);
-
-            // Decide Next Steps
+            // Decide Next Steps based on raw extracted data
             const { nextUrls, isDone } = await this.decideNextSteps(
-                currentMerged,
+                extractedData,
                 visitedUrls,
                 knownLinks,
                 budget,
@@ -247,14 +242,19 @@ export class AiWebsiteAgent {
             budget -= successfulResults.length; // Only deduct for attempted/successful pages
             
             for (const res of successfulResults) {
-                extractedData.push(res.data);
+                extractedData.push({ url: res.url, data: res.data });
                 knownLinks.push(...res.links);
             }
         }
 
         // 3. Final Merge
-        console.log(`[AiWebsiteAgent] Final merge of ${extractedData.length} results...`);
-        return await this.mergeResults(extractedData, schema, options.mergeConfig, options.row);
+        // We only pass the 'data' part to the merge function to keep it clean, 
+        // or we can pass the whole object if the merge prompt expects URLs.
+        // The default merge prompt expects "jsonObjects", so passing the data array is safer.
+        const dataToMerge = extractedData.map(d => d.data);
+        
+        console.log(`[AiWebsiteAgent] Final merge of ${dataToMerge.length} results...`);
+        return await this.mergeResults(dataToMerge, schema, options.mergeConfig, options.row);
     }
 
     // Legacy method kept for compatibility if needed, or redirected
