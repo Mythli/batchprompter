@@ -21,7 +21,7 @@ export class GenericPuppeteerHandler implements GenericHandler {
                         return compressHtml(rawHtml);
                     },
                     {
-                        dismissCookies: true,
+                        dismissCookies: false, // No need to dismiss cookies in HTML-only mode
                         htmlOnly: true, // Enforce HTML-only mode for performance
                         ttl: 24 * 60 * 60 * 1000 // 24 hours
                     }
