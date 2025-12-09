@@ -1,19 +1,31 @@
 {
   "type": "object",
+  "description": "Identify the single 'Top Offer' of the business. The Top Offer must be the core product or service, ideally the biggest revenue generator or the main reason customers visit this business. Ignore generic vouchers or minor accessories.",
   "properties": {
-    "offers": {
-      "type": "array",
-      "description": "A list of up to 5 specific offers, courses, products, or services found on the website. Prioritize offers that are concrete (have specific dates, prices, or schedules) and best represent the core business (e.g. specific hunting courses rather than generic vouchers).",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": { "type": "string", "description": "The name of the offer, course, or product." },
-          "price": { "type": ["string", "null"], "description": "The price, if available (e.g. '2.990 €')." },
-          "dates": { "type": ["string", "null"], "description": "Specific dates, duration, or schedule (e.g. '09.08.-18.08.2025', '2 weeks', 'Weekends')." },
-          "description": { "type": "string", "description": "A brief description of what is included." }
-        },
-        "required": ["name", "description"]
-      }
+    "topOfferName": {
+      "type": "string",
+      "description": "The name of the core offer, course, or product (in German)."
+    },
+    "topOfferPrice": {
+      "type": ["string", "null"],
+      "description": "The price of the offer, if available (e.g. '2.990 €')."
+    },
+    "topOfferDescription": {
+      "type": "string",
+      "description": "A brief description of what is included in this offer (in German)."
+    },
+    "topOfferLink": {
+      "type": ["string", "null"],
+      "description": "The specific URL to this offer's page."
+    },
+    "topOfferAppointment": {
+      "type": ["string", "null"],
+      "description": "Link to the appointment booking page or contact form for this offer."
+    },
+    "topOfferReason": {
+      "type": "string",
+      "description": "Reason why this was selected as the top offer (e.g. 'Main service promoted on homepage', 'Most expensive course'). (in German)"
     }
-  }
+  },
+  "required": ["topOfferName", "topOfferDescription", "topOfferReason"]
 }
