@@ -2,7 +2,7 @@ import puppeteer, { Browser, Page, LaunchOptions as PuppeteerLaunchOptions } fro
 import fs from 'fs/promises';
 import { PuppeteerPageHelper } from './PuppeteerPageHelper.js';
 import { Cache } from 'cache-manager';
-import type { Fetcher } from '../createCachedFetcher.js';
+import {Fetcher} from "llm-fns";
 
 export interface PuppeteerHelperOptions {
     browserUserDataDir?: string;
