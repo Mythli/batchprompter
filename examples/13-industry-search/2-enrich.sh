@@ -3,9 +3,10 @@
 # This script takes the list of companies (examples/13-industry-search/companies.csv)
 # and enriches it with contact details, LinkedIn profiles, and offers.
 
-npx tsx src/index.ts generate examples/13-industry-search/companies.csv \
+npx tsx src/index.ts generate examples/13-industry-search/test_processed.csv \
   \
   "" \
+  --limit 50 \
   --model "google/gemini-3-pro-preview" \
   --website-agent-url-1 "{{link}}" \
   --website-agent-depth-1 1 \
@@ -38,7 +39,9 @@ Guidelines:
 - If Price or Dates are missing, omit them from the parentheses.
 - Return ONLY the bulleted list.
 
-If the data is empty, return an empty text" \
+If the data is empty, return an empty text.
+
+You need to write in german." \
   --website-agent-url-4 "{{link}}" \
   --website-agent-depth-4 1 \
   --website-agent-schema-4 examples/13-industry-search/schemas/offers.json \
