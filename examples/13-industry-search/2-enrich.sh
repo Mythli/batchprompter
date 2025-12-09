@@ -23,9 +23,4 @@ Output Rules:
   --web-search-query-3 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company" \
   --web-search-limit-3 5 \
   --web-select-3-prompt "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything." \
-  --output-column-3 "linkedinUrl" \
-  \
-  "" \
-  --website-agent-url-4 "{{link}}" \
-  --website-agent-schema-4 examples/13-industry-search/schemas/offers.json \
-  --website-agent-export-4
+  --output-column-3 "linkedinUrl"
