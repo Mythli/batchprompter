@@ -55,6 +55,8 @@ export const configSchema = z.object({
     GPT_CONCURRENCY: z.coerce.number().int().positive().default(50),
     SERPER_CONCURRENCY: z.coerce.number().int().positive().default(5),
     PUPPETEER_CONCURRENCY: z.coerce.number().int().positive().default(3),
+    PUPPETEER_MAX_PAGES_BEFORE_RESTART: z.coerce.number().int().positive().default(50),
+    PUPPETEER_RESTART_TIMEOUT: z.coerce.number().int().positive().default(10000),
 });
 
 export type ConfigOverrides = {
@@ -136,6 +138,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         GPT_CONCURRENCY: getEnvVar(['BATCHPROMPT_GPT_CONCURRENCY', 'GPT_CONCURRENCY']),
         SERPER_CONCURRENCY: getEnvVar(['BATCHPROMPT_SERPER_CONCURRENCY', 'SERPER_CONCURRENCY']),
         PUPPETEER_CONCURRENCY: getEnvVar(['BATCHPROMPT_PUPPETEER_CONCURRENCY', 'PUPPETEER_CONCURRENCY']),
+        PUPPETEER_MAX_PAGES_BEFORE_RESTART: getEnvVar(['BATCHPROMPT_PUPPETEER_MAX_PAGES_BEFORE_RESTART', 'PUPPETEER_MAX_PAGES_BEFORE_RESTART']),
+        PUPPETEER_RESTART_TIMEOUT: getEnvVar(['BATCHPROMPT_PUPPETEER_RESTART_TIMEOUT', 'PUPPETEER_RESTART_TIMEOUT']),
     };
 
     const config = configSchema.parse(rawConfig);
@@ -199,7 +203,9 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Initialize PuppeteerHelper
     const puppeteerHelper = new PuppeteerHelper({
         cache,
-        fetcher
+        fetcher,
+        maxPagesBeforeRestart: config.PUPPETEER_MAX_PAGES_BEFORE_RESTART,
+        restartTimeout: config.PUPPETEER_RESTART_TIMEOUT
     });
     // We don't await init() here, let it lazy load on first use to avoid overhead if not used.
 
