@@ -25,7 +25,7 @@ export class PuppeteerUrlExpanderPlugin extends UrlExpanderBase {
                     },
                     {
                         dismissCookies: true,
-                        htmlOnly: true,
+                        htmlOnly: true, // Enforce HTML-only mode for performance
                         ttl: 24 * 60 * 60 * 1000 // 24 hours
                     }
                 );

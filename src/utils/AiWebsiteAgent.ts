@@ -99,7 +99,7 @@ export class AiWebsiteAgent {
                     },
                     {
                         dismissCookies: true,
-                        htmlOnly: true,
+                        htmlOnly: true, // Enforce HTML-only mode for performance
                         cacheKey: `website-agent-v1:${url}`,
                         ttl: 24 * 60 * 60 * 1000 // 24 hours
                     }
