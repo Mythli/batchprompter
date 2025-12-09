@@ -112,7 +112,7 @@ export class AiWebsiteAgent {
 
         const context = {
             ...row,
-            schemaDescription: JSON.stringify(schema),
+            // schemaDescription removed as promptZod handles it
             visitedCount: visitedUrls.size,
             budget,
             batchSize,
@@ -235,8 +235,12 @@ export class AiWebsiteAgent {
                 }
             });
 
-            const batchResults = await Promise.all(batchPromises);
-            const successfulResults = batchResults.filter(r => r !== null) as ScrapedPageResult[];
+            const batchResults = await Promise.allSettled(batchPromises);
+            
+            const successfulResults = batchResults
+                .filter(r => r.status === 'fulfilled')
+                .map(r => (r as PromiseFulfilledResult<ScrapedPageResult | null>).value)
+                .filter(r => r !== null) as ScrapedPageResult[];
 
             // Update State
             budget -= successfulResults.length; // Only deduct for attempted/successful pages
