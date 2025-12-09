@@ -25,7 +25,11 @@
     "topOfferReason": {
       "type": "string",
       "description": "Reason why this specific item was selected as the top offer (e.g. 'Featured prominently on homepage', 'Core business service'). (in German)"
+    },
+    "top5Offers": {
+      "type": "string",
+      "description": "A bulleted list of the top 5 offers found on the website. Each bullet point must include the Offer Name, Price (if available), Appointment info (if relevant), and a short description of what it is."
     }
   },
-  "required": ["topOfferName", "topOfferDescription", "topOfferReason"]
+  "required": ["topOfferName", "topOfferDescription", "topOfferReason", "top5Offers"]
 }
