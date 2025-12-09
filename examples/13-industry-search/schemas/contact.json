@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Extract contact details, decision maker info, and identify the Top Offer of the business. For the Top Offer: Identify ONE single, concrete, purchasable 'Top Offer'. It must be the MAIN product or service this business is trying to sell. Look for the 'Hero' offer featured on the homepage, the core service that defines the business, or the bestseller. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').",
+  "description": "Extract contact details, decision maker info, and identify the Top Offer of the business.",
   "properties": {
     "isIndustry": {
       "type": ["boolean", "null"],
@@ -44,7 +44,7 @@
     },
     "topOffer": {
       "type": ["object", "null"],
-      "description": "Details about the single most important offer.",
+      "description": "Identify ONE single, concrete, purchasable 'Top Offer'. It must be the MAIN product or service this business is trying to sell. Look for the 'Hero' offer featured on the homepage, the core service that defines the business, or the bestseller. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').",
       "properties": {
         "name": {
           "type": ["string", "null"],
