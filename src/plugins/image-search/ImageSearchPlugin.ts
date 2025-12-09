@@ -206,16 +206,24 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         // 2. Execute Searches
         console.log(`[Row ${context.row.index}] Step ${stepIndex} Executing ${queries.length} searches...`);
         const searchPromises = queries.map(q => imageSearch.search(q, resolvedConfig.limit));
-        const results = await Promise.all(searchPromises);
+        
+        // Use allSettled to prevent one failed query from crashing the entire batch (and potentially the process via unhandled rejection)
+        const results = await Promise.allSettled(searchPromises);
 
         const pooledImages: any[] = [];
         const seenUrls = new Set<string>();
-        for (const group of results) {
-            for (const img of group) {
-                if (!seenUrls.has(img.metadata.imageUrl)) {
-                    seenUrls.add(img.metadata.imageUrl);
-                    pooledImages.push(img);
+        
+        for (const result of results) {
+            if (result.status === 'fulfilled') {
+                const group = result.value;
+                for (const img of group) {
+                    if (!seenUrls.has(img.metadata.imageUrl)) {
+                        seenUrls.add(img.metadata.imageUrl);
+                        pooledImages.push(img);
+                    }
                 }
+            } else {
+                console.warn(`[Row ${context.row.index}] Step ${stepIndex} Image search query failed:`, result.reason);
             }
         }
 
