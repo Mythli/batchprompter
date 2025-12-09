@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Identify ONE single, concrete, purchasable 'Top Offer'. It must be a specific product, course, or service that a customer can buy or book right now. Do NOT summarize multiple offers into one (e.g. do not say 'Various Yoga Classes', instead pick 'Hatha Yoga 10-Week Course'). If there are multiple options, pick the most prominent or expensive one. Do NOT invent offers.",
+  "description": "Identify ONE single, concrete, purchasable 'Top Offer'. It must be the MAIN product or service this business is trying to sell. Look for the 'Hero' offer featured on the homepage, the core service that defines the business, or the bestseller. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').",
   "properties": {
     "topOfferName": {
       "type": "string",
@@ -24,7 +24,7 @@
     },
     "topOfferReason": {
       "type": "string",
-      "description": "Reason why this specific item was selected as the top offer. (in German)"
+      "description": "Reason why this specific item was selected as the top offer (e.g. 'Featured prominently on homepage', 'Core business service'). (in German)"
     }
   },
   "required": ["topOfferName", "topOfferDescription", "topOfferReason"]
