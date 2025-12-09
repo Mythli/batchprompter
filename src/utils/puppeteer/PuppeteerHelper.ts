@@ -205,9 +205,12 @@ export class PuppeteerHelper {
         this.pagesOpenedCount++;
         this.activePagesCount++;
         
+        console.log(`[PuppeteerHelper] Page opened. Total opened: ${this.pagesOpenedCount}/${this.maxPagesLimit}. Active: ${this.activePagesCount}`);
+
         // Listen for close to decrement active count
         page.once('close', () => {
             this.activePagesCount--;
+            console.log(`[PuppeteerHelper] Page closed. Active: ${this.activePagesCount}`);
         });
 
         return page;
