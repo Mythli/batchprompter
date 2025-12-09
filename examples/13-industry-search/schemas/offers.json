@@ -7,8 +7,8 @@
       "description": "The specific name of the single offer (e.g. 'Open Water Diver Course', 'Full Body Massage 60min'). (in German)"
     },
     "topOfferPrice": {
-      "type": ["string", "null"],
-      "description": "The price of this specific offer, if available (e.g. '2.990 €')."
+      "type": ["number", "null"],
+      "description": "The price of this specific offer in Euros (e.g. 2990). Do not include currency symbols."
     },
     "topOfferDescription": {
       "type": "string",
