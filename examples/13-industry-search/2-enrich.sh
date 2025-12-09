@@ -6,10 +6,9 @@
 npx tsx src/index.ts generate examples/13-industry-search/test_processed.csv \
   \
   "" \
-  --limit 50 \
+  --limit 10 \
   --model "google/gemini-3-pro-preview" \
   --website-agent-url-1 "{{link}}" \
-  --website-agent-depth-1 1 \
   --website-agent-schema-1 examples/13-industry-search/schemas/contact.json \
   --website-agent-export-1 \
   \
@@ -28,6 +27,5 @@ Output Rules:
   \
   "" \
   --website-agent-url-4 "{{link}}" \
-  --website-agent-depth-4 1 \
   --website-agent-schema-4 examples/13-industry-search/schemas/offers.json \
   --website-agent-export-4
