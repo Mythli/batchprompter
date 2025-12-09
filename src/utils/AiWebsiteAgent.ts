@@ -23,6 +23,10 @@ interface ScrapedPageResult {
     links: LinkData[];
 }
 
+interface EnrichedLinkData extends LinkData {
+    firstSeenOn: string;
+}
+
 export class AiWebsiteAgent {
     
     constructor(
@@ -83,7 +87,7 @@ export class AiWebsiteAgent {
     private async decideNextSteps(
         extractedData: any[],
         visitedUrls: Set<string>,
-        knownLinks: LinkData[],
+        knownLinks: Map<string, EnrichedLinkData>,
         budget: number,
         batchSize: number,
         schema: any,
@@ -92,7 +96,7 @@ export class AiWebsiteAgent {
     ): Promise<{ nextUrls: string[], isDone: boolean }> {
         
         // Filter known links to exclude visited ones
-        const candidates = knownLinks
+        const candidates = Array.from(knownLinks.values())
             .filter(l => !visitedUrls.has(l.href) && l.href.startsWith('http'))
             .slice(0, 50); // Limit candidates to avoid token overflow
 
@@ -101,7 +105,7 @@ export class AiWebsiteAgent {
         }
 
         const linksText = candidates
-            .map((l, i) => `[${i}] ${l.href} (Text: "${l.text}")`)
+            .map((l, i) => `[${i}] ${l.href} (Text: "${l.text}", Found on: "${l.firstSeenOn}")`)
             .join('\n');
 
         const NavigatorSchema = z.object({
@@ -166,7 +170,7 @@ export class AiWebsiteAgent {
     ): Promise<any> {
         let budget = options.budget;
         const visitedUrls = new Set<string>();
-        const knownLinks: LinkData[] = [];
+        const knownLinks = new Map<string, EnrichedLinkData>();
         const extractedData: any[] = [];
         
         // 1. Initial Page
@@ -187,7 +191,13 @@ export class AiWebsiteAgent {
             
             // Store with URL context for the Navigator
             extractedData.push({ url: initialUrl, data: initialData });
-            knownLinks.push(...initialPage.links);
+            
+            // Add initial links
+            for (const link of initialPage.links) {
+                if (!knownLinks.has(link.href)) {
+                    knownLinks.set(link.href, { ...link, firstSeenOn: initialUrl });
+                }
+            }
         } catch (e) {
             console.error(`[AiWebsiteAgent] Failed to scrape initial URL ${initialUrl}:`, e);
             return {}; // Fail early if initial page fails? Or return empty?
@@ -247,7 +257,13 @@ export class AiWebsiteAgent {
             
             for (const res of successfulResults) {
                 extractedData.push({ url: res.url, data: res.data });
-                knownLinks.push(...res.links);
+                
+                // Add new links
+                for (const link of res.links) {
+                    if (!knownLinks.has(link.href)) {
+                        knownLinks.set(link.href, { ...link, firstSeenOn: res.url });
+                    }
+                }
             }
         }
 
