@@ -50,6 +50,13 @@ export class ModelFlags {
     /**
      * Extracts model configuration from the parsed options object.
      * Uses the instance's defaultModel if no specific model is found.
+     * 
+     * Fallback order for inheritable settings (model, temperature, thinking-level):
+     * 1. Specific namespace (e.g., `--website-navigator-1-thinking-level`)
+     * 2. Fallback namespace (e.g., `--website-navigator-thinking-level`)
+     * 3. Global namespace (e.g., `--thinking-level`)
+     * 
+     * Non-inheritable settings (prompt, system) only check specific and fallback namespaces.
      */
     extract(
         options: Record<string, any>, 
@@ -62,9 +69,14 @@ export class ModelFlags {
         };
 
         const getKey = (ns: string, suffix: string) => {
-            if (!ns) return suffix;
+            // Always camelCase the result since Commander.js converts --kebab-case to camelCase
+            if (!ns) return toCamel(suffix);
             return toCamel(`${ns}-${suffix}`);
         };
+
+        // Settings that should inherit from global if not set at more specific levels
+        // This allows --thinking-level and --temperature to cascade to all plugin models
+        const inheritableSettings = new Set(['model', 'temperature', 'thinking-level']);
 
         const getVal = (suffix: string) => {
             // 1. Try specific namespace
@@ -72,9 +84,16 @@ export class ModelFlags {
             if (options[specificKey] !== undefined) return options[specificKey];
 
             // 2. Try fallback namespace
-            if (fallbackNamespace) {
+            if (fallbackNamespace !== undefined) {
                 const fallbackKey = getKey(fallbackNamespace, suffix);
                 if (options[fallbackKey] !== undefined) return options[fallbackKey];
+            }
+
+            // 3. For inheritable settings, try global namespace (empty string)
+            // Skip this if we're already checking global (namespace is '' or fallbackNamespace is '')
+            if (inheritableSettings.has(suffix) && namespace !== '' && fallbackNamespace !== '') {
+                const globalKey = getKey('', suffix);
+                if (options[globalKey] !== undefined) return options[globalKey];
             }
 
             return undefined;
