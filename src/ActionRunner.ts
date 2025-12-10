@@ -3,18 +3,17 @@ import path from 'path';
 import { Parser, transforms } from 'json2csv';
 import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
-import { LlmClient } from 'llm-fns';
-import { RuntimeConfig, StepConfig, PipelineItem } from './types.js';
+import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PromptResolver } from './utils/PromptResolver.js';
 import { SchemaHelper } from './utils/SchemaHelper.js';
 import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
-import { PluginServices } from './plugins/types.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { PluginRunner } from './core/PluginRunner.js';
 import { ResultProcessor } from './core/ResultProcessor.js';
 import OpenAI from 'openai';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
+import { DependencyFactory } from './core/DependencyFactory.js';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -23,8 +22,7 @@ interface TaskPayload {
 
 export class ActionRunner {
     constructor(
-        private llm: LlmClient,
-        private services: PluginServices,
+        private globalContext: GlobalContext,
         private pluginRegistry: PluginRegistry,
         private preprocessorRegistry: PromptPreprocessorRegistry
     ) {}
@@ -53,13 +51,11 @@ export class ActionRunner {
         const queue = new PQueue({ concurrency: taskConcurrency });
 
         // Initialize Executor
-        const executor = new StepExecutor(this.llm, tmpDir, concurrency, this.services, this.pluginRegistry);
+        const executor = new StepExecutor(tmpDir);
 
         // Initialize Plugin Runner
         const pluginRunner = new PluginRunner(
             this.pluginRegistry,
-            this.services,
-            this.llm,
             { tmpDir, concurrency }
         );
 
@@ -100,12 +96,12 @@ export class ActionRunner {
                     tmpDir
                 );
 
+                // 3. Create Step Context (Dependency Injection)
+                const stepContext = DependencyFactory.createStepContext(this.globalContext, resolvedStep);
+
                 console.log(`[Row ${item.originalIndex}] Step ${stepNum} Processing...`);
 
                 // --- EXECUTION LOOP ---
-                
-                // We start with one item (the current one), but plugins might explode it into multiple.
-                // We track the items and the accumulated content parts (prompts) for the model.
                 
                 interface ActiveContext {
                     item: PipelineItem;
@@ -119,7 +115,7 @@ export class ActionRunner {
                     stepResult: {}
                 }];
 
-                // 3. Execute Plugins Sequentially
+                // 4. Execute Plugins Sequentially
                 for (const pluginDef of resolvedStep.plugins) {
                     const nextContexts: ActiveContext[] = [];
 
@@ -129,6 +125,7 @@ export class ActionRunner {
                             const pluginViewContext = {
                                 ...ctx.item.row,
                                 ...ctx.item.workspace,
+                                ...ctx.stepResult, // Include results from previous plugins in this step
                                 steps: ctx.item.stepHistory,
                                 index: ctx.item.originalIndex
                             };
@@ -138,6 +135,7 @@ export class ActionRunner {
                                 [pluginDef], // Run one plugin
                                 pluginViewContext,
                                 stepNum,
+                                stepContext,
                                 {
                                     outputDir: resolvedStep.resolvedOutputDir,
                                     tempDir: resolvedStep.resolvedTempDir || tmpDir,
@@ -180,7 +178,7 @@ export class ActionRunner {
                     activeContexts = nextContexts;
                 }
 
-                // 4. Execute Model (for each active context)
+                // 5. Execute Model (for each active context)
                 const nextItemsForQueue: PipelineItem[] = [];
 
                 for (const ctx of activeContexts) {
@@ -189,6 +187,7 @@ export class ActionRunner {
                         const modelViewContext = {
                             ...ctx.item.row,
                             ...ctx.item.workspace,
+                            ...ctx.stepResult,
                             steps: ctx.item.stepHistory,
                             index: ctx.item.originalIndex
                         };
@@ -204,13 +203,19 @@ export class ActionRunner {
                             if (preprocessor) {
                                 effectiveParts = await preprocessor.process(effectiveParts, {
                                     row: modelViewContext,
-                                    services: this.services
+                                    services: {
+                                        // Minimal services for preprocessors (mostly puppeteer/fetcher)
+                                        puppeteerHelper: this.globalContext.puppeteerHelper,
+                                        fetcher: this.globalContext.fetcher,
+                                        puppeteerQueue: this.globalContext.puppeteerQueue
+                                    } as any
                                 }, ppDef.config);
                             }
                         }
 
                         // Execute Model
                         const result = await executor.executeModel(
+                            stepContext,
                             modelViewContext,
                             ctx.item.originalIndex,
                             stepNum,
@@ -278,7 +283,7 @@ export class ActionRunner {
                     }
                 }
 
-                // 5. Queue Next Steps or Save
+                // 6. Queue Next Steps or Save
                 if (stepIndex === steps.length - 1) {
                     // Finished pipeline for these items
                     // We only save the 'row' part of the PipelineItem

@@ -1,37 +1,19 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
-import {Fetcher, LlmClient} from 'llm-fns';
-import PQueue from 'p-queue';
-import { ImageSearch } from './image-search/ImageSearch.js';
-import { AiImageSearch } from '../utils/AiImageSearch.js';
-import { WebSearch } from './web-search/WebSearch.js';
-import { AiWebSearch } from '../utils/AiWebSearch.js';
-import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
-import { AiWebsiteAgent } from '../utils/AiWebsiteAgent.js';
-import { OutputStrategy } from '../types.js';
+import { OutputStrategy, StepContext } from '../types.js';
 
-export interface PluginServices {
-    imageSearch?: ImageSearch;
-    aiImageSearch?: AiImageSearch;
-    webSearch?: WebSearch;
-    aiWebSearch?: AiWebSearch;
-    fetcher: Fetcher;
-    puppeteerHelper?: PuppeteerHelper;
-    aiWebsiteAgent?: AiWebsiteAgent;
-    puppeteerQueue?: PQueue;
-}
+// PluginServices is now largely superseded by StepContext/GlobalContext, 
+// but kept for compatibility if needed, or we can alias it.
+// For now, we'll rely on StepContext in PluginContext.
 
 export interface PluginContext {
     row: Record<string, any>; // This is now the "View Context" (merged data)
     stepIndex: number;
     config: any; // The resolved plugin config
     output: OutputStrategy; // The output strategy for this plugin (e.g. explode)
-    llm: LlmClient;
-    globalConfig: {
-        tmpDir: string;
-        concurrency: number;
-    };
-    services: PluginServices;
+    
+    // New Dependency Injection
+    stepContext: StepContext;
 
     // --- NEW: Explicit Paths ---
     outputDirectory?: string; // Where final assets go

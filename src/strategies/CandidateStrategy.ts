@@ -5,19 +5,17 @@ import Handlebars from 'handlebars';
 import util from 'util';
 import { exec } from 'child_process';
 import { z } from 'zod';
-import { LlmClient } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
-import { StepConfig } from '../types.js';
+import { StepConfig, StepContext } from '../types.js';
 import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
-import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
 
 const execPromise = util.promisify(exec);
 
 export class CandidateStrategy implements GenerationStrategy {
     constructor(
         private standardStrategy: StandardStrategy,
-        private llm: LlmClient
+        private stepContext: StepContext
     ) {}
 
     async execute(
@@ -83,8 +81,8 @@ export class CandidateStrategy implements GenerationStrategy {
             }
         } else {
             // We have > 1 candidates.
-            if (config.judge) {
-                console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates with ${config.judge.model}...`);
+            if (this.stepContext.judge) {
+                console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates...`);
                 try {
                     winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex);
                     console.log(`[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}`);
@@ -146,7 +144,7 @@ export class CandidateStrategy implements GenerationStrategy {
         stepIndex: number
     ): Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }> {
 
-        if (!config.judge) throw new Error("No judge configuration found");
+        if (!this.stepContext.judge) throw new Error("No judge configuration found");
 
         // Prepare Candidate Presentation
         const candidatePresentationParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
@@ -164,34 +162,24 @@ export class CandidateStrategy implements GenerationStrategy {
             }
         }
 
-        // Use Normalizer to build the Judge Request
-        // The "User Prompt" for the judge is the Candidate Presentation
-        const request = ModelRequestNormalizer.normalize(config.judge, {}, candidatePresentationParts);
-
         // Inject Context (History + Original User Request)
         // Filter out original system prompt
         const contextMessages = history.filter(m => m.role !== 'system');
         // Add original user request
         contextMessages.push({ role: 'user', content: userPromptParts });
 
-        // Insert context after Judge System Prompt
-        const systemIndex = request.messages.findIndex(m => m.role === 'system');
-        if (systemIndex >= 0) {
-            request.messages.splice(systemIndex + 1, 0, ...contextMessages);
-        } else {
-            request.messages.unshift(...contextMessages);
-        }
-
         const JudgeSchema = z.object({
             best_candidate_index: z.number().int().min(0).max(candidates.length - 1).describe("The index of the best candidate (0-based)"),
             reason: z.string().describe("The reason for selecting this candidate"),
-            // prompt: z.string().describe("The original prompt")
         });
 
-        const result = await this.llm.promptZod(request.messages, JudgeSchema, {
-            model: request.model,
-            ...request.options
-        });
+        // Use the pre-configured judge client
+        const result = await this.stepContext.judge.promptZod(
+            row,
+            JudgeSchema,
+            contextMessages,
+            candidatePresentationParts
+        );
 
         console.log(`[Row ${index}] Step ${stepIndex} Judge Reason: ${result.reason}`);
 

@@ -1,4 +1,16 @@
 import OpenAI from 'openai';
+import { LlmClient } from 'llm-fns';
+import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
+import { Fetcher } from 'llm-fns';
+import {**Planning the Execution**
+
+I've finalized the structure, focusing on the `StepContext`'s role in providing configured LLM clients for each step and for plugins. I've mapped out the refactoring order, starting with core types and utilities, then progressing to plugin and strategy adjustments. The plan focuses on `ConfiguredLlmClient` to handle the merging of configurations. Next, defining all of the types, and then starting to write all the files.
+
+
+ ImageSearch } from './plugins/image-search/ImageSearch.js';
+import { WebSearch } from './plugins/web-search/WebSearch.js';
+import { ConfiguredLlmClient } from './core/ConfiguredLlmClient.js';
+import PQueue from 'p-queue';
 
 // --- Definitions (Pre-Load) ---
 
@@ -172,4 +184,29 @@ export interface PipelineItem {
     stepHistory: Record<string, any>[]; // Results from previous steps
     history: any[]; // LLM Conversation History
     originalIndex: number; // For logging/debugging
+}
+
+// --- Dependency Injection Contexts ---
+
+export interface GlobalContext {
+    baseLlm: LlmClient;
+    puppeteerHelper: PuppeteerHelper;
+    fetcher: Fetcher;
+    imageSearch?: ImageSearch;
+    webSearch?: WebSearch;
+    puppeteerQueue: PQueue;
+    serperQueue: PQueue;
+    gptQueue: PQueue;
+}
+
+export interface StepContext {
+    global: GlobalContext;
+    
+    // Pre-configured LLMs for this step
+    llm: ConfiguredLlmClient;
+    judge?: ConfiguredLlmClient;
+    feedback?: ConfiguredLlmClient;
+
+    // Factory for creating ad-hoc configured clients (e.g. for plugins)
+    createLlmClient(config: ResolvedModelConfig): ConfiguredLlmClient;
 }

@@ -1,14 +1,10 @@
 import OpenAI from 'openai';
 import { PluginRegistry } from '../plugins/PluginRegistry.js';
-import { PluginServices } from '../plugins/types.js';
-import { LlmClient } from 'llm-fns';
-import { PluginConfigDefinition } from '../types.js';
+import { PluginConfigDefinition, StepContext } from '../types.js';
 
 export class PluginRunner {
     constructor(
         private registry: PluginRegistry,
-        private services: PluginServices,
-        private llm: LlmClient,
         private globalConfig: { tmpDir: string; concurrency: number }
     ) {}
 
@@ -16,6 +12,7 @@ export class PluginRunner {
         plugins: PluginConfigDefinition[], 
         initialContext: Record<string, any>,
         stepIndex: number,
+        stepContext: StepContext,
         paths: { outputDir?: string; tempDir: string; basename?: string; ext?: string }
     ) {
         let currentContext = { ...initialContext };
@@ -36,9 +33,8 @@ export class PluginRunner {
                 stepIndex,
                 config: preparedConfig,
                 output: def.output,
-                llm: this.llm,
+                stepContext: stepContext,
                 globalConfig: this.globalConfig,
-                services: this.services,
                 outputDirectory: paths.outputDir,
                 tempDirectory: paths.tempDir,
                 outputBasename: paths.basename,

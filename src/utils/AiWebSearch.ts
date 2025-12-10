@@ -1,23 +1,20 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { LlmClient } from 'llm-fns';
 import { WebSearch, WebSearchResult, WebSearchMode } from '../plugins/web-search/WebSearch.js';
-import { ResolvedModelConfig } from '../types.js';
-import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
+import { ConfiguredLlmClient } from '../core/ConfiguredLlmClient.js';
 
 export class AiWebSearch {
     constructor(
         private webSearch: WebSearch,
-        private llm: LlmClient
+        private queryLlm?: ConfiguredLlmClient,
+        private selectLlm?: ConfiguredLlmClient,
+        private compressLlm?: ConfiguredLlmClient
     ) {}
 
     async process(
         row: Record<string, any>,
         config: {
             query?: string;
-            queryConfig?: ResolvedModelConfig;
-            selectConfig?: ResolvedModelConfig;
-            compressConfig?: ResolvedModelConfig;
             limit: number;
             mode: WebSearchMode;
             queryCount: number;
@@ -34,17 +31,13 @@ export class AiWebSearch {
             queries.push(config.query);
         }
 
-        if (config.queryConfig) {
+        if (this.queryLlm) {
             console.log(`[AiWebSearch] Generating search queries...`);
             const QuerySchema = z.object({
                 queries: z.array(z.string()).min(1).max(config.queryCount).describe("Search queries to find the requested information")
             });
 
-            const request = ModelRequestNormalizer.normalize(config.queryConfig, row);
-            const response = await this.llm.promptZod(request.messages, QuerySchema, {
-                model: request.model,
-                ...request.options
-            });
+            const response = await this.queryLlm.promptZod(row, QuerySchema);
             queries.push(...response.queries);
             console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
         }
@@ -93,7 +86,7 @@ export class AiWebSearch {
                 // --- Batch Selection (Per Page) ---
                 let selectedFromPage = results;
                 
-                if (config.selectConfig) {
+                if (this.selectLlm) {
                     console.log(`[AiWebSearch] Selecting relevant results from page ${page} (${results.length} items)...`);
                     
                     // Prepare list for LLM
@@ -104,12 +97,12 @@ export class AiWebSearch {
                         reasoning: z.string()
                     });
 
-                    const request = ModelRequestNormalizer.normalize(config.selectConfig, row, [{ type: 'text', text: listText }]);
-                    
-                    const response = await this.llm.promptZod(request.messages, SelectionSchema, {
-                        model: request.model,
-                        ...request.options
-                    });
+                    const response = await this.selectLlm.promptZod(
+                        row, 
+                        SelectionSchema, 
+                        [], 
+                        [{ type: 'text', text: listText }]
+                    );
 
                     selectedFromPage = response.selected_indices
                         .map(i => results[i])
@@ -158,22 +151,17 @@ export class AiWebSearch {
             }
 
             // Compression
-            if (config.compressConfig) {
+            if (this.compressLlm) {
                 console.log(`[AiWebSearch] Compressing content for: ${result.title}`);
                 
                 // Truncate content if too large for context window (naive check)
                 const truncatedContent = content.substring(0, 15000); 
 
-                const request = ModelRequestNormalizer.normalize(config.compressConfig, row, [
-                    { type: 'text', text: `Title: ${result.title}\nLink: ${result.link}\n\nContent:\n${truncatedContent}` }
-                ]);
-
-                // We expect a string back
-                const response = await this.llm.prompt({
-                    messages: request.messages,
-                    model: request.model,
-                    ...request.options
-                });
+                const response = await this.compressLlm.prompt(
+                    row,
+                    [],
+                    [{ type: 'text', text: `Title: ${result.title}\nLink: ${result.link}\n\nContent:\n${truncatedContent}` }]
+                );
 
                 const summary = response.choices[0].message.content || "";
                 content = summary;

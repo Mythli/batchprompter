@@ -1,19 +1,14 @@
 import { z } from 'zod';
 import PQueue from 'p-queue';
 import TurndownService from 'turndown';
-import { LlmClient } from 'llm-fns';
 import { PuppeteerHelper } from './puppeteer/PuppeteerHelper.js';
-import { PuppeteerPageHelper, LinkData } from './puppeteer/PuppeteerPageHelper.js';
+import { LinkData } from './puppeteer/PuppeteerPageHelper.js';
 import { compressHtml } from './compressHtml.js';
-import { ResolvedModelConfig } from '../types.js';
-import { ModelRequestNormalizer } from '../core/ModelRequestNormalizer.js';
+import { ConfiguredLlmClient } from '../core/ConfiguredLlmClient.js';
 
 export interface AiWebsiteAgentOptions {
     budget: number;
     batchSize: number;
-    navigatorConfig: ResolvedModelConfig;
-    extractConfig: ResolvedModelConfig;
-    mergeConfig: ResolvedModelConfig;
     row: Record<string, any>;
 }
 
@@ -30,8 +25,10 @@ interface EnrichedLinkData extends LinkData {
 export class AiWebsiteAgent {
     
     constructor(
+        private navigatorLlm: ConfiguredLlmClient,
+        private extractLlm: ConfiguredLlmClient,
+        private mergeLlm: ConfiguredLlmClient,
         private puppeteerHelper: PuppeteerHelper,
-        private llm: LlmClient,
         private puppeteerQueue: PQueue
     ) {}
 
@@ -69,18 +66,15 @@ export class AiWebsiteAgent {
         url: string,
         markdown: string,
         schema: any, // JSON Schema Object
-        config: ResolvedModelConfig,
         row: Record<string, any>
     ): Promise<any> {
         const truncatedMarkdown = markdown.substring(0, 20000);
 
         const context = { ...row, url, truncatedMarkdown };
-        const request = ModelRequestNormalizer.normalize(config, context);
-
-        return await this.llm.promptJson(
-            request.messages,
-            schema,
-            { model: request.model, ...request.options }
+        
+        return await this.extractLlm.promptJson(
+            context,
+            schema
         );
     }
 
@@ -90,8 +84,6 @@ export class AiWebsiteAgent {
         knownLinks: Map<string, EnrichedLinkData>,
         budget: number,
         batchSize: number,
-        schema: any,
-        config: ResolvedModelConfig,
         row: Record<string, any>
     ): Promise<{ nextUrls: string[], isDone: boolean }> {
         
@@ -116,7 +108,6 @@ export class AiWebsiteAgent {
 
         const context = {
             ...row,
-            // schemaDescription removed as promptZod handles it
             visitedCount: visitedUrls.size,
             budget,
             batchSize,
@@ -125,12 +116,9 @@ export class AiWebsiteAgent {
             linksText
         };
 
-        const request = ModelRequestNormalizer.normalize(config, context);
-
-        const response = await this.llm.promptZod(
-            request.messages,
-            NavigatorSchema,
-            { model: request.model, ...request.options }
+        const response = await this.navigatorLlm.promptZod(
+            context,
+            NavigatorSchema
         );
 
         // Validate returned URLs exist in candidates (hallucination check)
@@ -147,19 +135,16 @@ export class AiWebsiteAgent {
     private async mergeResults(
         results: any[],
         schema: any,
-        config: ResolvedModelConfig,
         row: Record<string, any>
     ): Promise<any> {
         if (results.length === 0) return {};
         if (results.length === 1) return results[0];
 
         const context = { ...row, jsonObjects: JSON.stringify(results, null, 2) };
-        const request = ModelRequestNormalizer.normalize(config, context);
-
-        return await this.llm.promptJson(
-            request.messages,
-            schema,
-            { model: request.model, ...request.options }
+        
+        return await this.mergeLlm.promptJson(
+            context,
+            schema
         );
     }
 
@@ -185,7 +170,6 @@ export class AiWebsiteAgent {
                 initialUrl,
                 initialPage.markdown,
                 schema,
-                options.extractConfig,
                 options.row
             );
             
@@ -212,8 +196,6 @@ export class AiWebsiteAgent {
                 knownLinks,
                 budget,
                 options.batchSize,
-                schema,
-                options.navigatorConfig,
                 options.row
             );
 
@@ -235,7 +217,6 @@ export class AiWebsiteAgent {
                         url,
                         page.markdown,
                         schema,
-                        options.extractConfig,
                         options.row
                     );
                     return { url, data, links: page.links };
@@ -268,17 +249,9 @@ export class AiWebsiteAgent {
         }
 
         // 3. Final Merge
-        // We only pass the 'data' part to the merge function to keep it clean, 
-        // or we can pass the whole object if the merge prompt expects URLs.
-        // The default merge prompt expects "jsonObjects", so passing the data array is safer.
         const dataToMerge = extractedData.map(d => d.data);
         
         console.log(`[AiWebsiteAgent] Final merge of ${dataToMerge.length} results...`);
-        return await this.mergeResults(dataToMerge, schema, options.mergeConfig, options.row);
-    }
-
-    // Legacy method kept for compatibility if needed, or redirected
-    async scrape(url: string, schema: any, options: any): Promise<any> {
-        return this.scrapeIterative(url, schema, options);
+        return await this.mergeResults(dataToMerge, schema, options.row);
     }
 }

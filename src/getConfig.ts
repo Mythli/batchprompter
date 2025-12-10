@@ -8,9 +8,7 @@ import OpenAI from "openai";
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
-import { AiImageSearch } from './utils/AiImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
-import { AiWebSearch } from './utils/AiWebSearch.js';
 import { ModelFlags } from './cli/ModelFlags.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
@@ -21,16 +19,15 @@ import { DedupePlugin } from './plugins/dedupe/DedupePlugin.js';
 import { ValidationPlugin } from './plugins/validation/ValidationPlugin.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { AiWebsiteAgent } from './utils/AiWebsiteAgent.js';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
 import { UrlExpanderPlugin } from './preprocessors/UrlExpanderPlugin.js';
 import { UrlHandlerRegistry } from './preprocessors/expander/UrlHandlerRegistry.js';
 import { GenericFetchHandler } from './preprocessors/expander/GenericFetchHandler.js';
 import { GenericPuppeteerHandler } from './preprocessors/expander/GenericPuppeteerHandler.js';
 import { WikipediaHandler } from './preprocessors/expander/sites/WikipediaHandler.js';
-import { createLoggingFetcher } from './utils/createLoggingFetcher.js';
-import {createCachedFetcher} from "llm-fns";
+import { createCachedFetcher } from "llm-fns";
 import { attachQueueLogger } from './utils/queueUtils.js';
+import { GlobalContext } from './types.js';
 
 dotenv.config();
 
@@ -167,14 +164,14 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const openAi = new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
-        fetch: fetcher as any//createLoggingFetcher(fetcher) as any,
+        fetch: fetcher as any
     });
 
     // Use overrides if provided (CLI), otherwise use config (Env/Default)
     const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? config.GPT_CONCURRENCY });
     attachQueueLogger(gptQueue, 'GPT');
 
-    const llm = createLlm({
+    const baseLlm = createLlm({
         openai: openAi as any, // Cast to any to avoid version mismatch issues
         defaultModel: config.MODEL || 'gpt-4o-mini',
         cache: cache,
@@ -187,17 +184,12 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     attachQueueLogger(serperQueue, 'Serper');
 
     let imageSearch: ImageSearch | undefined;
-    let aiImageSearch: AiImageSearch | undefined;
     let webSearch: WebSearch | undefined;
-    let aiWebSearch: AiWebSearch | undefined;
 
     if (config.SERPER_API_KEY) {
         // Pass cache to ImageSearch for Serper results, and fetcher for downloads
         imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher, serperQueue);
-        aiImageSearch = new AiImageSearch(imageSearch, llm);
-
         webSearch = new WebSearch(config.SERPER_API_KEY, fetcher, serperQueue);
-        aiWebSearch = new AiWebSearch(webSearch, llm);
     }
 
     // Initialize PuppeteerHelper
@@ -207,17 +199,10 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         maxPagesBeforeRestart: config.PUPPETEER_MAX_PAGES_BEFORE_RESTART,
         restartTimeout: config.PUPPETEER_RESTART_TIMEOUT
     });
-    // We don't await init() here, let it lazy load on first use to avoid overhead if not used.
 
     // Initialize Puppeteer Queue
     const puppeteerQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
     attachQueueLogger(puppeteerQueue, 'Puppeteer');
-
-    // Initialize AiWebsiteAgent
-    const aiWebsiteAgent = new AiWebsiteAgent(puppeteerHelper, llm, puppeteerQueue);
-
-    // Initialize ModelFlags with the resolved default model
-    const modelFlags = new ModelFlags(config.MODEL);
 
     // Initialize PluginRegistry
     const pluginRegistry = createDefaultRegistry();
@@ -225,28 +210,31 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Initialize PreprocessorRegistry
     const preprocessorRegistry = createPreprocessorRegistry();
 
+    const globalContext: GlobalContext = {
+        baseLlm,
+        puppeteerHelper,
+        fetcher,
+        imageSearch,
+        webSearch,
+        puppeteerQueue,
+        serperQueue,
+        gptQueue
+    };
+
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
-        llm,
-        { imageSearch, aiImageSearch, webSearch, aiWebSearch, fetcher, puppeteerHelper, aiWebsiteAgent, puppeteerQueue },
+        globalContext,
         pluginRegistry,
         preprocessorRegistry
     );
 
     return {
         config,
-        llm,
-        imageSearch,
-        aiImageSearch,
-        webSearch,
-        aiWebSearch,
-        modelFlags,
-        fetcher,
+        globalContext,
         pluginRegistry,
         preprocessorRegistry,
         actionRunner,
-        puppeteerHelper,
-        aiWebsiteAgent
+        puppeteerHelper
     };
 }
 

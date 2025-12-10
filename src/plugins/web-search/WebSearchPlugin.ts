@@ -5,6 +5,7 @@ import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
 import { WebSearchMode } from './WebSearch.js';
+import { AiWebSearch } from '../../utils/AiWebSearch.js';
 
 interface WebSearchRawConfig {
     query?: string;
@@ -158,18 +159,26 @@ export class WebSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, services, output } = context;
+        const { row, stepIndex, config, stepContext, output } = context;
         const resolvedConfig = config as WebSearchResolvedConfig;
 
-        if (!services.webSearch || !services.aiWebSearch) {
+        if (!stepContext.global.webSearch) {
             throw new Error(`Step ${stepIndex} requires Web Search, but SERPER_API_KEY is missing.`);
         }
 
-        const { contentParts, data } = await services.aiWebSearch.process(row, resolvedConfig);
+        // Create Configured Clients
+        const queryLlm = resolvedConfig.queryConfig ? stepContext.createLlmClient(resolvedConfig.queryConfig) : undefined;
+        const selectLlm = resolvedConfig.selectConfig ? stepContext.createLlmClient(resolvedConfig.selectConfig) : undefined;
+        const compressLlm = resolvedConfig.compressConfig ? stepContext.createLlmClient(resolvedConfig.compressConfig) : undefined;
 
-        // Flow Control:
-        // If explode is enabled, we return the array of results directly (1:N).
-        // If explode is disabled (default), we wrap the array in another array (1:1).
+        const aiWebSearch = new AiWebSearch(
+            stepContext.global.webSearch,
+            queryLlm,
+            selectLlm,
+            compressLlm
+        );
+
+        const { contentParts, data } = await aiWebSearch.process(row, resolvedConfig);
 
         if (output.explode) {
             return {

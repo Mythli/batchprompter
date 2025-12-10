@@ -1,12 +1,11 @@
 import { Command } from 'commander';
-import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
-import { PromptResolver } from '../../utils/PromptResolver.js';
 import { SchemaHelper } from '../../utils/SchemaHelper.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
+import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
 
 // Default Prompts
 const DEFAULT_NAVIGATOR_PROMPT = `You are an autonomous web scraper. Your goal is to find information to populate the provided schema.
@@ -177,12 +176,8 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, services } = context;
+        const { row, stepIndex, config, stepContext } = context;
         const resolvedConfig = config as WebsiteAgentResolvedConfig;
-
-        if (!services.aiWebsiteAgent) {
-            throw new Error("AiWebsiteAgent service is not available.");
-        }
 
         // Throw error if URL is empty so the row is skipped by ActionRunner
         if (!resolvedConfig.url || resolvedConfig.url.trim() === '') {
@@ -195,16 +190,27 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             throw new Error(`[WebsiteAgent] Step ${stepIndex}: Invalid URL format (must start with http/https): "${resolvedConfig.url}"`);
         }
 
-        const result = await services.aiWebsiteAgent.scrapeIterative(
+        // Create Configured Clients
+        const navLlm = stepContext.createLlmClient(resolvedConfig.navigatorConfig);
+        const extLlm = stepContext.createLlmClient(resolvedConfig.extractConfig);
+        const mrgLlm = stepContext.createLlmClient(resolvedConfig.mergeConfig);
+
+        // Instantiate Agent
+        const agent = new AiWebsiteAgent(
+            navLlm,
+            extLlm,
+            mrgLlm,
+            stepContext.global.puppeteerHelper,
+            stepContext.global.puppeteerQueue
+        );
+
+        const result = await agent.scrapeIterative(
             resolvedConfig.url,
             resolvedConfig.schema,
             {
                 budget: resolvedConfig.budget,
                 batchSize: resolvedConfig.batchSize,
-                navigatorConfig: resolvedConfig.navigatorConfig,
-                extractConfig: resolvedConfig.extractConfig,
-                mergeConfig: resolvedConfig.mergeConfig,
-                row: row // Pass row for template rendering in AiWebsiteAgent
+                row: row
             }
         );
 

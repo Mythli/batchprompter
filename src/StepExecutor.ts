@@ -1,12 +1,9 @@
 import OpenAI from 'openai';
 import path from 'path';
-import { LlmClient } from 'llm-fns';
-import { StepConfig } from './types.js';
+import { StepConfig, StepContext } from './types.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
-import { PluginRegistry } from './plugins/PluginRegistry.js';
-import { PluginServices } from './plugins/types.js';
 import { ArtifactSaver } from './ArtifactSaver.js';
 import Handlebars from 'handlebars';
 import util from 'util';
@@ -23,11 +20,7 @@ export interface StepExecutionResult {
 export class StepExecutor {
     
     constructor(
-        private llm: LlmClient,
-        private tmpDir: string,
-        private concurrency: number,
-        private services: PluginServices,
-        private pluginRegistry: PluginRegistry
+        private tmpDir: string
     ) {}
 
     /**
@@ -35,6 +28,7 @@ export class StepExecutor {
      * Plugins are assumed to have been executed by ActionRunner.
      */
     async executeModel(
+        stepContext: StepContext,
         viewContext: Record<string, any>, // The merged context (row + history)
         index: number,
         stepIndex: number,
@@ -49,10 +43,6 @@ export class StepExecutor {
         // If ActionRunner passed preprocessed parts as `pluginContentParts`, we use them.
         // But wait, ActionRunner passes `effectiveParts` which includes userPromptParts.
         // So we should treat `pluginContentParts` here as the *full* effective user prompt if it comes from ActionRunner's new logic.
-        
-        // To maintain backward compatibility or clarity:
-        // If the caller (ActionRunner) has already merged and preprocessed everything into `pluginContentParts`,
-        // we should use that. 
         
         // Let's assume `pluginContentParts` passed here IS the full effective user prompt.
         let effectiveUserPromptParts = pluginContentParts;
@@ -110,10 +100,10 @@ export class StepExecutor {
         }
 
         // 3. Select Strategy
-        let strategy: GenerationStrategy = new StandardStrategy(this.llm, config.modelConfig.model);
+        let strategy: GenerationStrategy = new StandardStrategy(stepContext.llm);
         
         if (config.candidates > 1) {
-            strategy = new CandidateStrategy(strategy as StandardStrategy, this.llm);
+            strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext);
         }
 
         // 4. Execute Strategy

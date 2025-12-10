@@ -8,6 +8,7 @@ import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
+import { AiImageSearch } from '../../utils/AiImageSearch.js';
 
 // --- Configuration Types ---
 
@@ -139,18 +140,39 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, llm, globalConfig, services, outputDirectory, tempDirectory, outputBasename, outputExtension, output } = context;
+        const { row, stepIndex, config, stepContext, outputDirectory, tempDirectory, outputBasename, outputExtension, output } = context;
         const resolvedConfig = config as ImageSearchResolvedConfig;
 
         // Check Services
-        if (!services.imageSearch || !services.aiImageSearch) {
+        if (!stepContext.global.imageSearch) {
             throw new Error(
                 `Step ${stepIndex} requires Image Search, but SERPER_API_KEY is missing from environment variables.`
             );
         }
 
-        const imageSearch = services.imageSearch;
-        const aiImageSearch = services.aiImageSearch;
+        const imageSearch = stepContext.global.imageSearch;
+        
+        // Create AI Image Search Agent
+        // We need a selectLlm if selection is configured
+        let selectLlm;
+        if (resolvedConfig.selectConfig) {
+            selectLlm = stepContext.createLlmClient(resolvedConfig.selectConfig);
+        }
+        
+        // Note: AiImageSearch constructor requires selectLlm. 
+        // If selectConfig is missing, we might not need AiImageSearch for selection, 
+        // but we might need it for query generation?
+        // Actually, query generation is done manually below.
+        // AiImageSearch is mostly for selection.
+        // If no select config, we just slice.
+        
+        // However, to keep it clean, let's instantiate AiImageSearch only if needed or pass a dummy?
+        // Or better, just use the class if we have the config.
+        
+        let aiImageSearch: AiImageSearch | undefined;
+        if (selectLlm) {
+            aiImageSearch = new AiImageSearch(imageSearch, selectLlm, resolvedConfig.spriteSize);
+        }
 
         // --- Execution Logic ---
 
@@ -182,20 +204,8 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                 queries: z.array(z.string()).min(1).max(resolvedConfig.queryCount)
             });
 
-            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-            if (resolvedConfig.queryConfig.systemParts) {
-                const text = resolvedConfig.queryConfig.systemParts.map(p => p.type === 'text' ? p.text : '').join('\n');
-                messages.push({ role: 'system', content: text });
-            }
-            if (resolvedConfig.queryConfig.promptParts) {
-                messages.push({ role: 'user', content: resolvedConfig.queryConfig.promptParts });
-            }
-
-            const response = await llm.promptZod(messages, QuerySchema, {
-                model: resolvedConfig.queryConfig.model,
-                temperature: resolvedConfig.queryConfig.temperature,
-                reasoning_effort: resolvedConfig.queryConfig.thinkingLevel
-            });
+            const queryLlm = stepContext.createLlmClient(resolvedConfig.queryConfig);
+            const response = await queryLlm.promptZod(row, QuerySchema);
             
             queries.push(...response.queries);
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Generated queries: ${response.queries.join(', ')}`);
@@ -207,7 +217,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         console.log(`[Row ${context.row.index}] Step ${stepIndex} Executing ${queries.length} searches...`);
         const searchPromises = queries.map(q => imageSearch.search(q, resolvedConfig.limit));
         
-        // Use allSettled to prevent one failed query from crashing the entire batch (and potentially the process via unhandled rejection)
         const results = await Promise.allSettled(searchPromises);
 
         const pooledImages: any[] = [];
@@ -242,12 +251,11 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         // 3. Selection
         let selectedImages: any[] = [];
-        if (resolvedConfig.selectConfig) {
+        if (aiImageSearch && resolvedConfig.selectConfig) {
             console.log(`[Row ${context.row.index}] Step ${stepIndex} AI Selecting best images...`);
             
             selectedImages = await aiImageSearch.selectFromPool(
                 pooledImages,
-                resolvedConfig.selectConfig,
                 row,
                 resolvedConfig.select,
                 async (buffer, spriteIndex) => {
@@ -297,10 +305,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             }
         }
 
-        // Flow Control:
-        // If explode is enabled, we return the array of images directly (1:N).
-        // If explode is disabled (default), we wrap the array in another array (1:1).
-        
         if (output.explode) {
             return {
                 contentParts,
