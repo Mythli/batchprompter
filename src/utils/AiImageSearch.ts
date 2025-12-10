@@ -1,13 +1,12 @@
-// 
 import { z } from 'zod';
+import { LlmClient } from 'llm-fns';
 import { ImageSearch, ImageSearchResult } from '../plugins/image-search/ImageSearch.js';
 import { SpriteGenerator } from './SpriteGenerator.js';
-import { ConfiguredLlmClient } from '../core/ConfiguredLlmClient.js';
 
 export class AiImageSearch {
     constructor(
         private imageSearch: ImageSearch,
-        private selectLlm: ConfiguredLlmClient,
+        private selectLlm: LlmClient,
         private imagesPerSprite: number = 4
     ) {}
 
@@ -44,7 +43,6 @@ export class AiImageSearch {
         const spritePromises = chunks.map(async (chunk, i) => {
             const startNum = (i * spriteSize) + 1;
             try {
-                // Pass buffers directly to SpriteGenerator
                 const result = await SpriteGenerator.generate(chunk, startNum);
                 return { ...result, startNum, chunk, success: true };
             } catch (e) {
@@ -90,14 +88,22 @@ export class AiImageSearch {
             reasoning: z.string().describe("Why these images were selected based on the prompt")
         });
 
+        // Build messages with images
+        const textPrompt = `You are an image selection assistant. Look at the numbered images in the sprite(s) and select the best ${maxSelected} image(s) based on quality and relevance. Return the numbers visible on the images you select.`;
+        
+        const messages = [
+            { 
+                role: 'user' as const, 
+                content: [
+                    { type: 'text' as const, text: textPrompt },
+                    ...imageContentParts
+                ]
+            }
+        ];
+
         // Call LLM
         console.log(`[AiImageSearch] Asking AI to select up to ${maxSelected} images...`);
-        const response = await this.selectLlm.promptZod(
-            row,
-            SelectionSchema,
-            [],
-            imageContentParts
-        );
+        const response = await this.selectLlm.promptZod(messages, SelectionSchema);
 
         console.log(`[AiImageSearch] AI Selected: ${response.selected_indices.join(', ')}. Reason: ${response.reasoning}`);
 

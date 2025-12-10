@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import PQueue from 'p-queue';
 import TurndownService from 'turndown';
+import { LlmClient } from 'llm-fns';
 import { PuppeteerHelper } from './puppeteer/PuppeteerHelper.js';
 import { LinkData } from './puppeteer/PuppeteerPageHelper.js';
 import { compressHtml } from './compressHtml.js';
-import { ConfiguredLlmClient } from '../core/ConfiguredLlmClient.js';
 
 export interface AiWebsiteAgentOptions {
     budget: number;
@@ -25,9 +25,9 @@ interface EnrichedLinkData extends LinkData {
 export class AiWebsiteAgent {
     
     constructor(
-        private navigatorLlm: ConfiguredLlmClient,
-        private extractLlm: ConfiguredLlmClient,
-        private mergeLlm: ConfiguredLlmClient,
+        private navigatorLlm: LlmClient,
+        private extractLlm: LlmClient,
+        private mergeLlm: LlmClient,
         private puppeteerHelper: PuppeteerHelper,
         private puppeteerQueue: PQueue
     ) {}
@@ -50,10 +50,10 @@ export class AiWebsiteAgent {
                         return { html, markdown, links };
                     },
                     {
-                        dismissCookies: false, // No need to dismiss cookies in HTML-only mode
-                        htmlOnly: true, // Enforce HTML-only mode for performance
+                        dismissCookies: false,
+                        htmlOnly: true,
                         cacheKey: `website-agent-v1:${url}`,
-                        ttl: 24 * 60 * 60 * 1000 // 24 hours
+                        ttl: 24 * 60 * 60 * 1000
                     }
                 );
             } finally {
@@ -65,17 +65,19 @@ export class AiWebsiteAgent {
     private async extractDataFromMarkdown(
         url: string,
         markdown: string,
-        schema: any, // JSON Schema Object
+        schema: any,
         row: Record<string, any>
     ): Promise<any> {
         const truncatedMarkdown = markdown.substring(0, 20000);
 
-        const context = { ...row, url, truncatedMarkdown };
+        const prompt = `You are given the website content of ${url} (converted to markdown). Your primary goal is to extract information from this content to accurately populate the provided JSON schema.
+
+Website content:
+${truncatedMarkdown}`;
+
+        const messages = [{ role: 'user' as const, content: prompt }];
         
-        return await this.extractLlm.promptJson(
-            context,
-            schema
-        );
+        return await this.extractLlm.promptJson(messages, schema);
     }
 
     private async decideNextSteps(
@@ -87,10 +89,9 @@ export class AiWebsiteAgent {
         row: Record<string, any>
     ): Promise<{ nextUrls: string[], isDone: boolean }> {
         
-        // Filter known links to exclude visited ones
         const candidates = Array.from(knownLinks.values())
             .filter(l => !visitedUrls.has(l.href) && l.href.startsWith('http'))
-            .slice(0, 50); // Limit candidates to avoid token overflow
+            .slice(0, 50);
 
         if (candidates.length === 0) {
             return { nextUrls: [], isDone: true };
@@ -106,22 +107,29 @@ export class AiWebsiteAgent {
             is_done: z.boolean().describe("True if sufficient information has been gathered.")
         });
 
-        const context = {
-            ...row,
-            visitedCount: visitedUrls.size,
-            budget,
-            batchSize,
-            // Pass the raw array of extracted data instead of a merged object
-            currentData: JSON.stringify(extractedData, null, 2),
-            linksText
-        };
+        const prompt = `You are an autonomous web scraper. Your goal is to find information to populate the provided schema.
 
-        const response = await this.navigatorLlm.promptZod(
-            context,
-            NavigatorSchema
-        );
+Status:
+- Pages Visited: ${visitedUrls.size}
+- Remaining Budget: ${budget}
 
-        // Validate returned URLs exist in candidates (hallucination check)
+Current Findings:
+${JSON.stringify(extractedData, null, 2)}
+
+Available Links:
+${linksText}
+
+Instructions:
+1. Analyze the "Current Findings". Do you have sufficient information for all fields in the schema?
+2. If yes, set 'is_done' to true.
+3. If no, select the most promising URLs from "Available Links" to visit next.
+4. You can select up to ${batchSize} links to visit in parallel. Prioritize pages likely to contain missing information (e.g., "About", "Contact", "Team").
+5. If no relevant links are left, set 'is_done' to true.`;
+
+        const messages = [{ role: 'user' as const, content: prompt }];
+
+        const response = await this.navigatorLlm.promptZod(messages, NavigatorSchema);
+
         const validNextUrls = response.next_urls.filter(url => 
             candidates.some(c => c.href === url)
         );
@@ -140,12 +148,14 @@ export class AiWebsiteAgent {
         if (results.length === 0) return {};
         if (results.length === 1) return results[0];
 
-        const context = { ...row, jsonObjects: JSON.stringify(results, null, 2) };
+        const prompt = `You are a data consolidation expert. Merge the following JSON objects extracted from different pages of the same website into a single comprehensive object adhering to the schema.
+
+Objects:
+${JSON.stringify(results, null, 2)}`;
+
+        const messages = [{ role: 'user' as const, content: prompt }];
         
-        return await this.mergeLlm.promptJson(
-            context,
-            schema
-        );
+        return await this.mergeLlm.promptJson(messages, schema);
     }
 
     async scrapeIterative(
@@ -158,7 +168,6 @@ export class AiWebsiteAgent {
         const knownLinks = new Map<string, EnrichedLinkData>();
         const extractedData: any[] = [];
         
-        // 1. Initial Page
         console.log(`[AiWebsiteAgent] Starting at ${initialUrl} (Budget: ${budget})`);
         
         try {
@@ -173,10 +182,8 @@ export class AiWebsiteAgent {
                 options.row
             );
             
-            // Store with URL context for the Navigator
             extractedData.push({ url: initialUrl, data: initialData });
             
-            // Add initial links
             for (const link of initialPage.links) {
                 if (!knownLinks.has(link.href)) {
                     knownLinks.set(link.href, { ...link, firstSeenOn: initialUrl });
@@ -184,12 +191,10 @@ export class AiWebsiteAgent {
             }
         } catch (e) {
             console.error(`[AiWebsiteAgent] Failed to scrape initial URL ${initialUrl}:`, e);
-            return {}; // Fail early if initial page fails? Or return empty?
+            return {};
         }
 
-        // 2. Iterative Loop
         while (budget > 0) {
-            // Decide Next Steps based on raw extracted data
             const { nextUrls, isDone } = await this.decideNextSteps(
                 extractedData,
                 visitedUrls,
@@ -206,7 +211,6 @@ export class AiWebsiteAgent {
 
             console.log(`[AiWebsiteAgent] Next batch: ${nextUrls.join(', ')}`);
 
-            // Execute Batch
             const batchPromises = nextUrls.map(async (url) => {
                 if (visitedUrls.has(url)) return null;
                 visitedUrls.add(url);
@@ -233,13 +237,11 @@ export class AiWebsiteAgent {
                 .map(r => (r as PromiseFulfilledResult<ScrapedPageResult | null>).value)
                 .filter(r => r !== null) as ScrapedPageResult[];
 
-            // Update State
-            budget -= successfulResults.length; // Only deduct for attempted/successful pages
+            budget -= successfulResults.length;
             
             for (const res of successfulResults) {
                 extractedData.push({ url: res.url, data: res.data });
                 
-                // Add new links
                 for (const link of res.links) {
                     if (!knownLinks.has(link.href)) {
                         knownLinks.set(link.href, { ...link, firstSeenOn: res.url });
@@ -248,7 +250,6 @@ export class AiWebsiteAgent {
             }
         }
 
-        // 3. Final Merge
         const dataToMerge = extractedData.map(d => d.data);
         
         console.log(`[AiWebsiteAgent] Final merge of ${dataToMerge.length} results...`);

@@ -1,14 +1,14 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
+import { LlmClient } from 'llm-fns';
 import { WebSearch, WebSearchResult, WebSearchMode } from '../plugins/web-search/WebSearch.js';
-import { ConfiguredLlmClient } from '../core/ConfiguredLlmClient.js';
 
 export class AiWebSearch {
     constructor(
         private webSearch: WebSearch,
-        private queryLlm?: ConfiguredLlmClient,
-        private selectLlm?: ConfiguredLlmClient,
-        private compressLlm?: ConfiguredLlmClient
+        private queryLlm?: LlmClient,
+        private selectLlm?: LlmClient,
+        private compressLlm?: LlmClient
     ) {}
 
     async process(
@@ -37,7 +37,10 @@ export class AiWebSearch {
                 queries: z.array(z.string()).min(1).max(config.queryCount).describe("Search queries to find the requested information")
             });
 
-            const response = await this.queryLlm.promptZod(row, QuerySchema);
+            const prompt = `Generate ${config.queryCount} search queries to find information about: ${JSON.stringify(row)}`;
+            const messages = [{ role: 'user' as const, content: prompt }];
+
+            const response = await this.queryLlm.promptZod(messages, QuerySchema);
             queries.push(...response.queries);
             console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
         }
@@ -54,7 +57,7 @@ export class AiWebSearch {
                 try {
                     return new URL(result.link).hostname;
                 } catch (e) {
-                    return result.link; // Fallback if URL parse fails
+                    return result.link;
                 }
             }
             if (config.dedupeStrategy === 'url') {
@@ -64,22 +67,18 @@ export class AiWebSearch {
         };
 
         for (const q of queries) {
-            // Stop if we've reached the global limit
             if (allResults.length >= config.limit) break;
 
             let page = 1;
             const maxPages = config.maxPages;
-            // Fixed fetch size of 10 to mimic standard search engine behavior
             const fetchSize = 10;
 
             while (page <= maxPages) {
-                // Stop if we've reached the global limit
                 if (allResults.length >= config.limit) break;
 
                 const results = await this.webSearch.search(q, fetchSize, page, config.gl, config.hl);
                 
                 if (results.length === 0) {
-                    // No more results for this query
                     break;
                 }
 
@@ -89,7 +88,6 @@ export class AiWebSearch {
                 if (this.selectLlm) {
                     console.log(`[AiWebSearch] Selecting relevant results from page ${page} (${results.length} items)...`);
                     
-                    // Prepare list for LLM
                     const listText = results.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
                     
                     const SelectionSchema = z.object({
@@ -97,12 +95,10 @@ export class AiWebSearch {
                         reasoning: z.string()
                     });
 
-                    const response = await this.selectLlm.promptZod(
-                        row, 
-                        SelectionSchema, 
-                        [], 
-                        [{ type: 'text', text: listText }]
-                    );
+                    const prompt = `Select the most relevant search results from the following list:\n\n${listText}`;
+                    const messages = [{ role: 'user' as const, content: prompt }];
+
+                    const response = await this.selectLlm.promptZod(messages, SelectionSchema);
 
                     selectedFromPage = response.selected_indices
                         .map(i => results[i])
@@ -112,7 +108,6 @@ export class AiWebSearch {
                 }
 
                 // --- Dedupe & Accumulate ---
-                let addedCount = 0;
                 for (const result of selectedFromPage) {
                     if (allResults.length >= config.limit) break;
 
@@ -120,13 +115,12 @@ export class AiWebSearch {
                     
                     if (key) {
                         if (seenKeys.has(key)) {
-                            continue; // Skip duplicate
+                            continue;
                         }
                         seenKeys.add(key);
                     }
                     
                     allResults.push(result);
-                    addedCount++;
                 }
 
                 page++;
@@ -154,16 +148,12 @@ export class AiWebSearch {
             if (this.compressLlm) {
                 console.log(`[AiWebSearch] Compressing content for: ${result.title}`);
                 
-                // Truncate content if too large for context window (naive check)
                 const truncatedContent = content.substring(0, 15000); 
 
-                const response = await this.compressLlm.prompt(
-                    row,
-                    [],
-                    [{ type: 'text', text: `Title: ${result.title}\nLink: ${result.link}\n\nContent:\n${truncatedContent}` }]
-                );
+                const prompt = `Summarize the following content concisely while preserving key information:\n\nTitle: ${result.title}\nLink: ${result.link}\n\nContent:\n${truncatedContent}`;
+                const messages = [{ role: 'user' as const, content: prompt }];
 
-                const summary = response.choices[0].message.content || "";
+                const summary = await this.compressLlm.promptText(messages);
                 content = summary;
                 finalOutputs.push(`Source: ${result.title} (${result.link})\nSummary:\n${summary}`);
             } else {
