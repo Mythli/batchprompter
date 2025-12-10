@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import Handlebars from 'handlebars';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
+import { ServiceCapabilities } from '../../types.js';
 
 interface DedupeConfig {
     keyTemplate: string;
@@ -20,7 +21,12 @@ export class DedupePlugin implements ContentProviderPlugin {
         program.option(`--dedupe-key-${stepIndex} <template>`, `Dedupe key for step ${stepIndex}`);
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
+    normalize(
+        options: Record<string, any>, 
+        stepIndex: number, 
+        globalConfig: any,
+        capabilities: ServiceCapabilities
+    ): NormalizedPluginConfig | undefined {
         const getOpt = (key: string) => {
             const specific = options[`${key}${stepIndex}`];
             if (specific !== undefined) return specific;
@@ -45,12 +51,11 @@ export class DedupePlugin implements ContentProviderPlugin {
         
         if (this.seenKeys.has(key)) {
             console.log(`[Row ${row.index}] [Dedupe] ❌ Dropping duplicate key: "${key}"`);
-            return { contentParts: [], data: [] }; // Drop
+            return { contentParts: [], data: [] };
         }
         
         console.log(`[Row ${row.index}] [Dedupe] ✅ Keeping new key: "${key}"`);
         this.seenKeys.add(key);
-        // Return a single empty object to signify "keep this row, but add no new data"
         return { contentParts: [], data: [{}] }; 
     }
 }

@@ -5,6 +5,7 @@ import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { ArtifactSaver } from './ArtifactSaver.js';
+import { MessageBuilder } from './core/MessageBuilder.js';
 import Handlebars from 'handlebars';
 import util from 'util';
 import { exec } from 'child_process';
@@ -14,22 +15,19 @@ const execPromise = util.promisify(exec);
 
 export interface StepExecutionResult {
     historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
-    modelResult: any; // The raw result (string or object)
+    modelResult: any;
 }
 
 export class StepExecutor {
     
     constructor(
-        private tmpDir: string
+        private tmpDir: string,
+        private messageBuilder: MessageBuilder
     ) {}
 
-    /**
-     * Executes the Model generation part of a step.
-     * Plugins are assumed to have been executed by ActionRunner.
-     */
     async executeModel(
         stepContext: StepContext,
-        viewContext: Record<string, any>, // The merged context (row + history)
+        viewContext: Record<string, any>,
         index: number,
         stepIndex: number,
         config: StepConfig,
@@ -37,27 +35,13 @@ export class StepExecutor {
         pluginContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): Promise<StepExecutionResult> {
         
-        // Prepend plugin content to user prompt
-        // Note: In ActionRunner, we might have already combined these for preprocessing.
-        // However, executeModel expects to receive the *final* parts to send to the model.
-        // If ActionRunner passed preprocessed parts as `pluginContentParts`, we use them.
-        // But wait, ActionRunner passes `effectiveParts` which includes userPromptParts.
-        // So we should treat `pluginContentParts` here as the *full* effective user prompt if it comes from ActionRunner's new logic.
-        
-        // Let's assume `pluginContentParts` passed here IS the full effective user prompt.
         let effectiveUserPromptParts = pluginContentParts;
 
-        // 2. Check for "Pass-through" Mode
-        // We check config.userPromptParts just to see if *originally* there was a prompt, 
-        // but for execution we use effectiveUserPromptParts.
         const hasUserPrompt = config.userPromptParts.length > 0;
         const hasSystemPrompt = config.modelConfig.systemParts.length > 0;
         const hasModelPrompt = config.modelConfig.promptParts.length > 0;
 
-        // If effective parts are empty, and no system/model prompt, then we have nothing.
         if (effectiveUserPromptParts.length === 0 && !hasSystemPrompt && !hasModelPrompt) {
-             // FIX: Allow pass-through for steps that only use plugins for filtering/data manipulation (like ValidationPlugin)
-             // Instead of throwing, we return an empty object. ResultProcessor treats {} as "keep row, merge nothing".
              console.log(`[Row ${index}] Step ${stepIndex} No prompt and no content. Treating as pass-through.`);
              return {
                  historyMessage: { role: 'assistant', content: '' },
@@ -65,16 +49,7 @@ export class StepExecutor {
              };
         }
         
-        // Special case: If we have NO model interaction intended (just saving plugin output),
-        // we usually detect that by lack of prompts. 
-        // However, with preprocessors, we might have expanded a URL in the prompt.
-        // So "Pass-through" mode is tricky. 
-        // If the user provided a prompt (even just a URL), they expect the model to run.
-        // Pass-through is strictly for "Plugin -> File" without LLM.
-        
         if (!hasUserPrompt && !hasSystemPrompt && !hasModelPrompt && effectiveUserPromptParts.length > 0) {
-             // This logic was: "If no prompt, save plugin output".
-             // But if effectiveUserPromptParts has content (from plugins), we save it.
              console.log(`[Row ${index}] Step ${stepIndex} No prompt detected. Saving plugin output directly...`);
             
             const savedPaths = await this.saveContentParts(
@@ -99,14 +74,15 @@ export class StepExecutor {
             };
         }
 
-        // 3. Select Strategy
-        let strategy: GenerationStrategy = new StandardStrategy(stepContext.llm);
+        let strategy: GenerationStrategy = new StandardStrategy(
+            stepContext.llm,
+            this.messageBuilder
+        );
         
         if (config.candidates > 1) {
-            strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext);
+            strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext, this.messageBuilder);
         }
 
-        // 4. Execute Strategy
         const result = await strategy.execute(
             viewContext,
             index,

@@ -1,16 +1,17 @@
 import OpenAI from 'openai';
-import { LlmClient } from 'llm-fns';
+import { LlmClient, Fetcher } from 'llm-fns';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { Fetcher } from 'llm-fns';
-import {**Planning the Execution**
-
-I've finalized the structure, focusing on the `StepContext`'s role in providing configured LLM clients for each step and for plugins. I've mapped out the refactoring order, starting with core types and utilities, then progressing to plugin and strategy adjustments. The plan focuses on `ConfiguredLlmClient` to handle the merging of configurations. Next, defining all of the types, and then starting to write all the files.
-
-
- ImageSearch } from './plugins/image-search/ImageSearch.js';
+import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
-import { ConfiguredLlmClient } from './core/ConfiguredLlmClient.js';
 import PQueue from 'p-queue';
+import { Cache } from 'cache-manager';
+
+// --- Service Capabilities (for validation at startup) ---
+
+export interface ServiceCapabilities {
+    hasSerper: boolean;
+    hasPuppeteer: boolean;
+}
 
 // --- Definitions (Pre-Load) ---
 
@@ -26,8 +27,8 @@ export type OutputMode = 'merge' | 'column' | 'ignore';
 
 export interface OutputStrategy {
     mode: OutputMode;
-    columnName?: string; // The target key (if mode is 'column' or fallback for 'merge')
-    explode: boolean;    // Whether to split array results into multiple rows
+    columnName?: string;
+    explode: boolean;
 }
 
 export interface PluginConfigDefinition {
@@ -45,33 +46,23 @@ export interface StepDefinition {
     stepIndex: number;
     modelConfig: ModelDefinition;
     
-    // IO
     outputPath?: string;
     outputTemplate?: string;
-    
-    // Replaces exportResult, outputColumn, strategy
     output: OutputStrategy;
     
-    // Validation
     schemaPath?: string;
     verifyCommand?: string;
     postProcessCommand?: string;
     
-    // Candidates
     candidates: number;
     noCandidateCommand: boolean;
     
-    // Auxiliary
     judge?: ModelDefinition;
     feedback?: ModelDefinition;
     feedbackLoops: number;
     
     aspectRatio?: string;
-
-    // Plugins (Ordered List)
     plugins: PluginConfigDefinition[];
-    
-    // Preprocessors
     preprocessors: PreprocessorConfigDefinition[];
 }
 
@@ -82,7 +73,7 @@ export interface NormalizedConfig {
         taskConcurrency?: number;
         tmpDir: string;
         dataOutputPath?: string;
-        model?: string; // Global default model
+        model?: string;
         offset?: number;
         limit?: number;
     };
@@ -96,60 +87,39 @@ export interface ResolvedModelConfig {
     temperature?: number;
     thinkingLevel?: 'low' | 'medium' | 'high';
     
-    // Resolved Content
     systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
     promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
 export interface StepConfig {
     modelConfig: ResolvedModelConfig;
-
-    // Execution Logic
     tmpDir: string;
-    
-    // Inputs
     userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]; 
     
-    // Outputs
     outputPath?: string;
     outputTemplate?: string; 
-    
-    // Replaces exportResult, outputColumn, strategy
     output: OutputStrategy;
     
-    // Validation & Post-processing
     schemaPath?: string;
     jsonSchema?: any; 
     verifyCommand?: string;
     postProcessCommand?: string;
     
-    // Candidates & Judging
     candidates: number;
     noCandidateCommand: boolean;
     
-    // Auxiliary Models
     judge?: ResolvedModelConfig;
     feedback?: ResolvedModelConfig;
     feedbackLoops: number;
     
-    // Image Generation
     aspectRatio?: string;
-
-    // Plugins (Ordered List)
     plugins: PluginConfigDefinition[];
-    
-    // Preprocessors
     preprocessors: PreprocessorConfigDefinition[];
 
-    // --- NEW: Pre-calculated Paths ---
-    resolvedOutputDir?: string; // The final destination folder (e.g., out/10-image/BoulderHall)
-    resolvedTempDir?: string;   // The isolated temp folder (e.g., .tmp/001_02)
-    
-    // NEW: Filename components
-    outputBasename?: string;    // e.g. "04_AboutCourseFirstImage"
-    outputExtension?: string;   // e.g. ".jpg"
-
-    // NEW: Raw Options for Preprocessors
+    resolvedOutputDir?: string;
+    resolvedTempDir?: string;
+    outputBasename?: string;
+    outputExtension?: string;
     options?: Record<string, any>;
 }
 
@@ -173,40 +143,56 @@ export interface ActionOptions extends RuntimeConfig {}
 // --- Execution Architecture ---
 
 export interface PipelineItem {
-    // The persistent data that will eventually be saved to the CSV/JSON
     row: Record<string, any>;
-    
-    // The transient data available for templating ({{webSearch.link}}, {{steps.0.result}})
-    // This accumulates results from plugins and previous steps but is NOT saved to output unless exported.
     workspace: Record<string, any>;
-    
-    // Metadata for execution tracking
-    stepHistory: Record<string, any>[]; // Results from previous steps
-    history: any[]; // LLM Conversation History
-    originalIndex: number; // For logging/debugging
+    stepHistory: Record<string, any>[];
+    history: any[];
+    originalIndex: number;
+}
+
+// --- LLM Configuration for Factory ---
+
+export interface LlmModelConfig {
+    model: string;
+    temperature?: number;
+    thinkingLevel?: 'low' | 'medium' | 'high';
 }
 
 // --- Dependency Injection Contexts ---
 
 export interface GlobalContext {
-    baseLlm: LlmClient;
+    // Core OpenAI instance (shared)
+    openai: OpenAI;
+    
+    // Caching & Queuing (shared)
+    cache?: Cache;
+    gptQueue: PQueue;
+    serperQueue: PQueue;
+    puppeteerQueue: PQueue;
+    
+    // Services (guaranteed to exist)
     puppeteerHelper: PuppeteerHelper;
     fetcher: Fetcher;
+    
+    // Services (may be undefined based on env - validated at normalize time)
     imageSearch?: ImageSearch;
     webSearch?: WebSearch;
-    puppeteerQueue: PQueue;
-    serperQueue: PQueue;
-    gptQueue: PQueue;
+    
+    // Capabilities (for validation)
+    capabilities: ServiceCapabilities;
+    
+    // Default model from config
+    defaultModel: string;
 }
 
 export interface StepContext {
     global: GlobalContext;
     
-    // Pre-configured LLMs for this step
-    llm: ConfiguredLlmClient;
-    judge?: ConfiguredLlmClient;
-    feedback?: ConfiguredLlmClient;
-
-    // Factory for creating ad-hoc configured clients (e.g. for plugins)
-    createLlmClient(config: ResolvedModelConfig): ConfiguredLlmClient;
+    // Pre-configured LLM clients for this step
+    llm: LlmClient;
+    judge?: LlmClient;
+    feedback?: LlmClient;
+    
+    // Factory for plugins to create ad-hoc clients
+    createLlm(config: LlmModelConfig): LlmClient;
 }

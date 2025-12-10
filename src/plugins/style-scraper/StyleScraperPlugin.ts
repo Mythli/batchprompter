@@ -6,6 +6,7 @@ import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginCon
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
+import { ServiceCapabilities } from '../../types.js';
 
 interface StyleScraperRawConfig {
     url?: string;
@@ -23,7 +24,7 @@ interface StyleScraperResolvedConfig {
 
 interface ScraperArtifact {
     type: 'desktop' | 'mobile' | 'interactive_composite' | 'element' | 'css';
-    subType?: string; // e.g. 'button', 'input'
+    subType?: string;
     index?: number;
     state?: string;
     base64: string;
@@ -35,13 +36,12 @@ interface StyleScraperCacheData {
     artifacts: ScraperArtifact[];
 }
 
-// Strongly typed output for the plugin
 export interface StyleScraperOutput {
     desktop?: string;
     mobile?: string;
     interactive?: string;
     css?: string;
-    elements?: Record<string, string>; // Keyed by "type_index_state" e.g. "button_1_hover"
+    elements?: Record<string, string>;
 }
 
 export class StyleScraperPlugin implements ContentProviderPlugin {
@@ -63,7 +63,12 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
         program.option(`--style-scrape-interactive-${stepIndex}`, `Capture interactive elements for step ${stepIndex}`);
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
+    normalize(
+        options: Record<string, any>, 
+        stepIndex: number, 
+        globalConfig: any,
+        capabilities: ServiceCapabilities
+    ): NormalizedPluginConfig | undefined {
         const getOpt = (key: string) => {
             const specific = options[`${key}${stepIndex}`];
             if (specific !== undefined) return specific;
@@ -73,6 +78,13 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
         const url = getOpt('styleScrapeUrl');
         if (!url) return undefined;
 
+        // Validate capabilities at normalize time
+        if (!capabilities.hasPuppeteer) {
+            throw new Error(
+                `Step ${stepIndex} Style Scraper requires Puppeteer which is not available.`
+            );
+        }
+
         const config: StyleScraperRawConfig = {
             url,
             resolution: getOpt('styleScrapeResolution') || '1920x1080',
@@ -80,9 +92,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
             interactive: !!getOpt('styleScrapeInteractive')
         };
 
-        return {
-            config
-        };
+        return { config };
     }
 
     async prepare(config: StyleScraperRawConfig, row: Record<string, any>): Promise<StyleScraperResolvedConfig> {
@@ -101,18 +111,14 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, services, tempDirectory, outputBasename } = context;
+        const { row, stepIndex, config, stepContext, tempDirectory, outputBasename } = context;
         const resolvedConfig = config as StyleScraperResolvedConfig;
 
-        if (!services.puppeteerHelper) {
-            throw new Error("PuppeteerHelper is not available.");
-        }
-
-        const puppeteerHelper = services.puppeteerHelper;
+        // No runtime check needed - validated at normalize time
+        const puppeteerHelper = stepContext.global.puppeteerHelper;
         const pageHelper = await puppeteerHelper.getPageHelper();
 
         try {
-            // Construct a unique cache key
             const cacheKey = `style-scraper:v2:${resolvedConfig.url}:${resolvedConfig.resolution.width}x${resolvedConfig.resolution.height}:${resolvedConfig.mobile}:${resolvedConfig.interactive}`;
 
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Scraping styles from: ${resolvedConfig.url}`);
@@ -123,7 +129,6 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                     const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
                     const artifacts: ScraperArtifact[] = [];
 
-                    // 1. Desktop Screenshot
                     const desktopShot = (await ph.takeScreenshots([resolvedConfig.resolution]))[0];
                     if (desktopShot) {
                         contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${resolvedConfig.url}) ---` });
@@ -136,7 +141,6 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                         });
                     }
 
-                    // 2. Mobile Screenshot (Optional)
                     if (resolvedConfig.mobile) {
                         const mobileRes = { width: 375, height: 812 };
                         const mobileShot = (await ph.takeScreenshots([mobileRes]))[0];
@@ -150,11 +154,9 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                                 extension: '.jpg'
                             });
                         }
-                        // Restore viewport
                         await ph.getPage().setViewport(resolvedConfig.resolution);
                     }
 
-                    // 3. Interactive Elements (Optional)
                     if (resolvedConfig.interactive) {
                         console.log(`[Row ${context.row.index}] Step ${stepIndex} Capturing interactive elements...`);
                         const screenshoter = new InteractiveElementScreenshoter(puppeteerHelper);
@@ -218,11 +220,10 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
                     cacheKey,
                     resolution: resolvedConfig.resolution,
                     dismissCookies: true,
-                    ttl: 24 * 60 * 60 * 1000 // 24 hours
+                    ttl: 24 * 60 * 60 * 1000
                 }
             );
 
-            // --- Post-Processing ---
             const baseName = outputBasename || 'style_scrape';
             const screenshotsDir = path.join(tempDirectory, 'screenshots');
             const interactiveDir = path.join(tempDirectory, 'interactive');
@@ -267,7 +268,7 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
 
             return {
                 contentParts: result.contentParts,
-                data: [outputData] // Wrap in array to signify 1:1 mapping
+                data: [outputData]
             };
 
         } finally {

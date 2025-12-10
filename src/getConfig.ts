@@ -1,15 +1,11 @@
-//
 import * as dotenv from 'dotenv';
 import { z } from 'zod';
-// import { createCache } from 'cache-manager';
 import KeyvSqlite from '@keyv/sqlite';
 import Keyv from 'keyv';
 import OpenAI from "openai";
-import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
-import { ModelFlags } from './cli/ModelFlags.js';
 import { PluginRegistry } from './plugins/PluginRegistry.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 import { WebSearchPlugin } from './plugins/web-search/WebSearchPlugin.js';
@@ -27,11 +23,13 @@ import { GenericPuppeteerHandler } from './preprocessors/expander/GenericPuppete
 import { WikipediaHandler } from './preprocessors/expander/sites/WikipediaHandler.js';
 import { createCachedFetcher } from "llm-fns";
 import { attachQueueLogger } from './utils/queueUtils.js';
-import { GlobalContext } from './types.js';
+import { GlobalContext, ServiceCapabilities } from './types.js';
+import { LlmClientFactory } from './core/LlmClientFactory.js';
+import { StepContextFactory } from './core/StepContextFactory.js';
+import { MessageBuilder } from './core/MessageBuilder.js';
 
 dotenv.config();
 
-// Helper to resolve environment variables with fallbacks
 function getEnvVar(keys: string[]): string | undefined {
     for (const key of keys) {
         const value = process.env[key];
@@ -60,41 +58,6 @@ export type ConfigOverrides = {
     concurrency?: number;
 };
 
-export const createDefaultRegistry = () => {
-    const registry = new PluginRegistry();
-    // Register search plugins first so their data is available to subsequent plugins
-    registry.register(new WebSearchPlugin());
-    registry.register(new ImageSearchPlugin());
-    registry.register(new WebsiteAgentPlugin());
-    registry.register(new StyleScraperPlugin());
-
-    // New Plugins
-    registry.register(new DedupePlugin());
-    registry.register(new ValidationPlugin());
-
-    return registry;
-};
-
-export const createPreprocessorRegistry = () => {
-    const registry = new PromptPreprocessorRegistry();
-
-    // --- URL Expander Setup ---
-    // 1. Instantiate Generics
-    const fetchHandler = new GenericFetchHandler();
-    const puppeteerHandler = new GenericPuppeteerHandler();
-
-    // 2. Instantiate Registry
-    const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, puppeteerHandler);
-
-    // 3. Register Specific Handlers (Injecting Generics)
-    urlHandlerRegistry.registerSpecific(new WikipediaHandler());
-
-    // 4. Register Plugin
-    registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
-
-    return registry;
-};
-
 // Adapter to make Keyv compatible with cache-manager Cache interface
 class KeyvCacheAdapter {
     constructor(private keyv: Keyv) {}
@@ -115,7 +78,6 @@ class KeyvCacheAdapter {
         await this.keyv.clear();
     }
 
-    // Stubs for full Cache interface compliance
     async mget(...keys: string[]): Promise<any[]> { return []; }
     async mset(args: [string, any][], ttl?: number): Promise<void> { return; }
     async mdel(...keys: string[]): Promise<void> { return; }
@@ -123,8 +85,30 @@ class KeyvCacheAdapter {
     store: any = {};
 }
 
+export const createDefaultRegistry = (capabilities: ServiceCapabilities) => {
+    const registry = new PluginRegistry(capabilities);
+    registry.register(new WebSearchPlugin());
+    registry.register(new ImageSearchPlugin());
+    registry.register(new WebsiteAgentPlugin());
+    registry.register(new StyleScraperPlugin());
+    registry.register(new DedupePlugin());
+    registry.register(new ValidationPlugin());
+    return registry;
+};
+
+export const createPreprocessorRegistry = () => {
+    const registry = new PromptPreprocessorRegistry();
+
+    const fetchHandler = new GenericFetchHandler();
+    const puppeteerHandler = new GenericPuppeteerHandler();
+    const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, puppeteerHandler);
+    urlHandlerRegistry.registerSpecific(new WikipediaHandler());
+    registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
+
+    return registry;
+};
+
 export const initConfig = async (overrides: ConfigOverrides = {}) => {
-    // Resolve values from multiple possible environment variable names
     const rawConfig = {
         ...process.env,
         AI_API_KEY: getEnvVar(['BATCHPROMPT_OPENAI_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY']),
@@ -141,8 +125,14 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     const config = configSchema.parse(rawConfig);
 
+    // Compute Service Capabilities
+    const capabilities: ServiceCapabilities = {
+        hasSerper: !!config.SERPER_API_KEY,
+        hasPuppeteer: true // Puppeteer is always available (bundled)
+    };
+
     // Setup Cache
-    let cache: any; // Use any to bypass strict Cache type check if needed, or use the adapter
+    let cache: any;
     if (config.CACHE_ENABLED) {
         const keyv = new Keyv({
             store: new KeyvSqlite(`sqlite://${config.SQLITE_PATH}`),
@@ -156,40 +146,38 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const fetcher = createCachedFetcher({
         cache,
         prefix: 'fetch',
-        ttl: 24 * 60 * 60 * 1000, // 24 hours
-        timeout: 30000, // 30 seconds
+        ttl: 24 * 60 * 60 * 1000,
+        timeout: 30000,
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     });
 
-    const openAi = new OpenAI({
+    // Setup OpenAI Client
+    const openai = new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
         fetch: fetcher as any
     });
 
-    // Use overrides if provided (CLI), otherwise use config (Env/Default)
+    // Setup Queues
     const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? config.GPT_CONCURRENCY });
     attachQueueLogger(gptQueue, 'GPT');
 
-    const baseLlm = createLlm({
-        openai: openAi as any, // Cast to any to avoid version mismatch issues
-        defaultModel: config.MODEL || 'gpt-4o-mini',
-        cache: cache,
-        queue: gptQueue,
-        maxConversationChars: config.GPT_MAX_CONVERSATION_CHARS,
-    });
-
-    // Serper Queue
     const serperQueue = new PQueue({ concurrency: config.SERPER_CONCURRENCY });
     attachQueueLogger(serperQueue, 'Serper');
 
+    const puppeteerQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
+    attachQueueLogger(puppeteerQueue, 'Puppeteer');
+
+    // Default Model
+    const defaultModel = config.MODEL || 'gpt-4o-mini';
+
+    // Setup Optional Services (based on capabilities)
     let imageSearch: ImageSearch | undefined;
     let webSearch: WebSearch | undefined;
 
-    if (config.SERPER_API_KEY) {
-        // Pass cache to ImageSearch for Serper results, and fetcher for downloads
-        imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher, serperQueue);
-        webSearch = new WebSearch(config.SERPER_API_KEY, fetcher, serperQueue);
+    if (capabilities.hasSerper) {
+        imageSearch = new ImageSearch(config.SERPER_API_KEY!, fetcher, serperQueue);
+        webSearch = new WebSearch(config.SERPER_API_KEY!, fetcher, serperQueue);
     }
 
     // Initialize PuppeteerHelper
@@ -200,32 +188,37 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         restartTimeout: config.PUPPETEER_RESTART_TIMEOUT
     });
 
-    // Initialize Puppeteer Queue
-    const puppeteerQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
-    attachQueueLogger(puppeteerQueue, 'Puppeteer');
-
-    // Initialize PluginRegistry
-    const pluginRegistry = createDefaultRegistry();
-
-    // Initialize PreprocessorRegistry
-    const preprocessorRegistry = createPreprocessorRegistry();
-
+    // Build GlobalContext
     const globalContext: GlobalContext = {
-        baseLlm,
+        openai,
+        cache,
+        gptQueue,
+        serperQueue,
+        puppeteerQueue,
         puppeteerHelper,
         fetcher,
         imageSearch,
         webSearch,
-        puppeteerQueue,
-        serperQueue,
-        gptQueue
+        capabilities,
+        defaultModel
     };
+
+    // Create Factories
+    const llmFactory = new LlmClientFactory(openai, cache, gptQueue, defaultModel);
+    const stepContextFactory = new StepContextFactory(llmFactory, globalContext);
+    const messageBuilder = new MessageBuilder();
+
+    // Initialize Registries (with capabilities for validation)
+    const pluginRegistry = createDefaultRegistry(capabilities);
+    const preprocessorRegistry = createPreprocessorRegistry();
 
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         globalContext,
         pluginRegistry,
-        preprocessorRegistry
+        preprocessorRegistry,
+        stepContextFactory,
+        messageBuilder
     );
 
     return {
@@ -234,16 +227,20 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         pluginRegistry,
         preprocessorRegistry,
         actionRunner,
-        puppeteerHelper
+        puppeteerHelper,
+        capabilities,
+        llmFactory,
+        stepContextFactory,
+        messageBuilder
     };
 }
 
 export type TheConfig = Awaited<ReturnType<typeof initConfig>>;
 
-let config: null | TheConfig = null;
+let configInstance: null | TheConfig = null;
 export const getConfig = async (overrides?: ConfigOverrides) => {
-    if(!config) {
-        config = await initConfig(overrides);
+    if(!configInstance) {
+        configInstance = await initConfig(overrides);
     }
-    return config;
+    return configInstance;
 }

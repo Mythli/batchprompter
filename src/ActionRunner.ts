@@ -13,7 +13,8 @@ import { PluginRunner } from './core/PluginRunner.js';
 import { ResultProcessor } from './core/ResultProcessor.js';
 import OpenAI from 'openai';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
-import { DependencyFactory } from './core/DependencyFactory.js';
+import { StepContextFactory } from './core/StepContextFactory.js';
+import { MessageBuilder } from './core/MessageBuilder.js';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -24,7 +25,9 @@ export class ActionRunner {
     constructor(
         private globalContext: GlobalContext,
         private pluginRegistry: PluginRegistry,
-        private preprocessorRegistry: PromptPreprocessorRegistry
+        private preprocessorRegistry: PromptPreprocessorRegistry,
+        private stepContextFactory: StepContextFactory,
+        private messageBuilder: MessageBuilder
     ) {}
 
     async run(config: RuntimeConfig) {
@@ -32,7 +35,6 @@ export class ActionRunner {
 
         console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
         
-        // Slicing Logic
         const endIndex = limit ? offset + limit : undefined;
         const dataToProcess = data.slice(offset, endIndex);
         
@@ -47,31 +49,23 @@ export class ActionRunner {
 
         const rowErrors: { index: number, error: any }[] = [];
         
-        // Initialize Task Queue
         const queue = new PQueue({ concurrency: taskConcurrency });
 
-        // Initialize Executor
-        const executor = new StepExecutor(tmpDir);
+        const executor = new StepExecutor(tmpDir, this.messageBuilder);
 
-        // Initialize Plugin Runner
         const pluginRunner = new PluginRunner(
             this.pluginRegistry,
             { tmpDir, concurrency }
         );
 
-        // Store final results here. Since rows can multiply, this is a dynamic array.
         const finalResults: Record<string, any>[] = [];
 
-        // Helper to process a single task (Row @ Step)
         const processTask = async (payload: TaskPayload) => {
             const { item, stepIndex } = payload;
             const stepConfig = steps[stepIndex];
             const stepNum = stepIndex + 1;
 
             try {
-                // 1. Prepare View Context (Merge Data Sources)
-                // Priority: Workspace > Row > History
-                // This allows {{webSearch.link}} to work even if not in row
                 const viewContext = {
                     ...item.row,
                     ...item.workspace,
@@ -79,14 +73,12 @@ export class ActionRunner {
                     index: item.originalIndex
                 };
 
-                // Compute sanitized version for file system operations
                 const sanitizedRow: Record<string, any> = {};
                 for (const [key, val] of Object.entries(viewContext)) {
                      const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
                      sanitizedRow[key] = aggressiveSanitize(stringVal);
                 }
 
-                // 2. Resolve Step Config
                 const resolvedStep = await this.prepareStepConfig(
                     stepConfig, 
                     viewContext, 
@@ -96,17 +88,14 @@ export class ActionRunner {
                     tmpDir
                 );
 
-                // 3. Create Step Context (Dependency Injection)
-                const stepContext = DependencyFactory.createStepContext(this.globalContext, resolvedStep);
+                const stepContext = this.stepContextFactory.create(resolvedStep);
 
                 console.log(`[Row ${item.originalIndex}] Step ${stepNum} Processing...`);
 
-                // --- EXECUTION LOOP ---
-                
                 interface ActiveContext {
                     item: PipelineItem;
                     contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-                    stepResult: Record<string, any>; // Accumulates results for this step
+                    stepResult: Record<string, any>;
                 }
 
                 let activeContexts: ActiveContext[] = [{
@@ -115,24 +104,21 @@ export class ActionRunner {
                     stepResult: {}
                 }];
 
-                // 4. Execute Plugins Sequentially
                 for (const pluginDef of resolvedStep.plugins) {
                     const nextContexts: ActiveContext[] = [];
 
                     for (const ctx of activeContexts) {
                         try {
-                            // Prepare View Context for this specific item state
                             const pluginViewContext = {
                                 ...ctx.item.row,
                                 ...ctx.item.workspace,
-                                ...ctx.stepResult, // Include results from previous plugins in this step
+                                ...ctx.stepResult,
                                 steps: ctx.item.stepHistory,
                                 index: ctx.item.originalIndex
                             };
 
-                            // Execute Plugin
                             const { context: updatedContext, contentParts, pluginResults } = await pluginRunner.run(
-                                [pluginDef], // Run one plugin
+                                [pluginDef],
                                 pluginViewContext,
                                 stepNum,
                                 stepContext,
@@ -144,20 +130,15 @@ export class ActionRunner {
                                 }
                             );
 
-                            // Get the specific result for this plugin
                             const resultData = pluginResults[pluginDef.name];
                             
-                            // Apply Output Strategy (Merge/Explode)
-                            // ResultProcessor returns new PipelineItems based on the strategy
-                            // It handles updating workspace and row
                             const processedItems = ResultProcessor.process(
                                 [ctx.item], 
                                 resultData, 
                                 pluginDef.output,
-                                toCamel(pluginDef.name) // Ensure consistent camelCase key in workspace
+                                toCamel(pluginDef.name)
                             );
 
-                            // Create new contexts for the next plugin/model
                             for (const newItem of processedItems) {
                                 nextContexts.push({
                                     item: newItem,
@@ -170,20 +151,16 @@ export class ActionRunner {
                             }
                         } catch (pluginError: any) {
                             console.error(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' Failed:`, pluginError);
-                            // Log error
                             rowErrors.push({ index: item.originalIndex, error: pluginError });
-                            // Stop processing this branch (Drop the row)
                         }
                     }
                     activeContexts = nextContexts;
                 }
 
-                // 5. Execute Model (for each active context)
                 const nextItemsForQueue: PipelineItem[] = [];
 
                 for (const ctx of activeContexts) {
                     try {
-                        // Prepare View Context for Model
                         const modelViewContext = {
                             ...ctx.item.row,
                             ...ctx.item.workspace,
@@ -192,28 +169,22 @@ export class ActionRunner {
                             index: ctx.item.originalIndex
                         };
 
-                        // --- PREPROCESS PROMPTS ---
-                        // Run preprocessors on the accumulated content parts + user prompt parts
-                        // We need to combine them first to allow preprocessors to see the full context
                         let effectiveParts = [...ctx.contentParts, ...resolvedStep.userPromptParts];
                         
-                        // Run all registered preprocessors
                         for (const ppDef of resolvedStep.preprocessors) {
                             const preprocessor = this.preprocessorRegistry.get(ppDef.name);
                             if (preprocessor) {
                                 effectiveParts = await preprocessor.process(effectiveParts, {
                                     row: modelViewContext,
                                     services: {
-                                        // Minimal services for preprocessors (mostly puppeteer/fetcher)
                                         puppeteerHelper: this.globalContext.puppeteerHelper,
                                         fetcher: this.globalContext.fetcher,
                                         puppeteerQueue: this.globalContext.puppeteerQueue
-                                    } as any
+                                    }
                                 }, ppDef.config);
                             }
                         }
 
-                        // Execute Model
                         const result = await executor.executeModel(
                             stepContext,
                             modelViewContext,
@@ -221,16 +192,14 @@ export class ActionRunner {
                             stepNum,
                             resolvedStep,
                             ctx.item.history,
-                            effectiveParts // Pass the preprocessed parts
+                            effectiveParts
                         );
 
-                        // Update Step Result
                         const currentStepResult = {
                             ...ctx.stepResult,
                             modelOutput: result.modelResult
                         };
 
-                        // Apply Model Output Strategy
                         const processedItems = ResultProcessor.process(
                             [ctx.item], 
                             result.modelResult, 
@@ -238,18 +207,14 @@ export class ActionRunner {
                             'modelOutput'
                         );
 
-                        // Prepare for next step
                         for (const finalItem of processedItems) {
-                            // Update history for this branch
                             const newHistory = [...finalItem.history];
 
-                            // Check if we have a valid user prompt (non-empty)
                             const hasUserPrompt = resolvedStep.userPromptParts.length > 0 && resolvedStep.userPromptParts.some(p => {
                                 if (p.type === 'text') return p.text.trim().length > 0;
-                                return true; // Image/Audio is content
+                                return true;
                             });
 
-                            // Check if we have a valid assistant response (non-empty)
                             const assistantContent = result.historyMessage.content;
                             const hasAssistantResponse = 
                                 assistantContent !== null && 
@@ -257,14 +222,9 @@ export class ActionRunner {
                                 assistantContent !== '' && 
                                 !(Array.isArray(assistantContent) && assistantContent.length === 0);
 
-                            // Only append to history if we have a meaningful interaction.
-                            // If the user prompt was empty (e.g. a plugin-only step), we skip adding to history
-                            // to prevent "empty message" errors and to keep the conversation flow clean.
                             if (hasUserPrompt) {
                                 newHistory.push({ role: 'user', content: resolvedStep.userPromptParts });
                                 
-                                // Only add assistant response if we added a user prompt.
-                                // This prevents orphaned assistant messages or double-assistant messages.
                                 if (hasAssistantResponse) {
                                     newHistory.push(result.historyMessage);
                                 }
@@ -277,19 +237,13 @@ export class ActionRunner {
                         }
                     } catch (modelError: any) {
                         console.error(`[Row ${item.originalIndex}] Step ${stepNum} Model Execution Failed:`, modelError.message);
-                        // Log error
                         rowErrors.push({ index: item.originalIndex, error: modelError });
-                        // Stop processing this branch (Drop the row)
                     }
                 }
 
-                // 6. Queue Next Steps or Save
                 if (stepIndex === steps.length - 1) {
-                    // Finished pipeline for these items
-                    // We only save the 'row' part of the PipelineItem
                     finalResults.push(...nextItemsForQueue.map(i => i.row));
                 } else {
-                    // Queue next step
                     for (const nextItem of nextItemsForQueue) {
                         queue.add(() => processTask({
                             item: nextItem,
@@ -299,17 +253,13 @@ export class ActionRunner {
                 }
 
             } catch (err) {
-                // This catches errors in the setup phase (before the loop)
                 console.error(`[Row ${item.originalIndex}] Step ${stepNum} Setup Error:`, err);
                 rowErrors.push({ index: item.originalIndex, error: err });
-                // Stop processing this branch (Drop the row)
             }
         };
 
         try {
-            // Initial Queue Population
             for (let i = 0; i < dataToProcess.length; i++) {
-                // Calculate original index based on offset
                 const originalIndex = offset + i;
                 
                 const initialItem: PipelineItem = {
@@ -336,7 +286,6 @@ export class ActionRunner {
             }
 
         } finally {
-            // Save updated data
             const ext = path.extname(dataFilePath);
             
             let finalOutputPath: string;
@@ -347,7 +296,6 @@ export class ActionRunner {
                 finalOutputPath = path.join(path.dirname(dataFilePath), `${basename}_processed${ext}`);
             }
 
-            // Filter out empty results (if any)
             const validResults = finalResults.filter(r => r !== undefined && r !== null);
 
             if (validResults.length === 0) {
@@ -359,7 +307,6 @@ export class ActionRunner {
                 await fsPromises.writeFile(finalOutputPath, JSON.stringify(validResults, null, 2));
             } else {
                 try {
-                    // Flatten nested objects (e.g. { ceo: { name: "..." } } -> "ceo.name")
                     const parser = new Parser({
                         transforms: [
                             transforms.flatten({ separator: '.', objects: true, arrays: false })
@@ -385,38 +332,30 @@ export class ActionRunner {
     ): Promise<StepConfig> {
         const resolvedStep: StepConfig = { ...stepConfig };
 
-        // 1. Output Path & Directory
         if (stepConfig.outputTemplate) {
             const delegate = Handlebars.compile(stepConfig.outputTemplate, { noEscape: true });
             resolvedStep.outputPath = delegate(sanitizedRow);
             
-            // Calculate the directory for final assets
             resolvedStep.resolvedOutputDir = path.dirname(resolvedStep.outputPath);
             await ensureDir(resolvedStep.resolvedOutputDir);
 
-            // Parse filename components
             const parsed = path.parse(resolvedStep.outputPath);
             resolvedStep.outputBasename = parsed.name;
             resolvedStep.outputExtension = parsed.ext;
         } else {
-            // Default values if no output path
             resolvedStep.outputBasename = `output_${rowIndex}_${stepIndex}`;
             resolvedStep.outputExtension = stepConfig.aspectRatio ? '.png' : '.txt';
         }
 
-        // 2. Temp Directory (Structured)
         if (resolvedStep.resolvedOutputDir) {
-            // Mirror the output directory structure inside the temp directory
             resolvedStep.resolvedTempDir = path.join(globalTmpDir, resolvedStep.resolvedOutputDir);
         } else {
-            // Pattern: .tmp/001_02 (Row 1, Step 2)
             const rowStr = String(rowIndex).padStart(3, '0');
             const stepStr = String(stepIndex).padStart(2, '0');
             resolvedStep.resolvedTempDir = path.join(globalTmpDir, `${rowStr}_${stepStr}`);
         }
         await ensureDir(resolvedStep.resolvedTempDir);
 
-        // 3. Schema Path
         if (stepConfig.schemaPath) {
             try {
                 resolvedStep.jsonSchema = await SchemaHelper.loadAndRenderSchema(stepConfig.schemaPath, sanitizedRow);
@@ -425,21 +364,17 @@ export class ActionRunner {
             }
         }
 
-        // 4. User Prompt
         if (stepConfig.userPromptParts.length === 1 && stepConfig.userPromptParts[0].type === 'text' && stepConfig.userPromptParts[0].text.includes('{{')) {
             const template = stepConfig.userPromptParts[0].text;
             resolvedStep.userPromptParts = await PromptResolver.resolve(template, viewContext);
         }
 
-        // 5. Pass Plugins (Raw)
-        // We no longer prepare them here. They are prepared JIT in PluginRunner to allow chaining.
         resolvedStep.plugins = stepConfig.plugins;
 
         return resolvedStep;
     }
 }
 
-// Helper to convert kebab-case plugin name to camelCase for workspace keys
 const toCamel = (s: string) => {
     return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
 };

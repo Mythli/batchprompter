@@ -4,13 +4,11 @@ import Handlebars from 'handlebars';
 import path from 'path';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
-import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
+import { ModelDefinition, ResolvedModelConfig, ServiceCapabilities } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
-
-// --- Configuration Types ---
 
 interface ImageSearchRawConfig {
     query?: string;
@@ -59,18 +57,18 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         program.option(`--image-search-sprite-size-${stepIndex} <number>`, `Sprite size for step ${stepIndex}`);
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
-        
-        // Instantiate ModelFlags with the global default model
+    normalize(
+        options: Record<string, any>, 
+        stepIndex: number, 
+        globalConfig: any,
+        capabilities: ServiceCapabilities
+    ): NormalizedPluginConfig | undefined {
         const modelFlags = new ModelFlags(globalConfig.model);
 
-        // Helper to extract model config using the instance
         const extractModel = (namespace: string, fallbackNamespace: string): ModelDefinition | undefined => {
             const config = modelFlags.extract(options, namespace, fallbackNamespace);
-            
             if (!config.promptSource && !config.systemSource && !config.model) return undefined;
             if (!config.promptSource && !config.systemSource) return undefined;
-
             return config as ModelDefinition;
         };
 
@@ -80,17 +78,21 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             return options[key];
         };
 
-        // 1. Extract Configurations
         const queryConfig = extractModel(`image-query-${stepIndex}`, 'image-query');
         const selectConfig = extractModel(`image-select-${stepIndex}`, 'image-select');
         const query = getOpt('imageSearchQuery');
 
-        // 2. Check Activation
         const isActive = !!(query || queryConfig || selectConfig);
 
         if (!isActive) return undefined;
 
-        // 3. Validation
+        // Validate capabilities at normalize time
+        if (!capabilities.hasSerper) {
+            throw new Error(
+                `Step ${stepIndex} Image Search requires SERPER_API_KEY environment variable to be set.`
+            );
+        }
+
         if (!query && !queryConfig) {
             throw new Error(
                 `Step ${stepIndex} Image Search Configuration Error: ` +
@@ -108,9 +110,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             spriteSize: parseInt(getOpt('imageSearchSpriteSize') || '4', 10)
         };
 
-        return {
-            config
-        };
+        return { config };
     }
 
     async prepare(config: ImageSearchRawConfig, row: Record<string, any>): Promise<ImageSearchResolvedConfig> {
@@ -121,17 +121,14 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             spriteSize: config.spriteSize
         };
 
-        // 1. Resolve Static Query
         if (config.query) {
             resolved.query = Handlebars.compile(config.query, { noEscape: true })(row);
         }
 
-        // 2. Resolve Query Config
         if (config.queryConfig) {
             resolved.queryConfig = await PluginHelpers.resolveModelConfig(config.queryConfig, row);
         }
 
-        // 3. Resolve Select Config
         if (config.selectConfig) {
             resolved.selectConfig = await PluginHelpers.resolveModelConfig(config.selectConfig, row);
         }
@@ -143,40 +140,23 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         const { row, stepIndex, config, stepContext, outputDirectory, tempDirectory, outputBasename, outputExtension, output } = context;
         const resolvedConfig = config as ImageSearchResolvedConfig;
 
-        // Check Services
-        if (!stepContext.global.imageSearch) {
-            throw new Error(
-                `Step ${stepIndex} requires Image Search, but SERPER_API_KEY is missing from environment variables.`
-            );
-        }
-
-        const imageSearch = stepContext.global.imageSearch;
+        // No runtime check needed - validated at normalize time
+        const imageSearch = stepContext.global.imageSearch!;
         
-        // Create AI Image Search Agent
-        // We need a selectLlm if selection is configured
         let selectLlm;
         if (resolvedConfig.selectConfig) {
-            selectLlm = stepContext.createLlmClient(resolvedConfig.selectConfig);
+            selectLlm = stepContext.createLlm({
+                model: resolvedConfig.selectConfig.model || stepContext.global.defaultModel,
+                temperature: resolvedConfig.selectConfig.temperature,
+                thinkingLevel: resolvedConfig.selectConfig.thinkingLevel
+            });
         }
-        
-        // Note: AiImageSearch constructor requires selectLlm. 
-        // If selectConfig is missing, we might not need AiImageSearch for selection, 
-        // but we might need it for query generation?
-        // Actually, query generation is done manually below.
-        // AiImageSearch is mostly for selection.
-        // If no select config, we just slice.
-        
-        // However, to keep it clean, let's instantiate AiImageSearch only if needed or pass a dummy?
-        // Or better, just use the class if we have the config.
         
         let aiImageSearch: AiImageSearch | undefined;
         if (selectLlm) {
             aiImageSearch = new AiImageSearch(imageSearch, selectLlm, resolvedConfig.spriteSize);
         }
 
-        // --- Execution Logic ---
-
-        // Organize Temp Directory
         const rawDir = path.join(tempDirectory, 'raw');
         const spritesDir = path.join(tempDirectory, 'sprites');
         const selectedDir = path.join(tempDirectory, 'selected');
@@ -185,13 +165,11 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         await ensureDir(spritesDir);
         await ensureDir(selectedDir);
         
-        // Determine base naming
         const baseName = outputBasename || 'image';
         const ext = outputExtension || '.jpg';
 
         const queries: string[] = [];
 
-        // 1. Collect Queries
         if (resolvedConfig.query) {
             queries.push(resolvedConfig.query);
         }
@@ -204,8 +182,13 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                 queries: z.array(z.string()).min(1).max(resolvedConfig.queryCount)
             });
 
-            const queryLlm = stepContext.createLlmClient(resolvedConfig.queryConfig);
-            const response = await queryLlm.promptZod(row, QuerySchema);
+            const queryLlm = stepContext.createLlm({
+                model: resolvedConfig.queryConfig.model || stepContext.global.defaultModel,
+                temperature: resolvedConfig.queryConfig.temperature,
+                thinkingLevel: resolvedConfig.queryConfig.thinkingLevel
+            });
+            
+            const response = await queryLlm.promptZod(QuerySchema);
             
             queries.push(...response.queries);
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Generated queries: ${response.queries.join(', ')}`);
@@ -213,7 +196,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         if (queries.length === 0) return { contentParts: [], data: [] };
 
-        // 2. Execute Searches
         console.log(`[Row ${context.row.index}] Step ${stepIndex} Executing ${queries.length} searches...`);
         const searchPromises = queries.map(q => imageSearch.search(q, resolvedConfig.limit));
         
@@ -238,7 +220,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         if (pooledImages.length === 0) throw new Error("No images found.");
 
-        // Save raw images to 'raw' folder
         await Promise.all(pooledImages.map(async (img, idx) => {
             const filename = `${baseName}_raw_${idx}.jpg`;
             const savePath = path.join(rawDir, filename);
@@ -249,7 +230,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             }
         }));
 
-        // 3. Selection
         let selectedImages: any[] = [];
         if (aiImageSearch && resolvedConfig.selectConfig) {
             console.log(`[Row ${context.row.index}] Step ${stepIndex} AI Selecting best images...`);
@@ -259,7 +239,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                 row,
                 resolvedConfig.select,
                 async (buffer, spriteIndex) => {
-                    // Save sprites to 'sprites' folder
                     const filename = `${baseName}_sprite_${spriteIndex}.jpg`;
                     const savePath = path.join(spritesDir, filename);
                     await ArtifactSaver.save(buffer, savePath);
@@ -270,14 +249,12 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             selectedImages = pooledImages.slice(0, resolvedConfig.select);
         }
 
-        // 4. Process Output
         const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         const sharp = (await import('sharp')).default;
         const selectedMetadata: any[] = [];
 
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
-            // Save selected images to 'selected' folder (intermediate)
             const filename = `${baseName}_selected_${i}${ext}`;
             const savePath = path.join(selectedDir, filename);
 
@@ -308,12 +285,12 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         if (output.explode) {
             return {
                 contentParts,
-                data: selectedMetadata // Explode: [Img1, Img2, ...]
+                data: selectedMetadata
             };
         } else {
             return {
                 contentParts,
-                data: [selectedMetadata] // Enrich: [ [Img1, Img2, ...] ]
+                data: [selectedMetadata]
             };
         }
     }

@@ -3,6 +3,7 @@ import Handlebars from 'handlebars';
 import Ajv from 'ajv';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { SchemaHelper } from '../../utils/SchemaHelper.js';
+import { ServiceCapabilities } from '../../types.js';
 
 interface ValidationConfig {
     schemaPath: string;
@@ -20,7 +21,6 @@ export class ValidationPlugin implements ContentProviderPlugin {
     private ajv: any;
 
     constructor() {
-        // Handle ESM/CommonJS import differences for Ajv if necessary
         // @ts-ignore
         this.ajv = new Ajv.default ? new Ajv.default() : new Ajv();
     }
@@ -35,7 +35,12 @@ export class ValidationPlugin implements ContentProviderPlugin {
         program.option(`--validate-target-${stepIndex} <template>`, `Target data for step ${stepIndex}`);
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
+    normalize(
+        options: Record<string, any>, 
+        stepIndex: number, 
+        globalConfig: any,
+        capabilities: ServiceCapabilities
+    ): NormalizedPluginConfig | undefined {
         const getOpt = (key: string) => {
             const specific = options[`${key}${stepIndex}`];
             if (specific !== undefined) return specific;
@@ -87,14 +92,12 @@ export class ValidationPlugin implements ContentProviderPlugin {
         if (resolved.targetTemplate) {
             const jsonString = Handlebars.compile(resolved.targetTemplate, { noEscape: true })(row);
             try {
-                // Try to parse as JSON if it looks like object/array
                 if (jsonString.trim().startsWith('{') || jsonString.trim().startsWith('[')) {
                     dataToValidate = JSON.parse(jsonString);
                 } else {
                     dataToValidate = jsonString;
                 }
             } catch (e) {
-                // If parse fails, treat as string
                 dataToValidate = jsonString;
             }
         }
@@ -105,11 +108,10 @@ export class ValidationPlugin implements ContentProviderPlugin {
         if (!valid) {
             const errors = this.ajv.errorsText(validate.errors);
             console.log(`[Row ${row.index}] [Validation] ❌ Failed (${resolved.schemaSource}): ${errors}`);
-            // console.log(`[Validation] Data was: ${JSON.stringify(dataToValidate, null, 2)}`);
-            return { contentParts: [], data: [] }; // Drop
+            return { contentParts: [], data: [] };
         }
 
         console.log(`[Row ${row.index}] [Validation] ✅ Passed (${resolved.schemaSource}).`);
-        return { contentParts: [], data: [{}] }; // Pass
+        return { contentParts: [], data: [{}] };
     }
 }

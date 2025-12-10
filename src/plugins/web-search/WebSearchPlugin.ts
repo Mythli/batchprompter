@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import Handlebars from 'handlebars';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
-import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
+import { ModelDefinition, ResolvedModelConfig, ServiceCapabilities } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
 import { WebSearchMode } from './WebSearch.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
@@ -15,12 +15,8 @@ interface WebSearchRawConfig {
     limit: number;
     mode: WebSearchMode;
     queryCount: number;
-
-    // Pagination & Dedupe
     maxPages: number;
     dedupeStrategy: 'none' | 'domain' | 'url';
-
-    // Localization
     gl?: string;
     hl?: string;
 }
@@ -33,10 +29,8 @@ interface WebSearchResolvedConfig {
     limit: number;
     mode: WebSearchMode;
     queryCount: number;
-
     maxPages: number;
     dedupeStrategy: 'none' | 'domain' | 'url';
-
     gl?: string;
     hl?: string;
 }
@@ -55,12 +49,8 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option('--web-search-limit <number>', 'Max total results (accumulated)', '5');
         program.option('--web-search-mode <mode>', 'Result mode: none, markdown, html', 'none');
         program.option('--web-search-query-count <number>', 'Queries to generate', '3');
-
-        // Pagination & Dedupe
         program.option('--web-search-max-pages <number>', 'Max pages to fetch per query', '1');
         program.option('--web-search-dedupe-strategy <strategy>', 'Deduplication strategy (none, domain, url)', 'none');
-
-        // Localization
         program.option('--web-search-gl <country>', 'Country code for search results (e.g. us, de)');
         program.option('--web-search-hl <lang>', 'Language code for search results (e.g. en, de)');
     }
@@ -74,15 +64,18 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         program.option(`--web-search-limit-${stepIndex} <number>`, `Max total results for step ${stepIndex}`);
         program.option(`--web-search-mode-${stepIndex} <mode>`, `Result mode for step ${stepIndex}`);
         program.option(`--web-search-query-count-${stepIndex} <number>`, `Query count for step ${stepIndex}`);
-
         program.option(`--web-search-max-pages-${stepIndex} <number>`, `Max pages for step ${stepIndex}`);
         program.option(`--web-search-dedupe-strategy-${stepIndex} <strategy>`, `Dedupe strategy for step ${stepIndex}`);
-
         program.option(`--web-search-gl-${stepIndex} <country>`, `Country code for step ${stepIndex}`);
         program.option(`--web-search-hl-${stepIndex} <lang>`, `Language code for step ${stepIndex}`);
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
+    normalize(
+        options: Record<string, any>, 
+        stepIndex: number, 
+        globalConfig: any,
+        capabilities: ServiceCapabilities
+    ): NormalizedPluginConfig | undefined {
         const modelFlags = new ModelFlags(globalConfig.model);
 
         const extractModel = (namespace: string, fallbackNamespace: string): ModelDefinition | undefined => {
@@ -107,6 +100,13 @@ export class WebSearchPlugin implements ContentProviderPlugin {
 
         if (!isActive) return undefined;
 
+        // Validate capabilities at normalize time
+        if (!capabilities.hasSerper) {
+            throw new Error(
+                `Step ${stepIndex} Web Search requires SERPER_API_KEY environment variable to be set.`
+            );
+        }
+
         const config: WebSearchRawConfig = {
             query,
             queryConfig,
@@ -115,17 +115,13 @@ export class WebSearchPlugin implements ContentProviderPlugin {
             limit: parseInt(getOpt('webSearchLimit') || '5', 10),
             mode: (getOpt('webSearchMode') || 'markdown') as WebSearchMode,
             queryCount: parseInt(getOpt('webSearchQueryCount') || '3', 10),
-
             maxPages: parseInt(getOpt('webSearchMaxPages') || '1', 10),
             dedupeStrategy: (getOpt('webSearchDedupeStrategy') || 'none') as 'none' | 'domain' | 'url',
-
             gl: getOpt('webSearchGl'),
             hl: getOpt('webSearchHl')
         };
 
-        return {
-            config
-        };
+        return { config };
     }
 
     async prepare(config: WebSearchRawConfig, row: Record<string, any>): Promise<WebSearchResolvedConfig> {
@@ -162,17 +158,24 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         const { row, stepIndex, config, stepContext, output } = context;
         const resolvedConfig = config as WebSearchResolvedConfig;
 
-        if (!stepContext.global.webSearch) {
-            throw new Error(`Step ${stepIndex} requires Web Search, but SERPER_API_KEY is missing.`);
-        }
+        // No runtime check needed - validated at normalize time
+        const webSearch = stepContext.global.webSearch!;
 
-        // Create Configured Clients
-        const queryLlm = resolvedConfig.queryConfig ? stepContext.createLlmClient(resolvedConfig.queryConfig) : undefined;
-        const selectLlm = resolvedConfig.selectConfig ? stepContext.createLlmClient(resolvedConfig.selectConfig) : undefined;
-        const compressLlm = resolvedConfig.compressConfig ? stepContext.createLlmClient(resolvedConfig.compressConfig) : undefined;
+        const createLlmFromConfig = (cfg: ResolvedModelConfig | undefined) => {
+            if (!cfg) return undefined;
+            return stepContext.createLlm({
+                model: cfg.model || stepContext.global.defaultModel,
+                temperature: cfg.temperature,
+                thinkingLevel: cfg.thinkingLevel
+            });
+        };
+
+        const queryLlm = createLlmFromConfig(resolvedConfig.queryConfig);
+        const selectLlm = createLlmFromConfig(resolvedConfig.selectConfig);
+        const compressLlm = createLlmFromConfig(resolvedConfig.compressConfig);
 
         const aiWebSearch = new AiWebSearch(
-            stepContext.global.webSearch,
+            webSearch,
             queryLlm,
             selectLlm,
             compressLlm
@@ -183,12 +186,12 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         if (output.explode) {
             return {
                 contentParts,
-                data: data // Explode: [Result1, Result2, ...]
+                data: data
             };
         } else {
             return {
                 contentParts,
-                data: [data] // Enrich: [ [Result1, Result2, ...] ]
+                data: [data]
             };
         }
     }

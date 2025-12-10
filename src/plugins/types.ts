@@ -1,38 +1,35 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
-import { OutputStrategy, StepContext } from '../types.js';
+import { OutputStrategy, StepContext, ServiceCapabilities } from '../types.js';
+import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
+import { Fetcher } from 'llm-fns';
+import PQueue from 'p-queue';
 
-// PluginServices is now largely superseded by StepContext/GlobalContext, 
-// but kept for compatibility if needed, or we can alias it.
-// For now, we'll rely on StepContext in PluginContext.
+// Legacy PluginServices interface for preprocessors
+export interface PluginServices {
+    puppeteerHelper?: PuppeteerHelper;
+    fetcher: Fetcher;
+    puppeteerQueue?: PQueue;
+}
 
 export interface PluginContext {
-    row: Record<string, any>; // This is now the "View Context" (merged data)
+    row: Record<string, any>;
     stepIndex: number;
-    config: any; // The resolved plugin config
-    output: OutputStrategy; // The output strategy for this plugin (e.g. explode)
+    config: any;
+    output: OutputStrategy;
     
-    // New Dependency Injection
+    // Dependency Injection
     stepContext: StepContext;
 
-    // --- NEW: Explicit Paths ---
-    outputDirectory?: string; // Where final assets go
-    tempDirectory: string;    // Where intermediate assets (sprites) go
-
-    // NEW: Filename components
+    // Explicit Paths
+    outputDirectory?: string;
+    tempDirectory: string;
     outputBasename?: string;
     outputExtension?: string;
 }
 
 export interface PluginResult {
     contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-
-    /**
-     * The data produced by the plugin.
-     * - Return `[]` to filter (drop) the row.
-     * - Return `[item]` to enrich the row (1:1).
-     * - Return `[item1, item2, ...]` to explode the row (1:N).
-     */
     data?: any[];
 }
 
@@ -43,31 +40,22 @@ export interface NormalizedPluginConfig {
 export interface ContentProviderPlugin {
     name: string;
 
-    /**
-     * Register global CLI flags for this plugin.
-     */
     register(program: Command): void;
-
-    /**
-     * Register step-specific CLI flags for this plugin.
-     */
     registerStep(program: Command, stepIndex: number): void;
 
     /**
      * Parse and validate CLI options to produce a raw configuration.
      * Returns undefined if the plugin is not active for this step.
+     * 
+     * @param capabilities - Service capabilities for validation. Throw if required service is missing.
      */
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined;
+    normalize(
+        options: Record<string, any>, 
+        stepIndex: number, 
+        globalConfig: any,
+        capabilities: ServiceCapabilities
+    ): NormalizedPluginConfig | undefined;
 
-    /**
-     * Resolve templates, load files, and prepare the configuration for execution.
-     * The returned config should be fully resolved (no Handlebars, no file paths).
-     */
     prepare(config: any, row: Record<string, any>): Promise<any>;
-
-    /**
-     * Execute the plugin logic using the prepared configuration.
-     * Returns content parts to be added to the user prompt and optional structured data.
-     */
     execute(context: PluginContext): Promise<PluginResult>;
 }

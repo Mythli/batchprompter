@@ -1,10 +1,11 @@
 import { Command } from 'commander';
 import { ContentProviderPlugin } from './types.js';
+import { ServiceCapabilities } from '../types.js';
 
 export class PluginRegistry {
     private plugins: Map<string, ContentProviderPlugin> = new Map();
 
-    constructor() {}
+    constructor(private capabilities: ServiceCapabilities) {}
 
     register(plugin: ContentProviderPlugin) {
         this.plugins.set(plugin.name, plugin);
@@ -18,23 +19,23 @@ export class PluginRegistry {
         return Array.from(this.plugins.values());
     }
 
+    getCapabilities(): ServiceCapabilities {
+        return this.capabilities;
+    }
+
     configureCLI(program: Command) {
         const plugins = this.getAll();
         
-        // 1. Global Registration
         for (const plugin of plugins) {
             plugin.register(program);
-            // Auto-register standard output flags
             program.option(`--${plugin.name}-output <column>`, `Save ${plugin.name} result to column`);
             program.option(`--${plugin.name}-export`, `Merge ${plugin.name} result into row`);
             program.option(`--${plugin.name}-explode`, `Explode ${plugin.name} array result into multiple rows`);
         }
 
-        // 2. Step Registration (1-10)
         for (let i = 1; i <= 10; i++) {
             for (const plugin of plugins) {
                 plugin.registerStep(program, i);
-                // Auto-register standard output flags
                 program.option(`--${plugin.name}-output-${i} <column>`, `Save ${plugin.name} result to column for step ${i}`);
                 program.option(`--${plugin.name}-export-${i}`, `Merge ${plugin.name} result into row for step ${i}`);
                 program.option(`--${plugin.name}-explode-${i}`, `Explode ${plugin.name} result for step ${i}`);

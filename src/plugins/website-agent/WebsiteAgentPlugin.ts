@@ -3,11 +3,10 @@ import Handlebars from 'handlebars';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { SchemaHelper } from '../../utils/SchemaHelper.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
-import { ModelDefinition, ResolvedModelConfig } from '../../types.js';
+import { ModelDefinition, ResolvedModelConfig, ServiceCapabilities } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
 
-// Default Prompts
 const DEFAULT_NAVIGATOR_PROMPT = `You are an autonomous web scraper. Your goal is to find information to populate the provided schema.
 
 Schema Description:
@@ -52,7 +51,7 @@ interface WebsiteAgentRawConfig {
 
 interface WebsiteAgentResolvedConfig {
     url: string;
-    schema: any; // JSON Schema object
+    schema: any;
     budget: number;
     batchSize: number;
     navigatorConfig: ResolvedModelConfig;
@@ -71,7 +70,6 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         program.option('--website-agent-budget <number>', 'Max pages to visit', '10');
         program.option('--website-agent-batch-size <number>', 'Max pages to visit in parallel per step', '3');
 
-        // Register Model Flags
         ModelFlags.register(program, 'website-navigator', { includePrompt: true });
         ModelFlags.register(program, 'website-extract', { includePrompt: true });
         ModelFlags.register(program, 'website-merge', { includePrompt: true });
@@ -88,7 +86,12 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         ModelFlags.register(program, `website-merge-${stepIndex}`, { includePrompt: true });
     }
 
-    normalize(options: Record<string, any>, stepIndex: number, globalConfig: any): NormalizedPluginConfig | undefined {
+    normalize(
+        options: Record<string, any>, 
+        stepIndex: number, 
+        globalConfig: any,
+        capabilities: ServiceCapabilities
+    ): NormalizedPluginConfig | undefined {
         const getOpt = (key: string) => {
             const specific = options[`${key}${stepIndex}`];
             if (specific !== undefined) return specific;
@@ -100,11 +103,16 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
 
         if (!url) return undefined;
 
-        // Helper to extract model config
+        // Validate capabilities at normalize time
+        if (!capabilities.hasPuppeteer) {
+            throw new Error(
+                `Step ${stepIndex} Website Agent requires Puppeteer which is not available.`
+            );
+        }
+
         const modelFlags = new ModelFlags(globalConfig.model);
         const extractModel = (namespace: string, fallbackNamespace: string): ModelDefinition => {
             const config = modelFlags.extract(options, namespace, fallbackNamespace);
-            // Ensure we have a model, defaulting to global if not set
             if (!config.model) config.model = globalConfig.model;
             return config as ModelDefinition;
         };
@@ -119,9 +127,7 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             mergeConfig: extractModel(`website-merge-${stepIndex}`, 'website-merge')
         };
 
-        return {
-            config
-        };
+        return { config };
     }
 
     async prepare(config: WebsiteAgentRawConfig, row: Record<string, any>): Promise<WebsiteAgentResolvedConfig> {
@@ -148,12 +154,10 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             };
         }
 
-        // Resolve Model Configs
         const navigatorConfig = await PluginHelpers.resolveModelConfig(config.navigatorConfig, row);
         const extractConfig = await PluginHelpers.resolveModelConfig(config.extractConfig, row);
         const mergeConfig = await PluginHelpers.resolveModelConfig(config.mergeConfig, row);
 
-        // Apply Default Prompts if none provided
         if (navigatorConfig.promptParts.length === 0) {
             navigatorConfig.promptParts = [{ type: 'text', text: DEFAULT_NAVIGATOR_PROMPT }];
         }
@@ -179,23 +183,27 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         const { row, stepIndex, config, stepContext } = context;
         const resolvedConfig = config as WebsiteAgentResolvedConfig;
 
-        // Throw error if URL is empty so the row is skipped by ActionRunner
         if (!resolvedConfig.url || resolvedConfig.url.trim() === '') {
             throw new Error(`[WebsiteAgent] Step ${stepIndex}: No URL provided.`);
         }
 
-        // Validate URL with Regex
         const urlRegex = /^https?:\/\/[^\s/$.?#].[^\s]*$/i;
         if (!urlRegex.test(resolvedConfig.url)) {
             throw new Error(`[WebsiteAgent] Step ${stepIndex}: Invalid URL format (must start with http/https): "${resolvedConfig.url}"`);
         }
 
-        // Create Configured Clients
-        const navLlm = stepContext.createLlmClient(resolvedConfig.navigatorConfig);
-        const extLlm = stepContext.createLlmClient(resolvedConfig.extractConfig);
-        const mrgLlm = stepContext.createLlmClient(resolvedConfig.mergeConfig);
+        const createLlmFromConfig = (cfg: ResolvedModelConfig) => {
+            return stepContext.createLlm({
+                model: cfg.model || stepContext.global.defaultModel,
+                temperature: cfg.temperature,
+                thinkingLevel: cfg.thinkingLevel
+            });
+        };
 
-        // Instantiate Agent
+        const navLlm = createLlmFromConfig(resolvedConfig.navigatorConfig);
+        const extLlm = createLlmFromConfig(resolvedConfig.extractConfig);
+        const mrgLlm = createLlmFromConfig(resolvedConfig.mergeConfig);
+
         const agent = new AiWebsiteAgent(
             navLlm,
             extLlm,
@@ -219,7 +227,7 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
                 type: 'text',
                 text: JSON.stringify(result, null, 2)
             }],
-            data: [result] // Wrap in array to signify 1:1 mapping
+            data: [result]
         };
     }
 }
