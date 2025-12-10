@@ -1,4 +1,3 @@
-//
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
@@ -56,7 +55,7 @@ export class StandardStrategy implements GenerationStrategy {
         if (message.images && message.images.length > 0) {
             return { type: 'image', data: message.images[0].image_url.url, extension: 'png' };
         }
-        
+
         // Check for string type explicitly to allow empty strings ("")
         if (typeof message.content === 'string') {
             return { type: 'text', data: message.content, extension: 'md' };

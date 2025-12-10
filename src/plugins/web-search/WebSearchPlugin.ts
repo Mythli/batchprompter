@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
@@ -171,7 +170,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         // Flow Control:
         // If explode is enabled, we return the array of results directly (1:N).
         // If explode is disabled (default), we wrap the array in another array (1:1).
-        
+
         if (output.explode) {
             return {
                 contentParts,

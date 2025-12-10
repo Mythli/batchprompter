@@ -167,7 +167,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const openAi = new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
-        fetch: createLoggingFetcher(fetcher) as any,
+        fetch: fetcher as any//createLoggingFetcher(fetcher) as any,
     });
 
     // Use overrides if provided (CLI), otherwise use config (Env/Default)

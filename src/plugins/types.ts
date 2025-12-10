@@ -1,12 +1,11 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
-import { LlmClient } from 'llm-fns';
+import {Fetcher, LlmClient} from 'llm-fns';
 import PQueue from 'p-queue';
 import { ImageSearch } from './image-search/ImageSearch.js';
 import { AiImageSearch } from '../utils/AiImageSearch.js';
 import { WebSearch } from './web-search/WebSearch.js';
 import { AiWebSearch } from '../utils/AiWebSearch.js';
-import { Fetcher } from '../utils/createCachedFetcher.js';
 import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
 import { AiWebsiteAgent } from '../utils/AiWebsiteAgent.js';
 import { OutputStrategy } from '../types.js';
@@ -33,7 +32,7 @@ export interface PluginContext {
         concurrency: number;
     };
     services: PluginServices;
-    
+
     // --- NEW: Explicit Paths ---
     outputDirectory?: string; // Where final assets go
     tempDirectory: string;    // Where intermediate assets (sprites) go
@@ -45,14 +44,14 @@ export interface PluginContext {
 
 export interface PluginResult {
     contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-    
+
     /**
      * The data produced by the plugin.
      * - Return `[]` to filter (drop) the row.
      * - Return `[item]` to enrich the row (1:1).
      * - Return `[item1, item2, ...]` to explode the row (1:N).
      */
-    data?: any[]; 
+    data?: any[];
 }
 
 export interface NormalizedPluginConfig {
