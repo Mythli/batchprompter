@@ -76,6 +76,9 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
     const dataFilePath = args[0];
     if (!dataFilePath) throw new Error("Data file path is required.");
 
+    // Get capabilities from the registry for plugin validation
+    const capabilities = pluginRegistry.getCapabilities();
+
     // Determine Max Step
     let maxStep = Math.max(1, args.length - 1); // At least 1 step
     
@@ -168,7 +171,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         // 5. Plugins
         const plugins: PluginConfigDefinition[] = [];
         for (const plugin of pluginRegistry.getAll()) {
-            const normalized = plugin.normalize(options, i, globalConfig);
+            const normalized = plugin.normalize(options, i, globalConfig, capabilities);
             if (normalized) {
                 const camelName = toCamel(plugin.name);
                 const pluginOutputStrategy = resolveOutputStrategy(options, camelName, i);
