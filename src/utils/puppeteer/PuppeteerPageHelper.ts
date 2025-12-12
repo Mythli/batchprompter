@@ -1,7 +1,7 @@
 import {Page, CDPSession, Viewport, HTTPResponse, ElementHandle, Protocol, HTTPRequest} from 'puppeteer';
 import { Cache } from 'cache-manager';
-import { CachedResponse, Fetcher } from '../createCachedFetcher.js';
 import browserScriptFunction from './drawPuppeteerGrid.js';
+import {CachedResponse, Fetcher} from "llm-fns";
 
 /** Defines the viewport dimensions for a screenshot. */
 export interface Resolution {
@@ -237,7 +237,7 @@ export class PuppeteerPageHelper {
     }
 
     async navigateToUrl(url: string, options: PageNavigationOptions = {}) {
-        const { dismissCookies = true, htmlOnly = false, resolution } = options;
+        const { dismissCookies = false, htmlOnly = false, resolution } = options;
 
         try {
             if (resolution) {

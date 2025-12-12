@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import PQueue from 'p-queue';
 import TurndownService from 'turndown';
-import { Fetcher } from '../../utils/createCachedFetcher.js';
+import {Fetcher} from "llm-fns";
 
 // Zod Schemas for Serper
 const SearchParametersSchema = z.object({

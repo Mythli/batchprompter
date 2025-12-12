@@ -46,7 +46,7 @@
     "handlebars": "^4.7.8",
     "json2csv": "6.0.0-alpha.2",
     "keyv": "^5.5.4",
-    "llm-fns": "^1.0.11",
+    "llm-fns": "^1.0.19",
     "lodash-es": "^4.17.21",
     "openai": "^4.104.0",
     "p-queue": "^9.0.1",
