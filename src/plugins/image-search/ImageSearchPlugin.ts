@@ -18,6 +18,10 @@ interface ImageSearchRawConfig {
     select: number;
     queryCount: number;
     spriteSize: number;
+    maxPages: number;
+    dedupeStrategy: 'none' | 'domain' | 'url';
+    gl?: string;
+    hl?: string;
 }
 
 interface ImageSearchResolvedConfig {
@@ -28,6 +32,10 @@ interface ImageSearchResolvedConfig {
     select: number;
     queryCount: number;
     spriteSize: number;
+    maxPages: number;
+    dedupeStrategy: 'none' | 'domain' | 'url';
+    gl?: string;
+    hl?: string;
 }
 
 export class ImageSearchPlugin implements ContentProviderPlugin {
@@ -44,6 +52,10 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         program.option('--image-search-select <number>', 'Images to select', '1');
         program.option('--image-search-query-count <number>', 'Queries to generate', '3');
         program.option('--image-search-sprite-size <number>', 'Images per sprite', '4');
+        program.option('--image-search-max-pages <number>', 'Max pages to fetch per query', '1');
+        program.option('--image-search-dedupe-strategy <strategy>', 'Deduplication strategy (none, domain, url)', 'url');
+        program.option('--image-search-gl <country>', 'Country code for search results (e.g. us, de)');
+        program.option('--image-search-hl <lang>', 'Language code for search results (e.g. en, de)');
     }
 
     registerStep(program: Command, stepIndex: number): void {
@@ -55,6 +67,10 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         program.option(`--image-search-select-${stepIndex} <number>`, `Select count for step ${stepIndex}`);
         program.option(`--image-search-query-count-${stepIndex} <number>`, `Query count for step ${stepIndex}`);
         program.option(`--image-search-sprite-size-${stepIndex} <number>`, `Sprite size for step ${stepIndex}`);
+        program.option(`--image-search-max-pages-${stepIndex} <number>`, `Max pages for step ${stepIndex}`);
+        program.option(`--image-search-dedupe-strategy-${stepIndex} <strategy>`, `Dedupe strategy for step ${stepIndex}`);
+        program.option(`--image-search-gl-${stepIndex} <country>`, `Country code for step ${stepIndex}`);
+        program.option(`--image-search-hl-${stepIndex} <lang>`, `Language code for step ${stepIndex}`);
     }
 
     normalize(
@@ -107,7 +123,11 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             limit: parseInt(getOpt('imageSearchLimit') || '12', 10),
             select: parseInt(getOpt('imageSearchSelect') || '1', 10),
             queryCount: parseInt(getOpt('imageSearchQueryCount') || '3', 10),
-            spriteSize: parseInt(getOpt('imageSearchSpriteSize') || '4', 10)
+            spriteSize: parseInt(getOpt('imageSearchSpriteSize') || '4', 10),
+            maxPages: parseInt(getOpt('imageSearchMaxPages') || '1', 10),
+            dedupeStrategy: (getOpt('imageSearchDedupeStrategy') || 'url') as 'none' | 'domain' | 'url',
+            gl: getOpt('imageSearchGl'),
+            hl: getOpt('imageSearchHl')
         };
 
         return { config };
@@ -118,7 +138,11 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             limit: config.limit,
             select: config.select,
             queryCount: config.queryCount,
-            spriteSize: config.spriteSize
+            spriteSize: config.spriteSize,
+            maxPages: config.maxPages,
+            dedupeStrategy: config.dedupeStrategy,
+            gl: config.gl,
+            hl: config.hl
         };
 
         if (config.query) {
@@ -197,24 +221,37 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         if (queries.length === 0) return { contentParts: [], data: [] };
 
         console.log(`[Row ${context.row.index}] Step ${stepIndex} Executing ${queries.length} searches...`);
-        const searchPromises = queries.map(q => imageSearch.search(q, resolvedConfig.limit));
         
-        const results = await Promise.allSettled(searchPromises);
-
         const pooledImages: any[] = [];
-        const seenUrls = new Set<string>();
-        
-        for (const result of results) {
-            if (result.status === 'fulfilled') {
-                const group = result.value;
-                for (const img of group) {
-                    if (!seenUrls.has(img.metadata.imageUrl)) {
-                        seenUrls.add(img.metadata.imageUrl);
+        const seenKeys = new Set<string>();
+
+        for (const q of queries) {
+            let page = 1;
+            while (page <= resolvedConfig.maxPages) {
+                try {
+                    const results = await imageSearch.search(q, resolvedConfig.limit, page, resolvedConfig.gl, resolvedConfig.hl);
+                    
+                    if (results.length === 0) break;
+
+                    for (const img of results) {
+                        let key = img.metadata.imageUrl;
+                        if (resolvedConfig.dedupeStrategy === 'domain') {
+                            key = img.metadata.domain || key;
+                        }
+                        
+                        if (resolvedConfig.dedupeStrategy !== 'none') {
+                            if (seenKeys.has(key)) continue;
+                            seenKeys.add(key);
+                        }
+                        
                         pooledImages.push(img);
                     }
+                    
+                    page++;
+                } catch (e: any) {
+                    console.warn(`[Row ${context.row.index}] Step ${stepIndex} Image search query "${q}" page ${page} failed:`, e.message);
+                    break; // Stop pagination for this query on error
                 }
-            } else {
-                console.warn(`[Row ${context.row.index}] Step ${stepIndex} Image search query failed:`, result.reason);
             }
         }
 
@@ -232,7 +269,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         let selectedImages: any[] = [];
         if (aiImageSearch && resolvedConfig.selectConfig) {
-            console.log(`[Row ${context.row.index}] Step ${stepIndex} AI Selecting best images...`);
+            console.log(`[Row ${context.row.index}] Step ${stepIndex} AI Selecting best images from pool of ${pooledImages.length}...`);
             
             selectedImages = await aiImageSearch.selectFromPool(
                 pooledImages,

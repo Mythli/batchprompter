@@ -1,4 +1,3 @@
-//
 import { z } from 'zod';
 import sharp from 'sharp';
 import PQueue from 'p-queue';
@@ -25,11 +24,14 @@ const SearchParametersSchema = z.object({
   type: z.string(),
   num: z.number(),
   engine: z.string(),
+  gl: z.string().optional(),
+  hl: z.string().optional(),
+  page: z.number().optional(),
 });
 
 const SerperResponseSchema = z.object({
   searchParameters: SearchParametersSchema,
-  images: z.array(ImageSchema),
+  images: z.array(ImageSchema).optional(),
 });
 
 export type SerperImage = z.infer<typeof ImageSchema>;
@@ -46,8 +48,16 @@ export class ImageSearch {
         private queue: PQueue
     ) {}
 
-    async search(query: string, num: number = 10): Promise<ImageSearchResult[]> {
-        console.log(`[ImageSearch] Searching for query: "${query}"`);
+    async search(query: string, num: number = 10, page: number = 1, gl?: string, hl?: string): Promise<ImageSearchResult[]> {
+        console.log(`[ImageSearch] Searching for query: "${query}" (Page: ${page}, Limit: ${num}, GL: ${gl}, HL: ${hl})`);
+
+        const body: any = {
+            q: query,
+            num: num,
+            page: page
+        };
+        if (gl) body.gl = gl;
+        if (hl) body.hl = hl;
 
         // Use the fetcher for the network call.
         // The fetcher handles caching (including POST requests) and retries/timeouts.
@@ -58,10 +68,7 @@ export class ImageSearch {
                 'X-API-KEY': this.apiKey,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({
-                q: query,
-                num: num
-            })
+            body: JSON.stringify(body)
         }));
 
         if (!response) {
@@ -78,7 +85,7 @@ export class ImageSearch {
         // Validate with Zod
         try {
             const parsed = SerperResponseSchema.parse(json);
-            images = parsed.images;
+            images = parsed.images || [];
         } catch (e) {
             console.error("[ImageSearch] Failed to parse Serper API response:", e);
             throw e;
