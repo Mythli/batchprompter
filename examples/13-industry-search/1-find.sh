@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script finds and dedupes companies based on the industry and location.
-# It outputs an intermediate CSV file: examples/13-industry-search/companies.csv
+# It outputs an intermediate CSV file: out/13-industry-search/companies.csv
 
 npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   \
@@ -24,4 +24,7 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --web-search-gl-2 de \
   --web-search-hl-2 de \
   --dedupe-key-2 "{{webSearch.domain}}" \
-  --validate-schema-2 examples/13-industry-search/schemas/link-validation.json
+  --validate-schema-2 examples/13-industry-search/schemas/link-validation.json \
+  \
+  --tmp-dir "out/13-industry-search/.tmp" \
+  --data-output "out/13-industry-search/companies.csv"

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# This script takes the list of companies (examples/13-industry-search/companies.csv)
+# This script takes the list of companies (out/13-industry-search/companies.csv)
 # and enriches it with contact details, LinkedIn profiles, and offers.
 
-npx tsx src/index.ts generate examples/13-industry-search/test_processed.csv \
+npx tsx src/index.ts generate out/13-industry-search/companies.csv \
   \
   "" \
   --limit 10 \
@@ -23,4 +23,7 @@ Output Rules:
   --web-search-query-3 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company" \
   --web-search-limit-3 5 \
   --web-select-3-prompt "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything." \
-  --output-column-3 "linkedinUrl"
+  --output-column-3 "linkedinUrl" \
+  \
+  --tmp-dir "out/13-industry-search/.tmp" \
+  --data-output "out/13-industry-search/enriched.csv"
