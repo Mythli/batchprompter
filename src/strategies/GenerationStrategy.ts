@@ -18,6 +18,7 @@ export interface GenerationStrategy {
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
         outputPathOverride?: string,
-        skipCommands?: boolean
+        skipCommands?: boolean,
+        variationIndex?: number
     ): Promise<GenerationResult>;
 }

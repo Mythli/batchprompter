@@ -26,7 +26,8 @@ export class CandidateStrategy implements GenerationStrategy {
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
         outputPathOverride?: string,
-        skipCommands?: boolean
+        skipCommands?: boolean,
+        variationIndex?: number
     ): Promise<GenerationResult> {
         const candidateCount = config.candidates;
 
@@ -43,14 +44,23 @@ export class CandidateStrategy implements GenerationStrategy {
 
             const name = config.outputBasename || 'output';
             const ext = config.outputExtension || (config.aspectRatio ? '.png' : '.txt');
-            candidateOutputPath = path.join(candidatesDir, `${name}_cand_${i}${ext}`);
+            
+            // Filename logic: name + [variation] + candidate
+            let filename = `${name}`;
+            if (variationIndex !== undefined) {
+                filename += `_${variationIndex}`;
+            }
+            filename += `_${i}${ext}`;
 
-            const salt = `${cacheSalt || ''}_cand_${i}`;
+            candidateOutputPath = path.join(candidatesDir, filename);
+
+            // Salt must include variation index to avoid cache collisions between exploded items
+            const salt = `${cacheSalt || ''}_var_${variationIndex ?? 'x'}_cand_${i}`;
             const shouldSkipCommands = config.noCandidateCommand || skipCommands;
 
             promises.push(
                 this.standardStrategy.execute(
-                    row, index, stepIndex, config, userPromptParts, history, salt, candidateOutputPath || undefined, shouldSkipCommands
+                    row, index, stepIndex, config, userPromptParts, history, salt, candidateOutputPath || undefined, shouldSkipCommands, variationIndex
                 )
                 .then(res => ({ ...res, candidateIndex: i, outputPath: candidateOutputPath }))
                 .catch(err => {
@@ -79,7 +89,7 @@ export class CandidateStrategy implements GenerationStrategy {
             
             // Single candidate - standard behavior
             if (config.outputPath && winner.outputPath) {
-                await this.copyWinnerToOutput(winner, config, row, index, stepIndex);
+                await this.copyWinnerToOutput(winner, config, row, index, stepIndex, variationIndex);
             }
 
             return {
@@ -100,7 +110,7 @@ export class CandidateStrategy implements GenerationStrategy {
                 
                 // Judge selected a winner - standard behavior
                 if (config.outputPath && winner.outputPath) {
-                    await this.copyWinnerToOutput(winner, config, row, index, stepIndex);
+                    await this.copyWinnerToOutput(winner, config, row, index, stepIndex, variationIndex);
                 }
 
                 return {
@@ -117,7 +127,8 @@ export class CandidateStrategy implements GenerationStrategy {
                     config, 
                     row, 
                     index, 
-                    stepIndex
+                    stepIndex,
+                    variationIndex
                 );
 
                 return {
@@ -137,17 +148,26 @@ export class CandidateStrategy implements GenerationStrategy {
         config: StepConfig,
         row: Record<string, any>,
         index: number,
-        stepIndex: number
+        stepIndex: number,
+        variationIndex?: number
     ): Promise<void> {
         const fs = await import('fs/promises');
         try {
-            await ensureDir(config.outputPath!);
-            if (winner.outputPath !== config.outputPath) {
-                await fs.copyFile(winner.outputPath!, config.outputPath!);
+            // Determine final output path
+            let finalPath = config.outputPath!;
+            
+            // If we have a variation index, we MUST inject it into the filename to prevent overwrites
+            if (variationIndex !== undefined) {
+                finalPath = this.injectVariationIndex(finalPath, variationIndex);
+            }
+
+            await ensureDir(finalPath);
+            if (winner.outputPath !== finalPath) {
+                await fs.copyFile(winner.outputPath!, finalPath);
             }
 
             if (config.noCandidateCommand && config.postProcessCommand) {
-                await this.runDeferredCommand(config.postProcessCommand, row, config.outputPath!, index, stepIndex);
+                await this.runDeferredCommand(config.postProcessCommand, row, finalPath, index, stepIndex);
             }
         } catch (e) {
             console.error(`[Row ${index}] Step ${stepIndex} Failed to copy winner file to final output:`, e);
@@ -159,7 +179,8 @@ export class CandidateStrategy implements GenerationStrategy {
         config: StepConfig,
         row: Record<string, any>,
         index: number,
-        stepIndex: number
+        stepIndex: number,
+        variationIndex?: number
     ): Promise<any[]> {
         const fs = await import('fs/promises');
         const results: any[] = [];
@@ -171,7 +192,14 @@ export class CandidateStrategy implements GenerationStrategy {
 
             if (config.outputPath && candidate.outputPath) {
                 // Generate indexed path: "02_HeroImage.jpg" → "02_HeroImage_1.jpg"
-                finalOutputPath = this.createIndexedPath(config.outputPath, i);
+                // If variation exists: "02_HeroImage_0.jpg" -> "02_HeroImage_0_1.jpg"
+                
+                let basePath = config.outputPath;
+                if (variationIndex !== undefined) {
+                    basePath = this.injectVariationIndex(basePath, variationIndex);
+                }
+
+                finalOutputPath = this.createIndexedPath(basePath, i);
                 
                 try {
                     await ensureDir(finalOutputPath);
@@ -197,6 +225,12 @@ export class CandidateStrategy implements GenerationStrategy {
         }
 
         return results;
+    }
+
+    private injectVariationIndex(filePath: string, variationIndex: number): string {
+        const parsed = path.parse(filePath);
+        // e.g. "image.jpg" -> "image_0.jpg"
+        return path.join(parsed.dir, `${parsed.name}_${variationIndex}${parsed.ext}`);
     }
 
     private createIndexedPath(basePath: string, index: number): string {

@@ -189,11 +189,13 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         );
 
         return {
-            contentParts: [{
-                type: 'text',
-                text: JSON.stringify(result, null, 2)
-            }],
-            data: [result]
+            packets: [{
+                data: result,
+                contentParts: [{
+                    type: 'text',
+                    text: JSON.stringify(result, null, 2)
+                }]
+            }]
         };
     }
 }

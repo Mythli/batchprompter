@@ -149,6 +149,11 @@ export interface PipelineItem {
     stepHistory: Record<string, any>[];
     history: any[];
     originalIndex: number;
+    
+    /** 0-based index if this item was created via explosion */
+    variationIndex?: number; 
+    /** The specific content accumulated for this specific item path */
+    accumulatedContent: OpenAI.Chat.Completions.ChatCompletionContentPart[]; 
 }
 
 // --- Dependency Injection Contexts ---

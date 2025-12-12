@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
-import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig, PluginPacket } from '../types.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
@@ -267,8 +267,10 @@ export class StyleScraperPlugin implements ContentProviderPlugin {
             }
 
             return {
-                contentParts: result.contentParts,
-                data: [outputData]
+                packets: [{
+                    data: outputData,
+                    contentParts: result.contentParts
+                }]
             };
 
         } finally {

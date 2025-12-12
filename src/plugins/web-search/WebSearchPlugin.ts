@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import Handlebars from 'handlebars';
-import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig, PluginPacket } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig, ServiceCapabilities } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
@@ -154,7 +154,7 @@ export class WebSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, stepContext, output } = context;
+        const { row, stepIndex, config, stepContext } = context;
         const resolvedConfig = config as WebSearchResolvedConfig;
 
         const webSearch = stepContext.global.webSearch!;
@@ -178,16 +178,31 @@ export class WebSearchPlugin implements ContentProviderPlugin {
 
         const { contentParts, data } = await aiWebSearch.process(row, resolvedConfig);
 
-        if (output.explode) {
+        // If mode is 'none', we just return one packet with all data and the summary text.
+        if (resolvedConfig.mode === 'none') {
             return {
-                contentParts,
-                data: data
-            };
-        } else {
-            return {
-                contentParts,
-                data: [data]
+                packets: [{
+                    data: data,
+                    contentParts: contentParts
+                }]
             };
         }
+
+        // If mode is 'markdown' or 'html', we can potentially explode the results.
+        // Each result in 'data' corresponds to one search result.
+        // However, 'contentParts' currently contains a single merged string of all results.
+        // To support true explosion, AiWebSearch would need to return individual content parts per result.
+        // For now, we will stick to the single packet behavior for WebSearch to maintain compatibility,
+        // unless we refactor AiWebSearch to return granular results.
+        
+        // Given the current implementation of AiWebSearch.process returning a single merged text block,
+        // we wrap it in a single packet.
+        
+        return {
+            packets: [{
+                data: data,
+                contentParts: contentParts
+            }]
+        };
     }
 }

@@ -108,10 +108,15 @@ export class ValidationPlugin implements ContentProviderPlugin {
         if (!valid) {
             const errors = this.ajv.errorsText(validate.errors);
             console.log(`[Row ${row.index}] [Validation] ❌ Failed (${resolved.schemaSource}): ${errors}`);
-            return { contentParts: [], data: [] };
+            return { packets: [] }; // Drop item
         }
 
         console.log(`[Row ${row.index}] [Validation] ✅ Passed (${resolved.schemaSource}).`);
-        return { contentParts: [], data: [{}] };
+        return { 
+            packets: [{
+                data: {},
+                contentParts: []
+            }] 
+        };
     }
 }

@@ -92,32 +92,22 @@ export class ActionRunner {
 
                 console.log(`[Row ${item.originalIndex}] Step ${stepNum} Processing...`);
 
-                interface ActiveContext {
-                    item: PipelineItem;
-                    contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-                    stepResult: Record<string, any>;
-                }
-
-                let activeContexts: ActiveContext[] = [{
-                    item: item,
-                    contentParts: [],
-                    stepResult: {}
-                }];
+                // Active items tracking for this step
+                let activeItems: PipelineItem[] = [item];
 
                 for (const pluginDef of resolvedStep.plugins) {
-                    const nextContexts: ActiveContext[] = [];
+                    const nextItems: PipelineItem[] = [];
 
-                    for (const ctx of activeContexts) {
+                    for (const currentItem of activeItems) {
                         try {
                             const pluginViewContext = {
-                                ...ctx.item.row,
-                                ...ctx.item.workspace,
-                                ...ctx.stepResult,
-                                steps: ctx.item.stepHistory,
-                                index: ctx.item.originalIndex
+                                ...currentItem.row,
+                                ...currentItem.workspace,
+                                steps: currentItem.stepHistory,
+                                index: currentItem.originalIndex
                             };
 
-                            const { context: updatedContext, contentParts, pluginResults } = await pluginRunner.run(
+                            const { context: updatedContext, packets } = await pluginRunner.run(
                                 [pluginDef],
                                 pluginViewContext,
                                 stepNum,
@@ -130,46 +120,36 @@ export class ActionRunner {
                                 }
                             );
 
-                            const resultData = pluginResults[pluginDef.name];
-                            
                             const processedItems = ResultProcessor.process(
-                                [ctx.item], 
-                                resultData, 
+                                [currentItem], 
+                                packets, 
                                 pluginDef.output,
                                 toCamel(pluginDef.name)
                             );
 
-                            for (const newItem of processedItems) {
-                                nextContexts.push({
-                                    item: newItem,
-                                    contentParts: [...ctx.contentParts, ...contentParts],
-                                    stepResult: { 
-                                        ...ctx.stepResult, 
-                                        [toCamel(pluginDef.name)]: resultData
-                                    }
-                                });
-                            }
+                            nextItems.push(...processedItems);
+
                         } catch (pluginError: any) {
                             console.error(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' Failed:`, pluginError);
                             rowErrors.push({ index: item.originalIndex, error: pluginError });
                         }
                     }
-                    activeContexts = nextContexts;
+                    activeItems = nextItems;
                 }
 
                 const nextItemsForQueue: PipelineItem[] = [];
 
-                for (const ctx of activeContexts) {
+                for (const currentItem of activeItems) {
                     try {
                         const modelViewContext = {
-                            ...ctx.item.row,
-                            ...ctx.item.workspace,
-                            ...ctx.stepResult,
-                            steps: ctx.item.stepHistory,
-                            index: ctx.item.originalIndex
+                            ...currentItem.row,
+                            ...currentItem.workspace,
+                            steps: currentItem.stepHistory,
+                            index: currentItem.originalIndex
                         };
 
-                        let effectiveParts = [...ctx.contentParts, ...resolvedStep.userPromptParts];
+                        // Combine accumulated content from plugins with user prompt parts
+                        let effectiveParts = [...currentItem.accumulatedContent, ...resolvedStep.userPromptParts];
                         
                         for (const ppDef of resolvedStep.preprocessors) {
                             const preprocessor = this.preprocessorRegistry.get(ppDef.name);
@@ -188,21 +168,23 @@ export class ActionRunner {
                         const result = await executor.executeModel(
                             stepContext,
                             modelViewContext,
-                            ctx.item.originalIndex,
+                            currentItem.originalIndex,
                             stepNum,
                             resolvedStep,
-                            ctx.item.history,
-                            effectiveParts
+                            currentItem.history,
+                            effectiveParts,
+                            currentItem.variationIndex
                         );
 
-                        const currentStepResult = {
-                            ...ctx.stepResult,
-                            modelOutput: result.modelResult
+                        // Wrap model result in a packet for uniform processing
+                        const modelPacket = {
+                            data: result.modelResult,
+                            contentParts: [] // Model output usually doesn't become content for the *same* step's next phase, but could be history
                         };
 
                         const processedItems = ResultProcessor.process(
-                            [ctx.item], 
-                            result.modelResult, 
+                            [currentItem], 
+                            [modelPacket], 
                             resolvedStep.output,
                             'modelOutput'
                         );
@@ -231,7 +213,7 @@ export class ActionRunner {
                             }
 
                             finalItem.history = newHistory;
-                            finalItem.stepHistory = [...finalItem.stepHistory, currentStepResult];
+                            finalItem.stepHistory = [...finalItem.stepHistory, result.modelResult];
                             
                             nextItemsForQueue.push(finalItem);
                         }
@@ -267,7 +249,8 @@ export class ActionRunner {
                     workspace: {},
                     stepHistory: [],
                     history: [],
-                    originalIndex: originalIndex
+                    originalIndex: originalIndex,
+                    accumulatedContent: []
                 };
 
                 queue.add(() => processTask({

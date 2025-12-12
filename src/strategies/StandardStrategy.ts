@@ -151,7 +151,8 @@ export class StandardStrategy implements GenerationStrategy {
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
         outputPathOverride?: string,
-        skipCommands: boolean = false
+        skipCommands: boolean = false,
+        variationIndex?: number
     ): Promise<GenerationResult> {
 
         const effectiveOutputPath = outputPathOverride || config.outputPath;

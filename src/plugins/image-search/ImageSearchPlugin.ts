@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
 import { z } from 'zod';
-import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
+import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig, PluginPacket } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig, ServiceCapabilities } from '../../types.js';
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
@@ -161,7 +161,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, stepContext, tempDirectory, outputBasename, outputExtension, output } = context;
+        const { row, stepIndex, config, stepContext, tempDirectory, outputBasename, outputExtension } = context;
         const resolvedConfig = config as ImageSearchResolvedConfig;
 
         const imageSearch = stepContext.global.imageSearch!;
@@ -190,17 +190,14 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                 queries: z.array(z.string()).min(1).max(resolvedConfig.queryCount)
             });
 
-            // Create bound LLM with the query prompt already included
             const queryLlm = stepContext.createLlm(resolvedConfig.queryConfig);
-            
-            // Just call promptZod - the prompt from --image-query-prompt is already bound
             const response = await queryLlm.promptZod(QuerySchema);
             
             queries.push(...response.queries);
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Generated queries: ${response.queries.join(', ')}`);
         }
 
-        if (queries.length === 0) return { contentParts: [], data: [] };
+        if (queries.length === 0) return { packets: [] };
 
         console.log(`[Row ${context.row.index}] Step ${stepIndex} Executing ${queries.length} searches...`);
         
@@ -253,7 +250,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         if (resolvedConfig.selectConfig) {
             console.log(`[Row ${context.row.index}] Step ${stepIndex} AI Selecting best images from pool of ${pooledImages.length}...`);
             
-            // Create bound LLM with the select prompt already included
             const selectLlm = stepContext.createLlm(resolvedConfig.selectConfig);
             const aiImageSearch = new AiImageSearch(imageSearch, selectLlm, resolvedConfig.spriteSize);
             
@@ -272,9 +268,8 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             selectedImages = pooledImages.slice(0, resolvedConfig.select);
         }
 
-        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+        const packets: PluginPacket[] = [];
         const sharp = (await import('sharp')).default;
-        const selectedMetadata: any[] = [];
 
         for (let i = 0; i < selectedImages.length; i++) {
             const img = selectedImages[i];
@@ -290,14 +285,20 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                 const base64 = processedBuffer.toString('base64');
                 await ArtifactSaver.save(processedBuffer, savePath);
 
-                contentParts.push({
+                const contentPart: OpenAI.Chat.Completions.ChatCompletionContentPart = {
                     type: 'image_url',
                     image_url: { url: `data:image/jpeg;base64,${base64}` }
-                });
+                };
 
-                selectedMetadata.push({
+                const metadata = {
                     ...img.metadata,
-                    localPath: savePath
+                    localPath: savePath,
+                    searchIndex: i + 1
+                };
+
+                packets.push({
+                    data: metadata,
+                    contentParts: [contentPart]
                 });
 
             } catch (e) {
@@ -305,16 +306,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
             }
         }
 
-        if (output.explode) {
-            return {
-                contentParts,
-                data: selectedMetadata
-            };
-        } else {
-            return {
-                contentParts,
-                data: [selectedMetadata]
-            };
-        }
+        return { packets };
     }
 }

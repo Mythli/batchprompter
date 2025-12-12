@@ -51,11 +51,18 @@ export class DedupePlugin implements ContentProviderPlugin {
         
         if (this.seenKeys.has(key)) {
             console.log(`[Row ${row.index}] [Dedupe] ❌ Dropping duplicate key: "${key}"`);
-            return { contentParts: [], data: [] };
+            return { packets: [] }; // Empty packets = Drop item
         }
         
         console.log(`[Row ${row.index}] [Dedupe] ✅ Keeping new key: "${key}"`);
         this.seenKeys.add(key);
-        return { contentParts: [], data: [{}] }; 
+        
+        // Return a single empty packet to signal "Keep item"
+        return { 
+            packets: [{
+                data: {},
+                contentParts: []
+            }] 
+        }; 
     }
 }

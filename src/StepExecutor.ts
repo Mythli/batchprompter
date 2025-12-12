@@ -32,7 +32,8 @@ export class StepExecutor {
         stepIndex: number,
         config: StepConfig,
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        pluginContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
+        pluginContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        variationIndex?: number
     ): Promise<StepExecutionResult> {
 
         let effectiveUserPromptParts = pluginContentParts;
@@ -89,7 +90,11 @@ export class StepExecutor {
             stepIndex,
             config,
             effectiveUserPromptParts,
-            history
+            history,
+            undefined, // cacheSalt
+            undefined, // outputPathOverride
+            false, // skipCommands
+            variationIndex // Pass variation index for filename generation
         );
 
         return {

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { PluginRegistry } from '../plugins/PluginRegistry.js';
 import { PluginConfigDefinition, StepContext } from '../types.js';
+import { PluginPacket } from '../plugins/types.js';
 
 export class PluginRunner {
     constructor(
@@ -16,15 +17,13 @@ export class PluginRunner {
         paths: { outputDir?: string; tempDir: string; basename?: string; ext?: string }
     ) {
         let currentContext = { ...initialContext };
-        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        const pluginResults: Record<string, any[]> = {};
+        const allPackets: PluginPacket[] = [];
 
         for (const def of plugins) {
             const plugin = this.registry.get(def.name);
             if (!plugin) continue;
 
             // 1. JIT Prepare (Enables Chaining)
-            // We pass currentContext which might contain data from previous plugins in this loop
             const preparedConfig = await plugin.prepare(def.config, currentContext);
 
             // 2. Execute
@@ -40,35 +39,25 @@ export class PluginRunner {
                 outputExtension: paths.ext
             });
 
-            // 3. Handle Results
-            if (result.data) {
-                // Ensure data is an array (backward compatibility safety, though types say it must be array)
-                const dataArray = Array.isArray(result.data) ? result.data : [result.data];
+            // 3. Collect Packets
+            allPackets.push(...result.packets);
 
-                pluginResults[def.name] = dataArray;
-
-                // Context Merging Strategy for Chaining:
-                // If the plugin returned exactly one item, we merge it into the current context
-                // so subsequent plugins in this chain can see it.
-                // If it returned 0 or >1, we cannot cleanly merge into a single context,
-                // so we skip merging. The ActionRunner will handle the branching later.
-                if (dataArray.length === 1) {
-                    const item = dataArray[0];
-                    if (typeof item === 'object' && item !== null) {
-                        currentContext = { ...currentContext, ...item };
-                    }
-                    // Also make it available via namespace
-                    currentContext = { ...currentContext, [def.name]: item };
+            // 4. Context Merging Strategy for Chaining (Legacy support for subsequent plugins in same step)
+            // If the plugin returned exactly one packet, we merge its data into the current context
+            // so subsequent plugins in this chain can see it.
+            if (result.packets.length === 1) {
+                const packet = result.packets[0];
+                if (typeof packet.data === 'object' && packet.data !== null) {
+                    currentContext = { ...currentContext, ...packet.data };
                 }
+                // Also make it available via namespace
+                currentContext = { ...currentContext, [def.name]: packet.data };
             }
-
-            contentParts.push(...result.contentParts);
         }
 
         return {
             context: currentContext,
-            contentParts,
-            pluginResults
+            packets: allPackets
         };
     }
 }
