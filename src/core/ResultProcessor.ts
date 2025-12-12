@@ -81,8 +81,15 @@ export class ResultProcessor {
         if (strategy.mode === 'column' && strategy.columnName) {
             item.row[strategy.columnName] = data;
         } else if (strategy.mode === 'merge') {
-            if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-                Object.assign(item.row, data);
+            // Unwrap single-element arrays for merge operations
+            // This handles the common case of a single-packet plugin result
+            let dataToMerge = data;
+            if (Array.isArray(data) && data.length === 1) {
+                dataToMerge = data[0];
+            }
+            
+            if (typeof dataToMerge === 'object' && dataToMerge !== null && !Array.isArray(dataToMerge)) {
+                Object.assign(item.row, dataToMerge);
             }
         }
     }
