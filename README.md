@@ -17,6 +17,10 @@ Unlike a chatbot, BatchPrompt is **data-driven**: it takes a CSV/JSON file, and 
     - [D. The Designer (UI/UX Analysis)](#d-the-designer-uiux-analysis)
     - [E. The Art Director (Image Gen with RAG)](#e-the-art-director-image-gen-with-rag)
 5. [🔌 Plugins Reference](#-plugins-reference)
+    - [Web Search](#web-search-plugin)
+    - [Image Search](#image-search-plugin)
+    - [Website Agent](#website-agent-plugin)
+    - [Style Scraper](#style-scraper-plugin)
 6. [🛠️ Advanced Features](#-advanced-features)
 7. [⚙️ Configuration](#-configuration)
 
@@ -257,12 +261,91 @@ batchprompt generate locations.csv \
 
 Plugins populate specific variables in the `Workspace`. You can access these in your prompts using Handlebars syntax (e.g., `{{webSearch.0.link}}`).
 
-| Plugin Flag | Variable Name | Structure | Access Example |
-| :--- | :--- | :--- | :--- |
-| `--web-search` | `{{webSearch}}` | Array of results | `{{webSearch.0.snippet}}` |
-| `--image-search` | `{{imageSearch}}` | Array of images | `{{imageSearch.0.imageUrl}}` |
-| `--website-agent` | `{{websiteAgent}}` | Object (Schema result) | `{{websiteAgent.summary}}` |
-| `--style-scraper` | `{{styleScraper}}` | Object (Screenshots) | `{{styleScraper.desktop}}` |
+### Web Search Plugin
+Performs Google searches and optionally fetches page content.
+
+**Variable:** `{{webSearch}}` (Array of results)
+*   `title`: Page title.
+*   `link`: URL.
+*   `snippet`: Google search snippet.
+*   `content`: Full page content (if mode is not 'none').
+
+**Flags:**
+| Flag | Description |
+| :--- | :--- |
+| `--web-search-query <text>` | Static search query. |
+| `--web-search-limit <number>` | Max results to return (Default: 5). |
+| `--web-search-mode <mode>` | `none` (snippets only), `markdown`, or `html`. |
+| `--web-query-prompt <text>` | **AI Mode:** Prompt to generate queries dynamically. |
+| `--web-select-prompt <text>` | **AI Mode:** Prompt to select best results. |
+
+---
+
+### Image Search Plugin
+Searches Google Images, downloads them, and uses AI Vision to select the best ones.
+
+**Variable:** `{{imageSearch}}` (Array of results)
+*   `imageUrl`: Remote URL.
+*   `localPath`: Path to the downloaded file (useful for CLI tools like ImageMagick).
+*   `title`: Image title.
+*   `source`: Source website name.
+*   `domain`: Source hostname.
+
+**Flags:**
+| Flag | Description |
+| :--- | :--- |
+| `--image-search-query <text>` | Static search query (e.g., "blue cat"). |
+| `--image-search-limit <number>` | Max images to fetch per query (Default: 12). |
+| `--image-query-prompt <text>` | **AI Mode:** Prompt to generate search queries dynamically. |
+| `--image-search-query-count <number>` | **AI Mode:** Number of queries to generate (Default: 3). |
+| `--image-select-prompt <text>` | **AI Mode:** Prompt for the Vision model to select the best image. |
+| `--image-search-select <number>` | Number of images to keep after selection (Default: 1). |
+| `--image-search-sprite-size <number>` | Images per grid for Vision analysis (Default: 4). |
+| `--image-query-model <model>` | Model for generating queries (Default: Global Model). |
+| `--image-select-model <model>` | Vision model for selecting images (Default: Global Model). |
+
+**Example (AI Selection):**
+```bash
+--image-query-prompt "Generate 3 search queries for {{industry}}."
+--image-select-prompt "Select the image that is most photorealistic and has no text."
+--image-select-model "google/gemini-3-pro-preview"
+--image-search-sprite-size 4
+```
+
+---
+
+### Website Agent Plugin
+An autonomous agent that navigates a website to fill a specific JSON schema.
+
+**Variable:** `{{websiteAgent}}` (Object matching your schema)
+
+**Flags:**
+| Flag | Description |
+| :--- | :--- |
+| `--website-agent-url <url>` | Starting URL. |
+| `--website-agent-schema <path>` | Path to JSON schema file. |
+| `--website-agent-budget <number>` | Max pages to visit (Default: 10). |
+| `--website-navigator-model <model>` | Model used for navigation decisions. |
+
+---
+
+### Style Scraper Plugin
+Captures screenshots and computed styles for UI/UX analysis.
+
+**Variable:** `{{styleScraper}}` (Object)
+*   `desktop`: Path to desktop screenshot.
+*   `mobile`: Path to mobile screenshot.
+*   `interactive`: Path to composite image of interactive elements.
+*   `css`: Path to markdown file with computed styles.
+*   `elements`: Map of element IDs to screenshot paths.
+
+**Flags:**
+| Flag | Description |
+| :--- | :--- |
+| `--style-scrape-url <url>` | Target URL. |
+| `--style-scrape-resolution <res>` | Viewport (e.g., "1920x1080"). |
+| `--style-scrape-mobile` | Enable mobile capture. |
+| `--style-scrape-interactive` | Enable interactive element capture. |
 
 ---
 
