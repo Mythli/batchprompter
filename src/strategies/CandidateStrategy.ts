@@ -76,6 +76,17 @@ export class CandidateStrategy implements GenerationStrategy {
             if (candidateCount > 1) {
                 console.log(`[Row ${index}] Step ${stepIndex} Only 1 candidate succeeded. Skipping judge.`);
             }
+            
+            // Single candidate - standard behavior
+            if (config.outputPath && winner.outputPath) {
+                await this.copyWinnerToOutput(winner, config, row, index, stepIndex);
+            }
+
+            return {
+                historyMessage: winner.historyMessage,
+                columnValue: winner.columnValue,
+                raw: winner.raw
+            };
         } else {
             if (this.stepContext.judge) {
                 console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates...`);
@@ -86,46 +97,135 @@ export class CandidateStrategy implements GenerationStrategy {
                     console.error(`[Row ${index}] Step ${stepIndex} Judging failed: ${e.message}`);
                     throw e;
                 }
+                
+                // Judge selected a winner - standard behavior
+                if (config.outputPath && winner.outputPath) {
+                    await this.copyWinnerToOutput(winner, config, row, index, stepIndex);
+                }
+
+                return {
+                    historyMessage: winner.historyMessage,
+                    columnValue: winner.columnValue,
+                    raw: winner.raw
+                };
             } else {
-                console.warn(`[Row ${index}] Step ${stepIndex} ⚠️  Multiple candidates generated but no judge configured. Defaulting to Candidate #1.`);
-                winner = successfulCandidates[0];
+                // NO JUDGE: Save all candidates and return array for explode
+                console.log(`[Row ${index}] Step ${stepIndex} No judge configured. Saving all ${successfulCandidates.length} candidates (explode mode).`);
+                
+                const explodedResults = await this.saveAllCandidates(
+                    successfulCandidates, 
+                    config, 
+                    row, 
+                    index, 
+                    stepIndex
+                );
+
+                return {
+                    historyMessage: {
+                        role: 'assistant',
+                        content: `[Generated ${explodedResults.length} candidates]`
+                    },
+                    columnValue: null,
+                    raw: explodedResults  // Array triggers explode in ResultProcessor
+                };
             }
         }
+    }
 
-        if (config.outputPath && winner.outputPath) {
-            const fs = await import('fs/promises');
-            try {
-                await ensureDir(config.outputPath);
-                if (winner.outputPath !== config.outputPath) {
-                    await fs.copyFile(winner.outputPath, config.outputPath);
-                }
-
-                if (config.noCandidateCommand && config.postProcessCommand) {
-                    const cmdTemplate = Handlebars.compile(config.postProcessCommand, { noEscape: true });
-                    const sanitizedRow: Record<string, string> = {};
-                    for (const [key, val] of Object.entries(row)) {
-                        const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                        sanitizedRow[key] = aggressiveSanitize(stringVal);
-                    }
-                    const cmd = cmdTemplate({ ...sanitizedRow, file: config.outputPath });
-                    console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running deferred command on winner: ${cmd}`);
-                    try {
-                        const { stdout } = await execPromise(cmd);
-                        if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
-                    } catch (error: any) {
-                        console.error(`[Row ${index}] Step ${stepIndex} Deferred command failed:`, error.message);
-                    }
-                }
-            } catch (e) {
-                console.error(`[Row ${index}] Step ${stepIndex} Failed to copy winner file to final output:`, e);
+    private async copyWinnerToOutput(
+        winner: GenerationResult & { candidateIndex: number, outputPath: string | null },
+        config: StepConfig,
+        row: Record<string, any>,
+        index: number,
+        stepIndex: number
+    ): Promise<void> {
+        const fs = await import('fs/promises');
+        try {
+            await ensureDir(config.outputPath!);
+            if (winner.outputPath !== config.outputPath) {
+                await fs.copyFile(winner.outputPath!, config.outputPath!);
             }
+
+            if (config.noCandidateCommand && config.postProcessCommand) {
+                await this.runDeferredCommand(config.postProcessCommand, row, config.outputPath!, index, stepIndex);
+            }
+        } catch (e) {
+            console.error(`[Row ${index}] Step ${stepIndex} Failed to copy winner file to final output:`, e);
+        }
+    }
+
+    private async saveAllCandidates(
+        candidates: (GenerationResult & { candidateIndex: number, outputPath: string | null })[],
+        config: StepConfig,
+        row: Record<string, any>,
+        index: number,
+        stepIndex: number
+    ): Promise<any[]> {
+        const fs = await import('fs/promises');
+        const results: any[] = [];
+
+        for (let i = 0; i < candidates.length; i++) {
+            const candidate = candidates[i];
+            
+            let finalOutputPath: string | null = null;
+
+            if (config.outputPath && candidate.outputPath) {
+                // Generate indexed path: "02_HeroImage.jpg" → "02_HeroImage_1.jpg"
+                finalOutputPath = this.createIndexedPath(config.outputPath, i);
+                
+                try {
+                    await ensureDir(finalOutputPath);
+                    await fs.copyFile(candidate.outputPath, finalOutputPath);
+                    console.log(`[Row ${index}] Step ${stepIndex} Saved candidate ${i + 1} to ${finalOutputPath}`);
+
+                    // Run deferred command if applicable
+                    if (config.noCandidateCommand && config.postProcessCommand) {
+                        await this.runDeferredCommand(config.postProcessCommand, row, finalOutputPath, index, stepIndex);
+                    }
+                } catch (e) {
+                    console.error(`[Row ${index}] Step ${stepIndex} Failed to save candidate ${i + 1}:`, e);
+                }
+            }
+
+            // Build result object for this candidate
+            results.push({
+                outputPath: finalOutputPath || candidate.outputPath,
+                candidateIndex: candidate.candidateIndex,
+                content: candidate.columnValue,
+                raw: candidate.raw
+            });
         }
 
-        return {
-            historyMessage: winner.historyMessage,
-            columnValue: winner.columnValue,
-            raw: winner.raw
-        };
+        return results;
+    }
+
+    private createIndexedPath(basePath: string, index: number): string {
+        const parsed = path.parse(basePath);
+        // 1-based indexing for human-friendliness
+        return path.join(parsed.dir, `${parsed.name}_${index + 1}${parsed.ext}`);
+    }
+
+    private async runDeferredCommand(
+        commandTemplate: string,
+        row: Record<string, any>,
+        filePath: string,
+        index: number,
+        stepIndex: number
+    ): Promise<void> {
+        const cmdTemplate = Handlebars.compile(commandTemplate, { noEscape: true });
+        const sanitizedRow: Record<string, string> = {};
+        for (const [key, val] of Object.entries(row)) {
+            const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+            sanitizedRow[key] = aggressiveSanitize(stringVal);
+        }
+        const cmd = cmdTemplate({ ...sanitizedRow, file: filePath });
+        console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running deferred command: ${cmd}`);
+        try {
+            const { stdout } = await execPromise(cmd);
+            if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
+        } catch (error: any) {
+            console.error(`[Row ${index}] Step ${stepIndex} Deferred command failed:`, error.message);
+        }
     }
 
     private async judgeCandidates(
