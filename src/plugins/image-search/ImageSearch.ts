@@ -1,8 +1,8 @@
-// 
+//
 import { z } from 'zod';
 import sharp from 'sharp';
 import PQueue from 'p-queue';
-import { Fetcher } from '../../utils/createCachedFetcher.js';
+import {Fetcher} from "llm-fns";
 
 // Zod Schemas
 const ImageSchema = z.object({
