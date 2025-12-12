@@ -9,6 +9,12 @@ export interface PromptOptions {
     suffix?: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
+export interface RequestOptions {
+    headers?: Record<string, string>;
+    timeout?: number;
+    signal?: AbortSignal;
+}
+
 /**
  * An LLM client with pre-bound system and prompt parts.
  * This ensures prompts are never forgotten when calling the LLM.
@@ -124,7 +130,11 @@ export class BoundLlmClient {
      * Raw prompt call with full control over messages.
      * Useful for strategies that need to manage conversation history.
      */
-    async prompt(params: { messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] }): Promise<any> {
+    async prompt(params: { 
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+        requestOptions?: RequestOptions;
+        [key: string]: any;
+    }): Promise<any> {
         return this.client.prompt(params);
     }
 

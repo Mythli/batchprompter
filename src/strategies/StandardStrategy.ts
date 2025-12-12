@@ -179,7 +179,8 @@ export class StandardStrategy implements GenerationStrategy {
                 index,
                 stepIndex,
                 skipCommands,
-                userPromptParts
+                userPromptParts,
+                cacheSalt
             );
         }
 
@@ -247,11 +248,17 @@ export class StandardStrategy implements GenerationStrategy {
         index: number,
         stepIndex: number,
         skipCommands: boolean,
-        userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[]
+        userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+        cacheSalt?: string | number
     ): Promise<ExtractedContent> {
         const maxRetries = 3;
         let currentHistory = [...history];
         let lastError: any;
+
+        // Build request options with cache salt header if provided
+        const requestOptions = cacheSalt ? {
+            headers: { 'X-Cache-Salt': String(cacheSalt) }
+        } : undefined;
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
@@ -272,9 +279,11 @@ export class StandardStrategy implements GenerationStrategy {
 
                 if (config.jsonSchema) {
                     const rawClient = this.llm.getRawClient();
+                    // Pass cache salt as third argument (options) to promptJson
                     const jsonResult = await rawClient.promptJson(
                         finalMessages,
-                        config.jsonSchema
+                        config.jsonSchema,
+                        requestOptions ? { requestOptions } : undefined
                     );
 
                     extracted = {
@@ -285,7 +294,8 @@ export class StandardStrategy implements GenerationStrategy {
                     };
                 } else {
                     const response = await this.llm.prompt({
-                        messages: finalMessages
+                        messages: finalMessages,
+                        requestOptions
                     });
 
                     const parsed = responseSchema.parse(response);
