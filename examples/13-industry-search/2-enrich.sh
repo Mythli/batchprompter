@@ -7,7 +7,7 @@
 npx tsx src/index.ts generate "out/13-industry-search/{{industry}}/companies.csv" \
   \
   "" \
-  --limit 10 \
+  --limit 2 \
   --model "google/gemini-3-pro-preview" \
   --website-agent-url-1 "{{link}}" \
   --website-agent-schema-1 examples/13-industry-search/schemas/contact.json \
