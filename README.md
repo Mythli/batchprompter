@@ -271,6 +271,7 @@ Performs Google searches and optionally fetches page content.
 *   `content`: Full page content (if mode is not 'none').
 
 **Flags:**
+
 | Flag | Description |
 | :--- | :--- |
 | `--web-search-query <text>` | Static search query. |
@@ -296,6 +297,7 @@ Searches Google Images, downloads them, and uses AI Vision to select the best on
 *   `domain`: Source hostname.
 
 **Flags:**
+
 | Flag | Description |
 | :--- | :--- |
 | `--image-search-query <text>` | Static search query (e.g., "blue cat"). |
@@ -313,6 +315,7 @@ Searches Google Images, downloads them, and uses AI Vision to select the best on
 | `--image-select-model <model>` | Vision model for selecting images (Default: Global Model). |
 
 **Example (AI Selection):**
+
 ```bash
 --image-query-prompt "Generate 3 search queries for {{industry}}."
 --image-select-prompt "Select the image that is most photorealistic and has no text."
@@ -328,6 +331,7 @@ An autonomous agent that navigates a website to fill a specific JSON schema.
 **Variable:** `{{websiteAgent}}` (Object matching your schema)
 
 **Flags:**
+
 | Flag | Description |
 | :--- | :--- |
 | `--website-agent-url <url>` | Starting URL. |
@@ -348,6 +352,7 @@ Captures screenshots and computed styles for UI/UX analysis.
 *   `elements`: Map of element IDs to screenshot paths.
 
 **Flags:**
+
 | Flag | Description |
 | :--- | :--- |
 | `--style-scrape-url <url>` | Target URL. |
