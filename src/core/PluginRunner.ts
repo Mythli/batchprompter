@@ -9,7 +9,7 @@ export class PluginRunner {
     ) {}
 
     async run(
-        plugins: PluginConfigDefinition[], 
+        plugins: PluginConfigDefinition[],
         initialContext: Record<string, any>,
         stepIndex: number,
         stepContext: StepContext,
@@ -34,7 +34,6 @@ export class PluginRunner {
                 config: preparedConfig,
                 output: def.output,
                 stepContext: stepContext,
-                globalConfig: this.globalConfig,
                 outputDirectory: paths.outputDir,
                 tempDirectory: paths.tempDir,
                 outputBasename: paths.basename,
@@ -45,13 +44,13 @@ export class PluginRunner {
             if (result.data) {
                 // Ensure data is an array (backward compatibility safety, though types say it must be array)
                 const dataArray = Array.isArray(result.data) ? result.data : [result.data];
-                
+
                 pluginResults[def.name] = dataArray;
-                
+
                 // Context Merging Strategy for Chaining:
                 // If the plugin returned exactly one item, we merge it into the current context
                 // so subsequent plugins in this chain can see it.
-                // If it returned 0 or >1, we cannot cleanly merge into a single context, 
+                // If it returned 0 or >1, we cannot cleanly merge into a single context,
                 // so we skip merging. The ActionRunner will handle the branching later.
                 if (dataArray.length === 1) {
                     const item = dataArray[0];
@@ -66,10 +65,10 @@ export class PluginRunner {
             contentParts.push(...result.contentParts);
         }
 
-        return { 
-            context: currentContext, 
-            contentParts, 
-            pluginResults 
+        return {
+            context: currentContext,
+            contentParts,
+            pluginResults
         };
     }
 }
