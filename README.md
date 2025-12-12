@@ -275,7 +275,11 @@ Performs Google searches and optionally fetches page content.
 | :--- | :--- |
 | `--web-search-query <text>` | Static search query. |
 | `--web-search-limit <number>` | Max results to return (Default: 5). |
+| `--web-search-max-pages <number>` | Max pages of search results to fetch per query (Default: 1). |
 | `--web-search-mode <mode>` | `none` (snippets only), `markdown`, or `html`. |
+| `--web-search-dedupe-strategy <strategy>` | `none`, `domain`, or `url` (Default: none). |
+| `--web-search-gl <country>` | Country code for search results (e.g. us, de). |
+| `--web-search-hl <lang>` | Language code for search results (e.g. en, de). |
 | `--web-query-prompt <text>` | **AI Mode:** Prompt to generate queries dynamically. |
 | `--web-select-prompt <text>` | **AI Mode:** Prompt to select best results. |
 
