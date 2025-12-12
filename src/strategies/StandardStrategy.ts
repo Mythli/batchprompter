@@ -172,8 +172,6 @@ export class StandardStrategy implements GenerationStrategy {
                 }
             }
 
-            const loopSalt = isFeedbackLoop ? `${cacheSalt}_refine_${loop-1}` : cacheSalt;
-
             finalContent = await this.generateWithRetry(
                 currentHistory,
                 config,
@@ -181,7 +179,6 @@ export class StandardStrategy implements GenerationStrategy {
                 index,
                 stepIndex,
                 skipCommands,
-                loopSalt,
                 userPromptParts
             );
         }
@@ -250,7 +247,6 @@ export class StandardStrategy implements GenerationStrategy {
         index: number,
         stepIndex: number,
         skipCommands: boolean,
-        salt?: string | number,
         userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): Promise<ExtractedContent> {
         const maxRetries = 3;
@@ -277,10 +273,7 @@ export class StandardStrategy implements GenerationStrategy {
                 if (config.jsonSchema) {
                     const jsonResult = await this.llm.promptJson(
                         finalMessages,
-                        config.jsonSchema,
-                        {
-                            cacheSalt: attempt === 0 ? salt : `${salt}_retry_${attempt}`
-                        }
+                        config.jsonSchema
                     );
 
                     extracted = {
@@ -291,8 +284,7 @@ export class StandardStrategy implements GenerationStrategy {
                     };
                 } else {
                     const response = await this.llm.prompt({
-                        messages: finalMessages,
-                        cacheSalt: attempt === 0 ? salt : `${salt}_retry_${attempt}`
+                        messages: finalMessages
                     });
 
                     const parsed = responseSchema.parse(response);

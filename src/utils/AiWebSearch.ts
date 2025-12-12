@@ -38,7 +38,7 @@ export class AiWebSearch {
             });
 
             const prompt = `Generate ${config.queryCount} search queries to find information about: ${JSON.stringify(row)}`;
-            const messages = [{ role: 'user' as const, content: prompt }];
+            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [{ role: 'user' as const, content: prompt }];
 
             const response = await this.queryLlm.promptZod(messages, QuerySchema);
             queries.push(...response.queries);
@@ -96,7 +96,7 @@ export class AiWebSearch {
                     });
 
                     const prompt = `Select the most relevant search results from the following list:\n\n${listText}`;
-                    const messages = [{ role: 'user' as const, content: prompt }];
+                    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [{ role: 'user' as const, content: prompt }];
 
                     const response = await this.selectLlm.promptZod(messages, SelectionSchema);
 
@@ -151,9 +151,8 @@ export class AiWebSearch {
                 const truncatedContent = content.substring(0, 15000); 
 
                 const prompt = `Summarize the following content concisely while preserving key information:\n\nTitle: ${result.title}\nLink: ${result.link}\n\nContent:\n${truncatedContent}`;
-                const messages = [{ role: 'user' as const, content: prompt }];
 
-                const summary = await this.compressLlm.promptText(messages);
+                const summary = await this.compressLlm.promptText({ messages: [{ role: 'user', content: prompt }] });
                 content = summary;
                 finalOutputs.push(`Source: ${result.title} (${result.link})\nSummary:\n${summary}`);
             } else {

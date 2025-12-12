@@ -144,11 +144,16 @@ export class StepRegistry {
         }
 
         return {
-            ...normalized.global,
+            concurrency: normalized.global.concurrency ?? 50,
+            taskConcurrency: normalized.global.taskConcurrency ?? 100,
+            tmpDir: normalized.global.tmpDir,
             dataFilePath: normalized.dataFilePath,
+            dataOutputPath: normalized.global.dataOutputPath,
             steps,
             data,
-            options // Pass global options
+            options,
+            offset: normalized.global.offset,
+            limit: normalized.global.limit
         };
     }
 }

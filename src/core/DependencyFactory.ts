@@ -1,31 +1,38 @@
-import { GlobalContext, StepConfig, StepContext, ResolvedModelConfig } from '../types.js';
-import { ConfiguredLlmClient } from './ConfiguredLlmClient.js';
+import { GlobalContext, StepConfig, StepContext, LlmModelConfig } from '../types.js';
+import { LlmClientFactory } from './LlmClientFactory.js';
 
+/**
+ * @deprecated Use StepContextFactory instead. This class is kept for backwards compatibility.
+ */
 export class DependencyFactory {
-    static createStepContext(global: GlobalContext, stepConfig: StepConfig): StepContext {
+    static createStepContext(
+        global: GlobalContext, 
+        stepConfig: StepConfig,
+        llmFactory: LlmClientFactory
+    ): StepContext {
         
-        const createLlmClient = (config: ResolvedModelConfig) => {
-            return new ConfiguredLlmClient(global.baseLlm, config);
-        };
-
-        const llm = createLlmClient(stepConfig.modelConfig);
+        const llm = llmFactory.createFromResolved(stepConfig.modelConfig);
         
-        let judge: ConfiguredLlmClient | undefined;
+        let judge = undefined;
         if (stepConfig.judge) {
-            judge = createLlmClient(stepConfig.judge);
+            judge = llmFactory.createFromResolved(stepConfig.judge);
         }
 
-        let feedback: ConfiguredLlmClient | undefined;
+        let feedback = undefined;
         if (stepConfig.feedback) {
-            feedback = createLlmClient(stepConfig.feedback);
+            feedback = llmFactory.createFromResolved(stepConfig.feedback);
         }
+
+        const createLlm = (config: LlmModelConfig) => {
+            return llmFactory.create(config);
+        };
 
         return {
             global,
             llm,
             judge,
             feedback,
-            createLlmClient
+            createLlm
         };
     }
 }

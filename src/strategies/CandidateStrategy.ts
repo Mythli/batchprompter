@@ -84,7 +84,7 @@ export class CandidateStrategy implements GenerationStrategy {
             if (this.stepContext.judge) {
                 console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates...`);
                 try {
-                    winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex);
+                    winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex, row);
                     console.log(`[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}`);
                 } catch (e: any) {
                     console.error(`[Row ${index}] Step ${stepIndex} Judging failed: ${e.message}`);
@@ -141,7 +141,8 @@ export class CandidateStrategy implements GenerationStrategy {
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         index: number,
-        stepIndex: number
+        stepIndex: number,
+        row: Record<string, any>
     ): Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }> {
 
         if (!this.stepContext.judge) throw new Error("No judge configuration found");
@@ -173,12 +174,16 @@ export class CandidateStrategy implements GenerationStrategy {
             reason: z.string().describe("The reason for selecting this candidate"),
         });
 
+        // Build the full messages array for the judge
+        const judgeMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+            ...contextMessages,
+            { role: 'user', content: candidatePresentationParts }
+        ];
+
         // Use the pre-configured judge client
         const result = await this.stepContext.judge.promptZod(
-            row,
-            JudgeSchema,
-            contextMessages,
-            candidatePresentationParts
+            judgeMessages,
+            JudgeSchema
         );
 
         console.log(`[Row ${index}] Step ${stepIndex} Judge Reason: ${result.reason}`);
