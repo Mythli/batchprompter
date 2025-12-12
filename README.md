@@ -300,6 +300,10 @@ Searches Google Images, downloads them, and uses AI Vision to select the best on
 | :--- | :--- |
 | `--image-search-query <text>` | Static search query (e.g., "blue cat"). |
 | `--image-search-limit <number>` | Max images to fetch per query (Default: 12). |
+| `--image-search-max-pages <number>` | Max pages of search results to fetch per query (Default: 1). |
+| `--image-search-dedupe-strategy <strategy>` | `none`, `domain`, or `url` (Default: url). |
+| `--image-search-gl <country>` | Country code for search results (e.g. us, de). |
+| `--image-search-hl <lang>` | Language code for search results (e.g. en, de). |
 | `--image-query-prompt <text>` | **AI Mode:** Prompt to generate search queries dynamically. |
 | `--image-search-query-count <number>` | **AI Mode:** Number of queries to generate (Default: 3). |
 | `--image-select-prompt <text>` | **AI Mode:** Prompt for the Vision model to select the best image. |
