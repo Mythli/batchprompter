@@ -1,10 +1,11 @@
 import OpenAI from 'openai';
-import { LlmClient, Fetcher } from 'llm-fns';
+import { Fetcher } from 'llm-fns';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
 import PQueue from 'p-queue';
 import { Cache } from 'cache-manager';
+import { BoundLlmClient } from './core/BoundLlmClient.js';
 
 // --- Service Capabilities (for validation at startup) ---
 
@@ -150,49 +151,34 @@ export interface PipelineItem {
     originalIndex: number;
 }
 
-// --- LLM Configuration for Factory ---
-
-export interface LlmModelConfig {
-    model: string;
-    temperature?: number;
-    thinkingLevel?: 'low' | 'medium' | 'high';
-}
-
 // --- Dependency Injection Contexts ---
 
 export interface GlobalContext {
-    // Core OpenAI instance (shared)
     openai: OpenAI;
     
-    // Caching & Queuing (shared)
     cache?: Cache;
     gptQueue: PQueue;
     serperQueue: PQueue;
     puppeteerQueue: PQueue;
     
-    // Services (guaranteed to exist)
     puppeteerHelper: PuppeteerHelper;
     fetcher: Fetcher;
     
-    // Services (may be undefined based on env - validated at normalize time)
     imageSearch?: ImageSearch;
     webSearch?: WebSearch;
     
-    // Capabilities (for validation)
     capabilities: ServiceCapabilities;
-    
-    // Default model from config
     defaultModel: string;
 }
 
 export interface StepContext {
     global: GlobalContext;
     
-    // Pre-configured LLM clients for this step
-    llm: LlmClient;
-    judge?: LlmClient;
-    feedback?: LlmClient;
+    // Pre-configured LLM clients with prompts bound
+    llm: BoundLlmClient;
+    judge?: BoundLlmClient;
+    feedback?: BoundLlmClient;
     
-    // Factory for plugins to create ad-hoc clients
-    createLlm(config: LlmModelConfig): LlmClient;
+    // Factory for plugins to create clients with bound prompts
+    createLlm(config: ResolvedModelConfig): BoundLlmClient;
 }

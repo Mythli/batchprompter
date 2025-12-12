@@ -1,5 +1,6 @@
 import { LlmClientFactory } from './LlmClientFactory.js';
-import { GlobalContext, StepConfig, StepContext, LlmModelConfig } from '../types.js';
+import { GlobalContext, StepConfig, StepContext, ResolvedModelConfig } from '../types.js';
+import { BoundLlmClient } from './BoundLlmClient.js';
 
 export class StepContextFactory {
     constructor(
@@ -8,23 +9,19 @@ export class StepContextFactory {
     ) {}
 
     create(stepConfig: StepConfig): StepContext {
-        // Create main LLM client
-        const mainLlm = this.llmFactory.createFromResolved(stepConfig.modelConfig);
+        const mainLlm = this.llmFactory.create(stepConfig.modelConfig);
         
-        // Create judge LLM client if configured
-        let judgeLlm = undefined;
+        let judgeLlm: BoundLlmClient | undefined = undefined;
         if (stepConfig.judge) {
-            judgeLlm = this.llmFactory.createFromResolved(stepConfig.judge);
+            judgeLlm = this.llmFactory.create(stepConfig.judge);
         }
 
-        // Create feedback LLM client if configured
-        let feedbackLlm = undefined;
+        let feedbackLlm: BoundLlmClient | undefined = undefined;
         if (stepConfig.feedback) {
-            feedbackLlm = this.llmFactory.createFromResolved(stepConfig.feedback);
+            feedbackLlm = this.llmFactory.create(stepConfig.feedback);
         }
 
-        // Factory function for plugins to create ad-hoc clients
-        const createLlm = (config: LlmModelConfig) => {
+        const createLlm = (config: ResolvedModelConfig): BoundLlmClient => {
             return this.llmFactory.create(config);
         };
 

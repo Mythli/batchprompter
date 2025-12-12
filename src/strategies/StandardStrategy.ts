@@ -5,13 +5,13 @@ import util from 'util';
 import { exec } from 'child_process';
 import { z } from 'zod';
 import fsPromises from 'fs/promises';
-import { LlmClient } from 'llm-fns';
 
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { ArtifactSaver } from '../ArtifactSaver.js';
 import { StepConfig } from '../types.js';
 import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
 import { MessageBuilder } from '../core/MessageBuilder.js';
+import { BoundLlmClient } from '../core/BoundLlmClient.js';
 
 const execPromise = util.promisify(exec);
 
@@ -43,7 +43,7 @@ type ExtractedContent = {
 
 export class StandardStrategy implements GenerationStrategy {
     constructor(
-        private llm: LlmClient,
+        private llm: BoundLlmClient,
         private messageBuilder: MessageBuilder
     ) {}
 
@@ -271,7 +271,8 @@ export class StandardStrategy implements GenerationStrategy {
                 finalMessages.push(...userMsgs);
 
                 if (config.jsonSchema) {
-                    const jsonResult = await this.llm.promptJson(
+                    const rawClient = this.llm.getRawClient();
+                    const jsonResult = await rawClient.promptJson(
                         finalMessages,
                         config.jsonSchema
                     );

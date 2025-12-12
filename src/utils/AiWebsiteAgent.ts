@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import PQueue from 'p-queue';
 import TurndownService from 'turndown';
-import { LlmClient } from 'llm-fns';
+import OpenAI from 'openai';
+import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { PuppeteerHelper } from './puppeteer/PuppeteerHelper.js';
 import { LinkData } from './puppeteer/PuppeteerPageHelper.js';
 import { compressHtml } from './compressHtml.js';
@@ -25,9 +26,9 @@ interface EnrichedLinkData extends LinkData {
 export class AiWebsiteAgent {
     
     constructor(
-        private navigatorLlm: LlmClient,
-        private extractLlm: LlmClient,
-        private mergeLlm: LlmClient,
+        private navigatorLlm: BoundLlmClient,
+        private extractLlm: BoundLlmClient,
+        private mergeLlm: BoundLlmClient,
         private puppeteerHelper: PuppeteerHelper,
         private puppeteerQueue: PQueue
     ) {}
@@ -70,14 +71,11 @@ export class AiWebsiteAgent {
     ): Promise<any> {
         const truncatedMarkdown = markdown.substring(0, 20000);
 
-        const prompt = `You are given the website content of ${url} (converted to markdown). Your primary goal is to extract information from this content to accurately populate the provided JSON schema.
+        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+            { type: 'text', text: `URL: ${url}\n\nWebsite content (markdown):\n${truncatedMarkdown}` }
+        ];
 
-Website content:
-${truncatedMarkdown}`;
-
-        const messages = [{ role: 'user' as const, content: prompt }];
-        
-        return await this.extractLlm.promptJson(messages, schema);
+        return await this.extractLlm.promptJson({ suffix: contentParts }, schema);
     }
 
     private async decideNextSteps(
@@ -107,9 +105,10 @@ ${truncatedMarkdown}`;
             is_done: z.boolean().describe("True if sufficient information has been gathered.")
         });
 
-        const prompt = `You are an autonomous web scraper. Your goal is to find information to populate the provided schema.
-
-Status:
+        const statusContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+            { 
+                type: 'text', 
+                text: `Status:
 - Pages Visited: ${visitedUrls.size}
 - Remaining Budget: ${budget}
 
@@ -119,16 +118,15 @@ ${JSON.stringify(extractedData, null, 2)}
 Available Links:
 ${linksText}
 
-Instructions:
-1. Analyze the "Current Findings". Do you have sufficient information for all fields in the schema?
-2. If yes, set 'is_done' to true.
-3. If no, select the most promising URLs from "Available Links" to visit next.
-4. You can select up to ${batchSize} links to visit in parallel. Prioritize pages likely to contain missing information (e.g., "About", "Contact", "Team").
-5. If no relevant links are left, set 'is_done' to true.`;
+Select up to ${batchSize} links to visit in parallel. Prioritize pages likely to contain missing information (e.g., "About", "Contact", "Team").
+If no relevant links are left or you have sufficient information, set 'is_done' to true.`
+            }
+        ];
 
-        const messages = [{ role: 'user' as const, content: prompt }];
-
-        const response = await this.navigatorLlm.promptZod(messages, NavigatorSchema);
+        const response = await this.navigatorLlm.promptZod(
+            { suffix: statusContent },
+            NavigatorSchema
+        );
 
         const validNextUrls = response.next_urls.filter(url => 
             candidates.some(c => c.href === url)
@@ -148,14 +146,11 @@ Instructions:
         if (results.length === 0) return {};
         if (results.length === 1) return results[0];
 
-        const prompt = `You are a data consolidation expert. Merge the following JSON objects extracted from different pages of the same website into a single comprehensive object adhering to the schema.
+        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+            { type: 'text', text: `Objects to merge:\n${JSON.stringify(results, null, 2)}` }
+        ];
 
-Objects:
-${JSON.stringify(results, null, 2)}`;
-
-        const messages = [{ role: 'user' as const, content: prompt }];
-        
-        return await this.mergeLlm.promptJson(messages, schema);
+        return await this.mergeLlm.promptJson({ suffix: contentParts }, schema);
     }
 
     async scrapeIterative(

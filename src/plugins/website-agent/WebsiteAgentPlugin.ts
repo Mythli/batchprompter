@@ -7,37 +7,11 @@ import { ModelDefinition, ResolvedModelConfig, ServiceCapabilities } from '../..
 import { PluginHelpers } from '../../utils/PluginHelpers.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
 
-const DEFAULT_NAVIGATOR_PROMPT = `You are an autonomous web scraper. Your goal is to find information to populate the provided schema.
+const DEFAULT_NAVIGATOR_PROMPT = `You are an autonomous web scraper. Your goal is to find information to populate the provided schema. Analyze the current findings and available links to decide which pages to visit next.`;
 
-Schema Description:
-{{schemaDescription}}
+const DEFAULT_EXTRACT_PROMPT = `You are a data extraction expert. Extract information from the provided website content to populate the JSON schema accurately.`;
 
-Status:
-- Pages Visited: {{visitedCount}}
-- Remaining Budget: {{budget}}
-
-Current Findings (Merged State):
-{{currentData}}
-
-Available Links:
-{{linksText}}
-
-Instructions:
-1. Analyze the "Current Findings". Do you have sufficient information for all fields in the schema?
-2. If yes, set 'is_done' to true.
-3. If no, select the most promising URLs from "Available Links" to visit next.
-4. You can select up to {{batchSize}} links to visit in parallel. Prioritize pages likely to contain missing information (e.g., "About", "Contact", "Team").
-5. If no relevant links are left, set 'is_done' to true.`;
-
-const DEFAULT_EXTRACT_DATA = `You are given the website content of {{url}} (converted to markdown). Your primary goal is to extract information from this content to accurately populate the provided JSON schema.
-
-Website content:
-{{truncatedMarkdown}}`;
-
-const DEFAULT_MERGE_DATA = `You are a data consolidation expert. Merge the following JSON objects extracted from different pages of the same website into a single comprehensive object adhering to the schema.
-
-Objects:
-{{jsonObjects}}`;
+const DEFAULT_MERGE_PROMPT = `You are a data consolidation expert. Merge the following JSON objects extracted from different pages of the same website into a single comprehensive object adhering to the schema.`;
 
 interface WebsiteAgentRawConfig {
     url?: string;
@@ -103,7 +77,6 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
 
         if (!url) return undefined;
 
-        // Validate capabilities at normalize time
         if (!capabilities.hasPuppeteer) {
             throw new Error(
                 `Step ${stepIndex} Website Agent requires Puppeteer which is not available.`
@@ -158,14 +131,15 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
         const extractConfig = await PluginHelpers.resolveModelConfig(config.extractConfig, row);
         const mergeConfig = await PluginHelpers.resolveModelConfig(config.mergeConfig, row);
 
+        // Apply default prompts if none provided
         if (navigatorConfig.promptParts.length === 0) {
             navigatorConfig.promptParts = [{ type: 'text', text: DEFAULT_NAVIGATOR_PROMPT }];
         }
         if (extractConfig.promptParts.length === 0) {
-            extractConfig.promptParts = [{ type: 'text', text: DEFAULT_EXTRACT_DATA }];
+            extractConfig.promptParts = [{ type: 'text', text: DEFAULT_EXTRACT_PROMPT }];
         }
         if (mergeConfig.promptParts.length === 0) {
-            mergeConfig.promptParts = [{ type: 'text', text: DEFAULT_MERGE_DATA }];
+            mergeConfig.promptParts = [{ type: 'text', text: DEFAULT_MERGE_PROMPT }];
         }
 
         return {
@@ -192,17 +166,9 @@ export class WebsiteAgentPlugin implements ContentProviderPlugin {
             throw new Error(`[WebsiteAgent] Step ${stepIndex}: Invalid URL format (must start with http/https): "${resolvedConfig.url}"`);
         }
 
-        const createLlmFromConfig = (cfg: ResolvedModelConfig) => {
-            return stepContext.createLlm({
-                model: cfg.model || stepContext.global.defaultModel,
-                temperature: cfg.temperature,
-                thinkingLevel: cfg.thinkingLevel
-            });
-        };
-
-        const navLlm = createLlmFromConfig(resolvedConfig.navigatorConfig);
-        const extLlm = createLlmFromConfig(resolvedConfig.extractConfig);
-        const mrgLlm = createLlmFromConfig(resolvedConfig.mergeConfig);
+        const navLlm = stepContext.createLlm(resolvedConfig.navigatorConfig);
+        const extLlm = stepContext.createLlm(resolvedConfig.extractConfig);
+        const mrgLlm = stepContext.createLlm(resolvedConfig.mergeConfig);
 
         const agent = new AiWebsiteAgent(
             navLlm,

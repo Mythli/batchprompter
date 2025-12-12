@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
+import { z } from 'zod';
 import { ContentProviderPlugin, PluginContext, PluginResult, NormalizedPluginConfig } from '../types.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { ModelDefinition, ResolvedModelConfig, ServiceCapabilities } from '../../types.js';
@@ -102,7 +103,6 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
 
         if (!isActive) return undefined;
 
-        // Validate capabilities at normalize time
         if (!capabilities.hasSerper) {
             throw new Error(
                 `Step ${stepIndex} Image Search requires SERPER_API_KEY environment variable to be set.`
@@ -161,26 +161,11 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
     }
 
     async execute(context: PluginContext): Promise<PluginResult> {
-        const { row, stepIndex, config, stepContext, outputDirectory, tempDirectory, outputBasename, outputExtension, output } = context;
+        const { row, stepIndex, config, stepContext, tempDirectory, outputBasename, outputExtension, output } = context;
         const resolvedConfig = config as ImageSearchResolvedConfig;
 
-        // No runtime check needed - validated at normalize time
         const imageSearch = stepContext.global.imageSearch!;
         
-        let selectLlm;
-        if (resolvedConfig.selectConfig) {
-            selectLlm = stepContext.createLlm({
-                model: resolvedConfig.selectConfig.model || stepContext.global.defaultModel,
-                temperature: resolvedConfig.selectConfig.temperature,
-                thinkingLevel: resolvedConfig.selectConfig.thinkingLevel
-            });
-        }
-        
-        let aiImageSearch: AiImageSearch | undefined;
-        if (selectLlm) {
-            aiImageSearch = new AiImageSearch(imageSearch, selectLlm, resolvedConfig.spriteSize);
-        }
-
         const rawDir = path.join(tempDirectory, 'raw');
         const spritesDir = path.join(tempDirectory, 'sprites');
         const selectedDir = path.join(tempDirectory, 'selected');
@@ -201,17 +186,14 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         if (resolvedConfig.queryConfig) {
             console.log(`[Row ${context.row.index}] Step ${stepIndex} Generating search queries...`);
             
-            const { z } = await import('zod');
             const QuerySchema = z.object({
                 queries: z.array(z.string()).min(1).max(resolvedConfig.queryCount)
             });
 
-            const queryLlm = stepContext.createLlm({
-                model: resolvedConfig.queryConfig.model || stepContext.global.defaultModel,
-                temperature: resolvedConfig.queryConfig.temperature,
-                thinkingLevel: resolvedConfig.queryConfig.thinkingLevel
-            });
+            // Create bound LLM with the query prompt already included
+            const queryLlm = stepContext.createLlm(resolvedConfig.queryConfig);
             
+            // Just call promptZod - the prompt from --image-query-prompt is already bound
             const response = await queryLlm.promptZod(QuerySchema);
             
             queries.push(...response.queries);
@@ -250,7 +232,7 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
                     page++;
                 } catch (e: any) {
                     console.warn(`[Row ${context.row.index}] Step ${stepIndex} Image search query "${q}" page ${page} failed:`, e.message);
-                    break; // Stop pagination for this query on error
+                    break;
                 }
             }
         }
@@ -268,8 +250,12 @@ export class ImageSearchPlugin implements ContentProviderPlugin {
         }));
 
         let selectedImages: any[] = [];
-        if (aiImageSearch && resolvedConfig.selectConfig) {
+        if (resolvedConfig.selectConfig) {
             console.log(`[Row ${context.row.index}] Step ${stepIndex} AI Selecting best images from pool of ${pooledImages.length}...`);
+            
+            // Create bound LLM with the select prompt already included
+            const selectLlm = stepContext.createLlm(resolvedConfig.selectConfig);
+            const aiImageSearch = new AiImageSearch(imageSearch, selectLlm, resolvedConfig.spriteSize);
             
             selectedImages = await aiImageSearch.selectFromPool(
                 pooledImages,

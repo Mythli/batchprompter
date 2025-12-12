@@ -1,14 +1,14 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { LlmClient } from 'llm-fns';
+import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { WebSearch, WebSearchResult, WebSearchMode } from '../plugins/web-search/WebSearch.js';
 
 export class AiWebSearch {
     constructor(
         private webSearch: WebSearch,
-        private queryLlm?: LlmClient,
-        private selectLlm?: LlmClient,
-        private compressLlm?: LlmClient
+        private queryLlm?: BoundLlmClient,
+        private selectLlm?: BoundLlmClient,
+        private compressLlm?: BoundLlmClient
     ) {}
 
     async process(
@@ -25,7 +25,6 @@ export class AiWebSearch {
         }
     ): Promise<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[], data: WebSearchResult[] }> {
         
-        // 1. Determine Queries
         const queries: string[] = [];
         if (config.query) {
             queries.push(config.query);
@@ -37,21 +36,16 @@ export class AiWebSearch {
                 queries: z.array(z.string()).min(1).max(config.queryCount).describe("Search queries to find the requested information")
             });
 
-            const prompt = `Generate ${config.queryCount} search queries to find information about: ${JSON.stringify(row)}`;
-            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [{ role: 'user' as const, content: prompt }];
-
-            const response = await this.queryLlm.promptZod(messages, QuerySchema);
+            const response = await this.queryLlm.promptZod(QuerySchema);
             queries.push(...response.queries);
             console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
         }
 
         if (queries.length === 0) return { contentParts: [], data: [] };
 
-        // 2. Execute Search (Loop over queries + Pagination)
         const allResults: WebSearchResult[] = [];
         const seenKeys = new Set<string>();
 
-        // Helper to determine dedupe key
         const getDedupeKey = (result: WebSearchResult): string | null => {
             if (config.dedupeStrategy === 'domain') {
                 try {
@@ -82,7 +76,6 @@ export class AiWebSearch {
                     break;
                 }
 
-                // --- Batch Selection (Per Page) ---
                 let selectedFromPage = results;
                 
                 if (this.selectLlm) {
@@ -95,10 +88,14 @@ export class AiWebSearch {
                         reasoning: z.string()
                     });
 
-                    const prompt = `Select the most relevant search results from the following list:\n\n${listText}`;
-                    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [{ role: 'user' as const, content: prompt }];
+                    const resultsContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+                        { type: 'text', text: `Search results to evaluate:\n\n${listText}` }
+                    ];
 
-                    const response = await this.selectLlm.promptZod(messages, SelectionSchema);
+                    const response = await this.selectLlm.promptZod(
+                        { suffix: resultsContent },
+                        SelectionSchema
+                    );
 
                     selectedFromPage = response.selected_indices
                         .map(i => results[i])
@@ -107,7 +104,6 @@ export class AiWebSearch {
                     console.log(`[AiWebSearch] Selected ${selectedFromPage.length} results from page ${page}.`);
                 }
 
-                // --- Dedupe & Accumulate ---
                 for (const result of selectedFromPage) {
                     if (allResults.length >= config.limit) break;
 
@@ -129,7 +125,6 @@ export class AiWebSearch {
 
         if (allResults.length === 0) return { contentParts: [{ type: 'text', text: "No results found." }], data: [] };
 
-        // 3. Fetch Content & Compress (On the final unique list)
         const finalOutputs: string[] = [];
         const processedResults: WebSearchResult[] = [];
 
@@ -144,15 +139,16 @@ export class AiWebSearch {
                 content = result.snippet || "";
             }
 
-            // Compression
             if (this.compressLlm) {
                 console.log(`[AiWebSearch] Compressing content for: ${result.title}`);
                 
-                const truncatedContent = content.substring(0, 15000); 
+                const truncatedContent = content.substring(0, 15000);
 
-                const prompt = `Summarize the following content concisely while preserving key information:\n\nTitle: ${result.title}\nLink: ${result.link}\n\nContent:\n${truncatedContent}`;
+                const contentToCompress: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+                    { type: 'text', text: `Title: ${result.title}\nLink: ${result.link}\n\nContent:\n${truncatedContent}` }
+                ];
 
-                const summary = await this.compressLlm.promptText({ messages: [{ role: 'user', content: prompt }] });
+                const summary = await this.compressLlm.promptText({ suffix: contentToCompress });
                 content = summary;
                 finalOutputs.push(`Source: ${result.title} (${result.link})\nSummary:\n${summary}`);
             } else {

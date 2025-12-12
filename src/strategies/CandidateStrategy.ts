@@ -1,4 +1,3 @@
-//
 import OpenAI from 'openai';
 import path from 'path';
 import Handlebars from 'handlebars';
@@ -36,10 +35,8 @@ export class CandidateStrategy implements GenerationStrategy {
         const promises: Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }>[] = [];
 
         for (let i = 0; i < candidateCount; i++) {
-            // Determine a unique output path for this candidate
             let candidateOutputPath: string | null = null;
 
-            // Use resolvedTempDir if available (structured), otherwise fallback to global tmpDir
             const baseTempDir = config.resolvedTempDir || config.tmpDir;
             const candidatesDir = path.join(baseTempDir, 'candidates');
             await ensureDir(candidatesDir);
@@ -80,7 +77,6 @@ export class CandidateStrategy implements GenerationStrategy {
                 console.log(`[Row ${index}] Step ${stepIndex} Only 1 candidate succeeded. Skipping judge.`);
             }
         } else {
-            // We have > 1 candidates.
             if (this.stepContext.judge) {
                 console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates...`);
                 try {
@@ -91,13 +87,11 @@ export class CandidateStrategy implements GenerationStrategy {
                     throw e;
                 }
             } else {
-                // No judge configured. Warn and pick the first one.
                 console.warn(`[Row ${index}] Step ${stepIndex} ⚠️  Multiple candidates generated but no judge configured. Defaulting to Candidate #1.`);
                 winner = successfulCandidates[0];
             }
         }
 
-        // Copy winner to final output
         if (config.outputPath && winner.outputPath) {
             const fs = await import('fs/promises');
             try {
@@ -106,7 +100,6 @@ export class CandidateStrategy implements GenerationStrategy {
                     await fs.copyFile(winner.outputPath, config.outputPath);
                 }
 
-                // Run deferred commands
                 if (config.noCandidateCommand && config.postProcessCommand) {
                     const cmdTemplate = Handlebars.compile(config.postProcessCommand, { noEscape: true });
                     const sanitizedRow: Record<string, string> = {};
@@ -163,26 +156,23 @@ export class CandidateStrategy implements GenerationStrategy {
             }
         }
 
-        // Inject Context (History + Original User Request)
-        // Filter out original system prompt
-        const contextMessages = history.filter(m => m.role !== 'system');
-        // Add original user request
-        contextMessages.push({ role: 'user', content: userPromptParts });
+        // Add context about the original request
+        const contextParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+            { type: 'text', text: "Original request:\n" },
+            ...userPromptParts
+        ];
 
         const JudgeSchema = z.object({
             best_candidate_index: z.number().int().min(0).max(candidates.length - 1).describe("The index of the best candidate (0-based)"),
             reason: z.string().describe("The reason for selecting this candidate"),
         });
 
-        // Build the full messages array for the judge
-        const judgeMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-            ...contextMessages,
-            { role: 'user', content: candidatePresentationParts }
-        ];
-
-        // Use the pre-configured judge client
+        // Use the BoundLlmClient's promptZod with prefix (context) and suffix (candidates)
         const result = await this.stepContext.judge.promptZod(
-            judgeMessages,
+            {
+                prefix: contextParts,
+                suffix: candidatePresentationParts
+            },
             JudgeSchema
         );
 

@@ -1,26 +1,20 @@
+import OpenAI from 'openai';
 import { z } from 'zod';
-import { LlmClient } from 'llm-fns';
+import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { ImageSearch, ImageSearchResult } from '../plugins/image-search/ImageSearch.js';
 import { SpriteGenerator } from './SpriteGenerator.js';
 
 export class AiImageSearch {
     constructor(
         private imageSearch: ImageSearch,
-        private selectLlm: LlmClient,
+        private selectLlm: BoundLlmClient,
         private imagesPerSprite: number = 4
     ) {}
 
-    /**
-     * Public wrapper to perform a raw search.
-     * Now returns ImageSearchResult[] which includes buffers.
-     */
     async search(query: string, count: number): Promise<ImageSearchResult[]> {
         return this.imageSearch.search(query, count);
     }
 
-    /**
-     * Selects images from a pre-existing pool using the AI.
-     */
     async selectFromPool(
         images: ImageSearchResult[],
         row: Record<string, any>,
@@ -32,7 +26,6 @@ export class AiImageSearch {
 
         const spriteSize = spriteSizeOverride || this.imagesPerSprite;
 
-        // Chunk images and Generate Sprites
         const chunks: ImageSearchResult[][] = [];
         for (let i = 0; i < images.length; i += spriteSize) {
             chunks.push(images.slice(i, i + spriteSize));
@@ -57,17 +50,13 @@ export class AiImageSearch {
             throw new Error("Failed to generate any valid sprites from search results.");
         }
 
-        // Save sprites if callback provided
         if (onSprite) {
             for (let i = 0; i < sprites.length; i++) {
                 await onSprite(sprites[i].spriteBuffer, i);
             }
         }
 
-        // Prepare External Content (Images)
-        const imageContentParts: any[] = [];
-
-        // Map visual index -> ImageSearchResult
+        const imageContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         const indexMap = new Map<number, ImageSearchResult>();
 
         for (const sprite of sprites) {
@@ -76,7 +65,6 @@ export class AiImageSearch {
 
             imageContentParts.push({ type: 'image_url', image_url: { url: dataUrl } });
 
-            // Map valid indices back to original images
             sprite.validIndices.forEach((originalIndexInChunk, i) => {
                 const visualIndex = sprite.startNum + i;
                 indexMap.set(visualIndex, sprite.chunk[originalIndexInChunk]);
@@ -88,29 +76,23 @@ export class AiImageSearch {
             reasoning: z.string().describe("Why these images were selected based on the prompt")
         });
 
-        // Build messages with images
-        const textPrompt = `You are an image selection assistant. Look at the numbered images in the sprite(s) and select the best ${maxSelected} image(s) based on quality and relevance. Return the numbers visible on the images you select.`;
-        
-        const messages = [
-            { 
-                role: 'user' as const, 
-                content: [
-                    { type: 'text' as const, text: textPrompt },
-                    ...imageContentParts
-                ]
-            }
-        ];
+        const preamble: OpenAI.Chat.Completions.ChatCompletionContentPart = {
+            type: 'text',
+            text: `You are an image selection assistant. You will see numbered images in sprite sheets. Each image has a red border and a number in the top-left corner. Select the best ${maxSelected} image(s) by returning their visible numbers. The images are shown below:`
+        };
 
-        // Call LLM
         console.log(`[AiImageSearch] Asking AI to select up to ${maxSelected} images...`);
-        const response = await this.selectLlm.promptZod(messages, SelectionSchema);
+        const response = await this.selectLlm.promptZod(
+            {
+                prefix: [preamble],
+                suffix: imageContentParts
+            },
+            SelectionSchema
+        );
 
         console.log(`[AiImageSearch] AI Selected: ${response.selected_indices.join(', ')}. Reason: ${response.reasoning}`);
 
-        // Map back to original images
         const selectedImages: ImageSearchResult[] = [];
-
-        // Take only up to maxSelected
         const indicesToProcess = response.selected_indices.slice(0, maxSelected);
 
         for (const visualIndex of indicesToProcess) {
@@ -125,7 +107,6 @@ export class AiImageSearch {
         return selectedImages;
     }
 
-    // Expose the underlying ImageSearch for direct access if needed
     getImageSearch(): ImageSearch {
         return this.imageSearch;
     }

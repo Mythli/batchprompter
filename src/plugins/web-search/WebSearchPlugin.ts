@@ -100,7 +100,6 @@ export class WebSearchPlugin implements ContentProviderPlugin {
 
         if (!isActive) return undefined;
 
-        // Validate capabilities at normalize time
         if (!capabilities.hasSerper) {
             throw new Error(
                 `Step ${stepIndex} Web Search requires SERPER_API_KEY environment variable to be set.`
@@ -158,21 +157,17 @@ export class WebSearchPlugin implements ContentProviderPlugin {
         const { row, stepIndex, config, stepContext, output } = context;
         const resolvedConfig = config as WebSearchResolvedConfig;
 
-        // No runtime check needed - validated at normalize time
         const webSearch = stepContext.global.webSearch!;
 
-        const createLlmFromConfig = (cfg: ResolvedModelConfig | undefined) => {
-            if (!cfg) return undefined;
-            return stepContext.createLlm({
-                model: cfg.model || stepContext.global.defaultModel,
-                temperature: cfg.temperature,
-                thinkingLevel: cfg.thinkingLevel
-            });
-        };
-
-        const queryLlm = createLlmFromConfig(resolvedConfig.queryConfig);
-        const selectLlm = createLlmFromConfig(resolvedConfig.selectConfig);
-        const compressLlm = createLlmFromConfig(resolvedConfig.compressConfig);
+        const queryLlm = resolvedConfig.queryConfig 
+            ? stepContext.createLlm(resolvedConfig.queryConfig) 
+            : undefined;
+        const selectLlm = resolvedConfig.selectConfig
+            ? stepContext.createLlm(resolvedConfig.selectConfig)
+            : undefined;
+        const compressLlm = resolvedConfig.compressConfig
+            ? stepContext.createLlm(resolvedConfig.compressConfig)
+            : undefined;
 
         const aiWebSearch = new AiWebSearch(
             webSearch,
