@@ -137,8 +137,14 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
 
         // 3. Auxiliary Models
         const strictJudge = strictModelFlags.extract(options, `judge-${i}`, 'judge');
-        const isJudgeConfigured = Object.keys(strictJudge).length > 0;
+        // Judge is only configured if it has an explicit prompt or system prompt
+        // Just inheriting a model from global --model is not enough
+        const isJudgeConfigured = !!(strictJudge.promptSource || strictJudge.systemSource);
         const judge = modelFlags.extract(options, `judge-${i}`, 'judge') as ModelDefinition;
+        
+        const strictFeedback = strictModelFlags.extract(options, `feedback-${i}`, 'feedback');
+        // Feedback is only configured if it has an explicit prompt or system prompt
+        const isFeedbackConfigured = !!(strictFeedback.promptSource || strictFeedback.systemSource);
         const feedback = modelFlags.extract(options, `feedback-${i}`, 'feedback') as ModelDefinition;
         
         // 4. Step Options & Output Strategy
@@ -203,7 +209,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
             noCandidateCommand: !!(options[`skipCandidateCommand${i}`] || options.skipCandidateCommand),
             
             judge: isJudgeConfigured ? judge : undefined,
-            feedback: Object.keys(feedback).length > 0 ? feedback : undefined,
+            feedback: isFeedbackConfigured ? feedback : undefined,
             feedbackLoops: parseInt(getStepOpt('feedbackLoops') || '0', 10),
             
             aspectRatio: getStepOpt('aspectRatio'),
