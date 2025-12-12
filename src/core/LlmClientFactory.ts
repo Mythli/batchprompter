@@ -28,7 +28,6 @@ export class LlmClientFactory {
         return createLlm({
             openai: this.openai as any,
             defaultModel: modelConfig,
-            cache: this.cache,
             queue: this.queue
         });
     }

@@ -19,7 +19,7 @@ export interface StepExecutionResult {
 }
 
 export class StepExecutor {
-    
+
     constructor(
         private tmpDir: string,
         private messageBuilder: MessageBuilder
@@ -34,7 +34,7 @@ export class StepExecutor {
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         pluginContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): Promise<StepExecutionResult> {
-        
+
         let effectiveUserPromptParts = pluginContentParts;
 
         const hasUserPrompt = config.userPromptParts.length > 0;
@@ -45,16 +45,16 @@ export class StepExecutor {
              console.log(`[Row ${index}] Step ${stepIndex} No prompt and no content. Treating as pass-through.`);
              return {
                  historyMessage: { role: 'assistant', content: '' },
-                 modelResult: {} 
+                 modelResult: {}
              };
         }
-        
+
         if (!hasUserPrompt && !hasSystemPrompt && !hasModelPrompt && effectiveUserPromptParts.length > 0) {
              console.log(`[Row ${index}] Step ${stepIndex} No prompt detected. Saving plugin output directly...`);
-            
+
             const savedPaths = await this.saveContentParts(
-                effectiveUserPromptParts, 
-                config.resolvedOutputDir || this.tmpDir, 
+                effectiveUserPromptParts,
+                config.resolvedOutputDir || this.tmpDir,
                 config.outputBasename || 'output',
                 config.outputExtension
             );
@@ -78,9 +78,9 @@ export class StepExecutor {
             stepContext.llm,
             this.messageBuilder
         );
-        
+
         if (config.candidates > 1) {
-            strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext, this.messageBuilder);
+            strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext);
         }
 
         const result = await strategy.execute(
@@ -107,7 +107,7 @@ export class StepExecutor {
         const savedPaths: string[] = [];
         for (let i = 0; i < parts.length; i++) {
             const part = parts[i];
-            
+
             let ext = forcedExtension;
             if (!ext) {
                 if (part.type === 'image_url') ext = '.jpg';
@@ -115,10 +115,10 @@ export class StepExecutor {
                 else ext = '.txt';
             }
 
-            const filename = parts.length === 1 
+            const filename = parts.length === 1
                 ? `${basename}${ext}`
                 : `${basename}_${i}${ext}`;
-                
+
             const savePath = path.join(outputDir, filename);
 
             if (part.type === 'text') {
