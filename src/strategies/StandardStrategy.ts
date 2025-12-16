@@ -264,7 +264,7 @@ export class StandardStrategy implements GenerationStrategy {
         // Build additional model parameters (e.g., for image generation)
         const additionalParams: Record<string, any> = {};
         if (config.aspectRatio) {
-            additionalParams.aspect_ratio = config.aspectRatio;
+             additionalParams.image_config = { aspect_ratio: config.aspectRatio };
         }
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -273,7 +273,7 @@ export class StandardStrategy implements GenerationStrategy {
 
                 // Build messages using MessageBuilder
                 const messages = this.messageBuilder.build(config.modelConfig, row, userPromptParts);
-                
+
                 // Merge with history
                 const finalMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
                 const systemMsg = messages.find(m => m.role === 'system');
