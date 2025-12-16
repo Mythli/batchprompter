@@ -1,0 +1,30 @@
+{
+  "data": {
+    "source": "examples/14-grank/data.csv",
+    "limit": 10
+  },
+  "globals": {
+    "model": "x-ai/grok-4.1-fast",
+    "tmpDir": "out/14-grank/.tmp",
+    "outputPath": "out/14-grank/results.csv"
+  },
+  "steps": [
+    {
+      "plugins": [
+        {
+          "type": "web-search",
+          "query": "{{keyword}}",
+          "maxPages": 3,
+          "limit": 30,
+          "mode": "none",
+          "gl": "de",
+          "hl": "de",
+          "selectPrompt": "Select up to 10 links that point to Butlerapp (butlerapp.de). If no Butlerapp link exists, select nothing.",
+          "output": {
+            "mode": "merge"
+          }
+        }
+      ]
+    }
+  ]
+}
