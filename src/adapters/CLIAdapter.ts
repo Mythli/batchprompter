@@ -1,13 +1,13 @@
 import { Command } from 'commander';
 import { PipelineConfig, StepConfig, OutputConfig } from '../config/types.js';
-import { PluginRegistry } from '../plugins2/types.js';
+import { PluginRegistryV2 } from '../plugins/types.js';
 
 /**
  * Adapts CLI arguments to the canonical PipelineConfig format.
  * Plugins register their own flags - this adapter just coordinates.
  */
 export class CLIAdapter {
-    constructor(private pluginRegistry: PluginRegistry) {}
+    constructor(private pluginRegistry: PluginRegistryV2) {}
 
     /**
      * Register all CLI options with Commander

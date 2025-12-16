@@ -13,11 +13,11 @@ import { DEFAULT_MODEL, DEFAULT_OUTPUT, applyGlobalsDefaults, mergeModelSettings
 import { PromptLoader } from './PromptLoader.js';
 import { SchemaLoader } from './SchemaLoader.js';
 import { loadData } from '../utils/dataLoader.js';
-import { PluginRegistry, Plugin } from '../plugins2/types.js';
+import { PluginRegistryV2, Plugin } from '../plugins/types.js';
 
 export interface ConfigResolverDependencies {
     capabilities: ServiceCapabilities;
-    pluginRegistry: PluginRegistry;
+    pluginRegistry: PluginRegistryV2;
 }
 
 export class ConfigResolver {
