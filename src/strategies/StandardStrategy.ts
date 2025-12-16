@@ -261,6 +261,12 @@ export class StandardStrategy implements GenerationStrategy {
             headers: { 'X-Cache-Salt': String(cacheSalt) }
         } : undefined;
 
+        // Build additional model parameters (e.g., for image generation)
+        const additionalParams: Record<string, any> = {};
+        if (config.aspectRatio) {
+            additionalParams.aspect_ratio = config.aspectRatio;
+        }
+
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
                 let extracted: ExtractedContent;
@@ -284,7 +290,7 @@ export class StandardStrategy implements GenerationStrategy {
                     const jsonResult = await rawClient.promptJson(
                         finalMessages,
                         config.jsonSchema,
-                        requestOptions ? { requestOptions } : undefined
+                        requestOptions ? { requestOptions, ...additionalParams } : (Object.keys(additionalParams).length > 0 ? additionalParams : undefined)
                     );
 
                     extracted = {
@@ -296,7 +302,8 @@ export class StandardStrategy implements GenerationStrategy {
                 } else {
                     const response = await this.llm.prompt({
                         messages: finalMessages,
-                        requestOptions
+                        requestOptions,
+                        ...additionalParams
                     });
 
                     const parsed = responseSchema.parse(response);
