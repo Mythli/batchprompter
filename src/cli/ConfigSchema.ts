@@ -3,6 +3,26 @@ import { ModelDefinition, StepDefinition, NormalizedConfig, PluginConfigDefiniti
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ModelFlags } from './ModelFlags.js';
 
+// =============================================================================
+// Zod Schemas for CLI Config (Single source of truth for defaults)
+// =============================================================================
+
+const GlobalConfigSchema = z.object({
+    concurrency: z.number().int().positive().default(50),
+    taskConcurrency: z.number().int().positive().default(100),
+    tmpDir: z.string().default('.tmp'),
+    dataOutputPath: z.string().optional(),
+    model: z.string().optional(),
+    offset: z.number().int().min(0).optional(),
+    limit: z.number().int().positive().optional()
+});
+
+const OutputStrategySchema = z.object({
+    mode: z.enum(['merge', 'column', 'ignore']).default('ignore'),
+    columnName: z.string().optional(),
+    explode: z.boolean().default(false)
+});
+
 // Helper to remove undefined keys
 const clean = <T extends object>(obj: T): T => {
     return Object.fromEntries(
@@ -94,15 +114,18 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     const envModel = getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']);
     const globalModel = options.model || envModel;
 
-    const globalConfig = {
+    // Parse global config through Zod to apply defaults
+    const rawGlobalConfig = {
         concurrency: options.concurrency ? parseInt(String(options.concurrency), 10) : undefined,
         taskConcurrency: options.taskConcurrency ? parseInt(String(options.taskConcurrency), 10) : undefined,
-        tmpDir: String(options.tmpDir || '.tmp'),
-        dataOutputPath: options.dataOutput ? String(options.dataOutput) : undefined,
+        tmpDir: options.tmpDir,
+        dataOutputPath: options.dataOutput,
         model: globalModel,
         offset: options.offset ? parseInt(String(options.offset), 10) : undefined,
         limit: options.limit ? parseInt(String(options.limit), 10) : undefined
     };
+    
+    const globalConfig = GlobalConfigSchema.parse(rawGlobalConfig);
 
     // Instantiate ModelFlags with the resolved global model
     const modelFlags = new ModelFlags(globalModel);
@@ -187,7 +210,13 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             }
         }
 
-        const candidates = parseInt(getStepOpt('candidates') || '1', 10);
+        // Parse candidates with default
+        const candidatesRaw = getStepOpt('candidates');
+        const candidates = candidatesRaw ? parseInt(candidatesRaw, 10) : 1;
+
+        // Parse feedbackLoops with default
+        const feedbackLoopsRaw = getStepOpt('feedbackLoops');
+        const feedbackLoops = feedbackLoopsRaw ? parseInt(feedbackLoopsRaw, 10) : 0;
 
         steps.push(clean({
             stepIndex: i,
@@ -207,7 +236,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             
             judge: isJudgeConfigured ? judge : undefined,
             feedback: isFeedbackConfigured ? feedback : undefined,
-            feedbackLoops: parseInt(getStepOpt('feedbackLoops') || '0', 10),
+            feedbackLoops: feedbackLoops,
             
             aspectRatio: getStepOpt('aspectRatio'),
             plugins,

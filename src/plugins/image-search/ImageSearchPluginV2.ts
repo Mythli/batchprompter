@@ -17,7 +17,7 @@ import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
 
 // =============================================================================
-// Config Schema
+// Config Schema (Single source of truth for defaults)
 // =============================================================================
 
 export const ImageSearchConfigSchemaV2 = z.object({
@@ -70,12 +70,12 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         { flags: '--image-search-query <text>', description: 'Image search query' },
         { flags: '--image-query-prompt <text>', description: 'Query generation prompt' },
         { flags: '--image-select-prompt <text>', description: 'Image selection prompt' },
-        { flags: '--image-search-limit <number>', description: 'Images per query', parser: parseInt, defaultValue: 12 },
-        { flags: '--image-search-select <number>', description: 'Images to select', parser: parseInt, defaultValue: 1 },
-        { flags: '--image-search-query-count <number>', description: 'Queries to generate', parser: parseInt, defaultValue: 3 },
-        { flags: '--image-search-sprite-size <number>', description: 'Images per sprite', parser: parseInt, defaultValue: 4 },
-        { flags: '--image-search-max-pages <number>', description: 'Max pages per query', parser: parseInt, defaultValue: 1 },
-        { flags: '--image-search-dedupe-strategy <strategy>', description: 'Deduplication', defaultValue: 'url' },
+        { flags: '--image-search-limit <number>', description: 'Images per query (default: 12)', parser: parseInt },
+        { flags: '--image-search-select <number>', description: 'Images to select (default: 1)', parser: parseInt },
+        { flags: '--image-search-query-count <number>', description: 'Queries to generate (default: 3)', parser: parseInt },
+        { flags: '--image-search-sprite-size <number>', description: 'Images per sprite (default: 4)', parser: parseInt },
+        { flags: '--image-search-max-pages <number>', description: 'Max pages per query (default: 1)', parser: parseInt },
+        { flags: '--image-search-dedupe-strategy <strategy>', description: 'Deduplication (default: url)' },
         { flags: '--image-search-gl <country>', description: 'Country code' },
         { flags: '--image-search-hl <lang>', description: 'Language code' },
         { flags: '--image-search-export', description: 'Merge results into row' },
@@ -109,25 +109,29 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         if (outputColumn) outputMode = 'column';
         else if (exportFlag) outputMode = 'merge';
 
-        return {
-            type: 'image-search',
+        // Return raw config - Zod will apply defaults
+        const rawConfig = {
+            type: 'image-search' as const,
             query,
             queryPrompt,
             selectPrompt,
-            limit: getOpt('imageSearchLimit') ?? 12,
-            select: getOpt('imageSearchSelect') ?? 1,
-            queryCount: getOpt('imageSearchQueryCount') ?? 3,
-            spriteSize: getOpt('imageSearchSpriteSize') ?? 4,
-            maxPages: getOpt('imageSearchMaxPages') ?? 1,
-            dedupeStrategy: getOpt('imageSearchDedupeStrategy') ?? 'url',
+            limit: getOpt('imageSearchLimit'),
+            select: getOpt('imageSearchSelect'),
+            queryCount: getOpt('imageSearchQueryCount'),
+            spriteSize: getOpt('imageSearchSpriteSize'),
+            maxPages: getOpt('imageSearchMaxPages'),
+            dedupeStrategy: getOpt('imageSearchDedupeStrategy'),
             gl: getOpt('imageSearchGl'),
             hl: getOpt('imageSearchHl'),
             output: {
                 mode: outputMode,
                 column: outputColumn,
-                explode: explodeFlag ?? false
+                explode: explodeFlag
             }
         };
+
+        // Parse through Zod to apply defaults
+        return this.configSchema.parse(rawConfig);
     }
 
     async resolveConfig(

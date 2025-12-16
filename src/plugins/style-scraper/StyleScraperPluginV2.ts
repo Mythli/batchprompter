@@ -16,7 +16,7 @@ import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
 
 // =============================================================================
-// Config Schema
+// Config Schema (Single source of truth for defaults)
 // =============================================================================
 
 export const StyleScraperConfigSchemaV2 = z.object({
@@ -51,7 +51,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
 
     readonly cliOptions: CLIOptionDefinition[] = [
         { flags: '--style-scrape-url <url>', description: 'URL to scrape styles from' },
-        { flags: '--style-scrape-resolution <res>', description: 'Viewport resolution', defaultValue: '1920x1080' },
+        { flags: '--style-scrape-resolution <res>', description: 'Viewport resolution (default: 1920x1080)' },
         { flags: '--style-scrape-mobile', description: 'Capture mobile screenshot' },
         { flags: '--style-scrape-interactive', description: 'Capture interactive elements' },
         { flags: '--style-scraper-export', description: 'Merge results into row' },
@@ -78,18 +78,22 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         if (outputColumn) outputMode = 'column';
         else if (exportFlag) outputMode = 'merge';
 
-        return {
-            type: 'style-scraper',
+        // Return raw config - Zod will apply defaults
+        const rawConfig = {
+            type: 'style-scraper' as const,
             url,
-            resolution: getOpt('styleScrapeResolution') ?? '1920x1080',
-            mobile: !!getOpt('styleScrapeMobile'),
-            interactive: !!getOpt('styleScrapeInteractive'),
+            resolution: getOpt('styleScrapeResolution'),
+            mobile: getOpt('styleScrapeMobile'),
+            interactive: getOpt('styleScrapeInteractive'),
             output: {
                 mode: outputMode,
                 column: outputColumn,
                 explode: false
             }
         };
+
+        // Parse through Zod to apply defaults
+        return this.configSchema.parse(rawConfig);
     }
 
     async resolveConfig(

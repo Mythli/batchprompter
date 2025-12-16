@@ -13,7 +13,7 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 
 // =============================================================================
-// Raw Config Schema
+// Raw Config Schema (Single source of truth for defaults)
 // =============================================================================
 
 export const WebSearchConfigSchemaV2 = z.object({
@@ -71,11 +71,11 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         { flags: '--web-query-prompt <text>', description: 'Query generation prompt' },
         { flags: '--web-select-prompt <text>', description: 'Result selection prompt' },
         { flags: '--web-compress-prompt <text>', description: 'Content compression prompt' },
-        { flags: '--web-search-limit <number>', description: 'Max total results', parser: parseInt, defaultValue: 5 },
-        { flags: '--web-search-mode <mode>', description: 'Content mode (none/markdown/html)', defaultValue: 'none' },
-        { flags: '--web-search-query-count <number>', description: 'Queries to generate', parser: parseInt, defaultValue: 3 },
-        { flags: '--web-search-max-pages <number>', description: 'Max pages per query', parser: parseInt, defaultValue: 1 },
-        { flags: '--web-search-dedupe-strategy <strategy>', description: 'Deduplication (none/domain/url)', defaultValue: 'none' },
+        { flags: '--web-search-limit <number>', description: 'Max total results (default: 5)', parser: parseInt },
+        { flags: '--web-search-mode <mode>', description: 'Content mode: none/markdown/html (default: none)' },
+        { flags: '--web-search-query-count <number>', description: 'Queries to generate (default: 3)', parser: parseInt },
+        { flags: '--web-search-max-pages <number>', description: 'Max pages per query (default: 1)', parser: parseInt },
+        { flags: '--web-search-dedupe-strategy <strategy>', description: 'Deduplication: none/domain/url (default: none)' },
         { flags: '--web-search-gl <country>', description: 'Country code for search' },
         { flags: '--web-search-hl <lang>', description: 'Language code for search' },
         { flags: '--web-search-export', description: 'Merge results into row' },
@@ -110,25 +110,29 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         if (outputColumn) outputMode = 'column';
         else if (exportFlag) outputMode = 'merge';
 
-        return {
-            type: 'web-search',
+        // Return raw config - Zod will apply defaults
+        const rawConfig = {
+            type: 'web-search' as const,
             query,
             queryPrompt,
             selectPrompt: getOpt('webSelectPrompt'),
             compressPrompt: getOpt('webCompressPrompt'),
-            limit: getOpt('webSearchLimit') ?? 5,
-            mode: getOpt('webSearchMode') ?? 'none',
-            queryCount: getOpt('webSearchQueryCount') ?? 3,
-            maxPages: getOpt('webSearchMaxPages') ?? 1,
-            dedupeStrategy: getOpt('webSearchDedupeStrategy') ?? 'none',
+            limit: getOpt('webSearchLimit'),
+            mode: getOpt('webSearchMode'),
+            queryCount: getOpt('webSearchQueryCount'),
+            maxPages: getOpt('webSearchMaxPages'),
+            dedupeStrategy: getOpt('webSearchDedupeStrategy'),
             gl: getOpt('webSearchGl'),
             hl: getOpt('webSearchHl'),
             output: {
                 mode: outputMode,
                 column: outputColumn,
-                explode: explodeFlag ?? false
+                explode: explodeFlag
             }
         };
+
+        // Parse through Zod to apply defaults
+        return this.configSchema.parse(rawConfig);
     }
 
     async resolveConfig(

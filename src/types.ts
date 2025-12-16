@@ -70,8 +70,8 @@ export interface StepDefinition {
 export interface NormalizedConfig {
     dataFilePath: string;
     global: {
-        concurrency?: number;
-        taskConcurrency?: number;
+        concurrency: number;
+        taskConcurrency: number;
         tmpDir: string;
         dataOutputPath?: string;
         model?: string;

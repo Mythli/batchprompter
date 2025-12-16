@@ -1,8 +1,18 @@
 import OpenAI from 'openai';
 import TurndownService from 'turndown';
+import { z } from 'zod';
 import { PromptPreprocessorPlugin, PreprocessorContext } from './types.js';
 import { UrlHandlerRegistry } from './expander/UrlHandlerRegistry.js';
 import { PreprocessorConfigDefinition } from '../types.js';
+
+// =============================================================================
+// Config Schema (Single source of truth for defaults)
+// =============================================================================
+
+const UrlExpanderConfigSchema = z.object({
+    mode: z.enum(['fetch', 'puppeteer']).default('puppeteer'),
+    maxChars: z.number().int().positive().default(30000)
+});
 
 export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
     name = 'url-expander';
@@ -12,8 +22,8 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
 
     register(program: any): void {
         program.option(`--${this.flagName}`, `Enable URL expansion in prompts`);
-        program.option(`--${this.flagName}-mode <mode>`, `Expansion mode (fetch, puppeteer)`, 'puppeteer');
-        program.option(`--${this.flagName}-max-chars <number>`, `Max characters per expanded URL`, '30000');
+        program.option(`--${this.flagName}-mode <mode>`, `Expansion mode: fetch/puppeteer (default: puppeteer)`);
+        program.option(`--${this.flagName}-max-chars <number>`, `Max characters per expanded URL (default: 30000)`);
     }
 
     registerStep(program: any, stepIndex: number): void {
@@ -29,22 +39,24 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
         const isEnabled = options[camelFlag] || options[stepCamelFlag];
         if (!isEnabled) return undefined;
 
-        // Determine mode - default to 'puppeteer'
+        // Get raw values from options
         const modeKey = this.toCamel(`${this.flagName}-mode`);
         const stepModeKey = this.toCamel(`${this.flagName}-mode-${stepIndex}`);
-        const mode = options[stepModeKey] || options[modeKey] || 'puppeteer';
+        const rawMode = options[stepModeKey] || options[modeKey];
 
-        // Determine max chars
         const maxCharsKey = this.toCamel(`${this.flagName}-max-chars`);
         const stepMaxCharsKey = this.toCamel(`${this.flagName}-max-chars-${stepIndex}`);
-        const maxChars = parseInt(options[stepMaxCharsKey] || options[maxCharsKey] || '30000', 10);
+        const rawMaxChars = options[stepMaxCharsKey] || options[maxCharsKey];
+
+        // Parse through Zod to apply defaults
+        const config = UrlExpanderConfigSchema.parse({
+            mode: rawMode,
+            maxChars: rawMaxChars ? parseInt(rawMaxChars, 10) : undefined
+        });
 
         return {
             name: this.name,
-            config: {
-                mode,
-                maxChars
-            }
+            config
         };
     }
 

@@ -17,7 +17,7 @@ import { compressHtml } from '../../utils/compressHtml.js';
 import { LinkData } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 
 // =============================================================================
-// Config Schema
+// Config Schema (Single source of truth for defaults)
 // =============================================================================
 
 export const WebsiteAgentConfigSchemaV2 = z.object({
@@ -66,8 +66,8 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
     readonly cliOptions: CLIOptionDefinition[] = [
         { flags: '--website-agent-url <url>', description: 'Starting URL to scrape' },
         { flags: '--website-agent-schema <path>', description: 'JSON Schema for extraction' },
-        { flags: '--website-agent-budget <number>', description: 'Max pages to visit', parser: parseInt, defaultValue: 10 },
-        { flags: '--website-agent-batch-size <number>', description: 'Pages per batch', parser: parseInt, defaultValue: 3 },
+        { flags: '--website-agent-budget <number>', description: 'Max pages to visit (default: 10)', parser: parseInt },
+        { flags: '--website-agent-batch-size <number>', description: 'Pages per batch (default: 3)', parser: parseInt },
         { flags: '--website-navigator-prompt <text>', description: 'Navigator prompt' },
         { flags: '--website-extract-prompt <text>', description: 'Extraction prompt' },
         { flags: '--website-merge-prompt <text>', description: 'Merge prompt' },
@@ -95,12 +95,13 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         if (outputColumn) outputMode = 'column';
         else if (exportFlag) outputMode = 'merge';
 
-        return {
-            type: 'website-agent',
+        // Return raw config - Zod will apply defaults
+        const rawConfig = {
+            type: 'website-agent' as const,
             url,
             schema: getOpt('websiteAgentSchema'),
-            budget: getOpt('websiteAgentBudget') ?? 10,
-            batchSize: getOpt('websiteAgentBatchSize') ?? 3,
+            budget: getOpt('websiteAgentBudget'),
+            batchSize: getOpt('websiteAgentBatchSize'),
             navigatorPrompt: getOpt('websiteNavigatorPrompt'),
             extractPrompt: getOpt('websiteExtractPrompt'),
             mergePrompt: getOpt('websiteMergePrompt'),
@@ -110,6 +111,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
                 explode: false
             }
         };
+
+        // Parse through Zod to apply defaults
+        return this.configSchema.parse(rawConfig);
     }
 
     async resolveConfig(

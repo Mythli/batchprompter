@@ -18,20 +18,20 @@ export class StepRegistry {
         ModelFlags.register(program, 'judge', { includePrompt: true }); // Global Judge
         ModelFlags.register(program, 'feedback', { includePrompt: true }); // Global Feedback
 
-        // Global Workflow
+        // Global Workflow (defaults in description only - Zod handles actual defaults)
         program.option('-o, --output <path>', 'Template path for the output');
         program.option('--output-column <column>', 'Column name to write output to');
         program.option('--export', 'Export step result to output row');
         program.option('--data-output <path>', 'Path to save the processed data file');
-        program.option('--tmp-dir <path>', 'Directory for temporary files', '.tmp');
-        program.option('-c, --concurrency <number>', 'Number of concurrent requests');
-        program.option('--task-concurrency <number>', 'Number of concurrent row tasks', '100');
+        program.option('--tmp-dir <path>', 'Directory for temporary files (default: .tmp)');
+        program.option('-c, --concurrency <number>', 'Number of concurrent requests (default: 50)');
+        program.option('--task-concurrency <number>', 'Number of concurrent row tasks (default: 100)');
         program.option('-S, --schema <file>', 'Path to the JSON Schema file');
         program.option('--verify-command <cmd>', 'Shell command to verify output');
         program.option('--command <cmd>', 'Shell command to run after generation');
-        program.option('--candidates <number>', 'Number of candidates', '1');
+        program.option('--candidates <number>', 'Number of candidates (default: 1)');
         program.option('--skip-candidate-command', 'Skip commands for candidates');
-        program.option('--feedback-loops <number>', 'Number of feedback loops', '0');
+        program.option('--feedback-loops <number>', 'Number of feedback loops (default: 0)');
         program.option('--aspect-ratio <ratio>', 'Aspect ratio for image generation');
         program.option('--explode', 'Explode array results into multiple rows');
         program.option('--offset <number>', 'Start processing from this row index (0-based)');
@@ -66,7 +66,7 @@ export class StepRegistry {
     }
 
     static async parseConfig(options: Record<string, any>, positionalArgs: string[], registry: PluginRegistryV2): Promise<RuntimeConfig> {
-        // 1. Normalize via Zod Schema
+        // 1.  Normalize via Zod Schema
         const normalized = createConfigSchema(registry).parse({ options, args: positionalArgs });
 
         // 2. Load Data
@@ -147,8 +147,8 @@ export class StepRegistry {
         }
 
         return {
-            concurrency: normalized.global.concurrency ?? 50,
-            taskConcurrency: normalized.global.taskConcurrency ?? 100,
+            concurrency: normalized.global.concurrency,
+            taskConcurrency: normalized.global.taskConcurrency,
             tmpDir: normalized.global.tmpDir,
             dataFilePath: normalized.dataFilePath,
             dataOutputPath: normalized.global.dataOutputPath,
