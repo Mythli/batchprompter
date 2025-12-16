@@ -27,6 +27,7 @@ import { GlobalContext, ServiceCapabilities } from './types.js';
 import { LlmClientFactory } from './core/LlmClientFactory.js';
 import { StepContextFactory } from './core/StepContextFactory.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
+import {createLoggingFetcher} from "./utils/createLoggingFetcher.js";
 
 dotenv.config();
 
@@ -143,13 +144,15 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     }
 
     // Setup Fetcher (Global)
-    const fetcher = createCachedFetcher({
+    const cachingFetcher = createCachedFetcher({
         cache,
         prefix: 'fetch',
         ttl: 24 * 60 * 60 * 1000,
         timeout: 30000,
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     });
+
+    const fetcher = createLoggingFetcher(cachingFetcher);
 
     // Setup OpenAI Client
     const openai = new OpenAI({

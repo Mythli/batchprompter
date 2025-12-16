@@ -11,6 +11,7 @@ cd "$(dirname "$0")/../.."
 
 npx tsx src/index.ts generate examples/14-grank/data.csv \
   "" \
+  --limit 50 \
   --web-search-query "{{keyword}}" \
   --web-search-max-pages 3 \
   --web-search-limit 30 \
@@ -19,7 +20,7 @@ npx tsx src/index.ts generate examples/14-grank/data.csv \
   --web-search-hl de \
   --web-select-prompt "Select up to 10 links that point to Butlerapp (butlerapp.com, butlerapp.de). If no Butlerapp link exists, select nothing." \
   --web-search-export \
-  --model "google/gemini-2.0-flash-001" \
+  --model "x-ai/grok-4.1-fast" \
   --tmp-dir "out/14-grank/.tmp" \
   --data-output "out/14-grank/results.csv"
 

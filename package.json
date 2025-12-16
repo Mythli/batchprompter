@@ -17,6 +17,7 @@
     "debug-imagegen": "examples/10-image/run.sh",
     "debug-company-search": "examples/12-company-search/run.sh",
     "debug-industry-search": "examples/13-industry-search/run.sh",
+    "debug-rank": "examples/14-grank/run.sh",
     "build": "tsc",
     "release": "bash scripts/release.sh"
   },
