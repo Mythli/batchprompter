@@ -10,6 +10,9 @@ import { createPreprocessorRegistry } from '../getConfig.js';
 export class StepRegistry {
 
     static registerStepArgs(program: Command, registry: PluginRegistry) {
+        // --- Config File ---
+        program.option('--config <file>', 'Path to YAML/JSON config file');
+
         // --- Global Level ---
         ModelFlags.register(program, '', { includeSystem: true }); // Main Model
         ModelFlags.register(program, 'judge', { includePrompt: true }); // Global Judge
