@@ -15,6 +15,8 @@ npx tsx src/index.ts generate examples/14-grank/data.csv \
   --web-search-max-pages 3 \
   --web-search-limit 30 \
   --web-search-mode none \
+  --web-search-gl de \
+  --web-search-hl de \
   --web-select-prompt "Select the link that points to Butlerapp (butlerapp.com, butlerapp.de, or similar Butlerapp domains). If no Butlerapp link exists, select nothing." \
   --web-search-export \
   --model "google/gemini-2.0-flash-001" \
