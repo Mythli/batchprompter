@@ -8,8 +8,7 @@ import { StepExecutor } from './StepExecutor.js';
 import { PromptResolver } from './utils/PromptResolver.js';
 import { SchemaHelper } from './utils/SchemaHelper.js';
 import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
-import { PluginRegistry } from './plugins/PluginRegistry.js';
-import { PluginRunner } from './core/PluginRunner.js';
+import { PluginRegistryV2, PluginPacket, PluginServices } from './plugins/types.js';
 import { ResultProcessor } from './core/ResultProcessor.js';
 import OpenAI from 'openai';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
@@ -24,7 +23,7 @@ interface TaskPayload {
 export class ActionRunner {
     constructor(
         private globalContext: GlobalContext,
-        private pluginRegistry: PluginRegistry,
+        private pluginRegistry: PluginRegistryV2,
         private preprocessorRegistry: PromptPreprocessorRegistry,
         private stepContextFactory: StepContextFactory,
         private messageBuilder: MessageBuilder
@@ -53,12 +52,18 @@ export class ActionRunner {
 
         const executor = new StepExecutor(tmpDir, this.messageBuilder);
 
-        const pluginRunner = new PluginRunner(
-            this.pluginRegistry,
-            { tmpDir, concurrency }
-        );
-
         const finalResults: Record<string, any>[] = [];
+
+        // Build plugin services
+        const pluginServices: PluginServices = {
+            puppeteerHelper: this.globalContext.puppeteerHelper,
+            puppeteerQueue: this.globalContext.puppeteerQueue,
+            fetcher: this.globalContext.fetcher,
+            cache: this.globalContext.cache,
+            imageSearch: this.globalContext.imageSearch,
+            webSearch: this.globalContext.webSearch,
+            createLlm: (config) => this.stepContextFactory['llmFactory'].create(config)
+        };
 
         const processTask = async (payload: TaskPayload) => {
             const { item, stepIndex } = payload;
@@ -95,8 +100,24 @@ export class ActionRunner {
                 // Active items tracking for this step
                 let activeItems: PipelineItem[] = [item];
 
-                for (const pluginDef of resolvedStep.plugins) {
+                // Get inherited model settings for plugins
+                const inheritedModel = {
+                    model: resolvedStep.modelConfig.model || this.globalContext.defaultModel,
+                    temperature: resolvedStep.modelConfig.temperature,
+                    thinkingLevel: resolvedStep.modelConfig.thinkingLevel
+                };
+
+                // Execute plugins
+                for (let pluginIdx = 0; pluginIdx < resolvedStep.plugins.length; pluginIdx++) {
+                    const pluginDef = resolvedStep.plugins[pluginIdx];
                     const nextItems: PipelineItem[] = [];
+
+                    const plugin = this.pluginRegistry.get(pluginDef.name);
+                    if (!plugin) {
+                        console.warn(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' not found, skipping.`);
+                        nextItems.push(...activeItems);
+                        continue;
+                    }
 
                     for (const currentItem of activeItems) {
                         try {
@@ -107,22 +128,28 @@ export class ActionRunner {
                                 index: currentItem.originalIndex
                             };
 
-                            const { context: updatedContext, packets } = await pluginRunner.run(
-                                [pluginDef],
+                            // Resolve plugin config with row context
+                            const resolvedPluginConfig = await plugin.resolveConfig(
+                                pluginDef.config,
                                 pluginViewContext,
-                                stepNum,
-                                stepContext,
-                                {
-                                    outputDir: resolvedStep.resolvedOutputDir,
-                                    tempDir: resolvedStep.resolvedTempDir || tmpDir,
-                                    basename: resolvedStep.outputBasename,
-                                    ext: resolvedStep.outputExtension
-                                }
+                                inheritedModel
                             );
+
+                            // Execute plugin
+                            const result = await plugin.execute(resolvedPluginConfig, {
+                                row: pluginViewContext,
+                                stepIndex: stepNum,
+                                pluginIndex: pluginIdx,
+                                services: pluginServices,
+                                tempDirectory: resolvedStep.resolvedTempDir || tmpDir,
+                                outputDirectory: resolvedStep.resolvedOutputDir,
+                                outputBasename: resolvedStep.outputBasename,
+                                outputExtension: resolvedStep.outputExtension
+                            });
 
                             const processedItems = ResultProcessor.process(
                                 [currentItem], 
-                                packets, 
+                                result.packets, 
                                 pluginDef.output,
                                 toCamel(pluginDef.name)
                             );
@@ -177,9 +204,9 @@ export class ActionRunner {
                         );
 
                         // Wrap model result in a packet for uniform processing
-                        const modelPacket = {
+                        const modelPacket: PluginPacket = {
                             data: result.modelResult,
-                            contentParts: [] // Model output usually doesn't become content for the *same* step's next phase, but could be history
+                            contentParts: []
                         };
 
                         const processedItems = ResultProcessor.process(

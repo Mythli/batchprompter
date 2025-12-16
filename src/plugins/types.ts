@@ -12,32 +12,8 @@ import { ImageSearch } from './image-search/ImageSearch.js';
 import { WebSearch } from './web-search/WebSearch.js';
 
 // =============================================================================
-// Legacy Plugin Types (used by old plugin system)
+// Plugin Packet (shared)
 // =============================================================================
-
-/** @deprecated Use PluginServicesV2 instead */
-export interface PluginServices {
-    puppeteerHelper?: PuppeteerHelper;
-    fetcher: Fetcher;
-    puppeteerQueue?: PQueue;
-}
-
-/** @deprecated Use PluginExecutionContext instead */
-export interface PluginContext {
-    row: Record<string, any>;
-    stepIndex: number;
-    config: any;
-    output: OutputStrategy;
-    
-    // Dependency Injection
-    stepContext: StepContext;
-
-    // Explicit Paths
-    outputDirectory?: string;
-    tempDirectory: string;
-    outputBasename?: string;
-    outputExtension?: string;
-}
 
 export interface PluginPacket {
     /** The data to be merged into the workspace/row (e.g., image metadata) */
@@ -50,43 +26,14 @@ export interface PluginResult {
     packets: PluginPacket[];
 }
 
-/** @deprecated Use Plugin interface instead */
-export interface NormalizedPluginConfig {
-    config: any;
-}
-
-/** @deprecated Use Plugin interface instead */
-export interface ContentProviderPlugin {
-    name: string;
-
-    register(program: Command): void;
-    registerStep(program: Command, stepIndex: number): void;
-
-    /**
-     * Parse and validate CLI options to produce a raw configuration.
-     * Returns undefined if the plugin is not active for this step.
-     * 
-     * @param capabilities - Service capabilities for validation. Throw if required service is missing.
-     */
-    normalize(
-        options: Record<string, any>, 
-        stepIndex: number, 
-        globalConfig: any,
-        capabilities: ServiceCapabilities
-    ): NormalizedPluginConfig | undefined;
-
-    prepare(config: any, row: Record<string, any>): Promise<any>;
-    execute(context: PluginContext): Promise<PluginResult>;
-}
-
 // =============================================================================
-// New Plugin System (V2)
+// Plugin Services (Dependency Injection)
 // =============================================================================
 
 /**
  * Services available to plugins via dependency injection
  */
-export interface PluginServicesV2 {
+export interface PluginServices {
     puppeteerHelper?: PuppeteerHelper;
     puppeteerQueue?: PQueue;
     fetcher: Fetcher;
@@ -103,7 +50,7 @@ export interface PluginExecutionContext {
     row: Record<string, any>;
     stepIndex: number;
     pluginIndex: number;
-    services: PluginServicesV2;
+    services: PluginServices;
     tempDirectory: string;
     outputDirectory?: string;
     outputBasename?: string;
@@ -120,8 +67,12 @@ export interface CLIOptionDefinition {
     parser?: (value: string) => any;
 }
 
+// =============================================================================
+// Plugin Interface
+// =============================================================================
+
 /**
- * New Plugin interface (V2)
+ * Plugin interface for content providers and processors
  */
 export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     /**
@@ -173,8 +124,12 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     ): Promise<PluginResult>;
 }
 
+// =============================================================================
+// Plugin Registry
+// =============================================================================
+
 /**
- * Registry for new-style plugins (V2)
+ * Registry for plugins
  */
 export class PluginRegistryV2 {
     private plugins = new Map<string, Plugin>();

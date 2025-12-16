@@ -6,13 +6,7 @@ import OpenAI from "openai";
 import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
-import { PluginRegistry } from './plugins/PluginRegistry.js';
-import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
-import { WebSearchPlugin } from './plugins/web-search/WebSearchPlugin.js';
-import { StyleScraperPlugin } from './plugins/style-scraper/StyleScraperPlugin.js';
-import { WebsiteAgentPlugin } from './plugins/website-agent/WebsiteAgentPlugin.js';
-import { DedupePlugin } from './plugins/dedupe/DedupePlugin.js';
-import { ValidationPlugin } from './plugins/validation/ValidationPlugin.js';
+import { createPluginRegistry, PluginRegistryV2 } from './plugins/index.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
@@ -27,7 +21,7 @@ import { GlobalContext, ServiceCapabilities } from './types.js';
 import { LlmClientFactory } from './core/LlmClientFactory.js';
 import { StepContextFactory } from './core/StepContextFactory.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
-import {createLoggingFetcher} from "./utils/createLoggingFetcher.js";
+import { createLoggingFetcher } from "./utils/createLoggingFetcher.js";
 
 dotenv.config();
 
@@ -86,15 +80,8 @@ class KeyvCacheAdapter {
     store: any = {};
 }
 
-export const createDefaultRegistry = (capabilities: ServiceCapabilities) => {
-    const registry = new PluginRegistry(capabilities);
-    registry.register(new WebSearchPlugin());
-    registry.register(new ImageSearchPlugin());
-    registry.register(new WebsiteAgentPlugin());
-    registry.register(new StyleScraperPlugin());
-    registry.register(new DedupePlugin());
-    registry.register(new ValidationPlugin());
-    return registry;
+export const createDefaultRegistry = (capabilities: ServiceCapabilities): PluginRegistryV2 => {
+    return createPluginRegistry();
 };
 
 export const createPreprocessorRegistry = () => {

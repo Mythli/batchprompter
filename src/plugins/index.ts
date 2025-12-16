@@ -10,7 +10,7 @@ import { UrlExpanderPluginV2 } from './url-expander/UrlExpanderPluginV2.js';
 // Re-export types
 export * from './types.js';
 
-// Re-export V2 plugin classes
+// Re-export plugin classes
 export { WebSearchPluginV2 } from './web-search/WebSearchPluginV2.js';
 export { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
 export { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
@@ -20,9 +20,9 @@ export { DedupePluginV2 } from './dedupe/DedupePluginV2.js';
 export { UrlExpanderPluginV2 } from './url-expander/UrlExpanderPluginV2.js';
 
 /**
- * Create a plugin registry with all built-in V2 plugins registered
+ * Create a plugin registry with all built-in plugins registered
  */
-export function createPluginRegistryV2(): PluginRegistryV2 {
+export function createPluginRegistry(): PluginRegistryV2 {
     const registry = new PluginRegistryV2();
 
     registry.register(new WebSearchPluginV2());

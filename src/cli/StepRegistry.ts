@@ -4,12 +4,12 @@ import { RuntimeConfig, StepConfig, ModelDefinition, ResolvedModelConfig, Prepro
 import { loadData } from '../utils/dataLoader.js';
 import { PromptResolver } from '../utils/PromptResolver.js';
 import { createConfigSchema } from './ConfigSchema.js';
-import { PluginRegistry } from '../plugins/PluginRegistry.js';
+import { PluginRegistryV2 } from '../plugins/types.js';
 import { createPreprocessorRegistry } from '../getConfig.js';
 
 export class StepRegistry {
 
-    static registerStepArgs(program: Command, registry: PluginRegistry) {
+    static registerStepArgs(program: Command, registry: PluginRegistryV2) {
         // --- Config File ---
         program.option('--config <file>', 'Path to YAML/JSON config file');
 
@@ -43,10 +43,10 @@ export class StepRegistry {
             ModelFlags.register(program, `judge-${i}`, { includePrompt: true });
             ModelFlags.register(program, `feedback-${i}`, { includePrompt: true });
 
-            program.option(`--output-${i} <path>', 'Output path for step ${i}`);
+            program.option(`--output-${i} <path>`, `Output path for step ${i}`);
             program.option(`--output-column-${i} <column>`, `Output column for step ${i}`);
             program.option(`--export-${i}`, `Export result for step ${i}`);
-            program.option(`--json-schema-${i} <file>`, `Schema for step ${i}`); // Commander camelCases to jsonSchema1
+            program.option(`--json-schema-${i} <file>`, `Schema for step ${i}`);
             program.option(`--verify-command-${i} <cmd>`, `Verify command for step ${i}`);
             program.option(`--command-${i} <cmd>`, `Post-process command for step ${i}`);
             program.option(`--candidates-${i} <number>`, `Candidates for step ${i}`);
@@ -57,7 +57,7 @@ export class StepRegistry {
         }
 
         // --- Plugins ---
-        registry.configureCLI(program);
+        registry.registerCLI(program);
 
         // --- Preprocessors ---
         // We create a temporary registry just to register CLI args
@@ -65,7 +65,7 @@ export class StepRegistry {
         preprocessorRegistry.configureCLI(program);
     }
 
-    static async parseConfig(options: Record<string, any>, positionalArgs: string[], registry: PluginRegistry): Promise<RuntimeConfig> {
+    static async parseConfig(options: Record<string, any>, positionalArgs: string[], registry: PluginRegistryV2): Promise<RuntimeConfig> {
         // 1. Normalize via Zod Schema
         const normalized = createConfigSchema(registry).parse({ options, args: positionalArgs });
 

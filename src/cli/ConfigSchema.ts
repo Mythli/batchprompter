@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ModelDefinition, StepDefinition, NormalizedConfig, PluginConfigDefinition, OutputStrategy } from '../types.js';
-import { PluginRegistry } from '../plugins/PluginRegistry.js';
+import { PluginRegistryV2 } from '../plugins/types.js';
 import { ModelFlags } from './ModelFlags.js';
 
 // Helper to remove undefined keys
@@ -68,16 +68,13 @@ const resolveOutputStrategy = (options: Record<string, any>, prefix: string, ste
     };
 };
 
-export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
+export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object({
     options: z.record(z.string(), z.any()),
     args: z.array(z.string())
 }).transform((input): NormalizedConfig => {
     const { options, args } = input;
     const dataFilePath = args[0];
     if (!dataFilePath) throw new Error("Data file path is required.");
-
-    // Get capabilities from the registry for plugin validation
-    const capabilities = pluginRegistry.getCapabilities();
 
     // Determine Max Step
     let maxStep = Math.max(1, args.length - 1); // At least 1 step
@@ -177,14 +174,14 @@ export const createConfigSchema = (pluginRegistry: PluginRegistry) => z.object({
         // 5. Plugins
         const plugins: PluginConfigDefinition[] = [];
         for (const plugin of pluginRegistry.getAll()) {
-            const normalized = plugin.normalize(options, i, globalConfig, capabilities);
-            if (normalized) {
-                const camelName = toCamel(plugin.name);
+            const rawConfig = plugin.parseCLIOptions(options, i);
+            if (rawConfig) {
+                const camelName = toCamel(plugin.type);
                 const pluginOutputStrategy = resolveOutputStrategy(options, camelName, i);
 
                 plugins.push({
-                    name: plugin.name,
-                    config: normalized.config,
+                    name: plugin.type,
+                    config: rawConfig,
                     output: pluginOutputStrategy
                 });
             }
