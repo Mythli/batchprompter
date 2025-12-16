@@ -75,8 +75,9 @@ export class WebSearch {
         try {
             const parsed = SerperResponseSchema.parse(json);
             
-            const organic = (parsed.organic || []).map(r => ({
+            const organic = (parsed.organic || []).map((r, index) => ({
                 ...r,
+                position: (page - 1) * num + (r.position || (index + 1)),
                 type: 'seo' as const
             }));
             
