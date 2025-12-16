@@ -23,9 +23,17 @@ const OrganicResultSchema = z.object({
   sitelinks: z.array(z.object({ title: z.string(), link: z.string() })).optional(),
 });
 
+const AdResultSchema = z.object({
+  title: z.string(),
+  link: z.string(),
+  snippet: z.string().optional(),
+  position: z.number().optional(),
+});
+
 const SerperResponseSchema = z.object({
   searchParameters: SearchParametersSchema,
   organic: z.array(OrganicResultSchema).optional(),
+  ads: z.array(AdResultSchema).optional(),
 });
 
 export type WebSearchResult = z.infer<typeof OrganicResultSchema> & {
@@ -73,7 +81,11 @@ export class WebSearch {
 
         try {
             const parsed = SerperResponseSchema.parse(json);
-            return parsed.organic || [];
+            const organic = parsed.organic || [];
+            const ads = parsed.ads || [];
+            
+            // Return ads first, then organic results
+            return [...ads, ...organic];
         } catch (e) {
             console.error("[WebSearch] Failed to parse Serper API response:", e);
             throw e;
