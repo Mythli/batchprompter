@@ -1,11 +1,11 @@
 import { GenericHandler } from './types.js';
-import { PluginServices } from '../../plugins/types.js';
+import { PreprocessorServices } from '../types.js';
 import { compressHtml } from '../../utils/compressHtml.js';
 
 export class GenericPuppeteerHandler implements GenericHandler {
     name = 'generic-puppeteer';
 
-    async handle(url: string, services: PluginServices): Promise<string | null> {
+    async handle(url: string, services: PreprocessorServices): Promise<string | null> {
         if (!services.puppeteerHelper) {
             throw new Error("[GenericPuppeteerHandler] PuppeteerHelper not available.");
         }
