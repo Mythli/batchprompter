@@ -26,7 +26,9 @@ export const ImageSearchConfigSchemaV2 = z.object({
     output: OutputConfigSchema.optional(),
     query: z.string().optional(),
     queryPrompt: PromptDefSchema.optional(),
+    queryModel: z.string().optional(),
     selectPrompt: PromptDefSchema.optional(),
+    selectModel: z.string().optional(),
     limit: z.number().int().positive().default(12),
     select: z.number().int().positive().default(1),
     queryCount: z.number().int().positive().default(3),
@@ -69,7 +71,9 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     readonly cliOptions: CLIOptionDefinition[] = [
         { flags: '--image-search-query <text>', description: 'Image search query' },
         { flags: '--image-query-prompt <text>', description: 'Query generation prompt' },
+        { flags: '--image-query-model <model>', description: 'Model for query generation' },
         { flags: '--image-select-prompt <text>', description: 'Image selection prompt' },
+        { flags: '--image-select-model <model>', description: 'Model for image selection' },
         { flags: '--image-search-limit <number>', description: 'Images per query (default: 12)', parser: parseInt },
         { flags: '--image-search-select <number>', description: 'Images to select (default: 1)', parser: parseInt },
         { flags: '--image-search-query-count <number>', description: 'Queries to generate (default: 3)', parser: parseInt },
@@ -114,7 +118,9 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             type: 'image-search' as const,
             query,
             queryPrompt,
+            queryModel: getOpt('imageQueryModel'),
             selectPrompt,
+            selectModel: getOpt('imageSelectModel'),
             limit: getOpt('imageSearchLimit'),
             select: getOpt('imageSearchSelect'),
             queryCount: getOpt('imageSearchQueryCount'),
@@ -139,7 +145,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         row: Record<string, any>,
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
     ): Promise<ImageSearchResolvedConfigV2> {
-        const resolvePrompt = async (prompt: any): Promise<ResolvedModelConfig | undefined> => {
+        const resolvePrompt = async (prompt: any, modelOverride?: string): Promise<ResolvedModelConfig | undefined> => {
             if (!prompt) return undefined;
             const parts = await this.promptLoader.load(prompt);
             const renderedParts = parts.map(part => {
@@ -150,7 +156,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                 return part;
             });
             return {
-                model: inheritedModel.model,
+                model: modelOverride || inheritedModel.model,
                 temperature: inheritedModel.temperature,
                 thinkingLevel: inheritedModel.thinkingLevel,
                 systemParts: [],
@@ -173,8 +179,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                 explode: rawConfig.output?.explode ?? DEFAULT_OUTPUT.explode
             },
             query,
-            queryModel: await resolvePrompt(rawConfig.queryPrompt),
-            selectModel: await resolvePrompt(rawConfig.selectPrompt),
+            queryModel: await resolvePrompt(rawConfig.queryPrompt, rawConfig.queryModel),
+            selectModel: await resolvePrompt(rawConfig.selectPrompt, rawConfig.selectModel),
             limit: rawConfig.limit,
             select: rawConfig.select,
             queryCount: rawConfig.queryCount,
