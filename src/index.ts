@@ -185,6 +185,22 @@ function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, ar
 }
 
 /**
+ * Helper to transform model config fields for a plugin sub-model
+ */
+function transformModelConfig(
+    config: any,
+    prefix: string,
+    stepNum: number,
+    options: Record<string, any>
+) {
+    if (config.model) options[`${prefix}Model${stepNum}`] = config.model;
+    if (config.temperature !== undefined) options[`${prefix}Temperature${stepNum}`] = config.temperature;
+    if (config.thinkingLevel) options[`${prefix}ThinkingLevel${stepNum}`] = config.thinkingLevel;
+    if (config.prompt) options[`${prefix}Prompt${stepNum}`] = config.prompt;
+    if (config.system) options[`${prefix}System${stepNum}`] = config.system;
+}
+
+/**
  * Transform a plugin config to CLI options
  */
 function transformPluginToCli(plugin: any, stepNum: number, options: Record<string, any>) {
@@ -192,9 +208,6 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
     
     if (type === 'web-search') {
         if (plugin.query) options[`webSearchQuery${stepNum}`] = plugin.query;
-        if (plugin.queryPrompt) options[`webQueryPrompt${stepNum}`] = plugin.queryPrompt;
-        if (plugin.selectPrompt) options[`webSelectPrompt${stepNum}`] = plugin.selectPrompt;
-        if (plugin.compressPrompt) options[`webCompressPrompt${stepNum}`] = plugin.compressPrompt;
         if (plugin.limit !== undefined) options[`webSearchLimit${stepNum}`] = plugin.limit;
         if (plugin.mode) options[`webSearchMode${stepNum}`] = plugin.mode;
         if (plugin.queryCount !== undefined) options[`webSearchQueryCount${stepNum}`] = plugin.queryCount;
@@ -202,6 +215,24 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
         if (plugin.dedupeStrategy) options[`webSearchDedupeStrategy${stepNum}`] = plugin.dedupeStrategy;
         if (plugin.gl) options[`webSearchGl${stepNum}`] = plugin.gl;
         if (plugin.hl) options[`webSearchHl${stepNum}`] = plugin.hl;
+        
+        // Query model config
+        if (plugin.queryPrompt) options[`webQueryPrompt${stepNum}`] = plugin.queryPrompt;
+        if (plugin.queryModel) options[`webQueryModel${stepNum}`] = plugin.queryModel;
+        if (plugin.queryTemperature !== undefined) options[`webQueryTemperature${stepNum}`] = plugin.queryTemperature;
+        if (plugin.queryThinkingLevel) options[`webQueryThinkingLevel${stepNum}`] = plugin.queryThinkingLevel;
+        
+        // Select model config
+        if (plugin.selectPrompt) options[`webSelectPrompt${stepNum}`] = plugin.selectPrompt;
+        if (plugin.selectModel) options[`webSelectModel${stepNum}`] = plugin.selectModel;
+        if (plugin.selectTemperature !== undefined) options[`webSelectTemperature${stepNum}`] = plugin.selectTemperature;
+        if (plugin.selectThinkingLevel) options[`webSelectThinkingLevel${stepNum}`] = plugin.selectThinkingLevel;
+        
+        // Compress model config
+        if (plugin.compressPrompt) options[`webCompressPrompt${stepNum}`] = plugin.compressPrompt;
+        if (plugin.compressModel) options[`webCompressModel${stepNum}`] = plugin.compressModel;
+        if (plugin.compressTemperature !== undefined) options[`webCompressTemperature${stepNum}`] = plugin.compressTemperature;
+        if (plugin.compressThinkingLevel) options[`webCompressThinkingLevel${stepNum}`] = plugin.compressThinkingLevel;
         
         // Output config
         if (plugin.output) {
@@ -211,8 +242,6 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
         }
     } else if (type === 'image-search') {
         if (plugin.query) options[`imageSearchQuery${stepNum}`] = plugin.query;
-        if (plugin.queryPrompt) options[`imageQueryPrompt${stepNum}`] = plugin.queryPrompt;
-        if (plugin.selectPrompt) options[`imageSelectPrompt${stepNum}`] = plugin.selectPrompt;
         if (plugin.limit !== undefined) options[`imageSearchLimit${stepNum}`] = plugin.limit;
         if (plugin.select !== undefined) options[`imageSearchSelect${stepNum}`] = plugin.select;
         if (plugin.queryCount !== undefined) options[`imageSearchQueryCount${stepNum}`] = plugin.queryCount;
@@ -222,6 +251,19 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
         if (plugin.gl) options[`imageSearchGl${stepNum}`] = plugin.gl;
         if (plugin.hl) options[`imageSearchHl${stepNum}`] = plugin.hl;
         
+        // Query model config
+        if (plugin.queryPrompt) options[`imageQueryPrompt${stepNum}`] = plugin.queryPrompt;
+        if (plugin.queryModel) options[`imageQueryModel${stepNum}`] = plugin.queryModel;
+        if (plugin.queryTemperature !== undefined) options[`imageQueryTemperature${stepNum}`] = plugin.queryTemperature;
+        if (plugin.queryThinkingLevel) options[`imageQueryThinkingLevel${stepNum}`] = plugin.queryThinkingLevel;
+        
+        // Select model config
+        if (plugin.selectPrompt) options[`imageSelectPrompt${stepNum}`] = plugin.selectPrompt;
+        if (plugin.selectModel) options[`imageSelectModel${stepNum}`] = plugin.selectModel;
+        if (plugin.selectTemperature !== undefined) options[`imageSelectTemperature${stepNum}`] = plugin.selectTemperature;
+        if (plugin.selectThinkingLevel) options[`imageSelectThinkingLevel${stepNum}`] = plugin.selectThinkingLevel;
+        
+        // Output config
         if (plugin.output) {
             if (plugin.output.mode === 'merge') options[`imageSearchExport${stepNum}`] = true;
             if (plugin.output.mode === 'column') options[`imageSearchOutput${stepNum}`] = plugin.output.column;
@@ -236,10 +278,26 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
         }
         if (plugin.budget !== undefined) options[`websiteAgentBudget${stepNum}`] = plugin.budget;
         if (plugin.batchSize !== undefined) options[`websiteAgentBatchSize${stepNum}`] = plugin.batchSize;
-        if (plugin.navigatorPrompt) options[`websiteNavigatorPrompt${stepNum}`] = plugin.navigatorPrompt;
-        if (plugin.extractPrompt) options[`websiteExtractPrompt${stepNum}`] = plugin.extractPrompt;
-        if (plugin.mergePrompt) options[`websiteMergePrompt${stepNum}`] = plugin.mergePrompt;
         
+        // Navigator model config
+        if (plugin.navigatorPrompt) options[`websiteNavigatorPrompt${stepNum}`] = plugin.navigatorPrompt;
+        if (plugin.navigatorModel) options[`websiteNavigatorModel${stepNum}`] = plugin.navigatorModel;
+        if (plugin.navigatorTemperature !== undefined) options[`websiteNavigatorTemperature${stepNum}`] = plugin.navigatorTemperature;
+        if (plugin.navigatorThinkingLevel) options[`websiteNavigatorThinkingLevel${stepNum}`] = plugin.navigatorThinkingLevel;
+        
+        // Extract model config
+        if (plugin.extractPrompt) options[`websiteExtractPrompt${stepNum}`] = plugin.extractPrompt;
+        if (plugin.extractModel) options[`websiteExtractModel${stepNum}`] = plugin.extractModel;
+        if (plugin.extractTemperature !== undefined) options[`websiteExtractTemperature${stepNum}`] = plugin.extractTemperature;
+        if (plugin.extractThinkingLevel) options[`websiteExtractThinkingLevel${stepNum}`] = plugin.extractThinkingLevel;
+        
+        // Merge model config
+        if (plugin.mergePrompt) options[`websiteMergePrompt${stepNum}`] = plugin.mergePrompt;
+        if (plugin.mergeModel) options[`websiteMergeModel${stepNum}`] = plugin.mergeModel;
+        if (plugin.mergeTemperature !== undefined) options[`websiteMergeTemperature${stepNum}`] = plugin.mergeTemperature;
+        if (plugin.mergeThinkingLevel) options[`websiteMergeThinkingLevel${stepNum}`] = plugin.mergeThinkingLevel;
+        
+        // Output config
         if (plugin.output) {
             if (plugin.output.mode === 'merge') options[`websiteAgentExport${stepNum}`] = true;
             if (plugin.output.mode === 'column') options[`websiteAgentOutput${stepNum}`] = plugin.output.column;

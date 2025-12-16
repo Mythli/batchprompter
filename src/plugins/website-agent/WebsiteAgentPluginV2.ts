@@ -16,6 +16,7 @@ import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 import { compressHtml } from '../../utils/compressHtml.js';
 import { makeSchemaOptional } from '../../utils/schemaUtils.js';
 import { LinkData } from '../../utils/puppeteer/PuppeteerPageHelper.js';
+import { ModelFlags } from '../../cli/ModelFlags.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -29,9 +30,21 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
     schema: z.union([z.string(), z.record(z.string(), z.any())]),
     budget: z.number().int().positive().default(10),
     batchSize: z.number().int().positive().default(3),
+    // Navigator model config
     navigatorPrompt: PromptDefSchema.optional(),
+    navigatorModel: z.string().optional(),
+    navigatorTemperature: z.number().optional(),
+    navigatorThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    // Extract model config
     extractPrompt: PromptDefSchema.optional(),
-    mergePrompt: PromptDefSchema.optional()
+    extractModel: z.string().optional(),
+    extractTemperature: z.number().optional(),
+    extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    // Merge model config
+    mergePrompt: PromptDefSchema.optional(),
+    mergeModel: z.string().optional(),
+    mergeTemperature: z.number().optional(),
+    mergeThinkingLevel: z.enum(['low', 'medium', 'high']).optional()
 });
 
 export type WebsiteAgentRawConfigV2 = z.infer<typeof WebsiteAgentConfigSchemaV2>;
@@ -67,13 +80,18 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
     private schemaLoader = new SchemaLoader();
 
     readonly cliOptions: CLIOptionDefinition[] = [
+        // Navigator model options
+        ...ModelFlags.getOptions('website-navigator', { includePrompt: true }),
+        // Extract model options
+        ...ModelFlags.getOptions('website-extract', { includePrompt: true }),
+        // Merge model options
+        ...ModelFlags.getOptions('website-merge', { includePrompt: true }),
+        // Agent options
         { flags: '--website-agent-url <url>', description: 'Starting URL to scrape' },
         { flags: '--website-agent-schema <path>', description: 'JSON Schema for extraction' },
         { flags: '--website-agent-budget <number>', description: 'Max pages to visit (default: 10)', parser: parseInt },
         { flags: '--website-agent-batch-size <number>', description: 'Pages per batch (default: 3)', parser: parseInt },
-        { flags: '--website-navigator-prompt <text>', description: 'Navigator prompt' },
-        { flags: '--website-extract-prompt <text>', description: 'Extraction prompt' },
-        { flags: '--website-merge-prompt <text>', description: 'Merge prompt' },
+        // Output options
         { flags: '--website-agent-export', description: 'Merge results into row' },
         { flags: '--website-agent-output <column>', description: 'Save to column' }
     ];
@@ -91,6 +109,11 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         const url = getOpt('websiteAgentUrl');
         if (!url) return null;
 
+        // Extract model configs using helper
+        const navigatorConfig = ModelFlags.extractPluginModel(options, 'websiteNavigator', stepIndex);
+        const extractConfig = ModelFlags.extractPluginModel(options, 'websiteExtract', stepIndex);
+        const mergeConfig = ModelFlags.extractPluginModel(options, 'websiteMerge', stepIndex);
+
         const exportFlag = getOpt('websiteAgentExport');
         const outputColumn = getOpt('websiteAgentOutput');
 
@@ -105,9 +128,21 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             schema: getOpt('websiteAgentSchema'),
             budget: getOpt('websiteAgentBudget'),
             batchSize: getOpt('websiteAgentBatchSize'),
-            navigatorPrompt: getOpt('websiteNavigatorPrompt'),
-            extractPrompt: getOpt('websiteExtractPrompt'),
-            mergePrompt: getOpt('websiteMergePrompt'),
+            // Navigator model
+            navigatorPrompt: navigatorConfig.prompt,
+            navigatorModel: navigatorConfig.model,
+            navigatorTemperature: navigatorConfig.temperature,
+            navigatorThinkingLevel: navigatorConfig.thinkingLevel,
+            // Extract model
+            extractPrompt: extractConfig.prompt,
+            extractModel: extractConfig.model,
+            extractTemperature: extractConfig.temperature,
+            extractThinkingLevel: extractConfig.thinkingLevel,
+            // Merge model
+            mergePrompt: mergeConfig.prompt,
+            mergeModel: mergeConfig.model,
+            mergeTemperature: mergeConfig.temperature,
+            mergeThinkingLevel: mergeConfig.thinkingLevel,
             output: {
                 mode: outputMode,
                 column: outputColumn,
@@ -124,7 +159,13 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         row: Record<string, any>,
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
     ): Promise<WebsiteAgentResolvedConfigV2> {
-        const resolveModelWithPrompt = async (prompt: any, defaultPrompt: string): Promise<ResolvedModelConfig> => {
+        const resolveModelWithPrompt = async (
+            prompt: any,
+            defaultPrompt: string,
+            modelOverride?: string,
+            temperatureOverride?: number,
+            thinkingLevelOverride?: 'low' | 'medium' | 'high'
+        ): Promise<ResolvedModelConfig> => {
             let parts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 
             if (prompt) {
@@ -141,9 +182,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             }
 
             return {
-                model: inheritedModel.model,
-                temperature: inheritedModel.temperature,
-                thinkingLevel: inheritedModel.thinkingLevel,
+                model: modelOverride || inheritedModel.model,
+                temperature: temperatureOverride ?? inheritedModel.temperature,
+                thinkingLevel: thinkingLevelOverride ?? inheritedModel.thinkingLevel,
                 systemParts: [],
                 promptParts: parts
             };
@@ -185,9 +226,27 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             extractionSchema,
             budget: rawConfig.budget,
             batchSize: rawConfig.batchSize,
-            navigatorModel: await resolveModelWithPrompt(rawConfig.navigatorPrompt, DEFAULT_NAVIGATOR),
-            extractModel: await resolveModelWithPrompt(rawConfig.extractPrompt, DEFAULT_EXTRACT),
-            mergeModel: await resolveModelWithPrompt(rawConfig.mergePrompt, DEFAULT_MERGE)
+            navigatorModel: await resolveModelWithPrompt(
+                rawConfig.navigatorPrompt,
+                DEFAULT_NAVIGATOR,
+                rawConfig.navigatorModel,
+                rawConfig.navigatorTemperature,
+                rawConfig.navigatorThinkingLevel
+            ),
+            extractModel: await resolveModelWithPrompt(
+                rawConfig.extractPrompt,
+                DEFAULT_EXTRACT,
+                rawConfig.extractModel,
+                rawConfig.extractTemperature,
+                rawConfig.extractThinkingLevel
+            ),
+            mergeModel: await resolveModelWithPrompt(
+                rawConfig.mergePrompt,
+                DEFAULT_MERGE,
+                rawConfig.mergeModel,
+                rawConfig.mergeTemperature,
+                rawConfig.mergeThinkingLevel
+            )
         };
     }
 

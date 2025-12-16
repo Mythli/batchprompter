@@ -11,6 +11,7 @@ import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '
 import { OutputConfigSchema, PromptDefSchema } from '../../config/schema.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { DEFAULT_OUTPUT } from '../../config/defaults.js';
+import { ModelFlags } from '../../cli/ModelFlags.js';
 
 // =============================================================================
 // Raw Config Schema (Single source of truth for defaults)
@@ -21,9 +22,22 @@ export const WebSearchConfigSchemaV2 = z.object({
     id: z.string().optional(),
     output: OutputConfigSchema.optional(),
     query: z.string().optional(),
+    // Query model config
     queryPrompt: PromptDefSchema.optional(),
+    queryModel: z.string().optional(),
+    queryTemperature: z.number().optional(),
+    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    // Select model config
     selectPrompt: PromptDefSchema.optional(),
+    selectModel: z.string().optional(),
+    selectTemperature: z.number().optional(),
+    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    // Compress model config
     compressPrompt: PromptDefSchema.optional(),
+    compressModel: z.string().optional(),
+    compressTemperature: z.number().optional(),
+    compressThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    // Search options
     limit: z.number().int().positive().default(5),
     mode: z.enum(['none', 'markdown', 'html']).default('none'),
     queryCount: z.number().int().positive().default(3),
@@ -67,10 +81,14 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     private promptLoader = new PromptLoader();
 
     readonly cliOptions: CLIOptionDefinition[] = [
+        // Query model options
+        ...ModelFlags.getOptions('web-query', { includePrompt: true }),
+        // Select model options
+        ...ModelFlags.getOptions('web-select', { includePrompt: true }),
+        // Compress model options
+        ...ModelFlags.getOptions('web-compress', { includePrompt: true }),
+        // Search options
         { flags: '--web-search-query <text>', description: 'Static search query' },
-        { flags: '--web-query-prompt <text>', description: 'Query generation prompt' },
-        { flags: '--web-select-prompt <text>', description: 'Result selection prompt' },
-        { flags: '--web-compress-prompt <text>', description: 'Content compression prompt' },
         { flags: '--web-search-limit <number>', description: 'Max total results (default: 5)', parser: parseInt },
         { flags: '--web-search-mode <mode>', description: 'Content mode: none/markdown/html (default: none)' },
         { flags: '--web-search-query-count <number>', description: 'Queries to generate (default: 3)', parser: parseInt },
@@ -78,6 +96,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         { flags: '--web-search-dedupe-strategy <strategy>', description: 'Deduplication: none/domain/url (default: none)' },
         { flags: '--web-search-gl <country>', description: 'Country code for search' },
         { flags: '--web-search-hl <lang>', description: 'Language code for search' },
+        // Output options
         { flags: '--web-search-export', description: 'Merge results into row' },
         { flags: '--web-search-explode', description: 'Explode results into multiple rows' },
         { flags: '--web-search-output <column>', description: 'Save results to column' }
@@ -94,10 +113,12 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         };
 
         const query = getOpt('webSearchQuery');
-        const queryPrompt = getOpt('webQueryPrompt');
+        const queryConfig = ModelFlags.extractPluginModel(options, 'webQuery', stepIndex);
+        const selectConfig = ModelFlags.extractPluginModel(options, 'webSelect', stepIndex);
+        const compressConfig = ModelFlags.extractPluginModel(options, 'webCompress', stepIndex);
 
         // Only activate if query or queryPrompt is provided
-        if (!query && !queryPrompt) {
+        if (!query && !queryConfig.prompt) {
             return null;
         }
 
@@ -114,9 +135,22 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         const rawConfig = {
             type: 'web-search' as const,
             query,
-            queryPrompt,
-            selectPrompt: getOpt('webSelectPrompt'),
-            compressPrompt: getOpt('webCompressPrompt'),
+            // Query model
+            queryPrompt: queryConfig.prompt,
+            queryModel: queryConfig.model,
+            queryTemperature: queryConfig.temperature,
+            queryThinkingLevel: queryConfig.thinkingLevel,
+            // Select model
+            selectPrompt: selectConfig.prompt,
+            selectModel: selectConfig.model,
+            selectTemperature: selectConfig.temperature,
+            selectThinkingLevel: selectConfig.thinkingLevel,
+            // Compress model
+            compressPrompt: compressConfig.prompt,
+            compressModel: compressConfig.model,
+            compressTemperature: compressConfig.temperature,
+            compressThinkingLevel: compressConfig.thinkingLevel,
+            // Search options
             limit: getOpt('webSearchLimit'),
             mode: getOpt('webSearchMode'),
             queryCount: getOpt('webSearchQueryCount'),
@@ -140,7 +174,12 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         row: Record<string, any>,
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
     ): Promise<WebSearchResolvedConfigV2> {
-        const resolvePrompt = async (prompt: any): Promise<ResolvedModelConfig | undefined> => {
+        const resolvePrompt = async (
+            prompt: any,
+            modelOverride?: string,
+            temperatureOverride?: number,
+            thinkingLevelOverride?: 'low' | 'medium' | 'high'
+        ): Promise<ResolvedModelConfig | undefined> => {
             if (!prompt) return undefined;
             const parts = await this.promptLoader.load(prompt);
             // Render Handlebars in text parts
@@ -152,9 +191,9 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
                 return part;
             });
             return {
-                model: inheritedModel.model,
-                temperature: inheritedModel.temperature,
-                thinkingLevel: inheritedModel.thinkingLevel,
+                model: modelOverride || inheritedModel.model,
+                temperature: temperatureOverride ?? inheritedModel.temperature,
+                thinkingLevel: thinkingLevelOverride ?? inheritedModel.thinkingLevel,
                 systemParts: [],
                 promptParts: renderedParts
             };
@@ -176,9 +215,24 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
                 explode: rawConfig.output?.explode ?? DEFAULT_OUTPUT.explode
             },
             query,
-            queryModel: await resolvePrompt(rawConfig.queryPrompt),
-            selectModel: await resolvePrompt(rawConfig.selectPrompt),
-            compressModel: await resolvePrompt(rawConfig.compressPrompt),
+            queryModel: await resolvePrompt(
+                rawConfig.queryPrompt,
+                rawConfig.queryModel,
+                rawConfig.queryTemperature,
+                rawConfig.queryThinkingLevel
+            ),
+            selectModel: await resolvePrompt(
+                rawConfig.selectPrompt,
+                rawConfig.selectModel,
+                rawConfig.selectTemperature,
+                rawConfig.selectThinkingLevel
+            ),
+            compressModel: await resolvePrompt(
+                rawConfig.compressPrompt,
+                rawConfig.compressModel,
+                rawConfig.compressTemperature,
+                rawConfig.compressThinkingLevel
+            ),
             limit: rawConfig.limit,
             mode: rawConfig.mode,
             queryCount: rawConfig.queryCount,

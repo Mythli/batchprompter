@@ -1,5 +1,6 @@
 import { Command, Option } from 'commander';
 import { ModelConfig } from '../types.js';
+import { CLIOptionDefinition } from '../plugins/types.js';
 
 export interface ModelFlagOptions {
     includePrompt?: boolean; // Registers --{ns}-prompt
@@ -12,6 +13,34 @@ export class ModelFlags {
 
     constructor(defaultModel?: string) {
         this.defaultModel = defaultModel;
+    }
+
+    /**
+     * Returns CLI option definitions for a model configuration.
+     * Plugins can spread this into their cliOptions array.
+     * 
+     * @param namespace Prefix for flags (e.g., "image-query" produces --image-query-model)
+     * @param options Configuration for which flags to include
+     */
+    static getOptions(namespace: string, options: ModelFlagOptions = {}): CLIOptionDefinition[] {
+        const prefix = namespace ? `${namespace}-` : '';
+        const descPrefix = namespace ? `${namespace} ` : '';
+
+        const opts: CLIOptionDefinition[] = [
+            { flags: `--${prefix}model <model>`, description: `Model for ${descPrefix}generation` },
+            { flags: `--${prefix}temperature <number>`, description: `Temperature for ${descPrefix}model`, parser: parseFloat },
+            { flags: `--${prefix}thinking-level <level>`, description: `Reasoning effort for ${descPrefix}model (low/medium/high)` }
+        ];
+
+        if (options.includePrompt) {
+            opts.push({ flags: `--${prefix}prompt <text>`, description: `Prompt for ${descPrefix}(file path or text)` });
+        }
+
+        if (options.includeSystem) {
+            opts.push({ flags: `--${prefix}system <file>`, description: `System prompt for ${descPrefix}(file path or text)` });
+        }
+
+        return opts;
     }
 
     /**
@@ -121,5 +150,77 @@ export class ModelFlags {
         if (prompt) config.promptSource = prompt;
 
         return config;
+    }
+
+    /**
+     * Helper to extract model config from options using the plugin's step-suffix pattern.
+     * This handles the pattern where step index goes at the END: --image-query-model-1
+     * 
+     * @param options Parsed CLI options
+     * @param prefix The camelCase prefix (e.g., 'imageQuery')
+     * @param stepIndex The step index
+     * @param globalOptions Global options for fallback (model, temperature, thinkingLevel)
+     */
+    static extractPluginModel(
+        options: Record<string, any>,
+        prefix: string,
+        stepIndex: number,
+        globalOptions?: { model?: string; temperature?: number; thinkingLevel?: string }
+    ): { model?: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high'; prompt?: string; system?: string } {
+        const getOpt = (suffix: string) => {
+            // Capitalize first letter of suffix for proper camelCase
+            const capSuffix = suffix.charAt(0).toUpperCase() + suffix.slice(1);
+            const stepKey = `${prefix}${capSuffix}${stepIndex}`;
+            const globalKey = `${prefix}${capSuffix}`;
+            return options[stepKey] ?? options[globalKey];
+        };
+
+        const result: { model?: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high'; prompt?: string; system?: string } = {};
+
+        // Model: plugin-specific -> step global -> global
+        const model = getOpt('model');
+        if (model) {
+            result.model = model;
+        } else if (options[`model${stepIndex}`]) {
+            result.model = options[`model${stepIndex}`];
+        } else if (options.model) {
+            result.model = options.model;
+        } else if (globalOptions?.model) {
+            result.model = globalOptions.model;
+        }
+
+        // Temperature: plugin-specific -> step global -> global
+        const temp = getOpt('temperature');
+        if (temp !== undefined) {
+            result.temperature = temp;
+        } else if (options[`temperature${stepIndex}`] !== undefined) {
+            result.temperature = options[`temperature${stepIndex}`];
+        } else if (options.temperature !== undefined) {
+            result.temperature = options.temperature;
+        } else if (globalOptions?.temperature !== undefined) {
+            result.temperature = globalOptions.temperature;
+        }
+
+        // ThinkingLevel: plugin-specific -> step global -> global
+        const think = getOpt('thinkingLevel');
+        if (think) {
+            result.thinkingLevel = think;
+        } else if (options[`thinkingLevel${stepIndex}`]) {
+            result.thinkingLevel = options[`thinkingLevel${stepIndex}`];
+        } else if (options.thinkingLevel) {
+            result.thinkingLevel = options.thinkingLevel;
+        } else if (globalOptions?.thinkingLevel) {
+            result.thinkingLevel = globalOptions.thinkingLevel as 'low' | 'medium' | 'high';
+        }
+
+        // Prompt: plugin-specific only (no global fallback for prompts)
+        const prompt = getOpt('prompt');
+        if (prompt) result.prompt = prompt;
+
+        // System: plugin-specific only
+        const system = getOpt('system');
+        if (system) result.system = system;
+
+        return result;
     }
 }
