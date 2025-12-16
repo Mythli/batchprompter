@@ -1,0 +1,2 @@
+npm install json-schema-traverse
+npm install -D @types/json-schema-traverse

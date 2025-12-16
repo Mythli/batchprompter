@@ -14,6 +14,7 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
 import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 import { compressHtml } from '../../utils/compressHtml.js';
+import { makeSchemaOptional } from '../../utils/schemaUtils.js';
 import { LinkData } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 
 // =============================================================================
@@ -41,6 +42,8 @@ export interface WebsiteAgentResolvedConfigV2 {
     output: ResolvedOutputConfig;
     url: string;
     schema: any;
+    /** Relaxed schema with all fields optional/nullable for page extractions */
+    extractionSchema: any;
     budget: number;
     batchSize: number;
     navigatorModel: ResolvedModelConfig;
@@ -53,8 +56,8 @@ export interface WebsiteAgentResolvedConfigV2 {
 // =============================================================================
 
 const DEFAULT_NAVIGATOR = 'You are an autonomous web scraper. Analyze findings and available links to decide which pages to visit next.';
-const DEFAULT_EXTRACT = 'You are a data extraction expert. Extract information from the website content to populate the JSON schema.';
-const DEFAULT_MERGE = 'You are a data consolidation expert. Merge the JSON objects into a single comprehensive object.';
+const DEFAULT_EXTRACT = 'You are a data extraction expert. Extract information from the website content to populate the JSON schema. Return null for any fields where information is not available on this page.';
+const DEFAULT_MERGE = 'You are a data consolidation expert. Merge the JSON objects into a single comprehensive object. Use the most complete and accurate values from each source.';
 
 export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, WebsiteAgentResolvedConfigV2> {
     readonly type = 'website-agent';
@@ -166,6 +169,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             };
         }
 
+        // Create relaxed schema for page extractions
+        const extractionSchema = makeSchemaOptional(schema);
+
         return {
             type: 'website-agent',
             id: rawConfig.id ?? `website-agent-${Date.now()}`,
@@ -176,6 +182,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             },
             url,
             schema,
+            extractionSchema,
             budget: rawConfig.budget,
             batchSize: rawConfig.batchSize,
             navigatorModel: await resolveModelWithPrompt(rawConfig.navigatorPrompt, DEFAULT_NAVIGATOR),
@@ -214,6 +221,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         const result = await this.scrapeIterative(
             config.url,
             config.schema,
+            config.extractionSchema,
             config.budget,
             config.batchSize,
             puppeteerHelper,
@@ -237,7 +245,8 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
 
     private async scrapeIterative(
         initialUrl: string,
-        schema: any,
+        mergeSchema: any,
+        extractionSchema: any,
         budget: number,
         batchSize: number,
         puppeteerHelper: any,
@@ -283,7 +292,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             });
         };
 
-        // Scrape initial page
+        // Scrape initial page (using relaxed extractionSchema)
         try {
             const initial = await getPageContent(initialUrl);
             visitedUrls.add(initialUrl);
@@ -292,7 +301,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             const truncated = initial.markdown.substring(0, 20000);
             const data = await extLlm.promptJson(
                 { suffix: [{ type: 'text', text: `URL: ${initialUrl}\n\nContent:\n${truncated}` }] },
-                schema
+                extractionSchema
             );
 
             extractedData.push({ url: initialUrl, data });
@@ -348,7 +357,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
 
             console.log(`[WebsiteAgent] Next batch: ${nextUrls.join(', ')}`);
 
-            // Scrape batch
+            // Scrape batch (using relaxed extractionSchema)
             const batchResults = await Promise.allSettled(
                 nextUrls.map(async (url: string) => {
                     if (visitedUrls.has(url)) return null;
@@ -359,7 +368,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
                         const truncated = page.markdown.substring(0, 20000);
                         const data = await extLlm.promptJson(
                             { suffix: [{ type: 'text', text: `URL: ${url}\n\nContent:\n${truncated}` }] },
-                            schema
+                            extractionSchema
                         );
                         return { url, data, links: page.links };
                     } catch (e) {
@@ -386,16 +395,16 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             }
         }
 
-        // Merge results
+        // Merge results using the original strict schema
         const dataToMerge = extractedData.map(d => d.data);
 
         if (dataToMerge.length === 0) return {};
         if (dataToMerge.length === 1) return dataToMerge[0];
 
-        console.log(`[WebsiteAgent] Merging ${dataToMerge.length} results...`);
+        console.log(`[WebsiteAgent] Merging ${dataToMerge.length} results with strict schema...`);
         return mrgLlm.promptJson(
             { suffix: [{ type: 'text', text: `Objects to merge:\n${JSON.stringify(dataToMerge, null, 2)}` }] },
-            schema
+            mergeSchema
         );
     }
 }
