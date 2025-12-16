@@ -25,7 +25,7 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
     id: z.string().optional(),
     output: OutputConfigSchema.optional(),
     url: z.string(),
-    schema: z.union([z.string(), z.record(z.any())]),
+    schema: z.union([z.string(), z.record(z.string(), z.any())]),
     budget: z.number().int().positive().default(10),
     batchSize: z.number().int().positive().default(3),
     navigatorPrompt: PromptDefSchema.optional(),
@@ -339,14 +339,14 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
 
             // Filter valid URLs
             const nextUrls = navResponse.next_urls
-                .filter(url => candidates.some(c => c.href === url))
+                .filter((url: string) => candidates.some(c => c.href === url))
                 .slice(0, batchSize);
 
             console.log(`[WebsiteAgent] Next batch: ${nextUrls.join(', ')}`);
 
             // Scrape batch
             const batchResults = await Promise.allSettled(
-                nextUrls.map(async (url) => {
+                nextUrls.map(async (url: string) => {
                     if (visitedUrls.has(url)) return null;
                     visitedUrls.add(url);
 

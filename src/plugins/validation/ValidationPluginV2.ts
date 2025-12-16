@@ -20,7 +20,7 @@ export const ValidationConfigSchemaV2 = z.object({
     type: z.literal('validation'),
     id: z.string().optional(),
     output: OutputConfigSchema.optional(),
-    schema: z.union([z.string(), z.record(z.any())]),
+    schema: z.union([z.string(), z.record(z.string(), z.any())]),
     target: z.string().optional()
 });
 
