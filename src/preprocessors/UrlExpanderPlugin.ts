@@ -12,7 +12,7 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
 
     register(program: any): void {
         program.option(`--${this.flagName}`, `Enable URL expansion in prompts`);
-        program.option(`--${this.flagName}-mode <mode>`, `Expansion mode (auto, fetch, puppeteer)`, 'auto');
+        program.option(`--${this.flagName}-mode <mode>`, `Expansion mode (fetch, puppeteer)`, 'puppeteer');
         program.option(`--${this.flagName}-max-chars <number>`, `Max characters per expanded URL`, '30000');
     }
 
@@ -29,10 +29,10 @@ export class UrlExpanderPlugin implements PromptPreprocessorPlugin {
         const isEnabled = options[camelFlag] || options[stepCamelFlag];
         if (!isEnabled) return undefined;
 
-        // Determine mode
+        // Determine mode - default to 'puppeteer'
         const modeKey = this.toCamel(`${this.flagName}-mode`);
         const stepModeKey = this.toCamel(`${this.flagName}-mode-${stepIndex}`);
-        const mode = options[stepModeKey] || options[modeKey] || 'auto';
+        const mode = options[stepModeKey] || options[modeKey] || 'puppeteer';
 
         // Determine max chars
         const maxCharsKey = this.toCamel(`${this.flagName}-max-chars`);

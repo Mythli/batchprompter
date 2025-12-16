@@ -171,6 +171,13 @@ function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, ar
                     transformPluginToCli(plugin, stepNum, options);
                 }
             }
+            
+            // Preprocessors (if specified separately from plugins)
+            if (step.preprocessors && Array.isArray(step.preprocessors)) {
+                for (const preprocessor of step.preprocessors) {
+                    transformPreprocessorToCli(preprocessor, stepNum, options);
+                }
+            }
         });
     }
     
@@ -257,9 +264,30 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
     } else if (type === 'dedupe') {
         if (plugin.key) options[`dedupeKey${stepNum}`] = plugin.key;
     } else if (type === 'url-expander') {
+        // URL expander is technically a preprocessor but can be specified in plugins array for convenience
+        transformPreprocessorToCli(plugin, stepNum, options);
+    }
+}
+
+/**
+ * Transform a preprocessor config to CLI options
+ */
+function transformPreprocessorToCli(preprocessor: any, stepNum: number, options: Record<string, any>) {
+    const type = preprocessor.type;
+    
+    if (type === 'url-expander') {
+        // Enable URL expansion for this step
         options[`expandUrls${stepNum}`] = true;
-        if (plugin.mode) options[`expandUrlsMode${stepNum}`] = plugin.mode;
-        if (plugin.maxChars !== undefined) options[`expandUrlsMaxChars${stepNum}`] = plugin.maxChars;
+        
+        // Mode defaults to 'puppeteer' if not specified
+        if (preprocessor.mode) {
+            options[`expandUrlsMode${stepNum}`] = preprocessor.mode;
+        }
+        // Note: If mode is not specified, the preprocessor will use its default ('puppeteer')
+        
+        if (preprocessor.maxChars !== undefined) {
+            options[`expandUrlsMaxChars${stepNum}`] = preprocessor.maxChars;
+        }
     }
 }
 

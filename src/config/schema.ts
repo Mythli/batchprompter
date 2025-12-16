@@ -50,6 +50,22 @@ export const BasePluginSchema = z.object({
 });
 
 /**
+ * URL Expander preprocessor schema
+ */
+export const UrlExpanderSchema = z.object({
+    type: z.literal('url-expander'),
+    mode: z.enum(['fetch', 'puppeteer']).default('puppeteer'),
+    maxChars: z.number().int().positive().default(30000)
+});
+
+/**
+ * Preprocessor schema - union of all preprocessor types
+ */
+export const PreprocessorSchema = z.discriminatedUnion('type', [
+    UrlExpanderSchema
+]);
+
+/**
  * Feedback configuration
  */
 export const FeedbackConfigSchema = ModelConfigSchema.extend({
@@ -64,6 +80,7 @@ export const StepConfigSchema = z.object({
     system: PromptDefSchema.optional(),
     model: ModelConfigSchema.optional(),
     plugins: z.array(BasePluginSchema.passthrough()).default([]),
+    preprocessors: z.array(PreprocessorSchema).default([]),
     output: OutputConfigSchema.optional(),
     schema: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
     candidates: z.number().int().positive().default(1),
