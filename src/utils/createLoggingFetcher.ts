@@ -20,12 +20,20 @@ export function createLoggingFetcher(
     const originalFetch = fetcher || globalThis.fetch;
 
     return async (url: RequestInfo | URL, init?: RequestInit) => {
+        let requestModel = 'unknown';
+        
         // 1. Log Request
         try {
             if (init?.body && typeof init.body === 'string') {
                 // Only try to parse if it looks like JSON (OpenAI requests are JSON)
                 if (init.body.trim().startsWith('{')) {
                     const body = JSON.parse(init.body);
+                    
+                    // Extract model name
+                    if (body.model) {
+                        requestModel = body.model;
+                    }
+                    
                     if (body.messages && Array.isArray(body.messages)) {
                         // Find the last message (usually user)
                         const lastMessage = body.messages[body.messages.length - 1];
@@ -37,7 +45,7 @@ export function createLoggingFetcher(
                                     .map((p: any) => p.text)
                                     .join(' ');
                             }
-                            console.log(`[LLM] Executing: ${summarize(String(content))}`);
+                            console.log(`[LLM] [${requestModel}] Executing: ${summarize(String(content))}`);
                         }
                     }
                 }
@@ -57,12 +65,15 @@ export function createLoggingFetcher(
             const contentType = clone.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
                 const data = await clone.json();
+                // Use model from response if available (more accurate), fallback to request model
+                const responseModel = data.model || requestModel;
+                
                 if (data.choices && data.choices[0]?.message?.content) {
-                    console.log(`[LLM] DONE ${response.status}: ${summarize(data.choices[0].message.content)}`);
+                    console.log(`[LLM] [${responseModel}] DONE ${response.status}: ${summarize(data.choices[0].message.content)}`);
                 } else if (data.error) {
-                    console.error(`[LLM] ERROR ${response.status}:`, data.error);
+                    console.error(`[LLM] [${responseModel}] ERROR ${response.status}:`, data.error);
                 } else {
-                    console.log(`[LLM] DONE ${response.status}`);
+                    console.log(`[LLM] [${responseModel}] DONE ${response.status}`);
                 }
             } else {
                  // console.log(`[LLM] DONE ${response.status} (Non-JSON)`);
