@@ -88,6 +88,13 @@ export class ResultProcessor {
                 dataToMerge = data[0];
             }
             
+            // Also unwrap if the packet data itself is a single-element array
+            // This handles plugins that return a list of results (like WebSearch) 
+            // when that list happens to contain exactly one item.
+            if (Array.isArray(dataToMerge) && dataToMerge.length === 1) {
+                dataToMerge = dataToMerge[0];
+            }
+            
             if (typeof dataToMerge === 'object' && dataToMerge !== null && !Array.isArray(dataToMerge)) {
                 Object.assign(item.row, dataToMerge);
             }
