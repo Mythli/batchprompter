@@ -17,7 +17,8 @@ npx tsx src/index.ts generate examples/14-grank/data.csv \
   --web-search-mode none \
   --web-search-gl de \
   --web-search-hl de \
-  --web-select-prompt "Select the link that points to Butlerapp. If no Butlerapp link exists, select nothing." \
+  --web-select-prompt "Select up to 10 links that point to Butlerapp. If no Butlerapp link exists, select nothing." \
+  --web-search-select 10 \
   --web-search-export \
   --model "google/gemini-3-pro-preview" \
   --tmp-dir "out/14-grank/.tmp" \
