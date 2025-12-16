@@ -14,7 +14,13 @@
       "output": {
         "mode": "merge",
         "explode": true
-      }
+      },
+      "preprocessors": [
+        {
+          "type": "url-expander",
+          "mode": "puppeteer"
+        }
+      ]
     },
     {
       "plugins": [
