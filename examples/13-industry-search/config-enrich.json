@@ -1,0 +1,48 @@
+{
+  "data": {
+    "source": "out/13-industry-search/companies.csv",
+    "limit": 2
+  },
+  "globals": {
+    "model": "google/gemini-3-pro-preview",
+    "tmpDir": "out/13-industry-search/.tmp",
+    "outputPath": "out/13-industry-search/companies_enriched.csv"
+  },
+  "steps": [
+    {
+      "plugins": [
+        {
+          "type": "website-agent",
+          "url": "{{link}}",
+          "schema": "examples/13-industry-search/schemas/contact.json",
+          "output": {
+            "mode": "merge"
+          }
+        }
+      ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "validation",
+          "schema": "examples/13-industry-search/schemas/contact-validation.json"
+        }
+      ]
+    },
+    {
+      "prompt": "You are a data extraction engine. Extract the LinkedIn URL for {{decisionMaker.firstName}} {{decisionMaker.lastName}} from the search results.\nOutput Rules:\n1. Return ONLY the URL (starting with https://).\n2. If no valid personal profile is found, return an empty string.\n3. Do NOT return JSON, Markdown, quotes, or explanations.",
+      "output": {
+        "mode": "column",
+        "column": "linkedinUrl"
+      },
+      "plugins": [
+        {
+          "type": "web-search",
+          "query": "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company",
+          "limit": 5,
+          "selectPrompt": "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything."
+        }
+      ]
+    }
+  ]
+}

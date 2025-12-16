@@ -9,6 +9,9 @@
 #
 # The 'industry' column is preserved in the output CSV, so you can filter by industry.
 
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
 # 1. Find and dedupe companies
 echo "Running Step 1: Finding companies..."
 echo "Output: out/13-industry-search/companies.csv"

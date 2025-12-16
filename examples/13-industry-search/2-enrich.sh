@@ -5,6 +5,9 @@
 # It iterates over all CSV files found in out/13-industry-search/ that match
 # the pattern *companies*.csv or similar input files.
 
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
 # Find all CSV files in the output directory (excluding already enriched files)
 INPUT_DIR="out/13-industry-search"
 
@@ -36,8 +39,10 @@ for INPUT_FILE in "$INPUT_DIR"/*.csv; do
     echo "Output: $OUTPUT_FILE"
     echo "=========================================="
     
+    # Use JSON config with CLI overrides for dynamic data source and output
+    # Note: Since the config iteration requires dynamic data sources, we use CLI flags
+    # The config-enrich.json can be used as a template for single-file processing
     npx tsx src/index.ts generate "$INPUT_FILE" \
-      \
       "" \
       --limit 2 \
       --model "google/gemini-3-pro-preview" \
@@ -55,7 +60,7 @@ Output Rules:
 3. Do NOT return JSON, Markdown, quotes, or explanations." \
       --web-search-query-3 "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company" \
       --web-search-limit-3 5 \
-      --web-select-3-prompt "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything." \
+      --web-select-prompt-3 "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything." \
       --output-column-3 "linkedinUrl" \
       \
       --tmp-dir "out/13-industry-search/.tmp" \

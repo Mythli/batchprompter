@@ -4,28 +4,14 @@
 # It outputs a single CSV containing all companies: out/13-industry-search/companies.csv
 # The industry column is preserved so you can filter by industry.
 
-npx tsx src/index.ts generate examples/13-industry-search/test.csv \
-  \
-  "List all German cities with a population over 50,000 in a javascript array of objects (see schema). Be exhaustive. Leave no city that has 50k+ people in Germany out. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name)." \
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
+# Run using JSON config
+# Note: --expand-urls flags are preprocessors not supported in JSON config, passed as CLI overrides
+npx tsx src/index.ts generate --config examples/13-industry-search/config-find.json \
   --expand-urls-1 \
-  --expand-urls-mode-1 puppeteer \
-  --model "google/gemini-3-pro-preview" \
-  --json-schema-1 examples/13-industry-search/schemas/locations.json \
-  --explode-1 \
-  --export-1 \
-  \
-  "" \
-  --web-query-2-prompt "Generate 3 distinct search queries to find the official websites of companies offering {{industry}} in {{location}}. Focus on finding direct company websites only. Do not include directories, lists, or aggregators." \
-  --web-select-2-prompt "Select only the official websites of companies offering {{industry}}. Ignore directories, lists, aggregators, and job boards." \
-  --web-search-max-pages-2 5 \
-  --web-search-limit-2 100 \
-  --web-search-dedupe-strategy-2 domain \
-  --web-search-explode-2 \
-  --web-search-export-2 \
-  --web-search-gl-2 de \
-  --web-search-hl-2 de \
-  --dedupe-key-2 "{{webSearch.domain}}" \
-  --validate-schema-2 examples/13-industry-search/schemas/link-validation.json \
-  \
-  --tmp-dir "out/13-industry-search/.tmp" \
-  --data-output "out/13-industry-search/companies.csv"
+  --expand-urls-mode-1 puppeteer
+
+echo ""
+echo "Done! Results saved to out/13-industry-search/companies.csv"
