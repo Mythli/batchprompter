@@ -36,9 +36,10 @@ const SerperResponseSchema = z.object({
   ads: z.array(AdResultSchema).optional(),
 });
 
-export type WebSearchResult = z.infer<typeof OrganicResultSchema> & {
+export type WebSearchResult = (z.infer<typeof OrganicResultSchema> | z.infer<typeof AdResultSchema>) & {
     content?: string; // Populated if mode is markdown/html
     domain?: string;
+    type: 'sea' | 'seo';
 };
 
 export type WebSearchMode = 'none' | 'markdown' | 'html';
@@ -81,8 +82,16 @@ export class WebSearch {
 
         try {
             const parsed = SerperResponseSchema.parse(json);
-            const organic = parsed.organic || [];
-            const ads = parsed.ads || [];
+            
+            const organic = (parsed.organic || []).map(r => ({
+                ...r,
+                type: 'seo' as const
+            }));
+            
+            const ads = (parsed.ads || []).map(r => ({
+                ...r,
+                type: 'sea' as const
+            }));
             
             // Return ads first, then organic results
             return [...ads, ...organic];
