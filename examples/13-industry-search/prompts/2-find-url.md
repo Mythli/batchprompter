@@ -1,1 +1,0 @@
-Generate 3 distinct search queries to find the official websites of companies offering {{industry}} in {{location}}. Focus on finding direct company websites only. Do not include directories, lists, or aggregators.

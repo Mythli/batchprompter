@@ -15,7 +15,7 @@ npx tsx src/index.ts generate examples/13-industry-search/test.csv \
   --export-1 \
   \
   "" \
-  --web-query-2-prompt examples/13-industry-search/prompts/2-find-url.md \
+  --web-query-2-prompt "Generate 3 distinct search queries to find the official websites of companies offering {{industry}} in {{location}}. Focus on finding direct company websites only. Do not include directories, lists, or aggregators." \
   --web-select-2-prompt "Select only the official websites of companies offering {{industry}}. Ignore directories, lists, aggregators, and job boards." \
   --web-search-max-pages-2 5 \
   --web-search-limit-2 100 \
