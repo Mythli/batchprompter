@@ -10,7 +10,16 @@
   "steps": [
     {
       "prompt": "List all German cities with a population over 50,000 in a javascript array of objects (see schema). Be exhaustive. Leave no city that has 50k+ people in Germany out. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name).",
-      "schema": "examples/13-industry-search/schemas/locations.json",
+      "schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "location": { "type": "string" }
+          },
+          "required": ["location"]
+        }
+      },
       "output": {
         "mode": "merge",
         "explode": true
@@ -44,7 +53,13 @@
         },
         {
           "type": "validation",
-          "schema": "examples/13-industry-search/schemas/link-validation.json"
+          "schema": {
+            "type": "object",
+            "properties": {
+              "link": { "type": "string", "minLength": 1 }
+            },
+            "required": ["link"]
+          }
         }
       ]
     }
