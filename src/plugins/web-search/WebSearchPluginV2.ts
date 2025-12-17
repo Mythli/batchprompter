@@ -13,6 +13,7 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
+import { LlmListSelector } from '../../utils/LlmListSelector.js';
 
 // =============================================================================
 // Raw Config Schema (Single source of truth for defaults)
@@ -260,8 +261,11 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         const selectLlm = config.selectModel ? services.createLlm(config.selectModel) : undefined;
         const compressLlm = config.compressModel ? services.createLlm(config.compressModel) : undefined;
 
+        // Create Selector
+        const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;
+
         // Use AiWebSearch utility for Map-Reduce execution
-        const aiWebSearch = new AiWebSearch(webSearch, queryLlm, selectLlm, compressLlm);
+        const aiWebSearch = new AiWebSearch(webSearch, queryLlm, selector, compressLlm);
 
         const result = await aiWebSearch.process(row, {
             query: config.query,

@@ -9,7 +9,7 @@ export class AiImageSearch {
     constructor(
         private imageSearch: ImageSearch,
         private queryLlm?: BoundLlmClient,
-        private selectLlm?: BoundLlmClient,
+        private selector?: LlmListSelector,
         private imagesPerSprite: number = 4
     ) {}
 
@@ -44,9 +44,6 @@ export class AiImageSearch {
 
         if (queries.length === 0) return [];
 
-        // Initialize Selector if needed
-        const selector = this.selectLlm ? new LlmListSelector(this.selectLlm) : undefined;
-
         // 2. Scatter (Parallel Fetch)
         const tasks: { query: string; page: number }[] = [];
         for (const q of queries) {
@@ -63,8 +60,8 @@ export class AiImageSearch {
                 if (results.length === 0) return [];
 
                 // 3. Map (Local Selection)
-                if (selector) {
-                    return await this.selectFromPool(selector, results, results.length); // Select as many as good ones
+                if (this.selector) {
+                    return await this.selectFromPool(this.selector, results, results.length); // Select as many as good ones
                 }
                 return results;
             } catch (e) {
@@ -98,10 +95,10 @@ export class AiImageSearch {
         // 5. Reduce (Global Selection)
         let finalSelection = uniqueSurvivors;
 
-        if (selector && uniqueSurvivors.length > config.limit) {
+        if (this.selector && uniqueSurvivors.length > config.limit) {
             console.log(`[AiImageSearch] Reducing ${uniqueSurvivors.length} survivors to limit ${config.limit}...`);
             // Re-run selection on the combined pool
-            finalSelection = await this.selectFromPool(selector, uniqueSurvivors, config.limit);
+            finalSelection = await this.selectFromPool(this.selector, uniqueSurvivors, config.limit);
         } else if (uniqueSurvivors.length > config.limit) {
             finalSelection = uniqueSurvivors.slice(0, config.limit);
         }

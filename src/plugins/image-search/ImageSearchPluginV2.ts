@@ -16,6 +16,7 @@ import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
+import { LlmListSelector } from '../../utils/LlmListSelector.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -240,8 +241,11 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         const queryLlm = config.queryModel ? services.createLlm(config.queryModel) : undefined;
         const selectLlm = config.selectModel ? services.createLlm(config.selectModel) : undefined;
 
+        // Create Selector
+        const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;
+
         // Use AiImageSearch utility for Map-Reduce execution
-        const aiImageSearch = new AiImageSearch(imageSearch, queryLlm, selectLlm, config.spriteSize);
+        const aiImageSearch = new AiImageSearch(imageSearch, queryLlm, selector, config.spriteSize);
 
         const selectedImages = await aiImageSearch.process(row, {
             query: config.query,

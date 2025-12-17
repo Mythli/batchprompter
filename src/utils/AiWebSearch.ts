@@ -8,7 +8,7 @@ export class AiWebSearch {
     constructor(
         private webSearch: WebSearch,
         private queryLlm?: BoundLlmClient,
-        private selectLlm?: BoundLlmClient,
+        private selector?: LlmListSelector,
         private compressLlm?: BoundLlmClient
     ) {}
 
@@ -45,9 +45,6 @@ export class AiWebSearch {
 
         if (queries.length === 0) return { contentParts: [], data: [] };
 
-        // Initialize Selector if needed
-        const selector = this.selectLlm ? new LlmListSelector(this.selectLlm) : undefined;
-
         // 2. Scatter (Parallel Fetch & Local Select)
         const tasks: { query: string; page: number }[] = [];
         for (const q of queries) {
@@ -63,9 +60,9 @@ export class AiWebSearch {
                 const results = await this.webSearch.search(query, 10, page, config.gl, config.hl);
                 if (results.length === 0) return [];
 
-                if (selector) {
+                if (this.selector) {
                     // Local Selection (Map)
-                    return await selector.select(results, {
+                    return await this.selector.select(results, {
                         maxSelected: results.length, // Keep all good ones locally
                         formatContent: async (items) => {
                             const listText = items.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
@@ -114,10 +111,10 @@ export class AiWebSearch {
         // 4. Reduce (Global Selection)
         let finalSelection = uniqueSurvivors;
         
-        if (selector && uniqueSurvivors.length > config.limit) {
+        if (this.selector && uniqueSurvivors.length > config.limit) {
             console.log(`[AiWebSearch] Reducing ${uniqueSurvivors.length} survivors to limit ${config.limit}...`);
             
-            finalSelection = await selector.select(uniqueSurvivors, {
+            finalSelection = await this.selector.select(uniqueSurvivors, {
                 maxSelected: config.limit,
                 formatContent: async (items) => {
                     const listText = items.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
