@@ -92,10 +92,12 @@ export class ImageSearch {
         }
 
         // Download images immediately and filter out failures
-        const results = await Promise.all(images.map(async (img) => {
+        const results = await Promise.all(images.map(async (img, index) => {
             try {
                 const buffer = await this.download(img.imageUrl);
-                return { metadata: img, buffer };
+                // Calculate absolute position
+                const position = (page - 1) * num + (img.position || (index + 1));
+                return { metadata: { ...img, position }, buffer };
             } catch (e) {
                 // console.warn(`[ImageSearch] Failed to download ${img.imageUrl}:`, e);
                 return null;
