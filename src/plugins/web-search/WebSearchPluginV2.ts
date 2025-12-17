@@ -12,6 +12,7 @@ import { OutputConfigSchema, PromptDefSchema } from '../../config/schema.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
+import { AiWebSearch } from '../../utils/AiWebSearch.js';
 
 // =============================================================================
 // Raw Config Schema (Single source of truth for defaults)
@@ -254,145 +255,29 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             throw new Error('[WebSearch] WebSearch service not available');
         }
 
-        // Generate search queries
-        const queries: string[] = [];
+        // Create LLM clients
+        const queryLlm = config.queryModel ? services.createLlm(config.queryModel) : undefined;
+        const selectLlm = config.selectModel ? services.createLlm(config.selectModel) : undefined;
+        const compressLlm = config.compressModel ? services.createLlm(config.compressModel) : undefined;
 
-        if (config.query) {
-            queries.push(config.query);
-        }
+        // Use AiWebSearch utility for Map-Reduce execution
+        const aiWebSearch = new AiWebSearch(webSearch, queryLlm, selectLlm, compressLlm);
 
-        if (config.queryModel) {
-            console.log(`[WebSearch] Generating search queries...`);
-            const queryLlm = services.createLlm(config.queryModel);
-
-            const QuerySchema = z.object({
-                queries: z.array(z.string()).min(1).max(config.queryCount)
-            });
-
-            const response = await queryLlm.promptZod(QuerySchema);
-            queries.push(...response.queries);
-            console.log(`[WebSearch] Generated queries: ${response.queries.join(', ')}`);
-        }
-
-        if (queries.length === 0) {
-            return { packets: [] };
-        }
-
-        // Execute searches
-        const allResults: any[] = [];
-        const seenKeys = new Set<string>();
-
-        const getDedupeKey = (result: any): string | null => {
-            if (config.dedupeStrategy === 'domain') {
-                try {
-                    return new URL(result.link).hostname;
-                } catch {
-                    return result.link;
-                }
-            }
-            if (config.dedupeStrategy === 'url') {
-                return result.link;
-            }
-            return null;
-        };
-
-        for (const q of queries) {
-            if (allResults.length >= config.limit) break;
-
-            for (let page = 1; page <= config.maxPages; page++) {
-                if (allResults.length >= config.limit) break;
-
-                const results = await webSearch.search(q, 10, page, config.gl, config.hl);
-                if (results.length === 0) break;
-
-                let selectedResults = results;
-
-                // AI selection if configured
-                if (config.selectModel) {
-                    console.log(`[WebSearch] Selecting relevant results from page ${page}...`);
-                    const selectLlm = services.createLlm(config.selectModel);
-
-                    const listText = results.map((r, i) =>
-                        `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`
-                    ).join('\n\n');
-
-                    const SelectionSchema = z.object({
-                        selected_indices: z.array(z.number()),
-                        reasoning: z.string()
-                    });
-
-                    const response = await selectLlm.promptZod(
-                        {
-                            suffix: [{ type: 'text', text: `Search results:\n\n${listText}` }]
-                        },
-                        SelectionSchema
-                    );
-
-                    selectedResults = response.selected_indices
-                        .map(i => results[i])
-                        .filter(r => r !== undefined);
-                }
-
-                for (const result of selectedResults) {
-                    if (allResults.length >= config.limit) break;
-
-                    const key = getDedupeKey(result);
-                    if (key && seenKeys.has(key)) continue;
-                    if (key) seenKeys.add(key);
-
-                    // Fetch content if needed
-                    let content = result.snippet || '';
-                    if (config.mode !== 'none') {
-                        const rawContent = await webSearch.fetchContent(result.link, config.mode);
-                        content = rawContent || content;
-                    }
-
-                    // Compress if configured
-                    if (config.compressModel && content) {
-                        const compressLlm = services.createLlm(config.compressModel);
-                        const truncated = content.substring(0, 15000);
-                        content = await compressLlm.promptText({
-                            suffix: [{ type: 'text', text: `Title: ${result.title}\nLink: ${result.link}\n\nContent:\n${truncated}` }]
-                        });
-                    }
-
-                    let domain: string | undefined;
-                    try {
-                        domain = new URL(result.link).hostname;
-                    } catch {}
-
-                    allResults.push({
-                        ...result,
-                        content,
-                        domain,
-                        type: 'seo'
-                    });
-                }
-            }
-        }
-
-        if (allResults.length === 0) {
-            return {
-                packets: [{
-                    data: [],
-                    contentParts: [{ type: 'text', text: 'No results found.' }]
-                }]
-            };
-        }
-
-        // Build content parts
-        const contentText = allResults.map(r =>
-            `Source: ${r.title} (${r.link})\n${r.content || r.snippet || ''}`
-        ).join('\n\n');
-
-        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-            { type: 'text', text: `\n--- Web Search Results ---\n${contentText}\n--------------------------\n` }
-        ];
+        const result = await aiWebSearch.process(row, {
+            query: config.query,
+            limit: config.limit,
+            mode: config.mode,
+            queryCount: config.queryCount,
+            maxPages: config.maxPages,
+            dedupeStrategy: config.dedupeStrategy,
+            gl: config.gl,
+            hl: config.hl
+        });
 
         return {
             packets: [{
-                data: allResults,
-                contentParts
+                data: result.data,
+                contentParts: result.contentParts
             }]
         };
     }

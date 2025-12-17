@@ -3,7 +3,12 @@ import path from 'path';
 import { Parser, transforms } from 'json2csv';
 import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
-import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext } from './types.js';
+import { RuntimeConfig, StepConfig,**Implementing Parallel Execution**
+
+I'm now implementing the concurrency control in `ActionRunner.ts`, which involves `PQueue` instances for both plugin and model executions. These instances manage `activeItems` using `Promise.all` with a concurrency config. I'm focusing on the refactoring of `AiWebSearch.ts`, and `AiImageSearch.ts` to implement the Map-Reduce patterns.
+
+
+ PipelineItem, GlobalContext } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PromptResolver } from './utils/PromptResolver.js';
 import { SchemaHelper } from './utils/SchemaHelper.js';
@@ -119,7 +124,11 @@ export class ActionRunner {
                         continue;
                     }
 
-                    for (const currentItem of activeItems) {
+                    // Parallelize plugin execution for all active items
+                    // Use a local queue to respect task concurrency limits within this step explosion
+                    const pluginQueue = new PQueue({ concurrency: taskConcurrency });
+
+                    await Promise.all(activeItems.map(currentItem => pluginQueue.add(async () => {
                         try {
                             const pluginViewContext = {
                                 ...currentItem.row,
@@ -160,13 +169,17 @@ export class ActionRunner {
                             console.error(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' Failed:`, pluginError);
                             rowErrors.push({ index: item.originalIndex, error: pluginError });
                         }
-                    }
+                    })));
+
                     activeItems = nextItems;
                 }
 
                 const nextItemsForQueue: PipelineItem[] = [];
+                
+                // Parallelize Model Execution
+                const modelQueue = new PQueue({ concurrency: taskConcurrency });
 
-                for (const currentItem of activeItems) {
+                await Promise.all(activeItems.map(currentItem => modelQueue.add(async () => {
                     try {
                         const modelViewContext = {
                             ...currentItem.row,
@@ -248,7 +261,7 @@ export class ActionRunner {
                         console.error(`[Row ${item.originalIndex}] Step ${stepNum} Model Execution Failed:`, modelError.message);
                         rowErrors.push({ index: item.originalIndex, error: modelError });
                     }
-                }
+                })));
 
                 if (stepIndex === steps.length - 1) {
                     finalResults.push(...nextItemsForQueue.map(i => i.row));
