@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { WebSearch, WebSearchResult, WebSearchMode } from '../plugins/web-search/WebSearch.js';
+import { LlmListSelector } from './LlmListSelector.js';
 
 export class AiWebSearch {
     constructor(
@@ -44,6 +45,9 @@ export class AiWebSearch {
 
         if (queries.length === 0) return { contentParts: [], data: [] };
 
+        // Initialize Selector if needed
+        const selector = this.selectLlm ? new LlmListSelector(this.selectLlm) : undefined;
+
         // 2. Scatter (Parallel Fetch & Local Select)
         const tasks: { query: string; page: number }[] = [];
         for (const q of queries) {
@@ -59,27 +63,17 @@ export class AiWebSearch {
                 const results = await this.webSearch.search(query, 10, page, config.gl, config.hl);
                 if (results.length === 0) return [];
 
-                if (this.selectLlm) {
+                if (selector) {
                     // Local Selection (Map)
-                    const listText = results.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
-                    
-                    const SelectionSchema = z.object({
-                        selected_indices: z.array(z.number()).describe("Indices of the most relevant results"),
-                        reasoning: z.string()
+                    return await selector.select(results, {
+                        maxSelected: results.length, // Keep all good ones locally
+                        formatContent: async (items) => {
+                            const listText = items.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
+                            return [{ type: 'text', text: `Search results for "${query}" (Page ${page}):\n\n${listText}` }];
+                        },
+                        promptPreamble: "Select the indices of the most relevant results.",
+                        indexOffset: 0
                     });
-
-                    const resultsContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-                        { type: 'text', text: `Search results for "${query}" (Page ${page}):\n\n${listText}` }
-                    ];
-
-                    const response = await this.selectLlm.promptZod(
-                        { suffix: resultsContent },
-                        SelectionSchema
-                    );
-
-                    return response.selected_indices
-                        .map(i => results[i])
-                        .filter(r => r !== undefined);
                 }
 
                 return results;
@@ -120,28 +114,18 @@ export class AiWebSearch {
         // 4. Reduce (Global Selection)
         let finalSelection = uniqueSurvivors;
         
-        if (this.selectLlm && uniqueSurvivors.length > config.limit) {
+        if (selector && uniqueSurvivors.length > config.limit) {
             console.log(`[AiWebSearch] Reducing ${uniqueSurvivors.length} survivors to limit ${config.limit}...`);
             
-            const listText = uniqueSurvivors.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
-            
-            const SelectionSchema = z.object({
-                selected_indices: z.array(z.number()).max(config.limit).describe(`Indices of the top ${config.limit} most relevant results`),
-                reasoning: z.string()
+            finalSelection = await selector.select(uniqueSurvivors, {
+                maxSelected: config.limit,
+                formatContent: async (items) => {
+                    const listText = items.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
+                    return [{ type: 'text', text: `Combined search results:\n\n${listText}` }];
+                },
+                promptPreamble: `Select the indices of the top ${config.limit} most relevant results.`,
+                indexOffset: 0
             });
-
-            const resultsContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-                { type: 'text', text: `Combined search results:\n\n${listText}` }
-            ];
-
-            const response = await this.selectLlm.promptZod(
-                { suffix: resultsContent },
-                SelectionSchema
-            );
-
-            finalSelection = response.selected_indices
-                .map(i => uniqueSurvivors[i])
-                .filter(r => r !== undefined);
         } else if (uniqueSurvivors.length > config.limit) {
             // Simple slice if no LLM selection configured but limit exceeded
             finalSelection = uniqueSurvivors.slice(0, config.limit);
