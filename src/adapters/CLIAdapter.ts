@@ -219,6 +219,7 @@ export class CLIAdapter {
                 thinkingLevel: getOpt('thinkingLevel')
             },
             plugins,
+            preprocessors: [],
             output,
             schema: getOpt('jsonSchema') || getOpt('schema'),
             candidates: getOpt('candidates') ?? 1,
