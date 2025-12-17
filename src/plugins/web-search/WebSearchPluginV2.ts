@@ -5,7 +5,8 @@ import {
     Plugin,
     PluginExecutionContext,
     PluginResult,
-    CLIOptionDefinition
+    CLIOptionDefinition,
+    PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/schema.js';
@@ -278,11 +279,27 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             hl: config.hl
         });
 
-        return {
-            packets: [{
-                data: result.data,
-                contentParts: result.contentParts
-            }]
-        };
+        // Convert results into individual packets.
+        // This allows the ResultProcessor to handle 'explode' correctly (one packet = one row),
+        // and also produces a cleaner array of objects in 'merge' mode (instead of array-of-arrays).
+        const packets: PluginPacket[] = result.data.map(item => {
+            const text = `Source: ${item.title} (${item.link})\nContent:\n${item.content}`;
+            return {
+                data: item,
+                contentParts: [{ type: 'text', text }]
+            };
+        });
+
+        // If no results, return the original "No results" message from AiWebSearch
+        if (packets.length === 0) {
+            return {
+                packets: [{
+                    data: {},
+                    contentParts: result.contentParts
+                }]
+            };
+        }
+
+        return { packets };
     }
 }
