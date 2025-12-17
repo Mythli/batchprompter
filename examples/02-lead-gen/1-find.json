@@ -1,0 +1,67 @@
+{
+  "data": {
+    "source": "examples/13-industry-search/test.csv"
+  },
+  "globals": {
+    "model": "google/gemini-3-pro-preview",
+    "tmpDir": "out/13-industry-search/.tmp",
+    "outputPath": "out/13-industry-search/companies.csv"
+  },
+  "steps": [
+    {
+      "prompt": "List all German cities with a population over 50,000 in a javascript array of objects (see schema). Be exhaustive. Leave no city that has 50k+ people in Germany out. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name).",
+      "schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "location": { "type": "string" }
+          },
+          "required": ["location"]
+        }
+      },
+      "output": {
+        "mode": "merge",
+        "explode": true
+      },
+      "preprocessors": [
+        {
+          "type": "url-expander",
+          "mode": "puppeteer"
+        }
+      ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "web-search",
+          "queryPrompt": "Generate 3 distinct search queries to find the official websites of companies offering {{industry}} in {{location}}. Focus on finding direct company websites only. Do not include directories, lists, or aggregators.",
+          "selectPrompt": "Select only the official websites of companies offering {{industry}}. Ignore directories, lists, aggregators, and job boards.",
+          "maxPages": 5,
+          "limit": 100,
+          "dedupeStrategy": "domain",
+          "gl": "de",
+          "hl": "de",
+          "output": {
+            "mode": "merge",
+            "explode": true
+          }
+        },
+        {
+          "type": "dedupe",
+          "key": "{{webSearch.domain}}"
+        },
+        {
+          "type": "validation",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "link": { "type": "string", "minLength": 1 }
+            },
+            "required": ["link"]
+          }
+        }
+      ]
+    }
+  ]
+}
