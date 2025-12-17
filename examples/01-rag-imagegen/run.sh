@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo -e "industries\nSailing school" | npx tsx src/index.ts generate \
+echo -e "industry\nSailing school" | npx tsx src/index.ts generate \
   --prompt "**Change the provided image based on the specific requirements listed below:**
 
 **General Instructions:**
@@ -20,7 +20,8 @@ echo -e "industries\nSailing school" | npx tsx src/index.ts generate \
 - **Render their physiques as petite and slender, characterized by a delicate frame, narrow waist, and toned limbs.**
 - **Change clothing completely. Ensure their attire is form-fitting or flattering their figure while remaining consistent with the {{industry}} environment.**
 - **Depict a curvaceous, full bust proportion (C-D cup) that is prominent yet balances their slender frame.**" \
-  --output "batchprompt/out/{{industry}}/HeroImage.jpg" \
+  --output "out/{{industry}}/HeroImage.jpg" \
+  --tmp-dir "out/{{industry}}/.tmp/HeroImage.jpg"	\
   --aspect-ratio "3:2" \
   --model "google/gemini-3-pro-image-preview" \
   --image-query-model "google/gemini-3-pro-preview" \
