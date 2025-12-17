@@ -131,15 +131,14 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     }
 
     // Setup Fetcher (Global)
-    const cachingFetcher = createCachedFetcher({
+    const fetcher = createCachedFetcher({
         cache,
+        fetch: createLoggingFetcher(),
         prefix: 'fetch',
         ttl: 24 * 60 * 60 * 1000,
         timeout: 30000,
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     });
-
-    const fetcher = createLoggingFetcher(cachingFetcher);
 
     // Setup OpenAI Client
     const openai = new OpenAI({

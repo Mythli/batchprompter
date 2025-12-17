@@ -45,6 +45,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
     "handlebars": "^4.7.8",
+    "json-schema-traverse": "^1.0.0",
     "json2csv": "6.0.0-alpha.2",
     "keyv": "^5.5.4",
     "llm-fns": "^1.0.19",
@@ -56,6 +57,7 @@
     "tsx": "^4.20.6",
     "turndown": "^7.2.2",
     "undici": "^7.16.0",
+    "yaml": "^2.8.2",
     "zod": "^4.1.13"
   },
   "pnpm": {
