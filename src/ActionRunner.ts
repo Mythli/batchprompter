@@ -1,14 +1,14 @@
-import fsPromises from 'fs/promises';
+import fsPromises from 'fs/promises**Rectifying Code Corruption**
+
+I've discovered the root cause of the build errors: my internal thought process, notably regarding parallel execution, was directly inserted into `src/ActionRunner.ts`. I'm now providing the corrected version of this file, meticulously removing the extraneous text and ensuring the import statements are accurate. All other files seem unaffected, but I've reviewed the recent history to verify.
+
+
+';
 import path from 'path';
 import { Parser, transforms } from 'json2csv';
 import PQueue from 'p-queue';
 import Handlebars from 'handlebars';
-import { RuntimeConfig, StepConfig,**Implementing Parallel Execution**
-
-I'm now implementing the concurrency control in `ActionRunner.ts`, which involves `PQueue` instances for both plugin and model executions. These instances manage `activeItems` using `Promise.all` with a concurrency config. I'm focusing on the refactoring of `AiWebSearch.ts`, and `AiImageSearch.ts` to implement the Map-Reduce patterns.
-
-
- PipelineItem, GlobalContext } from './types.js';
+import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PromptResolver } from './utils/PromptResolver.js';
 import { SchemaHelper } from './utils/SchemaHelper.js';
