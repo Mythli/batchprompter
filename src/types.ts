@@ -68,7 +68,7 @@ export interface StepDefinition {
 }
 
 export interface NormalizedConfig {
-    dataFilePath: string;
+    dataFilePath?: string;
     global: {
         concurrency: number;
         taskConcurrency: number;
@@ -128,7 +128,7 @@ export interface RuntimeConfig {
     concurrency: number;
     taskConcurrency: number;
     tmpDir: string;
-    dataFilePath: string;
+    dataFilePath?: string;
     dataOutputPath?: string;
     steps: StepConfig[];
     data: Record<string, any>[];
