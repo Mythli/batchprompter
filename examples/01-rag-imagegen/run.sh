@@ -1,9 +1,6 @@
 #!/bin/bash
 
-# Navigate to the project root directory
-cd "$(dirname "$0")/../.."
-
-cat examples/02-lead-gen/test.csv | npx tsx src/index.ts generate \
+echo "industries\nSailing school" | npx tsx src/index.ts generate \
   --prompt "**Change the provided image based on the specific requirements listed below:**
 
 **General Instructions:**
