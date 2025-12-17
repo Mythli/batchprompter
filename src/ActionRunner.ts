@@ -358,12 +358,16 @@ export class ActionRunner {
             resolvedStep.outputExtension = stepConfig.aspectRatio ? '.png' : '.txt';
         }
 
+        // Resolve globalTmpDir template
+        const tmpDirDelegate = Handlebars.compile(globalTmpDir, { noEscape: true });
+        const resolvedGlobalTmpDir = tmpDirDelegate(sanitizedRow);
+
         if (resolvedStep.resolvedOutputDir) {
-            resolvedStep.resolvedTempDir = path.join(globalTmpDir, resolvedStep.resolvedOutputDir);
+            resolvedStep.resolvedTempDir = path.join(resolvedGlobalTmpDir, resolvedStep.resolvedOutputDir);
         } else {
             const rowStr = String(rowIndex).padStart(3, '0');
             const stepStr = String(stepIndex).padStart(2, '0');
-            resolvedStep.resolvedTempDir = path.join(globalTmpDir, `${rowStr}_${stepStr}`);
+            resolvedStep.resolvedTempDir = path.join(resolvedGlobalTmpDir, `${rowStr}_${stepStr}`);
         }
         await ensureDir(resolvedStep.resolvedTempDir);
 
