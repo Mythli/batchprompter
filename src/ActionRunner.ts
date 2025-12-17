@@ -1,9 +1,4 @@
-import fsPromises from 'fs/promises**Rectifying Code Corruption**
-
-I've discovered the root cause of the build errors: my internal thought process, notably regarding parallel execution, was directly inserted into `src/ActionRunner.ts`. I'm now providing the corrected version of this file, meticulously removing the extraneous text and ensuring the import statements are accurate. All other files seem unaffected, but I've reviewed the recent history to verify.
-
-
-';
+import fsPromises from 'fs/promises';
 import path from 'path';
 import { Parser, transforms } from 'json2csv';
 import PQueue from 'p-queue';
