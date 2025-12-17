@@ -159,30 +159,6 @@ export class PuppeteerPageHelper {
     }
 
     /**
-     * Disables "HTML-only" mode, allowing all resources to be loaded by the page.
-     * This is necessary before attempting to fetch resources like images.
-     */
-    public async disableHtmlMode(): Promise<void> {
-        if (!this.isInterceptionEnabled) {
-            return; // Already disabled
-        }
-        // Only attempt to disable interception if the page is still open.
-        if (!this.page.isClosed()) {
-            try {
-                await this.page.setRequestInterception(false);
-                this.page.off('request', this.requestHandler);
-            } catch (error: any) {
-                // This can happen if the page crashes or navigates away during an operation,
-                // which might implicitly disable interception. We can safely ignore this error.
-                console.warn(`Could not disable request interception, possibly due to page state change: ${error.message}`);
-            }
-        }
-        // Always reset our internal flag to reflect the intended state.
-        this.isInterceptionEnabled = false;
-        console.log('HTML-only mode disabled. Allowing all resources.');
-    }
-
-    /**
      * Prepares the page for scraping by enabling the ad blocker and setting user agent.
      * This is now called automatically when a helper is created via PuppeteerHelper.
      */
@@ -230,10 +206,16 @@ export class PuppeteerPageHelper {
     async navigateToUrlAndGetHtml(url: string, options: PageNavigationOptions = {}): Promise<string> {
         const response = await this.navigateToUrl(url, options);
         if (!response) {
-            throw new Error(`Failed to get a response from ${url}`);
+            console.warn(`[PuppeteerPageHelper] Navigation to ${url} did not return a response (likely timeout). Returning current page content.`);
+            return this.page.content();
         }
-        const originalHtml = await response.text();
-        return originalHtml;
+        try {
+            const originalHtml = await response.text();
+            return originalHtml;
+        } catch (e) {
+            console.warn(`[PuppeteerPageHelper] Could not get text from response. Returning current page content.`);
+            return this.page.content();
+        }
     }
 
     async navigateToUrl(url: string, options: PageNavigationOptions = {}) {
@@ -264,13 +246,10 @@ export class PuppeteerPageHelper {
         }
         catch(error: any) {
             if(error.name === 'TimeoutError') {
-                console.error(error);
+                console.warn(`[PuppeteerPageHelper] Navigation timeout for ${url}: ${error.message}`);
+                return null;
             } else {
                 throw error;
-            }
-        } finally {
-            if (htmlOnly) {
-                await this.disableHtmlMode();
             }
         }
     }
