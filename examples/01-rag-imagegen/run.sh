@@ -21,7 +21,6 @@ echo -e "industry\nSailing school" | npx tsx src/index.ts generate \
 - **Change clothing completely. Ensure their attire is form-fitting or flattering their figure while remaining consistent with the {{industry}} environment.**
 - **Depict a curvaceous, full bust proportion (C-D cup) that is prominent yet balances their slender frame.**" \
   --output "out/{{industry}}/HeroImage.jpg" \
-  --tmp-dir "out/{{industry}}/.tmp/HeroImage.jpg"	\
   --aspect-ratio "3:2" \
   --model "google/gemini-3-pro-image-preview" \
   --image-query-model "google/gemini-3-pro-preview" \
