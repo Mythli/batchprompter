@@ -88,13 +88,24 @@ export class AiWebSearch {
         const getDedupeKey = (result: WebSearchResult): string | null => {
             if (config.dedupeStrategy === 'domain') {
                 try {
-                    return new URL(result.link).hostname;
+                    const hostname = new URL(result.link).hostname;
+                    // Normalize: remove www. and lowercase
+                    return hostname.replace(/^www\./, '').toLowerCase();
                 } catch (e) {
                     return result.link;
                 }
             }
             if (config.dedupeStrategy === 'url') {
-                return result.link;
+                try {
+                    const url = new URL(result.link);
+                    // Normalize: ignore protocol, ignore www, ignore trailing slash
+                    const host = url.hostname.replace(/^www\./, '').toLowerCase();
+                    const path = url.pathname.replace(/\/$/, '');
+                    const search = url.search; // Keep query params
+                    return `${host}${path}${search}`;
+                } catch (e) {
+                    return result.link;
+                }
             }
             return null;
         };
