@@ -159,30 +159,6 @@ export class PuppeteerPageHelper {
     }
 
     /**
-     * Disables "HTML-only" mode, allowing all resources to be loaded by the page.
-     * This is necessary before attempting to fetch resources like images.
-     */
-    public async disableHtmlMode(): Promise<void> {
-        if (!this.isInterceptionEnabled) {
-            return; // Already disabled
-        }
-        // Only attempt to disable interception if the page is still open.
-        if (!this.page.isClosed()) {
-            try {
-                await this.page.setRequestInterception(false);
-                this.page.off('request', this.requestHandler);
-            } catch (error: any) {
-                // This can happen if the page crashes or navigates away during an operation,
-                // which might implicitly disable interception. We can safely ignore this error.
-                console.warn(`Could not disable request interception, possibly due to page state change: ${error.message}`);
-            }
-        }
-        // Always reset our internal flag to reflect the intended state.
-        this.isInterceptionEnabled = false;
-        console.log('HTML-only mode disabled. Allowing all resources.');
-    }
-
-    /**
      * Prepares the page for scraping by enabling the ad blocker and setting user agent.
      * This is now called automatically when a helper is created via PuppeteerHelper.
      */
@@ -267,10 +243,6 @@ export class PuppeteerPageHelper {
                 console.error(error);
             } else {
                 throw error;
-            }
-        } finally {
-            if (htmlOnly) {
-                await this.disableHtmlMode();
             }
         }
     }
