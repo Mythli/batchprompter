@@ -14,7 +14,7 @@ export class StepRegistry {
         program.option('--config <file>', 'Path to YAML/JSON config file');
 
         // --- Global Level ---
-        ModelFlags.register(program, '', { includeSystem: true }); // Main Model
+        ModelFlags.register(program, '', { includeSystem: true, includePrompt: true }); // Main Model
         ModelFlags.register(program, 'judge', { includePrompt: true }); // Global Judge
         ModelFlags.register(program, 'feedback', { includePrompt: true }); // Global Feedback
 
@@ -39,7 +39,7 @@ export class StepRegistry {
 
         // --- Step Level (1-10) ---
         for (let i = 1; i <= 10; i++) {
-            ModelFlags.register(program, `${i}`, { includeSystem: true });
+            ModelFlags.register(program, `${i}`, { includeSystem: true, includePrompt: true });
             ModelFlags.register(program, `judge-${i}`, { includePrompt: true });
             ModelFlags.register(program, `feedback-${i}`, { includePrompt: true });
 
