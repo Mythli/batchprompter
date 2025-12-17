@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo "industries\nSailing school" | npx tsx src/index.ts generate \
+echo -e "industries\nSailing school" | npx tsx src/index.ts generate \
   --prompt "**Change the provided image based on the specific requirements listed below:**
 
 **General Instructions:**
