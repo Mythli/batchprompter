@@ -1,7 +1,6 @@
 // 
 import { Command } from 'commander';
 import 'dotenv/config';
-import fsPromises from 'fs/promises';
 import { StepRegistry } from './cli/StepRegistry.js';
 import { createDefaultRegistry, getConfig } from './getConfig.js';
 import { ServiceCapabilities } from './types.js';
@@ -14,8 +13,7 @@ program
     .description('Generate images and text from CSV or JSON data using AI');
 
 const generateCmd = program.command('generate')
-    .description('Generate content (text and/or images) from data file')
-    .argument('[data-file]', 'Path to the CSV or JSON file')
+    .description('Generate content (text and/or images) from data piped via stdin')
     .argument('[template-files...]', 'Path to the prompt template files (text, image, audio, or directory)');
 
 // Create a registry for CLI configuration purposes only
@@ -30,11 +28,11 @@ const cliRegistry = createDefaultRegistry(cliCapabilities);
 // Register all step arguments
 StepRegistry.registerStepArgs(generateCmd, cliRegistry);
 
-generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
+generateCmd.action(async (templateFilePaths, options) => {
     let puppeteerHelperInstance;
     try {
         // Get the runner from DI first to get actual capabilities
-        const { actionRunner, puppeteerHelper, config: resolvedConfig, capabilities, pluginRegistry } = await getConfig();
+        const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry } = await getConfig();
         puppeteerHelperInstance = puppeteerHelper;
 
         let config;
@@ -50,13 +48,17 @@ generateCmd.action(async (dataFilePath, templateFilePaths, options) => {
             // Merge CLI overrides (CLI takes precedence over config file)
             const mergedOptions = { ...transformed.options, ...options };
             
-            config = await StepRegistry.parseConfig(mergedOptions, transformed.args, pluginRegistry);
+            // For config file, we assume templates might be in the file or passed as args
+            // If passed as args, they override/append? 
+            // Current logic: args passed to parseConfig are treated as prompts.
+            // If yaml has prompts, they are in transformed.args.
+            // We concatenate them.
+            const combinedArgs = [...transformed.args, ...templateFilePaths];
+            
+            config = await StepRegistry.parseConfig(mergedOptions, combinedArgs, pluginRegistry);
         } else {
             // Original CLI-only flow
-            if (!dataFilePath) {
-                throw new Error('Data file path is required when not using --config');
-            }
-            config = await StepRegistry.parseConfig(options, [dataFilePath, ...templateFilePaths], pluginRegistry);
+            config = await StepRegistry.parseConfig(options, templateFilePaths, pluginRegistry);
         }
 
         // Update the runtime config with the resolved concurrency values if they weren't in CLI args
@@ -95,11 +97,6 @@ function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, ar
     const options: Record<string, any> = {};
     const args: string[] = [];
     
-    // Data source is the first positional arg
-    if (yamlConfig.data?.source) {
-        args.push(yamlConfig.data.source);
-    }
-    
     // Data options
     if (yamlConfig.data?.offset !== undefined) options.offset = yamlConfig.data.offset;
     if (yamlConfig.data?.limit !== undefined) options.limit = yamlConfig.data.limit;
@@ -122,9 +119,10 @@ function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, ar
             const stepNum = stepIdx + 1;
             
             // Step-level prompt becomes positional arg
+            // In the new system, args[0] is step 1 prompt, args[1] is step 2 prompt, etc.
             if (step.prompt) {
-                while (args.length < stepNum) args.push('');
-                args[stepNum] = typeof step.prompt === 'string' ? step.prompt : '';
+                while (args.length < stepIdx) args.push('');
+                args[stepIdx] = typeof step.prompt === 'string' ? step.prompt : '';
             }
             
             // Step-level system prompt

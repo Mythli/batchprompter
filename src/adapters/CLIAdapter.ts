@@ -95,13 +95,11 @@ export class CLIAdapter {
      * Parse CLI options and positional arguments into PipelineConfig
      */
     parse(options: Record<string, any>, args: string[]): PipelineConfig {
-        const dataFilePath = args[0];
-        if (!dataFilePath) {
-            throw new Error('Data file path is required');
-        }
-
+        // args contains only prompt templates now.
+        // args[0] is prompt for step 1.
+        
         // Determine max step from args and options
-        let maxStep = Math.max(1, args.length - 1);
+        let maxStep = Math.max(1, args.length);
         Object.keys(options).forEach(key => {
             const match = key.match(/(\d+)(?:[A-Z]|$)/);
             if (match) {
@@ -131,7 +129,6 @@ export class CLIAdapter {
 
         return {
             data: {
-                source: dataFilePath,
                 format: 'auto',
                 offset: options.offset,
                 limit: options.limit
@@ -149,7 +146,8 @@ export class CLIAdapter {
         };
 
         // Get prompt from positional arg or flag
-        const positionalPrompt = args[stepIndex];
+        // args[0] corresponds to step 1
+        const positionalPrompt = args[stepIndex - 1];
         const flagPrompt = getOpt('prompt');
         let prompt: string | undefined;
 

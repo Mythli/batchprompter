@@ -96,7 +96,6 @@ export const StepConfigSchema = z.object({
  * Data configuration
  */
 export const DataConfigSchema = z.object({
-    source: z.string(),
     format: z.enum(['csv', 'json', 'auto']).default('auto'),
     offset: z.number().int().min(0).optional(),
     limit: z.number().int().positive().optional()

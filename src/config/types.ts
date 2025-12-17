@@ -77,7 +77,6 @@ export interface ResolvedStepConfig {
 export interface ResolvedPipelineConfig {
     data: {
         rows: Record<string, any>[];
-        sourcePath: string;
         offset: number;
         limit?: number;
     };
@@ -110,4 +109,29 @@ export interface PipelineItem {
 export interface ServiceCapabilities {
     hasSerper: boolean;
     hasPuppeteer: boolean;
+}
+
+export interface NormalizedConfig {
+    global: {
+        concurrency: number;
+        taskConcurrency: number;
+        tmpDir: string;
+        dataOutputPath?: string;
+        model?: string;
+        offset?: number;
+        limit?: number;
+    };
+    steps: import('../types.js').StepDefinition[];
+}
+
+export interface RuntimeConfig {
+    concurrency: number;
+    taskConcurrency: number;
+    tmpDir: string;
+    dataOutputPath?: string;
+    steps: import('../types.js').StepConfig[];
+    data: Record<string, any>[];
+    options?: Record<string, any>;
+    offset?: number;
+    limit?: number;
 }

@@ -93,11 +93,12 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     args: z.array(z.string())
 }).transform((input): NormalizedConfig => {
     const { options, args } = input;
-    const dataFilePath = args[0];
-    if (!dataFilePath) throw new Error("Data file path is required.");
-
+    
     // Determine Max Step
-    let maxStep = Math.max(1, args.length - 1); // At least 1 step
+    // args contains only prompt templates now.
+    // args[0] is prompt for step 1.
+    // args[1] is prompt for step 2.
+    let maxStep = Math.max(1, args.length); 
     
     // Scan options for step indicators to expand maxStep if needed
     Object.keys(options).forEach(key => {
@@ -139,7 +140,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         const mainModel = modelFlags.extract(options, `${i}`, '');
         
         // 2. Prompt Merging
-        const posArg = args[i]; // args[0] is data
+        // args[0] corresponds to step 1
+        const posArg = args[i - 1]; 
         let promptSource = mainModel?.promptSource;
         
         if (posArg) {
@@ -245,7 +247,6 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     }
 
     return {
-        dataFilePath,
         global: globalConfig,
         steps
     };

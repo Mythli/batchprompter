@@ -30,14 +30,14 @@ export class ActionRunner {
     ) {}
 
     async run(config: RuntimeConfig) {
-        const { concurrency, taskConcurrency, data, steps, dataFilePath, dataOutputPath, tmpDir, offset = 0, limit } = config;
+        const { concurrency, taskConcurrency, data, steps, dataOutputPath, tmpDir, offset = 0, limit } = config;
 
         console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
         
         const endIndex = limit ? offset + limit : undefined;
         const dataToProcess = data.slice(offset, endIndex);
         
-        console.log(`Found ${data.length} rows in file.`);
+        console.log(`Found ${data.length} rows in input.`);
         if (offset > 0 || limit) {
             console.log(`Processing subset: Rows ${offset} to ${endIndex ? endIndex - 1 : data.length - 1} (${dataToProcess.length} total).`);
         } else {
@@ -296,14 +296,15 @@ export class ActionRunner {
             }
 
         } finally {
-            const ext = path.extname(dataFilePath);
-            
             let finalOutputPath: string;
+            let isJson = false;
+
             if (dataOutputPath) {
                 finalOutputPath = dataOutputPath;
+                isJson = dataOutputPath.toLowerCase().endsWith('.json');
             } else {
-                const basename = path.basename(dataFilePath, ext);
-                finalOutputPath = path.join(path.dirname(dataFilePath), `${basename}_processed${ext}`);
+                // Default to output.csv in current directory
+                finalOutputPath = path.join(process.cwd(), 'output.csv');
             }
 
             const validResults = finalResults.filter(r => r !== undefined && r !== null);
@@ -313,7 +314,7 @@ export class ActionRunner {
                 return;
             }
 
-            if (ext === '.json') {
+            if (isJson) {
                 await fsPromises.writeFile(finalOutputPath, JSON.stringify(validResults, null, 2));
             } else {
                 try {

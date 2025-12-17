@@ -1,27 +1,46 @@
-// 
-import fs from 'fs';
-import fsPromises from 'fs/promises';
-import path from 'path';
 import csv from 'csv-parser';
+import { Readable } from 'stream';
 
-export async function loadData(filePath: string): Promise<Record<string, any>[]> {
-    const ext = path.extname(filePath).toLowerCase();
-    if (ext === '.json') {
-        const content = await fsPromises.readFile(filePath, 'utf-8');
-        const data = JSON.parse(content);
-        if (!Array.isArray(data)) {
-            throw new Error('JSON file must contain an array of objects.');
-        }
-        return data;
-    } else {
-        const rows: Record<string, string>[] = [];
-        await new Promise<void>((resolve, reject) => {
-            fs.createReadStream(filePath)
-                .pipe(csv())
-                .on('data', (data) => rows.push(data))
-                .on('end', () => resolve())
-                .on('error', (err) => reject(err));
-        });
-        return rows;
+export async function loadData(): Promise<Record<string, any>[]> {
+    if (process.stdin.isTTY) {
+        // No data piped
+        return [];
     }
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) {
+        chunks.push(Buffer.from(chunk));
+    }
+    const buffer = Buffer.concat(chunks);
+    const content = buffer.toString('utf-8').trim();
+
+    if (!content) {
+        return [];
+    }
+
+    // Simple heuristic for JSON
+    if (content.startsWith('[') || content.startsWith('{')) {
+        try {
+            const data = JSON.parse(content);
+            if (Array.isArray(data)) {
+                return data;
+            } else if (typeof data === 'object' && data !== null) {
+                return [data];
+            }
+        } catch (e) {
+            // Fall through to CSV if JSON parse fails
+        }
+    }
+
+    // CSV parsing
+    const rows: Record<string, string>[] = [];
+    const stream = Readable.from(buffer);
+    
+    return new Promise((resolve, reject) => {
+        stream
+            .pipe(csv())
+            .on('data', (data) => rows.push(data))
+            .on('end', () => resolve(rows))
+            .on('error', (err) => reject(err));
+    });
 }

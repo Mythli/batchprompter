@@ -69,8 +69,8 @@ export class StepRegistry {
         // 1.  Normalize via Zod Schema
         const normalized = createConfigSchema(registry).parse({ options, args: positionalArgs });
 
-        // 2. Load Data
-        const data = await loadData(normalized.dataFilePath);
+        // 2. Load Data (from stdin)
+        const data = await loadData();
 
         // 3. Resolve Steps (Async Content Loading)
         const steps: StepConfig[] = [];
@@ -150,7 +150,6 @@ export class StepRegistry {
             concurrency: normalized.global.concurrency,
             taskConcurrency: normalized.global.taskConcurrency,
             tmpDir: normalized.global.tmpDir,
-            dataFilePath: normalized.dataFilePath,
             dataOutputPath: normalized.global.dataOutputPath,
             steps,
             data,

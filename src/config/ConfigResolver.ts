@@ -36,8 +36,8 @@ export class ConfigResolver {
         // 2. Validate plugin capabilities
         this.deps.pluginRegistry.validateCapabilities(config.steps, this.deps.capabilities);
 
-        // 3. Load data
-        const allRows = await loadData(config.data.source);
+        // 3. Load data (from stdin)
+        const allRows = await loadData();
         const offset = config.data.offset ?? 0;
         const limit = config.data.limit;
         const rows = limit ? allRows.slice(offset, offset + limit) : allRows.slice(offset);
@@ -57,7 +57,6 @@ export class ConfigResolver {
         return {
             data: {
                 rows,
-                sourcePath: config.data.source,
                 offset,
                 limit
             },
