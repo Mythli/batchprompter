@@ -1,6 +1,5 @@
 {
   "data": {
-    "source": "examples/14-grank/data.csv",
     "limit": 10
   },
   "globals": {

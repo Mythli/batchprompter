@@ -1,6 +1,5 @@
 {
   "data": {
-    "source": "out/13-industry-search/companies.csv",
     "limit": 2
   },
   "globals": {

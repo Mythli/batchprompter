@@ -15,13 +15,13 @@ cd "$(dirname "$0")/../.."
 # 1. Find and dedupe companies
 echo "Running Step 1: Finding companies..."
 echo "Output: out/13-industry-search/companies.csv"
-bash examples/13-industry-search/1-find.sh
+bash examples/02-lead-gen/1-find.sh
 
 # 2. Enrich with contact info, LinkedIn, and offers
 echo ""
 echo "Running Step 2: Enriching data..."
 echo "Output: out/13-industry-search/enriched.csv"
-bash examples/13-industry-search/2-enrich.sh
+bash examples/02-lead-gen/2-enrich.sh
 
 echo ""
 echo "Done! Results saved to out/13-industry-search/"

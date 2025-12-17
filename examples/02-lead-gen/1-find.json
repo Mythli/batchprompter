@@ -1,7 +1,4 @@
 {
-  "data": {
-    "source": "examples/13-industry-search/test.csv"
-  },
   "globals": {
     "model": "google/gemini-3-pro-preview",
     "tmpDir": "out/13-industry-search/.tmp",

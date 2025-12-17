@@ -8,4 +8,4 @@
 cd "$(dirname "$0")/../.."
 
 # Run using JSON config
-npx tsx src/index.ts generate --config examples/13-industry-search/1-find.json
+cat examples/02-lead-gen/test.csv | npx tsx src/index.ts generate --config examples/02-lead-gen/1-find.json
