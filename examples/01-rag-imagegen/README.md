@@ -17,18 +17,20 @@ Generate a photorealistic "Hero Image" for a specific industry (e.g., "Sailing S
 
 ## 🛠️ The Command Explained
 
-The logic is defined entirely via CLI flags in `run.sh`. Here is what they do:
+The logic is defined entirely via CLI flags in `run.sh`. Here is a breakdown of the flags used:
 
 ### 1. Search & Retrieval (RAG)
 These flags control how we find the reference image.
 
-*   `--image-query-prompt "..."`: Instructions for the AI to generate search keywords (e.g., "Girl sandbox" instead of just "Kindergarten").
-*   `--image-search-query-count 5`: We generate 5 distinct search queries to cast a wide net.
-*   `--image-search-max-pages 1`: We fetch the first page of results for each query.
-*   `--image-select-prompt "..."`: **The Judge.** This prompt contains a scoring table (e.g., "+5 points if core activity visible"). The AI uses this to look at the search results and pick the single best image.
-*   `--image-search-sprite-size 6`: To save tokens, we stitch 6 images into one "sprite" sheet before sending them to the Vision Model for selection.
-*   `--image-search-select 6`: We keep the top 6 images (though usually, we just want the best one for the next step).
-*   `--image-search-explode`: **Crucial.** This turns the selected images into separate processing tasks. If 1 image is selected, the pipeline continues with that 1 image context.
+| Flag | Value in Example | Description |
+| :--- | :--- | :--- |
+| `--image-query-prompt` | *"You are an expert..."* | Instructions for the AI to generate search keywords (e.g., "Girl sandbox" instead of just "Kindergarten"). |
+| `--image-search-query-count` | `5` | We generate 5 distinct search queries to cast a wide net. |
+| `--image-search-max-pages` | `1` | We fetch the first page of results for each query. |
+| `--image-select-prompt` | *"Select the best image..."* | **The Judge.** This prompt contains a scoring table (e.g., "+5 points if core activity visible"). The AI uses this to look at the search results and pick the single best image. |
+| `--image-search-sprite-size` | `6` | To save tokens, we stitch 6 images into one "sprite" sheet before sending them to the Vision Model for selection. |
+| `--image-search-select` | `6` | We keep the top 6 images (though usually, we just want the best one for the next step). |
+| `--image-search-explode` | (Present) | **Crucial.** This turns the selected images into separate processing tasks. If 1 image is selected, the pipeline continues with that 1 image context. |
 
 #### 🤖 How the Image Search Plugin Works Internally
 The plugin employs a **Visual RAG (Retrieval-Augmented Generation)** strategy:
@@ -130,12 +132,18 @@ The plugin employs a **Visual RAG (Retrieval-Augmented Generation)** strategy:
 ```
 
 ### 2. Generation
-*   `--model "google/gemini-3-pro-image-preview"`: The model used for the actual image generation.
-*   `--prompt "..."`: The detailed instructions for the generation. Note that because we used `--image-search`, the selected reference image is automatically passed to this model as context.
-*   `--candidates 2`: We generate 2 variations of the final image.
+
+| Flag | Value in Example | Description |
+| :--- | :--- | :--- |
+| `--model` | `google/gemini-3-pro-image-preview` | The model used for the actual image generation. |
+| `--prompt` | *"Change the provided image..."* | The detailed instructions for the generation. Note that because we used `--image-search`, the selected reference image is automatically passed to this model as context. |
+| `--candidates` | `2` | We generate 2 variations of the final image. |
 
 ### 3. Post-Processing
-*   `--command "magick ..."`: A shell command that runs after the file is saved. We use `magick` (ImageMagick) to resize the output to 900x600.
+
+| Flag | Value in Example | Description |
+| :--- | :--- | :--- |
+| `--command` | `magick ...` | A shell command that runs after the file is saved. We use `magick` (ImageMagick) to resize the output to 900x600. |
 
 ## 🚀 Running the Example
 

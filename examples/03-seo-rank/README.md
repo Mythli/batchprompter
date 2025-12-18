@@ -24,14 +24,13 @@ The magic happens in the `plugins` section of the config file.
 }
 ```
 
-### Key Settings Explained:
+### Key Settings Explained
 
-*   **`query`: `{{keyword}}`**: This pulls the search term from the input CSV row.
-*   **`maxPages`: 3**: We tell the scraper to fetch the first 3 pages of Google results (approx. 30 results).
-*   **`selectPrompt`**: **This is the filter.**
-    *   Normally, `web-search` returns the most relevant results for the *query*.
-    *   By setting a `selectPrompt`, we tell the AI to look at those 30 results and **only return the ones that match our criteria** (links to `butlerapp.de`).
-    *   If the domain isn't found, the AI returns nothing, effectively telling us we are not ranking for that keyword.
+| Setting | Value in Example | Description |
+| :--- | :--- | :--- |
+| `query` | `{{keyword}}` | This pulls the search term from the input CSV row. |
+| `maxPages` | `3` | We tell the scraper to fetch the first 3 pages of Google results (approx. 30 results). |
+| `selectPrompt` | *"Select up to 10 links..."* | **This is the filter.** Normally, `web-search` returns the most relevant results for the *query*. By setting a `selectPrompt`, we tell the AI to look at those 30 results and **only return the ones that match our criteria** (links to `butlerapp.de`). If the domain isn't found, the AI returns nothing, effectively telling us we are not ranking for that keyword. |
 
 #### 🤖 How the Web Search Plugin Works Internally
 The plugin uses a **Map-Reduce** approach to handle large volumes of search results efficiently:

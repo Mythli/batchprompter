@@ -27,7 +27,11 @@ This configuration finds the raw list of company websites.
   "output": { "mode": "merge", "explode": true }
 }
 ```
-*   **What it does:** It asks the AI to output a list of locations. `explode: true` means if the AI lists multiple districts or cities, the pipeline splits here, creating a separate search task for each location.
+
+| Property | Value | Description |
+| :--- | :--- | :--- |
+| `prompt` | *"List the city of Münster..."* | Asks the AI to output a list of locations. |
+| `output.explode` | `true` | If the AI lists multiple districts or cities, the pipeline splits here, creating a separate search task for each location. |
 
 ### Step 2: Intelligent Search
 ```json
@@ -42,9 +46,12 @@ This configuration finds the raw list of company websites.
   ]
 }
 ```
-*   **`queryPrompt`**: Instead of searching for "Sprachschule Münster", the AI generates variations like "Language school Münster contact", "German courses Münster", etc.
-*   **`selectPrompt`**: The AI reviews the Google Search snippets and filters out directories (like Yelp or Yellow Pages), keeping only actual company websites.
-*   **`dedupeStrategy: domain`**: Ensures we don't list the same company twice if they appear in multiple searches.
+
+| Property | Value | Description |
+| :--- | :--- | :--- |
+| `queryPrompt` | *"Generate 3 distinct..."* | Instead of searching for "Sprachschule Münster", the AI generates variations like "Language school Münster contact", "German courses Münster", etc. |
+| `selectPrompt` | *"Select only the official..."* | The AI reviews the Google Search snippets and filters out directories (like Yelp or Yellow Pages), keeping only actual company websites. |
+| `dedupeStrategy` | `"domain"` | Ensures we don't list the same company twice if they appear in multiple searches. |
 
 ---
 
@@ -209,8 +216,11 @@ The agent operates in a loop to gather information intelligently:
   ]
 }
 ```
-*   **What it does:** It constructs a targeted Google search using the name found in Step 1.
-*   **`selectPrompt`**: The AI looks at the search results to pick the correct LinkedIn profile URL, ignoring company pages.
+
+| Property | Value | Description |
+| :--- | :--- | :--- |
+| `query` | *"site:linkedin.com/in/..."* | It constructs a targeted Google search using the name found in Step 1. |
+| `selectPrompt` | *"Select the LinkedIn..."* | The AI looks at the search results to pick the correct LinkedIn profile URL, ignoring company pages. |
 
 ---
 
