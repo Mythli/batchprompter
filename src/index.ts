@@ -62,7 +62,10 @@ generateCmd.action(async (templateFilePaths, options) => {
         }
         process.exit(0);
     } catch (e: any) {
-        console.error(e);
+        console.error("\n❌ Error:", e.message || e);
+        if (e.stack) {
+            console.error(e.stack);
+        }
         // console.log("\n--- Usage Help ---\n");
         // generateCmd.outputHelp();
 
