@@ -32,7 +32,20 @@ The magic happens in the `plugins` section of the config file.
 | `query` | `{{keyword}}` | This pulls the search term from the input CSV row. |
 | `maxPages` | `3` | We tell the scraper to fetch the first 3 pages of Google results (approx. 30 results). |
 | `selectPrompt` | *"Select up to 10 links..."* | **This is the filter.** Normally, `web-search` returns the most relevant results for the *query*. By setting a `selectPrompt`, we tell the AI to look at those 30 results and **only return the ones that match our criteria** (links to `butlerapp.de`). If the domain isn't found, the AI returns nothing, effectively telling us we are not ranking for that keyword. |
-| `output.explode` | `true` | If multiple links are found, this splits the result into multiple rows (one per link) so we can see every ranking URL in the output CSV. |
+
+### 💾 Output Configuration
+
+```json
+"output": {
+  "mode": "merge",
+  "explode": true
+}
+```
+
+*   **`mode: "merge"`**: This ensures the search result data (Title, Link, Snippet) is added to your CSV row. If you set this to `ignore` (default), the search would happen, but the data wouldn't appear in your final CSV.
+*   **`explode: true`**: The search returns an **Array** of results.
+    *   **True:** Creates 1 row per search result (e.g., 10 rows for 1 keyword). Useful for analyzing every ranking.
+    *   **False:** Keeps 1 row per keyword. The search results are stored as a JSON array inside that row. Useful if you just want to store the data without expanding the CSV.
 
 #### 🤖 How the Web Search Plugin Works Internally
 The plugin uses a **Map-Reduce** approach to handle large volumes of search results efficiently:

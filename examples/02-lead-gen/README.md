@@ -16,6 +16,31 @@ The pipeline is split into two phases to allow for manual review in between if n
 
 ---
 
+## 💾 Data Output Strategies
+
+This pipeline demonstrates the three core ways BatchPrompt handles data:
+
+### 1. Explode (Expansion)
+Used in **Phase 1 (Step 1)**.
+*   **Config:** `"output": { "mode": "merge", "explode": true }`
+*   **Scenario:** The AI lists 5 districts of Münster.
+*   **Result:** The single row "Münster" is deleted and replaced by **5 new rows** (one for each district). The pipeline continues with 5x the volume.
+
+### 2. Merge (Enrichment)
+Used in **Phase 2 (Step 1 - Website Agent)**.
+*   **Config:** `"output": { "mode": "merge" }`
+*   **Scenario:** The agent finds `{ "ceo": "John Doe", "price": 500 }`.
+*   **Result:** These fields are **merged** into the existing row. The row count stays the same, but the columns grow.
+*   *Note:* If `explode` were true here, and the agent found 2 CEOs, the row would split into 2 rows (one for each CEO).
+
+### 3. Column (Assignment)
+Used in **Phase 2 (Step 3 - LinkedIn)**.
+*   **Config:** `"output": { "mode": "column", "column": "linkedinUrl" }`
+*   **Scenario:** We want the LinkedIn URL in a specific column, not merged at the root level.
+*   **Result:** The result string is saved specifically to the `linkedinUrl` column.
+
+---
+
 ## 🔎 Phase 1: Discovery (`1-find.json`)
 
 This configuration finds the raw list of company websites.

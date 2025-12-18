@@ -32,6 +32,15 @@ These flags control how we find the reference image.
 | `--image-search-select` | `6` | We keep the top 6 images (though usually, we just want the best one for the next step). |
 | `--image-search-explode` | (Present) | **With flag:** Splits the selected images into separate processing tasks (one per image). The generation model runs multiple times, each with a single reference image.<br><br>**Without flag:** All selected images are passed to the generation model in a single context. The model runs once, seeing all references at the same time. |
 
+### 💥 Understanding `explode`
+
+This example uses `--image-search-explode`. It changes the pipeline flow significantly:
+
+| Mode | Behavior | Result | Cost |
+| :--- | :--- | :--- | :--- |
+| **With Explode** | The 6 selected reference images are split into **6 separate tasks**. | You get **6 output images**. Each generated image is influenced by exactly *one* reference image. | Higher (6x generations) |
+| **Without Explode** | The 6 reference images are kept together in the context. | You get **1 output image**. The AI sees *all 6 references* at once and synthesizes them into one result. | Lower (1x generation) |
+
 #### 🤖 How the Image Search Plugin Works Internally
 The plugin employs a **Visual RAG (Retrieval-Augmented Generation)** strategy:
 

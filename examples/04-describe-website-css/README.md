@@ -64,6 +64,19 @@ In `run.sh`, we use specific flags to tell the scraper what to capture:
 
 The prompt (`describe-styles.md`) receives all these assets (Desktop Image, Mobile Image, Element Snapshots, CSS text) as context. It asks the AI to synthesize this into a design system document.
 
+## 💾 Files vs. Data
+
+By default, this example generates **Files** (Markdown and Images) using the `--output` flag. The CSV rows are used as input but are not heavily modified.
+
+If you wanted to analyze the CSS programmatically later, you could add the **Export** flag:
+
+```bash
+--style-scraper-export
+```
+
+*   **Effect:** This sets the output mode to `merge`.
+*   **Result:** The computed CSS text and the paths to the screenshots would be added as columns in your `data.csv` (e.g., `styleScraper.css`, `styleScraper.desktop`).
+
 ## 🚀 Running the Example
 
 1.  **Set API Keys**:
