@@ -36,8 +36,9 @@ const SerperResponseSchema = z.object({
 
 export type SerperImage = z.infer<typeof ImageSchema>;
 
+// Explicitly define ImageSearchResult to require position
 export interface ImageSearchResult {
-    metadata: SerperImage;
+    metadata: SerperImage & { position: number };
     buffer: Buffer;
 }
 
@@ -92,7 +93,7 @@ export class ImageSearch {
         }
 
         // Download images immediately and filter out failures
-        const results = await Promise.all(images.map(async (img, index) => {
+        const results = await Promise.all(images.map(async (img, index): Promise<ImageSearchResult | null> => {
             try {
                 const buffer = await this.download(img.imageUrl);
                 // Calculate absolute position

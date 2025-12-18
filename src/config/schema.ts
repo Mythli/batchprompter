@@ -35,9 +35,9 @@ export const ModelConfigSchema = z.object({
  * Output configuration
  */
 export const OutputConfigSchema = z.object({
-    mode: z.enum(['merge', 'column', 'ignore']).optional().default('ignore'),
+    mode: z.enum(['merge', 'column', 'ignore']).default('ignore'),
     column: z.string().optional(),
-    explode: z.boolean().optional().default(false)
+    explode: z.boolean().default(false)
 });
 
 /**
@@ -46,7 +46,8 @@ export const OutputConfigSchema = z.object({
 export const BasePluginSchema = z.object({
     type: z.string(),
     id: z.string().optional(),
-    output: OutputConfigSchema.default({})
+    // Use .optional().default({}) to allow empty input, which Zod then fills with defaults
+    output: OutputConfigSchema.optional().default({})
 });
 
 /**
@@ -81,7 +82,7 @@ export const StepConfigSchema = z.object({
     model: ModelConfigSchema.optional(),
     plugins: z.array(BasePluginSchema.passthrough()).default([]),
     preprocessors: z.array(PreprocessorSchema).default([]),
-    output: OutputConfigSchema.default({}),
+    output: OutputConfigSchema.optional().default({}),
     schema: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
     candidates: z.number().int().positive().default(1),
     skipCandidateCommand: z.boolean().default(false),
@@ -121,6 +122,6 @@ export const GlobalsConfigSchema = z.object({
  */
 export const PipelineConfigSchema = z.object({
     data: DataConfigSchema,
-    globals: GlobalsConfigSchema.default({}),
+    globals: GlobalsConfigSchema.optional().default({}),
     steps: z.array(StepConfigSchema).min(1)
 });

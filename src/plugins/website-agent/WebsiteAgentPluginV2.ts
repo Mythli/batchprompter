@@ -24,7 +24,7 @@ import { ModelFlags } from '../../cli/ModelFlags.js';
 export const WebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent'),
     id: z.string().optional(),
-    output: OutputConfigSchema.default({}),
+    output: OutputConfigSchema.optional().default({}),
     url: z.string(),
     schema: z.union([z.string(), z.record(z.string(), z.any())]),
     budget: z.number().int().positive().default(10),
@@ -121,8 +121,8 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         else if (exportFlag) outputMode = 'merge';
 
         // Return raw config - Zod will apply defaults
-        const rawConfig = {
-            type: 'website-agent' as const,
+        const partialConfig = {
+            type: 'website-agent',
             url,
             schema: getOpt('websiteAgentSchema'),
             budget: getOpt('websiteAgentBudget'),
@@ -150,7 +150,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         };
 
         // Parse through Zod to apply defaults
-        return this.configSchema.parse(rawConfig);
+        return this.configSchema.parse(partialConfig);
     }
 
     async resolveConfig(
@@ -216,9 +216,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             type: 'website-agent',
             id: rawConfig.id ?? `website-agent-${Date.now()}`,
             output: {
-                mode: rawConfig.output?.mode,
-                column: rawConfig.output?.column,
-                explode: rawConfig.output?.explode
+                mode: rawConfig.output.mode,
+                column: rawConfig.output.column,
+                explode: rawConfig.output.explode
             },
             url,
             schema,

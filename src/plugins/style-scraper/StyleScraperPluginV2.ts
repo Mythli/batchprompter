@@ -21,7 +21,7 @@ import { ensureDir } from '../../utils/fileUtils.js';
 export const StyleScraperConfigSchemaV2 = z.object({
     type: z.literal('style-scraper'),
     id: z.string().optional(),
-    output: OutputConfigSchema.default({}),
+    output: OutputConfigSchema.optional().default({}),
     url: z.string(),
     resolution: z.string().default('1920x1080'),
     mobile: z.boolean().default(false),
@@ -78,8 +78,8 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         else if (exportFlag) outputMode = 'merge';
 
         // Return raw config - Zod will apply defaults
-        const rawConfig = {
-            type: 'style-scraper' as const,
+        const partialConfig = {
+            type: 'style-scraper',
             url,
             resolution: getOpt('styleScrapeResolution'),
             mobile: getOpt('styleScrapeMobile'),
@@ -92,7 +92,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         };
 
         // Parse through Zod to apply defaults
-        return this.configSchema.parse(rawConfig);
+        return this.configSchema.parse(partialConfig);
     }
 
     async resolveConfig(
@@ -109,9 +109,9 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
             type: 'style-scraper',
             id: rawConfig.id ?? `style-scraper-${Date.now()}`,
             output: {
-                mode: rawConfig.output?.mode,
-                column: rawConfig.output?.column,
-                explode: rawConfig.output?.explode
+                mode: rawConfig.output.mode,
+                column: rawConfig.output.column,
+                explode: rawConfig.output.explode
             },
             url,
             resolution: { width: w || 1920, height: h || 1080 },

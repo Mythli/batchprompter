@@ -16,7 +16,7 @@ import { OutputConfigSchema } from '../../config/schema.js';
 export const DedupeConfigSchemaV2 = z.object({
     type: z.literal('dedupe'),
     id: z.string().optional(),
-    output: OutputConfigSchema.default({}),
+    output: OutputConfigSchema.optional().default({}),
     key: z.string()
 });
 
@@ -57,7 +57,8 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         const key = getOpt('dedupeKey');
         if (!key) return null;
 
-        return {
+        // Construct partial config and let Zod handle defaults
+        const partialConfig = {
             type: 'dedupe',
             key,
             output: {
@@ -65,6 +66,8 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
                 explode: false
             }
         };
+
+        return this.configSchema.parse(partialConfig);
     }
 
     async resolveConfig(
@@ -76,9 +79,9 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             type: 'dedupe',
             id: rawConfig.id ?? `dedupe-${Date.now()}`,
             output: {
-                mode: rawConfig.output?.mode,
-                column: rawConfig.output?.column,
-                explode: rawConfig.output?.explode
+                mode: rawConfig.output.mode,
+                column: rawConfig.output.column,
+                explode: rawConfig.output.explode
             },
             keyTemplate: rawConfig.key
         };

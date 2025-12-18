@@ -22,7 +22,7 @@ import { LlmListSelector } from '../../utils/LlmListSelector.js';
 export const WebSearchConfigSchemaV2 = z.object({
     type: z.literal('web-search'),
     id: z.string().optional(),
-    output: OutputConfigSchema.default({}),
+    output: OutputConfigSchema.optional().default({}),
     query: z.string().optional(),
     // Query model config
     queryPrompt: PromptDefSchema.optional(),
@@ -134,8 +134,8 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         else if (exportFlag) outputMode = 'merge';
 
         // Return raw config - Zod will apply defaults
-        const rawConfig = {
-            type: 'web-search' as const,
+        const partialConfig = {
+            type: 'web-search',
             query,
             // Query model
             queryPrompt: queryConfig.prompt,
@@ -168,7 +168,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         };
 
         // Parse through Zod to apply defaults
-        return this.configSchema.parse(rawConfig);
+        return this.configSchema.parse(partialConfig);
     }
 
     async resolveConfig(
@@ -212,9 +212,9 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             type: 'web-search',
             id: rawConfig.id ?? `web-search-${Date.now()}`,
             output: {
-                mode: rawConfig.output?.mode,
-                column: rawConfig.output?.column,
-                explode: rawConfig.output?.explode
+                mode: rawConfig.output.mode,
+                column: rawConfig.output.column,
+                explode: rawConfig.output.explode
             },
             query,
             queryModel: await resolvePrompt(
