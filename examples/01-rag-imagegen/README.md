@@ -15,9 +15,9 @@ Generate a photorealistic "Hero Image" for a specific industry (e.g., "Sailing S
 4.  **Image-to-Image Generation**: The winning image is passed to the generation model as a reference to ensure the pose and composition are realistic.
 5.  **Post-Processing**: The final image is resized using ImageMagick.
 
-## ⚙️ Configuration (`config.json`)
+## ⚙️ Configuration
 
-The pipeline is defined in `config.json`.
+The pipeline is defined inline in `run.sh`.
 
 ### 1. Search & Retrieval (RAG)
 The `image-search` plugin handles the finding and selecting of reference images.

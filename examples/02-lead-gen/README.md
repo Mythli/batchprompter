@@ -11,8 +11,8 @@ Create a CSV list of "Sprachschulen" (Language Schools) in Münster, enriched wi
 
 The pipeline is split into two phases to allow for manual review in between if necessary.
 
-1.  **Phase 1: Find (`1-find.json`)** -> Scans the web for companies.
-2.  **Phase 2: Enrich (`2-enrich.json`)** -> Visits websites and finds people.
+1.  **Phase 1: Find (`1-find.sh`)** -> Scans the web for companies.
+2.  **Phase 2: Enrich (`2-enrich.sh`)** -> Visits websites and finds people.
 
 ---
 
@@ -41,7 +41,7 @@ Used in **Phase 2 (Step 3 - LinkedIn)**.
 
 ---
 
-## 🔎 Phase 1: Discovery (`1-find.json`)
+## 🔎 Phase 1: Discovery (`1-find.sh`)
 
 This configuration finds the raw list of company websites.
 
@@ -80,7 +80,7 @@ This configuration finds the raw list of company websites.
 
 ---
 
-## 💎 Phase 2: Enrichment (`2-enrich.json`)
+## 💎 Phase 2: Enrichment (`2-enrich.sh`)
 
 This configuration takes the list of URLs and extracts deep insights.
 

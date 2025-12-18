@@ -8,11 +8,21 @@ import { PipelineConfig } from '../config/types.js';
  */
 export class FileAdapter {
     /**
-     * Load config from a file path
+     * Load config from a file path or raw JSON string
      */
-    async load(filePath: string): Promise<PipelineConfig> {
-        const content = await fsPromises.readFile(filePath, 'utf-8');
-        const ext = path.extname(filePath).toLowerCase();
+    async load(filePathOrContent: string): Promise<PipelineConfig> {
+        let content: string;
+        let ext = '';
+
+        // Check if input looks like a JSON object (starts with {)
+        if (filePathOrContent.trim().startsWith('{')) {
+            content = filePathOrContent;
+            // Treat as JSON
+            return JSON.parse(content);
+        } else {
+            content = await fsPromises.readFile(filePathOrContent, 'utf-8');
+            ext = path.extname(filePathOrContent).toLowerCase();
+        }
 
         if (ext === '.yaml' || ext === '.yml') {
             return YAML.parse(content);
