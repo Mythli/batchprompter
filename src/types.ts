@@ -160,6 +160,7 @@ export interface GlobalContext {
     gptQueue: PQueue;
     serperQueue: PQueue;
     puppeteerQueue: PQueue;
+    taskQueue: PQueue;
     
     puppeteerHelper: PuppeteerHelper;
     fetcher: Fetcher;

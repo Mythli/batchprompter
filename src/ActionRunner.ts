@@ -29,6 +29,10 @@ export class ActionRunner {
 
         console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
 
+        // Update global queue concurrency settings based on runtime config
+        this.globalContext.taskQueue.concurrency = taskConcurrency;
+        this.globalContext.gptQueue.concurrency = concurrency;
+
         const endIndex = limit ? offset + limit : undefined;
         const dataToProcess = data.slice(offset, endIndex);
 
@@ -45,7 +49,7 @@ export class ActionRunner {
         const finalResults: Record<string, any>[] = [];
 
         // Task queue limits how many rows are processed in parallel
-        const queue = new PQueue({ concurrency: taskConcurrency });
+        const queue = this.globalContext.taskQueue;
         const executor = new StepExecutor(tmpDir, this.messageBuilder);
 
         // Build plugin services once

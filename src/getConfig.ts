@@ -151,6 +151,9 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? config.GPT_CONCURRENCY });
     attachQueueLogger(gptQueue, 'GPT');
 
+    const taskQueue = new PQueue({ concurrency: config.TASK_CONCURRENCY });
+    attachQueueLogger(taskQueue, 'Task');
+
     const serperQueue = new PQueue({ concurrency: config.SERPER_CONCURRENCY });
     attachQueueLogger(serperQueue, 'Serper');
 
@@ -182,6 +185,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         openai,
         cache,
         gptQueue,
+        taskQueue,
         serperQueue,
         puppeteerQueue,
         puppeteerHelper,
