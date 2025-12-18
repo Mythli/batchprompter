@@ -33,25 +33,82 @@ The magic happens in the `plugins` section of the config file.
     *   By setting a `selectPrompt`, we tell the AI to look at those 30 results and **only return the ones that match our criteria** (links to `butlerapp.de`).
     *   If the domain isn't found, the AI returns nothing, effectively telling us we are not ranking for that keyword.
 
-#### ⚙️ Web Search Configuration Reference
+#### ⚙️ Web Search Configuration Schema
 
-| Option | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `type` | `string` | - | Must be `"web-search"`. |
-| `query` | `string` | - | The search query. Supports Handlebars (e.g., `{{keyword}}`). |
-| `limit` | `number` | `5` | Max total results to return. |
-| `mode` | `string` | `none` | Content fetching mode: `none` (snippets only), `markdown`, `html`. |
-| `queryCount` | `number` | `3` | Number of queries to generate (if using query model). |
-| `maxPages` | `number` | `1` | Max pages of search results to fetch per query. |
-| `dedupeStrategy` | `string` | `none` | Deduplication: `none`, `domain`, `url`. |
-| `gl` | `string` | - | Google Search country code (e.g. `de`, `us`). |
-| `hl` | `string` | - | Google Search language code (e.g. `de`, `en`). |
-| `queryModel` | `string` | Global | Model used to generate search queries. |
-| `queryPrompt` | `string` | - | Instructions for generating search queries. |
-| `selectModel` | `string` | Global | Model used to select/filter results. |
-| `selectPrompt` | `string` | - | Criteria for selecting results. |
-| `compressModel` | `string` | Global | Model used to summarize page content (if `mode` is not `none`). |
-| `compressPrompt` | `string` | - | Instructions for summarizing content. |
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "const": "web-search",
+      "description": "Must be 'web-search'"
+    },
+    "query": {
+      "type": "string",
+      "description": "The search query. Supports Handlebars (e.g., '{{keyword}}')."
+    },
+    "limit": {
+      "type": "integer",
+      "default": 5,
+      "description": "Max total results to return."
+    },
+    "mode": {
+      "enum": ["none", "markdown", "html"],
+      "default": "none",
+      "description": "Content fetching mode: 'none' (snippets only), 'markdown', 'html'."
+    },
+    "queryCount": {
+      "type": "integer",
+      "default": 3,
+      "description": "Number of queries to generate (if using query model)."
+    },
+    "maxPages": {
+      "type": "integer",
+      "default": 1,
+      "description": "Max pages of search results to fetch per query."
+    },
+    "dedupeStrategy": {
+      "enum": ["none", "domain", "url"],
+      "default": "none",
+      "description": "Deduplication strategy."
+    },
+    "gl": {
+      "type": "string",
+      "description": "Google Search country code (e.g. 'de', 'us')."
+    },
+    "hl": {
+      "type": "string",
+      "description": "Google Search language code (e.g. 'de', 'en')."
+    },
+    "queryModel": {
+      "type": "string",
+      "description": "Model used to generate search queries."
+    },
+    "queryPrompt": {
+      "type": "string",
+      "description": "Instructions for generating search queries."
+    },
+    "selectModel": {
+      "type": "string",
+      "description": "Model used to select/filter results."
+    },
+    "selectPrompt": {
+      "type": "string",
+      "description": "Criteria for selecting results."
+    },
+    "compressModel": {
+      "type": "string",
+      "description": "Model used to summarize page content (if mode is not 'none')."
+    },
+    "compressPrompt": {
+      "type": "string",
+      "description": "Instructions for summarizing content."
+    }
+  },
+  "required": ["type"]
+}
+```
 
 ## 🚀 Running the Example
 

@@ -30,23 +30,79 @@ These flags control how we find the reference image.
 *   `--image-search-select 6`: We keep the top 6 images (though usually, we just want the best one for the next step).
 *   `--image-search-explode`: **Crucial.** This turns the selected images into separate processing tasks. If 1 image is selected, the pipeline continues with that 1 image context.
 
-#### ⚙️ Image Search Configuration Reference
+#### ⚙️ Image Search Configuration Schema
 
-| Option | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `--image-search-query` | `string` | - | Static search query (e.g. "Sailing boat"). |
-| `--image-search-limit` | `number` | `12` | Max total images to fetch. |
-| `--image-search-select` | `number` | `1` | Number of images to select after filtering. |
-| `--image-search-query-count` | `number` | `3` | Number of search queries to generate (if using query model). |
-| `--image-search-sprite-size` | `number` | `4` | Number of images per sprite sheet for LLM selection. |
-| `--image-search-max-pages` | `number` | `1` | Max pages of search results to fetch per query. |
-| `--image-search-dedupe-strategy` | `string` | `url` | Deduplication strategy: `none`, `domain`, `url`. |
-| `--image-search-gl` | `string` | - | Google Search country code (e.g. `de`, `us`). |
-| `--image-search-hl` | `string` | - | Google Search language code (e.g. `de`, `en`). |
-| `--image-query-model` | `string` | Global | Model used to generate search queries. |
-| `--image-query-prompt` | `string` | - | Instructions for generating search queries. |
-| `--image-select-model` | `string` | Global | Vision model used to select the best images. |
-| `--image-select-prompt` | `string` | - | Criteria for selecting the best images. |
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "const": "image-search",
+      "description": "Must be 'image-search'"
+    },
+    "query": {
+      "type": "string",
+      "description": "Static search query. Supports Handlebars (e.g., '{{industry}}')."
+    },
+    "limit": {
+      "type": "integer",
+      "default": 12,
+      "description": "Max total images to fetch."
+    },
+    "select": {
+      "type": "integer",
+      "default": 1,
+      "description": "Number of images to select after filtering."
+    },
+    "queryCount": {
+      "type": "integer",
+      "default": 3,
+      "description": "Number of search queries to generate (if using query model)."
+    },
+    "spriteSize": {
+      "type": "integer",
+      "default": 4,
+      "description": "Number of images per sprite sheet for LLM selection."
+    },
+    "maxPages": {
+      "type": "integer",
+      "default": 1,
+      "description": "Max pages of search results to fetch per query."
+    },
+    "dedupeStrategy": {
+      "enum": ["none", "domain", "url"],
+      "default": "url",
+      "description": "Deduplication strategy."
+    },
+    "gl": {
+      "type": "string",
+      "description": "Google Search country code (e.g. 'de', 'us')."
+    },
+    "hl": {
+      "type": "string",
+      "description": "Google Search language code (e.g. 'de', 'en')."
+    },
+    "queryModel": {
+      "type": "string",
+      "description": "Model used to generate search queries."
+    },
+    "queryPrompt": {
+      "type": "string",
+      "description": "Instructions for generating search queries."
+    },
+    "selectModel": {
+      "type": "string",
+      "description": "Vision model used to select the best images."
+    },
+    "selectPrompt": {
+      "type": "string",
+      "description": "Criteria for selecting the best images."
+    }
+  },
+  "required": ["type"]
+}
+```
 
 ### 2. Generation
 *   `--model "google/gemini-3-pro-image-preview"`: The model used for the actual image generation.
