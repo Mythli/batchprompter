@@ -2,16 +2,12 @@ import fsPromises from 'fs/promises';
 import path from 'path';
 import { Parser, transforms } from 'json2csv';
 import PQueue from 'p-queue';
-import Handlebars from 'handlebars';
 import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext, OutputStrategy, StepContext } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
-import { PromptResolver } from './utils/PromptResolver.js';
-import { SchemaHelper } from './utils/SchemaHelper.js';
-import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
 import { PluginRegistryV2, PluginPacket, PluginServices } from './plugins/types.js';
 import { ResultProcessor } from './core/ResultProcessor.js';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
-import { StepContextFactory } from './core/StepContextFactory.js';
+import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
 
 interface TaskPayload {
@@ -24,7 +20,7 @@ export class ActionRunner {
         private globalContext: GlobalContext,
         private pluginRegistry: PluginRegistryV2,
         private preprocessorRegistry: PromptPreprocessorRegistry,
-        private stepContextFactory: StepContextFactory,
+        private stepResolver: StepResolver,
         private messageBuilder: MessageBuilder
     ) {}
 
@@ -53,7 +49,6 @@ export class ActionRunner {
         const executor = new StepExecutor(tmpDir, this.messageBuilder);
 
         // Build plugin services once
-        // Accessing private llmFactory via bracket notation to avoid changing StepContextFactory signature
         const pluginServices: PluginServices = {
             puppeteerHelper: this.globalContext.puppeteerHelper,
             puppeteerQueue: this.globalContext.puppeteerQueue,
@@ -61,7 +56,7 @@ export class ActionRunner {
             cache: this.globalContext.cache,
             imageSearch: this.globalContext.imageSearch,
             webSearch: this.globalContext.webSearch,
-            createLlm: (config) => this.stepContextFactory['llmFactory'].create(config)
+            createLlm: (config) => this.stepResolver.createLlm(config)
         };
 
         // Helper to enqueue next steps or collect results
@@ -82,11 +77,11 @@ export class ActionRunner {
             const timeoutMs = stepConfig.timeout * 1000;
 
             try {
-                // 1. Prepare Context & Config
-                const { resolvedStep, stepContext } = await this.prepareContext(
-                    item, 
-                    stepConfig, 
-                    stepIndex, 
+                // 1. Resolve Step & Context
+                const { resolvedStep, stepContext } = await this.stepResolver.resolve(
+                    item,
+                    stepConfig,
+                    stepIndex,
                     tmpDir
                 );
 
@@ -107,7 +102,7 @@ export class ActionRunner {
                         resolvedStep, 
                         stepNum, 
                         pluginServices,
-                        tmpDir
+                        resolvedStep.resolvedTempDir || tmpDir
                     );
 
                     // B. Model
@@ -160,42 +155,6 @@ export class ActionRunner {
     }
 
     /**
-     * Prepares the execution context and resolves the step configuration.
-     */
-    private async prepareContext(
-        item: PipelineItem,
-        stepConfig: StepConfig,
-        stepIndex: number,
-        globalTmpDir: string
-    ) {
-        const viewContext = {
-            ...item.row,
-            ...item.workspace,
-            steps: item.stepHistory,
-            index: item.originalIndex
-        };
-
-        const sanitizedRow: Record<string, any> = {};
-        for (const [key, val] of Object.entries(viewContext)) {
-             const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-             sanitizedRow[key] = aggressiveSanitize(stringVal);
-        }
-
-        const resolvedStep = await this.prepareStepConfig(
-            stepConfig,
-            viewContext,
-            sanitizedRow,
-            item.originalIndex,
-            stepIndex + 1,
-            globalTmpDir
-        );
-
-        const stepContext = this.stepContextFactory.create(resolvedStep);
-
-        return { viewContext, sanitizedRow, resolvedStep, stepContext };
-    }
-
-    /**
      * Executes all configured plugins for the step.
      */
     private async executePlugins(
@@ -203,7 +162,7 @@ export class ActionRunner {
         resolvedStep: StepConfig,
         stepNum: number,
         services: PluginServices,
-        globalTmpDir: string
+        tempDir: string
     ): Promise<PipelineItem[]> {
         let activeItems = items;
 
@@ -244,7 +203,7 @@ export class ActionRunner {
                         stepIndex: stepNum,
                         pluginIndex: pluginIdx,
                         services: services,
-                        tempDirectory: resolvedStep.resolvedTempDir || globalTmpDir,
+                        tempDirectory: tempDir,
                         outputDirectory: resolvedStep.resolvedOutputDir,
                         outputBasename: resolvedStep.outputBasename,
                         outputExtension: resolvedStep.outputExtension
@@ -311,54 +270,10 @@ export class ActionRunner {
                     currentItem.variationIndex
                 );
 
-                // 3. Update History
-                // We return a packet, but we also need to update the history on the item.
-                // Since processBatch creates new items via ResultProcessor, we need to pass 
-                // the history update info. ResultProcessor doesn't handle history updates directly.
-                // We'll attach the history update to the packet data or handle it in the map.
-                // Actually, ResultProcessor clones items. We need to update the history on the *new* items.
-                // The cleanest way is to return the result data in the packet, and then 
-                // manually update history on the resulting items. 
-                // However, processBatch abstracts ResultProcessor.
-                
-                // Hack: We'll attach the history update to the packet and handle it specially?
-                // No, let's just return the packet. The ResultProcessor creates the new item.
-                // We need to update the history on the *resulting* items.
-                // Since processBatch returns the new items, we can't update them inside the operation.
-                
-                // Refactor: processBatch is generic. Model execution has side effects (history).
-                // We will handle history update *after* processBatch? No, processBatch creates the new items.
-                
-                // Let's modify the packet to include metadata, or just handle history update logic 
-                // inside the operation if we weren't using ResultProcessor.
-                // But we ARE using ResultProcessor to handle explode/merge.
-                
-                // Solution: The operation returns packets. We can't modify the *next* item here.
-                // We must rely on the fact that ResultProcessor copies history.
-                // We need to append the new interaction to the history.
-                
-                // Let's attach the new history messages to the packet data temporarily? No, that pollutes data.
-                
-                // We will handle history update in a post-processing step within executeModel,
-                // but we need to know WHICH result corresponds to which item.
-                
-                // Alternative: We don't use processBatch for Model, or we enhance processBatch.
-                // Let's enhance the operation to return a callback for post-processing?
-                
-                // Simpler: Just do the work here. We are inside the map.
-                // But we return packets. ResultProcessor creates new items from packets.
-                // We can't touch the new items yet.
-                
-                // Let's look at how it was done before:
-                // It iterated over processedItems returned by ResultProcessor and updated them.
-                
-                // So we need processBatch to allow a "post-process" callback on the new items.
-                // Or we just inline the logic since Model execution is special.
-                
                 return [{
                     data: result.modelResult,
                     contentParts: [],
-                    // Attach metadata for history update (will be used by custom logic below if we inline)
+                    // Attach metadata for history update
                     _historyUpdate: {
                         userPromptParts: resolvedStep.userPromptParts,
                         historyMessage: result.historyMessage
@@ -435,20 +350,12 @@ export class ActionRunner {
                 namespace
             );
 
-            // If we have a post-processor, we need to map back to the packet that generated the item.
-            // ResultProcessor logic:
-            // - Explode: 1 packet -> 1 item. processed[i] corresponds to res.packets[i]
-            // - Merge: All packets -> 1 item. processed[0] corresponds to all packets (merged)
-            
             if (postProcess) {
                 if (outputStrategy.explode) {
                     processed.forEach((newItem, idx) => {
                         postProcess(newItem, res.packets[idx]);
                     });
                 } else {
-                    // Merge mode: pass the first packet or a synthetic one?
-                    // For model execution, there is usually only 1 packet anyway.
-                    // If there are multiple, we pass the first one for metadata access.
                     if (processed.length > 0 && res.packets.length > 0) {
                         postProcess(processed[0], res.packets[0]);
                     }
@@ -495,62 +402,6 @@ export class ActionRunner {
             }
         }
         console.log(`Updated data saved to ${finalOutputPath}`);
-    }
-
-    private async prepareStepConfig(
-        stepConfig: StepConfig,
-        viewContext: Record<string, any>,
-        sanitizedRow: Record<string, any>,
-        rowIndex: number,
-        stepNum: number,
-        globalTmpDir: string
-    ): Promise<StepConfig> {
-        const resolvedStep: StepConfig = { ...stepConfig };
-
-        if (stepConfig.outputTemplate) {
-            const delegate = Handlebars.compile(stepConfig.outputTemplate, { noEscape: true });
-            resolvedStep.outputPath = delegate(sanitizedRow);
-
-            resolvedStep.resolvedOutputDir = path.dirname(resolvedStep.outputPath);
-            await ensureDir(resolvedStep.resolvedOutputDir);
-
-            const parsed = path.parse(resolvedStep.outputPath);
-            resolvedStep.outputBasename = parsed.name;
-            resolvedStep.outputExtension = parsed.ext;
-        } else {
-            resolvedStep.outputBasename = `output_${rowIndex}_${stepNum}`;
-            resolvedStep.outputExtension = stepConfig.aspectRatio ? '.png' : '.txt';
-        }
-
-        // Resolve globalTmpDir template
-        const tmpDirDelegate = Handlebars.compile(globalTmpDir, { noEscape: true });
-        const resolvedGlobalTmpDir = tmpDirDelegate(sanitizedRow);
-
-        if (resolvedStep.resolvedOutputDir) {
-            resolvedStep.resolvedTempDir = path.join(resolvedGlobalTmpDir, resolvedStep.resolvedOutputDir);
-        } else {
-            const rowStr = String(rowIndex).padStart(3, '0');
-            const stepStr = String(stepNum).padStart(2, '0');
-            resolvedStep.resolvedTempDir = path.join(resolvedGlobalTmpDir, `${rowStr}_${stepStr}`);
-        }
-        await ensureDir(resolvedStep.resolvedTempDir);
-
-        if (stepConfig.schemaPath) {
-            try {
-                resolvedStep.jsonSchema = await SchemaHelper.loadAndRenderSchema(stepConfig.schemaPath, sanitizedRow);
-            } catch (e) {
-                console.warn(`[Row ${rowIndex}] Failed to load/parse schema from '${stepConfig.schemaPath}':`, e);
-            }
-        }
-
-        if (stepConfig.userPromptParts.length === 1 && stepConfig.userPromptParts[0].type === 'text' && stepConfig.userPromptParts[0].text.includes('{{')) {
-            const template = stepConfig.userPromptParts[0].text;
-            resolvedStep.userPromptParts = await PromptResolver.resolve(template, viewContext);
-        }
-
-        resolvedStep.plugins = stepConfig.plugins;
-
-        return resolvedStep;
     }
 }
 

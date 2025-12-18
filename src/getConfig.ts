@@ -19,7 +19,7 @@ import { createCachedFetcher } from "llm-fns";
 import { attachQueueLogger } from './utils/queueUtils.js';
 import { GlobalContext, ServiceCapabilities } from './types.js';
 import { LlmClientFactory } from './core/LlmClientFactory.js';
-import { StepContextFactory } from './core/StepContextFactory.js';
+import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
 import { createLoggingFetcher } from "./utils/createLoggingFetcher.js";
 
@@ -194,7 +194,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     // Create Factories
     const llmFactory = new LlmClientFactory(openai, cache, gptQueue, defaultModel);
-    const stepContextFactory = new StepContextFactory(llmFactory, globalContext);
+    const stepResolver = new StepResolver(llmFactory, globalContext);
     const messageBuilder = new MessageBuilder();
 
     // Initialize Registries (with capabilities for validation)
@@ -206,7 +206,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         globalContext,
         pluginRegistry,
         preprocessorRegistry,
-        stepContextFactory,
+        stepResolver,
         messageBuilder
     );
 
@@ -219,7 +219,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         puppeteerHelper,
         capabilities,
         llmFactory,
-        stepContextFactory,
+        stepResolver,
         messageBuilder
     };
 }
