@@ -89,4 +89,4 @@ If you wanted to analyze the CSS programmatically later, you could add the **Exp
     bash examples/04-describe-website-css/run.sh
     ```
 
-The result is a Markdown file at `out/04-describe-website-css/butlerapp.de/style-analysis.md`.
+The result is a Markdown file at `out/04-describe-website-css/httpsbutlerappde/style-analysis.md` (folder name is sanitized).

@@ -169,7 +169,7 @@ The plugin employs a **Visual RAG (Retrieval-Augmented Generation)** strategy:
     bash examples/01-rag-imagegen/run.sh
     ```
 
-The results will be saved to `out/01-rag-imagegen/Sailing school/`.
+The results will be saved to `out/01-rag-imagegen/Sailing_school/` (folder name is sanitized).
 
 Because we use **Explode** (6 reference images) and **Candidates** (2 variations per reference), you will get multiple files named with the pattern `HeroImage_{refIndex}_{candidateIndex}.jpg`:
 
