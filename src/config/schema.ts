@@ -35,9 +35,9 @@ export const ModelConfigSchema = z.object({
  * Output configuration
  */
 export const OutputConfigSchema = z.object({
-    mode: z.enum(['merge', 'column', 'ignore']).default('ignore'),
+    mode: z.enum(['merge', 'column', 'ignore']).optional().default('ignore'),
     column: z.string().optional(),
-    explode: z.boolean().default(false)
+    explode: z.boolean().optional().default(false)
 });
 
 /**
@@ -55,8 +55,8 @@ export const BasePluginSchema = z.object({
  */
 export const UrlExpanderSchema = z.object({
     type: z.literal('url-expander'),
-    mode: z.enum(['fetch', 'puppeteer']).default('puppeteer'),
-    maxChars: z.number().int().positive().default(30000)
+    mode: z.enum(['fetch', 'puppeteer']).optional().default('puppeteer'),
+    maxChars: z.number().int().positive().optional().default(30000)
 });
 
 /**
@@ -70,7 +70,7 @@ export const PreprocessorSchema = z.discriminatedUnion('type', [
  * Feedback configuration
  */
 export const FeedbackConfigSchema = ModelConfigSchema.extend({
-    loops: z.number().int().min(0).default(0)
+    loops: z.number().int().min(0).optional().default(0)
 });
 
 /**
@@ -80,12 +80,12 @@ export const StepConfigSchema = z.object({
     prompt: PromptDefSchema.optional(),
     system: PromptDefSchema.optional(),
     model: ModelConfigSchema.optional(),
-    plugins: z.array(BasePluginSchema.passthrough()).default([]),
-    preprocessors: z.array(PreprocessorSchema).default([]),
+    plugins: z.array(BasePluginSchema.passthrough()).optional().default([]),
+    preprocessors: z.array(PreprocessorSchema).optional().default([]),
     output: OutputConfigSchema.optional().default({}),
     schema: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
-    candidates: z.number().int().positive().default(1),
-    skipCandidateCommand: z.boolean().default(false),
+    candidates: z.number().int().positive().optional().default(1),
+    skipCandidateCommand: z.boolean().optional().default(false),
     judge: ModelConfigSchema.optional(),
     feedback: FeedbackConfigSchema.optional(),
     aspectRatio: z.string().optional(),
@@ -98,7 +98,7 @@ export const StepConfigSchema = z.object({
  * Data configuration
  */
 export const DataConfigSchema = z.object({
-    format: z.enum(['csv', 'json', 'auto']).default('auto'),
+    format: z.enum(['csv', 'json', 'auto']).optional().default('auto'),
     offset: z.number().int().min(0).optional(),
     limit: z.number().int().positive().optional()
 });
@@ -107,14 +107,14 @@ export const DataConfigSchema = z.object({
  * Global configuration
  */
 export const GlobalsConfigSchema = z.object({
-    model: z.string().default('gpt-4o-mini'),
+    model: z.string().optional().default('gpt-4o-mini'),
     temperature: z.number().min(0).max(2).optional(),
     thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    concurrency: z.number().int().positive().default(50),
-    taskConcurrency: z.number().int().positive().default(100),
-    tmpDir: z.string().default('.tmp'),
+    concurrency: z.number().int().positive().optional().default(50),
+    taskConcurrency: z.number().int().positive().optional().default(100),
+    tmpDir: z.string().optional().default('.tmp'),
     dataOutputPath: z.string().optional(),
-    timeout: z.number().int().positive().default(180)
+    timeout: z.number().int().positive().optional().default(180)
 });
 
 /**
