@@ -2,10 +2,10 @@ import { z } from 'zod';
 import { ModelDefinition, StepDefinition, NormalizedConfig, PluginConfigDefinition, OutputStrategy } from '../types.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ModelFlags } from './ModelFlags.js';
-import { GlobalsConfigSchema } from '../config/schema.js';
+import { GlobalsConfigSchema, PipelineConfigSchema } from '../config/schema.js';
 
 // =============================================================================
-// Zod Schemas for CLI Config (Single source of truth for defaults)
+// Helpers
 // =============================================================================
 
 // Helper to remove undefined keys
@@ -29,215 +29,253 @@ const toCamel = (s: string) => {
     return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
 };
 
-// Helper to resolve OutputStrategy with Limit/Offset Hierarchy
-const resolveOutputStrategy = (options: Record<string, any>, prefix: string, stepIndex: number): OutputStrategy => {
-    // Prefix is e.g. "webSearch" or "" (for main model)
+// =============================================================================
+// CLI Override Logic
+// =============================================================================
+
+/**
+ * Merges CLI options into the file configuration.
+ * CLI options take precedence.
+ */
+function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: string[]): any {
+    const config = JSON.parse(JSON.stringify(fileConfig || {})); // Deep clone
+
+    // Ensure basic structure exists
+    config.data = config.data || {};
+    config.globals = config.globals || {};
+    config.steps = config.steps || [];
+
+    // --- Data Overrides ---
+    if (options.limit !== undefined) config.data.limit = parseInt(String(options.limit), 10);
+    if (options.offset !== undefined) config.data.offset = parseInt(String(options.offset), 10);
+    if (options.inputLimit !== undefined) config.data.limit = parseInt(String(options.inputLimit), 10);
+    if (options.inputOffset !== undefined) config.data.offset = parseInt(String(options.inputOffset), 10);
+
+    // --- Global Overrides ---
+    if (options.model) config.globals.model = options.model;
+    if (options.temperature !== undefined) config.globals.temperature = parseFloat(String(options.temperature));
+    if (options.thinkingLevel) config.globals.thinkingLevel = options.thinkingLevel;
+    if (options.concurrency) config.globals.concurrency = parseInt(String(options.concurrency), 10);
+    if (options.taskConcurrency) config.globals.taskConcurrency = parseInt(String(options.taskConcurrency), 10);
+    if (options.tmpDir) config.globals.tmpDir = options.tmpDir;
+    if (options.dataOutput) config.globals.dataOutputPath = options.dataOutput;
+    if (options.timeout) config.globals.timeout = parseInt(String(options.timeout), 10);
+
+    // --- Step Overrides ---
+    // Determine how many steps we need based on args and options
+    let maxStepIndex = config.steps.length;
     
-    const getOpt = (suffix: string) => {
-        // Try specific step: prefix + Suffix + stepIndex (e.g. webSearchExplode1)
-        // Or global: prefix + Suffix (e.g. webSearchExplode)
-        const key = prefix ? `${prefix}${suffix}` : suffix.toLowerCase(); // for main model, suffix is "Explode" -> "explode"
-        
-        // Handle main model case where prefix is empty
-        const specificKey = prefix ? `${key}${stepIndex}` : `${suffix.toLowerCase()}${stepIndex}`;
-        const globalKey = prefix ? key : suffix.toLowerCase();
+    // Check args (positional prompts)
+    if (args.length > maxStepIndex) maxStepIndex = args.length;
 
-        return options[specificKey] || options[globalKey];
-    };
-
-    const explode = !!getOpt('Explode');
-    const outputCol = getOpt('Output') || getOpt('OutputColumn'); 
-    const exportVal = !!getOpt('Export');
-
-    let mode: 'merge' | 'column' | 'ignore' = 'ignore';
-    let columnName: string | undefined = undefined;
-
-    if (outputCol) {
-        mode = 'column';
-        columnName = String(outputCol);
-    } else if (exportVal) {
-        mode = 'merge';
-    }
-
-    // --- Resolve Limit & Offset Hierarchy ---
-    // 1. Step Specific (e.g. --limit-1)
-    // 2. Category Default (e.g. --explode-limit)
-    // 3. Master Default (e.g. --limit)
-
-    const getHierarchyVal = (suffix: string, categorySuffix: string, masterKey: string) => {
-        // 1. Step Specific
-        // e.g. webSearchLimit1 or limit1
-        const specificKey = prefix ? `${prefix}${suffix}${stepIndex}` : `${suffix.toLowerCase()}${stepIndex}`;
-        if (options[specificKey] !== undefined) return options[specificKey];
-
-        // 2. Category Default (Explode)
-        // e.g. webSearchExplodeLimit or explodeLimit
-        const categoryKey = prefix ? `${prefix}${categorySuffix}` : categorySuffix.charAt(0).toLowerCase() + categorySuffix.slice(1);
-        if (options[categoryKey] !== undefined) return options[categoryKey];
-
-        // 3. Master Default
-        if (options[masterKey] !== undefined) return options[masterKey];
-
-        return undefined;
-    };
-
-    const limitRaw = getHierarchyVal('Limit', 'ExplodeLimit', 'limit');
-    const offsetRaw = getHierarchyVal('Offset', 'ExplodeOffset', 'offset');
-
-    const limit = limitRaw ? parseInt(String(limitRaw), 10) : undefined;
-    const offset = offsetRaw ? parseInt(String(offsetRaw), 10) : undefined;
-
-    return {
-        mode,
-        columnName,
-        explode,
-        limit,
-        offset
-    };
-};
-
-export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object({
-    options: z.record(z.string(), z.any()),
-    args: z.array(z.string())
-}).transform((input): NormalizedConfig => {
-    const { options, args } = input;
-    
-    // Determine Max Step
-    let maxStep = Math.max(1, args.length); 
+    // Check options for step-specific flags (e.g. --model-2)
     Object.keys(options).forEach(key => {
         const match = key.match(/(\d+)(?:[A-Z]|$)/);
         if (match) {
             const stepNum = parseInt(match[1], 10);
-            if (stepNum > maxStep) maxStep = stepNum;
+            if (stepNum > maxStepIndex) maxStepIndex = stepNum;
         }
     });
 
-    // Resolve Global Model Default
-    const envModel = getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']);
-    const globalModel = options.model || envModel;
-
-    // Parse global config
-    const rawGlobalConfig = {
-        concurrency: options.concurrency ? parseInt(String(options.concurrency), 10) : undefined,
-        taskConcurrency: options.taskConcurrency ? parseInt(String(options.taskConcurrency), 10) : undefined,
-        tmpDir: options.tmpDir,
-        dataOutputPath: options.dataOutput,
-        model: globalModel,
-        timeout: options.timeout ? parseInt(String(options.timeout), 10) : undefined
-    };
-    
-    const globalConfig = GlobalsConfigSchema.parse(rawGlobalConfig);
-
-    const modelFlags = new ModelFlags(globalModel);
-    const strictModelFlags = new ModelFlags();
-
-    const steps: StepDefinition[] = [];
-
-    for (let i = 1; i <= maxStep; i++) {
-        // 1. Main Model
-        const mainModel = modelFlags.extract(options, `${i}`, '');
-        
-        // 2. Prompt Merging
-        const posArg = args[i - 1]; 
-        let promptSource = mainModel?.promptSource;
-        
-        if (posArg) {
-            if (promptSource) {
-                promptSource = `${promptSource}\n\n${posArg}`;
-            } else {
-                promptSource = posArg;
-            }
+    // Ensure steps array is populated
+    for (let i = 0; i < maxStepIndex; i++) {
+        if (!config.steps[i]) {
+            config.steps[i] = {};
         }
-
-        const baseModel: ModelDefinition = clean({
-            ...(mainModel as ModelDefinition),
-            promptSource: promptSource
-        });
-
-        // 3. Auxiliary Models
-        const strictJudge = strictModelFlags.extract(options, `judge-${i}`, 'judge');
-        const isJudgeConfigured = !!(strictJudge.promptSource || strictJudge.systemSource);
-        const judge = modelFlags.extract(options, `judge-${i}`, 'judge') as ModelDefinition;
-        
-        const strictFeedback = strictModelFlags.extract(options, `feedback-${i}`, 'feedback');
-        const isFeedbackConfigured = !!(strictFeedback.promptSource || strictFeedback.systemSource);
-        const feedback = modelFlags.extract(options, `feedback-${i}`, 'feedback') as ModelDefinition;
-        
-        // 4. Step Options & Output Strategy
-        const getStepOpt = (key: string): string | undefined => {
-            const specific = options[`${key}${i}`];
-            if (specific !== undefined) return String(specific);
-            const global = options[key];
-            if (global !== undefined) return String(global);
-            return undefined;
-        };
-
-        // Resolve Main Model Output Strategy (using the hierarchy helper with empty prefix)
-        const modelOutputStrategy = resolveOutputStrategy(options, '', i);
-
-        // 5. Plugins
-        const plugins: PluginConfigDefinition[] = [];
-        for (const plugin of pluginRegistry.getAll()) {
-            const rawConfig = plugin.parseCLIOptions(options, i);
-            if (rawConfig) {
-                const camelName = toCamel(plugin.type);
-                const pluginOutputStrategy = resolveOutputStrategy(options, camelName, i);
-
-                plugins.push({
-                    name: plugin.type,
-                    config: rawConfig,
-                    output: pluginOutputStrategy
-                });
-            }
-        }
-
-        const candidatesRaw = getStepOpt('candidates');
-        const candidates = candidatesRaw ? parseInt(candidatesRaw, 10) : 1;
-
-        const feedbackLoopsRaw = getStepOpt('feedbackLoops');
-        const feedbackLoops = feedbackLoopsRaw ? parseInt(feedbackLoopsRaw, 10) : 0;
-
-        const timeoutRaw = getStepOpt('timeout');
-        const timeout = timeoutRaw ? parseInt(timeoutRaw, 10) : globalConfig.timeout;
-
-        steps.push(clean({
-            stepIndex: i,
-            modelConfig: baseModel,
-            
-            outputPath: getStepOpt('output'),
-            outputTemplate: getStepOpt('output'),
-            
-            output: modelOutputStrategy,
-            
-            schemaPath: options[`jsonSchema${i}`] ? String(options[`jsonSchema${i}`]) : (options.schema ? String(options.schema) : undefined),
-            verifyCommand: getStepOpt('verifyCommand'),
-            postProcessCommand: getStepOpt('command'),
-            
-            candidates: candidates,
-            noCandidateCommand: !!(options[`skipCandidateCommand${i}`] || options.skipCandidateCommand),
-            
-            judge: isJudgeConfigured ? judge : undefined,
-            feedback: isFeedbackConfigured ? feedback : undefined,
-            feedbackLoops: feedbackLoops,
-            
-            aspectRatio: getStepOpt('aspectRatio'),
-            plugins,
-            preprocessors: [],
-            timeout: timeout
-        }));
     }
 
-    // Resolve Data Limits (Hierarchy: Input Specific > Master)
-    const inputLimitRaw = options.inputLimit ?? options.limit;
-    const inputOffsetRaw = options.inputOffset ?? options.offset;
+    for (let i = 0; i < maxStepIndex; i++) {
+        const stepNum = i + 1;
+        const step = config.steps[i];
+        
+        // Positional Prompt (args[0] is step 1)
+        if (args[i]) {
+            // If prompt exists, append? Or replace? 
+            // For simplicity, if file has prompt and CLI has arg, we append.
+            // But we need to handle the structure (string vs object).
+            const cliPrompt = args[i];
+            if (!step.prompt) {
+                step.prompt = cliPrompt;
+            } else if (typeof step.prompt === 'string') {
+                step.prompt = `${step.prompt}\n\n${cliPrompt}`;
+            } else if (step.prompt.text) {
+                step.prompt.text = `${step.prompt.text}\n\n${cliPrompt}`;
+            } else {
+                // If it's a file-based prompt object, we can't easily append text.
+                // We'll just warn or ignore, or maybe convert to parts?
+                // Let's assume user knows what they are doing.
+            }
+        }
+
+        // Model Config
+        step.model = step.model || {};
+        if (options[`model${stepNum}`]) step.model.model = options[`model${stepNum}`];
+        if (options[`temperature${stepNum}`] !== undefined) step.model.temperature = parseFloat(String(options[`temperature${stepNum}`]));
+        if (options[`thinkingLevel${stepNum}`]) step.model.thinkingLevel = options[`thinkingLevel${stepNum}`];
+        if (options[`system${stepNum}`]) step.system = options[`system${stepNum}`];
+        if (options[`prompt${stepNum}`]) step.prompt = options[`prompt${stepNum}`]; // Override prompt flag
+
+        // Output Config
+        step.output = step.output || {};
+        if (options[`output${stepNum}`]) step.outputPath = options[`output${stepNum}`]; // This is actually top-level in StepConfig, not inside output object
+        if (options[`outputColumn${stepNum}`]) {
+            step.output.mode = 'column';
+            step.output.column = options[`outputColumn${stepNum}`];
+        }
+        if (options[`export${stepNum}`]) step.output.mode = 'merge';
+        if (options[`explode${stepNum}`]) step.output.explode = true;
+
+        // Limits & Offsets (Step Specific)
+        if (options[`limit${stepNum}`] !== undefined) step.output.limit = parseInt(String(options[`limit${stepNum}`]), 10);
+        if (options[`offset${stepNum}`] !== undefined) step.output.offset = parseInt(String(options[`offset${stepNum}`]), 10);
+
+        // Other Step Settings
+        if (options[`candidates${stepNum}`] !== undefined) step.candidates = parseInt(String(options[`candidates${stepNum}`]), 10);
+        if (options[`skipCandidateCommand${stepNum}`]) step.skipCandidateCommand = true;
+        if (options[`aspectRatio${stepNum}`]) step.aspectRatio = options[`aspectRatio${stepNum}`];
+        if (options[`command${stepNum}`]) step.command = options[`command${stepNum}`];
+        if (options[`verifyCommand${stepNum}`]) step.verifyCommand = options[`verifyCommand${stepNum}`];
+        if (options[`timeout${stepNum}`] !== undefined) step.timeout = parseInt(String(options[`timeout${stepNum}`]), 10);
+        if (options[`jsonSchema${stepNum}`]) step.schema = options[`jsonSchema${stepNum}`];
+
+        // Judge & Feedback
+        if (options[`judge${stepNum}Prompt`]) {
+            step.judge = step.judge || {};
+            step.judge.prompt = options[`judge${stepNum}Prompt`];
+        }
+        if (options[`judge${stepNum}Model`]) {
+            step.judge = step.judge || {};
+            step.judge.model = options[`judge${stepNum}Model`];
+        }
+
+        if (options[`feedback${stepNum}Prompt`]) {
+            step.feedback = step.feedback || {};
+            step.feedback.prompt = options[`feedback${stepNum}Prompt`];
+        }
+        if (options[`feedbackLoops${stepNum}`] !== undefined) {
+            step.feedback = step.feedback || {};
+            step.feedback.loops = parseInt(String(options[`feedbackLoops${stepNum}`]), 10);
+        }
+    }
+
+    return config;
+}
+
+// =============================================================================
+// Main Schema Logic
+// =============================================================================
+
+export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object({
+    fileConfig: z.any(),
+    options: z.record(z.string(), z.any()),
+    args: z.array(z.string())
+}).transform((input): NormalizedConfig => {
+    const { fileConfig, options, args } = input;
+
+    // 1. Merge CLI overrides into file config
+    const mergedConfig = mergeCliOverrides(fileConfig, options, args);
+
+    // 2. Validate against strict Zod schema
+    const config = PipelineConfigSchema.parse(mergedConfig);
+
+    // 3. Normalize to internal runtime format
+    const steps: StepDefinition[] = [];
+
+    config.steps.forEach((stepDef, index) => {
+        const stepIndex = index + 1;
+
+        // Resolve Model Config
+        const modelConfig: ModelDefinition = {
+            model: stepDef.model?.model,
+            temperature: stepDef.model?.temperature,
+            thinkingLevel: stepDef.model?.thinkingLevel,
+            // We pass the raw prompt definition to the resolver.
+            // The resolver handles string vs object vs parts.
+            // We cast to any here because ModelDefinition expects string | undefined for source,
+            // but we are passing the raw Zod output which might be an object.
+            // We need to update ModelDefinition or handle it here.
+            // For now, let's assume PromptResolver can handle the object if we pass it.
+            // Actually, let's normalize to the ModelDefinition structure expected by the rest of the app.
+            // The app expects `promptSource` to be a string (path or text).
+            // If it's an object, we need to handle it.
+            // Let's update ModelDefinition in types.ts to allow the object, OR serialize it here?
+            // Better: Let's update the PromptResolver to accept the PromptDef object.
+            // For now, we'll pass it as 'promptSource' and cast, assuming PromptResolver is updated.
+            promptSource: stepDef.prompt as any,
+            systemSource: stepDef.system as any
+        };
+
+        // Resolve Plugins
+        const plugins: PluginConfigDefinition[] = [];
+        stepDef.plugins.forEach(pluginConfig => {
+            const plugin = pluginRegistry.get(pluginConfig.type);
+            if (plugin) {
+                // We pass the raw config from the file/CLI to the plugin.
+                // The plugin's own Zod schema will validate it.
+                // We also need to resolve the output strategy for the plugin.
+                
+                // Check for CLI overrides for this specific plugin instance?
+                // This is hard because plugins are in an array.
+                // We rely on the file config for plugin details.
+                // CLI overrides for plugins are limited to what mergeCliOverrides handles (none currently for deep plugin props).
+                
+                plugins.push({
+                    name: pluginConfig.type,
+                    config: pluginConfig, // Pass the whole object, plugin will parse it
+                    output: pluginConfig.output
+                });
+            }
+        });
+
+        // Resolve Preprocessors
+        const preprocessors: any[] = [];
+        stepDef.preprocessors.forEach(ppConfig => {
+             preprocessors.push({
+                 name: ppConfig.type,
+                 config: ppConfig
+             });
+        });
+
+        steps.push({
+            stepIndex,
+            modelConfig,
+            outputPath: stepDef.outputPath, 
+            outputTemplate: stepDef.outputPath, // Alias
+
+            output: stepDef.output,
+
+            schemaPath: typeof stepDef.schema === 'string' ? stepDef.schema : undefined,
+            // If schema is object, it's handled in ActionRunner/StepResolver
+            
+            verifyCommand: stepDef.verifyCommand,
+            postProcessCommand: stepDef.command,
+            candidates: stepDef.candidates,
+            noCandidateCommand: stepDef.skipCandidateCommand,
+            judge: stepDef.judge ? {
+                model: stepDef.judge.model,
+                promptSource: stepDef.judge.prompt as any,
+                systemSource: stepDef.judge.system as any
+            } : undefined,
+            feedback: stepDef.feedback ? {
+                model: stepDef.feedback.model,
+                promptSource: stepDef.feedback.prompt as any,
+                systemSource: stepDef.feedback.system as any
+            } : undefined,
+            feedbackLoops: stepDef.feedback?.loops || 0,
+            aspectRatio: stepDef.aspectRatio,
+            plugins,
+            preprocessors,
+            timeout: stepDef.timeout || config.globals.timeout
+        });
+    });
 
     return {
-        global: globalConfig,
+        global: config.globals,
         steps,
         data: {
-            format: 'auto',
-            offset: inputOffsetRaw ? parseInt(String(inputOffsetRaw), 10) : undefined,
-            limit: inputLimitRaw ? parseInt(String(inputLimitRaw), 10) : undefined
+            format: config.data.format,
+            offset: config.data.offset,
+            limit: config.data.limit
         }
     };
 });

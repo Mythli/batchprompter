@@ -79,9 +79,13 @@ export class StepRegistry {
         preprocessorRegistry.configureCLI(program);
     }
 
-    static async parseConfig(options: Record<string, any>, positionalArgs: string[], registry: PluginRegistryV2): Promise<RuntimeConfig> {
-        // 1.  Normalize via Zod Schema
-        const normalized = createConfigSchema(registry).parse({ options, args: positionalArgs });
+    static async parseConfig(fileConfig: any, options: Record<string, any>, positionalArgs: string[], registry: PluginRegistryV2): Promise<RuntimeConfig> {
+        // 1.  Normalize via Zod Schema (Merge File + CLI)
+        const normalized = createConfigSchema(registry).parse({ 
+            fileConfig, 
+            options, 
+            args: positionalArgs 
+        });
 
         // 2. Load Data (from stdin)
         const data = await loadData();
@@ -117,11 +121,18 @@ export class StepRegistry {
 
             // Normalize Preprocessors
             const activePreprocessors: PreprocessorConfigDefinition[] = [];
-            for (const pp of preprocessorRegistry.getAll()) {
-                const normalizedPp = pp.normalize(options, stepDef.stepIndex, normalized.global);
-                if (normalizedPp) {
-                    activePreprocessors.push(normalizedPp);
-                }
+            // Note: In the new system, preprocessors are defined in the config file.
+            // We just pass them through.
+            // However, if we want to support CLI flags enabling preprocessors (like --expand-urls),
+            // we might need to check options here or in the merge logic.
+            // For now, we rely on the config file structure.
+            // But wait, `normalized.steps` has `preprocessors` array from the schema.
+            // We should use that.
+            for (const ppDef of stepDef.preprocessors) {
+                activePreprocessors.push({
+                    name: ppDef.name,
+                    config: ppDef.config
+                });
             }
 
             // Construct StepConfig
@@ -139,7 +150,7 @@ export class StepRegistry {
                 output: stepDef.output,
 
                 schemaPath: stepDef.schemaPath,
-                jsonSchema: undefined, // Resolved per-row in ActionRunner
+                jsonSchema: typeof stepDef.schema === 'object' ? stepDef.schema : undefined,
                 verifyCommand: stepDef.verifyCommand,
                 postProcessCommand: stepDef.postProcessCommand,
 

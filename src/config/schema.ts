@@ -91,6 +91,7 @@ export const StepConfigSchema = z.object({
         mode: 'ignore',
         explode: false
     }),
+    outputPath: z.string().optional(),
     schema: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
     candidates: z.number().int().positive().default(1),
     skipCandidateCommand: z.boolean().default(false),
@@ -129,13 +130,7 @@ export const GlobalsConfigSchema = z.object({
  * Top-level pipeline configuration
  */
 export const PipelineConfigSchema = z.object({
-    data: DataConfigSchema,
-    globals: GlobalsConfigSchema.default({
-        model: 'gpt-4o-mini',
-        concurrency: 50,
-        taskConcurrency: 100,
-        tmpDir: '.tmp',
-        timeout: 180
-    }),
+    data: DataConfigSchema.default({}),
+    globals: GlobalsConfigSchema.default({}),
     steps: z.array(StepConfigSchema).min(1)
 });
