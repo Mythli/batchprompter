@@ -1,40 +1,40 @@
-# Website Style Analyzer
+# Website Style Analyzer Tutorial
 
-This example demonstrates how to use the **Style Scraper** plugin to perform a visual design analysis of a website.
+This example demonstrates the **Style Scraper** plugin. Unlike standard scrapers that look for text, this plugin captures the **visual state** of a website, including screenshots and computed CSS, to allow Vision Models to analyze design.
 
-## Overview
+## 🎯 Goal
+Reverse-engineer the design system of a website (`butlerapp.de`) and generate a Markdown summary of its color palette, typography, and brand personality.
 
-The pipeline performs the following steps for a given URL:
+## 📸 The Style Scraper Plugin
 
-1.  **Visual Scraping:**
-    *   Captures a high-resolution desktop screenshot.
-    *   Captures a mobile screenshot.
-    *   Identifies and captures interactive elements (buttons, inputs) and their computed CSS styles.
-2.  **Design Analysis:**
-    *   Passes the visual assets to a Vision Model (e.g., GPT-4o).
-    *   Generates a comprehensive design system summary covering color palette, typography, UI components, and brand personality.
-
-## Prerequisites
-
-*   **Node.js** installed.
-*   **API Keys:**
-    *   `BATCHPROMPT_OPENAI_API_KEY`: For the Vision Model.
-    *   `BATCHPROMPT_SERPER_API_KEY`: (Optional) Not used in this specific example, but good to have for other plugins.
-
-## Usage
-
-1.  Navigate to the project root.
-2.  Run the example script:
+In `run.sh`, we use specific flags to tell the scraper what to capture:
 
 ```bash
-bash examples/04-describe-website-css/run.sh
+--style-scrape-url "{{website_url}}" \
+--style-scrape-resolution "1920x1080" \
+--style-scrape-mobile \
+--style-scrape-interactive
 ```
 
-## Configuration
+*   **`--style-scrape-url`**: The target website.
+*   **`--style-scrape-resolution`**: Sets the viewport for the desktop screenshot.
+*   **`--style-scrape-mobile`**: **Crucial.** This forces the scraper to also emulate a mobile device (iPhone size) and take a second screenshot. This allows the AI to analyze responsiveness.
+*   **`--style-scrape-interactive`**: This runs a script to find buttons, inputs, and links on the page. It hovers over them, takes snapshots of their states (Normal vs Hover), and extracts their computed CSS (colors, padding, fonts).
 
-*   **Input:** `examples/04-describe-website-css/data.csv` - Contains the `website_url` to analyze.
-*   **Prompt:** `examples/04-describe-website-css/describe-styles.md` - The instructions for the AI designer.
+## 🧠 The Prompt
 
-## Output
+The prompt (`describe-styles.md`) receives all these assets (Desktop Image, Mobile Image, Element Snapshots, CSS text) as context. It asks the AI to synthesize this into a design system document.
 
-The analysis is saved as a Markdown file in `out/04-describe-website-css/{website_url}/style-analysis.md`.
+## 🚀 Running the Example
+
+1.  **Set API Keys**:
+    ```bash
+    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
+    # Serper key is not strictly required for this plugin, but good practice
+    ```
+2.  **Run**:
+    ```bash
+    bash examples/04-describe-website-css/run.sh
+    ```
+
+The result is a Markdown file at `out/04-describe-website-css/butlerapp.de/style-analysis.md`.

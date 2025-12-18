@@ -1,42 +1,46 @@
-# SEO Rank Tracker
+# SEO Rank Tracker Tutorial
 
-This example demonstrates how to use `batchprompt` to check the visibility of a specific domain across a list of keywords in Google Search results.
+This example shows how to use `batchprompt` as a flexible SEO tool. It demonstrates how to use the **Web Search Plugin** with an **AI Selector** to perform intelligent rank tracking.
 
-## Overview
+## 🎯 Goal
+Check a list of keywords (from `data.csv`) and determine if a specific domain (e.g., `butlerapp.de`) appears in the top Google search results.
 
-For each keyword in the input CSV, the pipeline:
+## ⚙️ Configuration (`config.json`)
 
-1.  **Web Search:** Performs a Google search for the keyword (fetching up to 3 pages).
-2.  **Rank Analysis:** Uses an LLM to scan the search results and identify links pointing to a specific target domain (e.g., `butlerapp.de`).
-3.  **Reporting:** Outputs the matching links found for each keyword.
-
-## Prerequisites
-
-*   **Node.js** installed.
-*   **API Keys:**
-    *   `BATCHPROMPT_OPENAI_API_KEY`: For the LLM.
-    *   `BATCHPROMPT_SERPER_API_KEY`: For Google Search.
-
-## Usage
-
-1.  Navigate to the project root.
-2.  Run the example script:
-
-```bash
-bash examples/03-seo-rank/run.sh
-```
-
-## Configuration
-
-*   **Input:** `examples/03-seo-rank/data.csv` - A list of keywords to check.
-*   **Config:** `examples/03-seo-rank/config.json` - Defines the search parameters and the target domain to look for.
-
-To check a different domain, edit the `selectPrompt` in `examples/03-seo-rank/config.json`:
+The magic happens in the `plugins` section of the config file.
 
 ```json
-"selectPrompt": "Select up to 10 links that point to YOUR_DOMAIN. If no link exists, select nothing."
+{
+  "type": "web-search",
+  "query": "{{keyword}}",
+  "maxPages": 3,
+  "limit": 30,
+  "selectPrompt": "Select up to 10 links that point to Butlerapp (butlerapp.de). If no Butlerapp link exists, select nothing.",
+  "output": {
+    "mode": "merge"
+  }
+}
 ```
 
-## Output
+### Key Settings Explained:
 
-The results are saved to `out/03-seo-rank/results.csv`.
+*   **`query`: `{{keyword}}`**: This pulls the search term from the input CSV row.
+*   **`maxPages`: 3**: We tell the scraper to fetch the first 3 pages of Google results (approx. 30 results).
+*   **`selectPrompt`**: **This is the filter.**
+    *   Normally, `web-search` returns the most relevant results for the *query*.
+    *   By setting a `selectPrompt`, we tell the AI to look at those 30 results and **only return the ones that match our criteria** (links to `butlerapp.de`).
+    *   If the domain isn't found, the AI returns nothing, effectively telling us we are not ranking for that keyword.
+
+## 🚀 Running the Example
+
+1.  **Set API Keys**:
+    ```bash
+    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
+    export BATCHPROMPT_SERPER_API_KEY="..."
+    ```
+2.  **Run**:
+    ```bash
+    bash examples/03-seo-rank/run.sh
+    ```
+
+The output `out/03-seo-rank/results.csv` will contain the keywords and the specific URLs where the domain was found ranking.

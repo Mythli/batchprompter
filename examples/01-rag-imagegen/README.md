@@ -1,72 +1,54 @@
-# RAG Image Generation Example
+# RAG Image Generation Tutorial
 
-This example demonstrates how to use `batchprompt` to generate images based on industry-specific data, using a Retrieval-Augmented Generation (RAG) approach for image search and selection.
+This tutorial shows how to build a **Retrieval-Augmented Generation (RAG)** pipeline for images. Instead of generating images from scratch with a simple prompt, this pipeline first searches for real-world reference images, selects the best one using AI, and then uses that reference to guide the generation of a new, high-quality image.
 
-## Overview
+## 🎯 Goal
+Generate a photorealistic "Hero Image" for a specific industry (e.g., "Sailing School") that adheres to strict brand guidelines (German features, specific lighting, no text).
 
-The pipeline performs the following steps for each input row (industry):
+## 🧩 The Pipeline
 
-1.  **Image Search (RAG):**
-    *   Generates search queries based on the industry.
-    *   Searches for images using Google Serper.
-    *   Uses an LLM to select the best reference image from the search results based on specific criteria.
-2.  **Image Generation:**
-    *   Uses an image generation model (e.g., `google/gemini-3-pro-image-preview`) to modify the selected reference image according to a detailed prompt.
-3.  **Post-Processing:**
-    *   Resizes and optimizes the generated image using ImageMagick.
+1.  **Query Generation**: The AI creates 5 different search queries to find diverse reference images for the industry.
+2.  **Visual Search**: It searches Google Images and retrieves candidates.
+3.  **AI Selection**: A Vision Model reviews the candidates against a scoring rubric (e.g., "Must be a woman", "Face visible") and picks the winner.
+4.  **Image-to-Image Generation**: The winning image is passed to the generation model as a reference to ensure the pose and composition are realistic.
+5.  **Post-Processing**: The final image is resized using ImageMagick.
 
-## Prerequisites
+## 🛠️ The Command Explained
 
-*   **Node.js:** Ensure you have Node.js installed.
-*   **ImageMagick:** Required for the post-processing command (`magick`). Install via `brew install imagemagick` (macOS) or `sudo apt-get install imagemagick` (Linux).
-*   **API Keys:**
-    *   `BATCHPROMPT_OPENAI_API_KEY` (or `OPENAI_API_KEY`): For the LLM.
-    *   `BATCHPROMPT_SERPER_API_KEY` (or `SERPER_API_KEY`): For Google Serper image search.
+The logic is defined entirely via CLI flags in `run.sh`. Here is what they do:
 
-## Usage
+### 1. Search & Retrieval (RAG)
+These flags control how we find the reference image.
 
-1.  Navigate to the project root.
-2.  Run the example script:
+*   `--image-query-prompt "..."`: Instructions for the AI to generate search keywords (e.g., "Girl sandbox" instead of just "Kindergarten").
+*   `--image-search-query-count 5`: We generate 5 distinct search queries to cast a wide net.
+*   `--image-search-max-pages 1`: We fetch the first page of results for each query.
+*   `--image-select-prompt "..."`: **The Judge.** This prompt contains a scoring table (e.g., "+5 points if core activity visible"). The AI uses this to look at the search results and pick the single best image.
+*   `--image-search-sprite-size 6`: To save tokens, we stitch 6 images into one "sprite" sheet before sending them to the Vision Model for selection.
+*   `--image-search-select 6`: We keep the top 6 images (though usually, we just want the best one for the next step).
+*   `--image-search-explode`: **Crucial.** This turns the selected images into separate processing tasks. If 1 image is selected, the pipeline continues with that 1 image context.
 
-```bash
-bash examples/01-rag-imagegen/run.sh
-```
+### 2. Generation
+*   `--model "google/gemini-3-pro-image-preview"`: The model used for the actual image generation.
+*   `--prompt "..."`: The detailed instructions for the generation. Note that because we used `--image-search`, the selected reference image is automatically passed to this model as context.
+*   `--candidates 2`: We generate 2 variations of the final image.
 
-## Input Data
+### 3. Post-Processing
+*   `--command "magick ..."`: A shell command that runs after the file is saved. We use `magick` (ImageMagick) to resize the output to 900x600.
 
-The input is piped into the command via `echo` in the `run.sh` script:
+## 🚀 Running the Example
 
-```csv
-industry
-Sailing school
-```
+1.  **Install ImageMagick** (Required for the final step):
+    *   macOS: `brew install imagemagick`
+    *   Linux: `sudo apt-get install imagemagick`
+2.  **Set API Keys**:
+    ```bash
+    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
+    export BATCHPROMPT_SERPER_API_KEY="..."
+    ```
+3.  **Run**:
+    ```bash
+    bash examples/01-rag-imagegen/run.sh
+    ```
 
-You can modify this to pipe a CSV file instead:
-
-```bash
-cat my_industries.csv | npx tsx src/index.ts generate ...
-```
-
-## Configuration Details
-
-The `run.sh` script uses the following flags to configure the pipeline:
-
-*   `--prompt`: The main prompt for image generation/modification.
-*   `--output`: The output path template for the generated image.
-*   `--aspect-ratio`: Sets the aspect ratio for the generated image.
-*   `--model`: The model used for image generation.
-*   `--image-query-model`: The model used to generate search queries.
-*   `--image-query-prompt`: Instructions for generating search queries.
-*   `--image-search-query-count`: Number of search queries to generate.
-*   `--image-select-prompt`: Criteria for selecting the best reference image.
-*   `--image-select-model`: The model used to select the reference image.
-*   `--image-search-max-pages`: Max search result pages to fetch.
-*   `--image-search-sprite-size`: Grid size for presenting images to the selection model.
-*   `--image-search-select`: Number of images to select.
-*   `--image-search-explode`: Explodes the results if multiple images are selected (creates one output row per selected image).
-*   `--candidates`: Number of image variations to generate.
-*   `--command`: Shell command to run after generation (ImageMagick resizing).
-
-## Output
-
-The generated images will be saved in `out/01-rag-imagegen/{industry}/HeroImage.jpg`.
+The result will be saved to `out/01-rag-imagegen/Sailing school/HeroImage.jpg`.
