@@ -33,6 +33,15 @@ The magic happens in the `plugins` section of the config file.
     *   By setting a `selectPrompt`, we tell the AI to look at those 30 results and **only return the ones that match our criteria** (links to `butlerapp.de`).
     *   If the domain isn't found, the AI returns nothing, effectively telling us we are not ranking for that keyword.
 
+#### 🤖 How the Web Search Plugin Works Internally
+The plugin uses a **Map-Reduce** approach to handle large volumes of search results efficiently:
+
+1.  **Generate Queries:** If configured, an LLM generates multiple search variations (e.g., "Language school", "German courses") to cast a wide net.
+2.  **Scatter (Search & Filter):** It executes all searches in parallel. If a `selectPrompt` is provided, it applies a **Local Filter** to each page of results immediately. This discards irrelevant results (like directories or ads) before they clog up the pipeline.
+3.  **Gather & Dedupe:** It collects all surviving results and removes duplicates based on the `dedupeStrategy` (e.g., keeping only one result per domain).
+4.  **Reduce (Global Selection):** If the number of unique results still exceeds the `limit`, it runs a final **Global Selection** step to pick the absolute best matches.
+5.  **Enrich:** Finally, if `mode` is set to `markdown` or `html`, it visits the selected URLs to fetch their full content.
+
 #### ⚙️ Web Search Configuration Schema
 
 ```json
