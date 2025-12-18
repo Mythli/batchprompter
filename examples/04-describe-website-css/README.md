@@ -9,7 +9,7 @@ Reverse-engineer the design system of a website (`butlerapp.de`) and generate a 
 
 ## 📸 The Style Scraper Plugin
 
-In `config.json`, we configure the scraper to capture specific assets:
+In `run.sh`, we configure the scraper to capture specific assets:
 
 ```json
 {

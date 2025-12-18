@@ -7,9 +7,9 @@ This example shows how to use `batchprompt` as a flexible SEO tool. It demonstra
 ## 🎯 Goal
 Check a list of keywords (from `data.csv`) and determine if a specific domain (e.g., `butlerapp.de`) appears in the top Google search results.
 
-## ⚙️ Configuration (`config.json`)
+## ⚙️ Configuration
 
-The magic happens in the `plugins` section of the config file.
+The pipeline is defined inline in `run.sh`.
 
 ```json
 {
