@@ -42,6 +42,21 @@ export class PuppeteerHelper {
         this.restartTimeout = options.restartTimeout || 10000;
     }
 
+    private setupProcessHandlers() {
+        const handler = async () => {
+            console.log('[PuppeteerHelper] Process terminating. Closing browser...');
+            await this.close();
+            process.exit(0);
+        };
+
+        // Prevent adding multiple listeners if init is called multiple times
+        process.off('SIGINT', handler);
+        process.off('SIGTERM', handler);
+
+        process.on('SIGINT', handler);
+        process.on('SIGTERM', handler);
+    }
+
     private async _performInit(): Promise<void> {
         const {
             browserUserDataDir,
@@ -59,7 +74,10 @@ export class PuppeteerHelper {
         this.browser = await puppeteer.launch({
             ...puppeteerLaunchOptions,
             userDataDir: browserUserDataDir,
+            pipe: true, // Use pipe instead of websocket for better process control
         });
+
+        this.setupProcessHandlers();
 
         // Health check
         if (!this.browser || !this.browser.isConnected()) {
@@ -96,9 +114,24 @@ export class PuppeteerHelper {
         }
         if (this.browser) {
             try {
-                await this.browser.close();
+                // Create a timeout promise
+                const closeTimeout = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Browser close timeout')), 5000)
+                );
+
+                // Race standard close against the timeout
+                await Promise.race([
+                    this.browser.close(),
+                    closeTimeout
+                ]);
             } catch (closeError: any) {
-                console.warn(`Error closing browser: ${closeError.message}`);
+                console.warn(`Error closing browser gracefully: ${closeError.message}. Force killing process.`);
+
+                // Force kill the process if graceful close failed/timed out
+                const process = this.browser.process();
+                if (process) {
+                    process.kill('SIGKILL');
+                }
             }
         }
         this.browser = null;

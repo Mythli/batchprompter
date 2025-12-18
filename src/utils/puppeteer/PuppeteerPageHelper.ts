@@ -164,6 +164,13 @@ export class PuppeteerPageHelper {
      */
     async setupPage(): Promise<void> {
         await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+        
+        // Automatically dismiss dialogs (alerts, confirms, beforeunload)
+        this.page.on('dialog', async (dialog) => {
+            console.log(`[Puppeteer] Dismissing dialog: ${dialog.message()}`);
+            await dialog.dismiss();
+        });
+
         // Set a default viewport to avoid repaints and ensure consistency.
         await this.page.setViewport({ width: 1920, height: 1080 });
         await this.startCssExtraction();
