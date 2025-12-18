@@ -3,9 +3,9 @@
     "limit": 10
   },
   "globals": {
-    "model": "x-ai/grok-4.1-fast",
-    "tmpDir": "out/14-grank/.tmp",
-    "outputPath": "out/14-grank/results.csv"
+    "model": "google/gemini-3-flash-preview",
+    "tmpDir": "out/03-seo-rank/.tmp",
+    "outputPath": "out/03-seo-rank/results.csv"
   },
   "steps": [
     {
