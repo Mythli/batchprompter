@@ -232,19 +232,14 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         stepDef.plugins.forEach(pluginConfig => {
             const plugin = pluginRegistry.get(pluginConfig.type);
             if (plugin) {
-                // We pass the raw config from the file/CLI to the plugin.
-                // The plugin's own Zod schema will validate it.
-                // We also need to resolve the output strategy for the plugin.
-                
-                // Check for CLI overrides for this specific plugin instance?
-                // This is hard because plugins are in an array.
-                // We rely on the file config for plugin details.
-                // CLI overrides for plugins are limited to what mergeCliOverrides handles (none currently for deep plugin props).
-                
+                // Normalize immediately using the plugin's schema.
+                // This applies defaults (e.g. queryCount: 3) and validates types.
+                const validatedConfig = plugin.configSchema.parse(pluginConfig);
+
                 plugins.push({
                     name: pluginConfig.type,
-                    config: pluginConfig, // Pass the whole object, plugin will parse it
-                    output: pluginConfig.output
+                    config: validatedConfig,
+                    output: validatedConfig.output // Use the output from the validated config (defaults applied)
                 });
             }
         });
