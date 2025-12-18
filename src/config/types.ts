@@ -3,12 +3,9 @@ import OpenAI from 'openai';
 import {
     PipelineConfigSchema,
     GlobalsConfigSchema,
-    DataConfigSchema,
     StepConfigSchema,
-    ModelConfigSchema,
     OutputConfigSchema,
     PromptDefSchema,
-    FeedbackConfigSchema
 } from './schema.js';
 
 // =============================================================================
@@ -16,10 +13,7 @@ import {
 // =============================================================================
 
 export type PromptDef = z.infer<typeof PromptDefSchema>;
-export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
-export type FeedbackConfig = z.infer<typeof FeedbackConfigSchema>;
-export type DataConfig = z.infer<typeof DataConfigSchema>;
 export type GlobalsConfig = z.infer<typeof GlobalsConfigSchema>;
 export type StepConfig = z.infer<typeof StepConfigSchema>;
 export type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
@@ -84,39 +78,7 @@ export interface ResolvedPipelineConfig {
     globals: GlobalsConfig;
     steps: ResolvedStepConfig[];
 }
-
-// =============================================================================
-// Runtime Types
-// =============================================================================
-
-export interface PipelineItem {
-    row: Record<string, any>;
-    workspace: Record<string, any>;
-    stepHistory: Record<string, any>[];
-    history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-    originalIndex: number;
-    variationIndex?: number;
-    accumulatedContent: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-}
-
 export interface ServiceCapabilities {
     hasSerper: boolean;
     hasPuppeteer: boolean;
-}
-
-export interface NormalizedConfig {
-    global: GlobalsConfig;
-    steps: import('../types.js').StepDefinition[];
-}
-
-export interface RuntimeConfig {
-    concurrency: number;
-    taskConcurrency: number;
-    tmpDir: string;
-    dataOutputPath?: string;
-    steps: import('../types.js').StepConfig[];
-    data: Record<string, any>[];
-    options?: Record<string, any>;
-    offset?: number;
-    limit?: number;
 }
