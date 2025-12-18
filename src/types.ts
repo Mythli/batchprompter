@@ -47,22 +47,22 @@ export interface PreprocessorConfigDefinition {
 export interface StepDefinition {
     stepIndex: number;
     modelConfig: ModelDefinition;
-    
+
     outputPath?: string;
     outputTemplate?: string;
     output: OutputStrategy;
-    
+
     schemaPath?: string;
     verifyCommand?: string;
     postProcessCommand?: string;
-    
+
     candidates: number;
     noCandidateCommand: boolean;
-    
+
     judge?: ModelDefinition;
     feedback?: ModelDefinition;
     feedbackLoops: number;
-    
+
     aspectRatio?: string;
     plugins: PluginConfigDefinition[];
     preprocessors: PreprocessorConfigDefinition[];
@@ -81,7 +81,7 @@ export interface ResolvedModelConfig {
     model?: string;
     temperature?: number;
     thinkingLevel?: 'low' | 'medium' | 'high';
-    
+
     systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
     promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
@@ -89,24 +89,24 @@ export interface ResolvedModelConfig {
 export interface StepConfig {
     modelConfig: ResolvedModelConfig;
     tmpDir: string;
-    userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]; 
-    
+    userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+
     outputPath?: string;
-    outputTemplate?: string; 
+    outputTemplate?: string;
     output: OutputStrategy;
-    
+
     schemaPath?: string;
-    jsonSchema?: any; 
+    jsonSchema?: any;
     verifyCommand?: string;
     postProcessCommand?: string;
-    
+
     candidates: number;
     noCandidateCommand: boolean;
-    
+
     judge?: ResolvedModelConfig;
     feedback?: ResolvedModelConfig;
     feedbackLoops: number;
-    
+
     aspectRatio?: string;
     plugins: PluginConfigDefinition[];
     preprocessors: PreprocessorConfigDefinition[];
@@ -134,7 +134,6 @@ export interface RuntimeConfig {
 
 // Compatibility / Aliases
 export interface ModelConfig extends ModelDefinition {}
-export interface ActionOptions extends RuntimeConfig {}
 
 // --- Execution Architecture ---
 
@@ -144,42 +143,42 @@ export interface PipelineItem {
     stepHistory: Record<string, any>[];
     history: any[];
     originalIndex: number;
-    
+
     /** 0-based index if this item was created via explosion */
-    variationIndex?: number; 
+    variationIndex?: number;
     /** The specific content accumulated for this specific item path */
-    accumulatedContent: OpenAI.Chat.Completions.ChatCompletionContentPart[]; 
+    accumulatedContent: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
 // --- Dependency Injection Contexts ---
 
 export interface GlobalContext {
     openai: OpenAI;
-    
+
     cache?: Cache;
     gptQueue: PQueue;
     serperQueue: PQueue;
     puppeteerQueue: PQueue;
     taskQueue: PQueue;
-    
+
     puppeteerHelper: PuppeteerHelper;
     fetcher: Fetcher;
-    
+
     imageSearch?: ImageSearch;
     webSearch?: WebSearch;
-    
+
     capabilities: ServiceCapabilities;
     defaultModel: string;
 }
 
 export interface StepContext {
     global: GlobalContext;
-    
+
     // Pre-configured LLM clients with prompts bound
     llm: BoundLlmClient;
     judge?: BoundLlmClient;
     feedback?: BoundLlmClient;
-    
+
     // Factory for plugins to create clients with bound prompts
     createLlm(config: ResolvedModelConfig): BoundLlmClient;
 }
