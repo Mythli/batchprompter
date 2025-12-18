@@ -111,6 +111,7 @@ function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, ar
         if (g.taskConcurrency !== undefined) options.taskConcurrency = g.taskConcurrency;
         if (g.tmpDir) options.tmpDir = g.tmpDir;
         if (g.outputPath) options.dataOutput = g.outputPath;
+        if (g.timeout !== undefined) options.timeout = g.timeout;
     }
     
     // Steps
@@ -162,6 +163,9 @@ function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, ar
             
             // Step aspect ratio
             if (step.aspectRatio) options[`aspectRatio${stepNum}`] = step.aspectRatio;
+
+            // Step timeout
+            if (step.timeout !== undefined) options[`timeout${stepNum}`] = step.timeout;
             
             // Plugins
             if (step.plugins && Array.isArray(step.plugins)) {

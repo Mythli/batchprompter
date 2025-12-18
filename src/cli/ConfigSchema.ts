@@ -14,7 +14,8 @@ const GlobalConfigSchema = z.object({
     dataOutputPath: z.string().optional(),
     model: z.string().optional(),
     offset: z.number().int().min(0).optional(),
-    limit: z.number().int().positive().optional()
+    limit: z.number().int().positive().optional(),
+    timeout: z.number().int().positive().default(180)
 });
 
 const OutputStrategySchema = z.object({
@@ -123,10 +124,15 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         dataOutputPath: options.dataOutput,
         model: globalModel,
         offset: options.offset ? parseInt(String(options.offset), 10) : undefined,
-        limit: options.limit ? parseInt(String(options.limit), 10) : undefined
+        limit: options.limit ? parseInt(String(options.limit), 10) : undefined,
+        timeout: options.timeout ? parseInt(String(options.timeout), 10) : undefined
     };
     
     const globalConfig = GlobalConfigSchema.parse(rawGlobalConfig);
+
+    // Apply defaults back to options so they are available downstream (e.g. in ActionRunner)
+    // since we can't easily modify the NormalizedConfig interface in this context.
+    options.timeout = globalConfig.timeout;
 
     // Instantiate ModelFlags with the resolved global model
     const modelFlags = new ModelFlags(globalModel);

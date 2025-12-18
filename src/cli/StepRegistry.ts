@@ -36,6 +36,7 @@ export class StepRegistry {
         program.option('--explode', 'Explode array results into multiple rows');
         program.option('--offset <number>', 'Start processing from this row index (0-based)');
         program.option('--limit <number>', 'Limit the number of rows to process');
+        program.option('--timeout <seconds>', 'Timeout for each step in seconds (default: 180)');
 
         // --- Step Level (1-10) ---
         for (let i = 1; i <= 10; i++) {
@@ -54,6 +55,7 @@ export class StepRegistry {
             program.option(`--feedback-loops-${i} <number>`, `Feedback loops for step ${i}`);
             program.option(`--aspect-ratio-${i} <ratio>`, `Aspect ratio for step ${i}`);
             program.option(`--explode-${i}`, `Explode results for step ${i}`);
+            program.option(`--timeout-${i} <seconds>`, `Timeout for step ${i} in seconds`);
         }
 
         // --- Plugins ---

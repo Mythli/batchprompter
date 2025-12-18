@@ -70,6 +70,14 @@ export class ActionRunner {
             const stepConfig = steps[stepIndex];
             const stepNum = stepIndex + 1;
 
+            // Determine timeout for this step
+            // Priority: Step specific flag > Global flag > Default (180s)
+            const stepTimeoutSeconds = stepConfig.options[`timeout${stepNum}`] 
+                ? parseInt(stepConfig.options[`timeout${stepNum}`], 10)
+                : (stepConfig.options.timeout ? parseInt(stepConfig.options.timeout, 10) : 180);
+            
+            const timeoutMs = stepTimeoutSeconds * 1000;
+
             try {
                 const viewContext = {
                     ...item.row,
@@ -99,164 +107,178 @@ export class ActionRunner {
 
                 // Active items tracking for this step
                 let activeItems: PipelineItem[] = [item];
+                const nextItemsForQueue: PipelineItem[] = [];
 
-                // Get inherited model settings for plugins
-                const inheritedModel = {
-                    model: resolvedStep.modelConfig.model || this.globalContext.defaultModel,
-                    temperature: resolvedStep.modelConfig.temperature,
-                    thinkingLevel: resolvedStep.modelConfig.thinkingLevel
-                };
+                // Wrap execution in timeout
+                let timer: NodeJS.Timeout;
+                const timeoutPromise = new Promise<never>((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(`Step timed out after ${stepTimeoutSeconds}s`)), timeoutMs);
+                });
 
-                // Execute plugins
-                for (let pluginIdx = 0; pluginIdx < resolvedStep.plugins.length; pluginIdx++) {
-                    const pluginDef = resolvedStep.plugins[pluginIdx];
-                    const nextItems: PipelineItem[] = [];
+                const executionPromise = (async () => {
+                    // Get inherited model settings for plugins
+                    const inheritedModel = {
+                        model: resolvedStep.modelConfig.model || this.globalContext.defaultModel,
+                        temperature: resolvedStep.modelConfig.temperature,
+                        thinkingLevel: resolvedStep.modelConfig.thinkingLevel
+                    };
 
-                    const plugin = this.pluginRegistry.get(pluginDef.name);
-                    if (!plugin) {
-                        console.warn(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' not found, skipping.`);
-                        nextItems.push(...activeItems);
-                        continue;
+                    // Execute plugins
+                    for (let pluginIdx = 0; pluginIdx < resolvedStep.plugins.length; pluginIdx++) {
+                        const pluginDef = resolvedStep.plugins[pluginIdx];
+                        const nextItems: PipelineItem[] = [];
+
+                        const plugin = this.pluginRegistry.get(pluginDef.name);
+                        if (!plugin) {
+                            console.warn(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' not found, skipping.`);
+                            nextItems.push(...activeItems);
+                            continue;
+                        }
+
+                        // Parallelize plugin execution for all active items
+                        // Use a local queue to respect task concurrency limits within this step explosion
+                        const pluginQueue = new PQueue({ concurrency: taskConcurrency });
+
+                        await Promise.all(activeItems.map(currentItem => pluginQueue.add(async () => {
+                            try {
+                                const pluginViewContext = {
+                                    ...currentItem.row,
+                                    ...currentItem.workspace,
+                                    steps: currentItem.stepHistory,
+                                    index: currentItem.originalIndex
+                                };
+
+                                // Resolve plugin config with row context
+                                const resolvedPluginConfig = await plugin.resolveConfig(
+                                    pluginDef.config,
+                                    pluginViewContext,
+                                    inheritedModel
+                                );
+
+                                // Execute plugin
+                                const result = await plugin.execute(resolvedPluginConfig, {
+                                    row: pluginViewContext,
+                                    stepIndex: stepNum,
+                                    pluginIndex: pluginIdx,
+                                    services: pluginServices,
+                                    tempDirectory: resolvedStep.resolvedTempDir || tmpDir,
+                                    outputDirectory: resolvedStep.resolvedOutputDir,
+                                    outputBasename: resolvedStep.outputBasename,
+                                    outputExtension: resolvedStep.outputExtension
+                                });
+
+                                const processedItems = ResultProcessor.process(
+                                    [currentItem], 
+                                    result.packets, 
+                                    pluginDef.output,
+                                    toCamel(pluginDef.name)
+                                );
+
+                                nextItems.push(...processedItems);
+
+                            } catch (pluginError: any) {
+                                console.error(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' Failed:`, pluginError);
+                                rowErrors.push({ index: item.originalIndex, error: pluginError });
+                            }
+                        })));
+
+                        activeItems = nextItems;
                     }
 
-                    // Parallelize plugin execution for all active items
-                    // Use a local queue to respect task concurrency limits within this step explosion
-                    const pluginQueue = new PQueue({ concurrency: taskConcurrency });
+                    // Parallelize Model Execution
+                    const modelQueue = new PQueue({ concurrency: taskConcurrency });
 
-                    await Promise.all(activeItems.map(currentItem => pluginQueue.add(async () => {
+                    await Promise.all(activeItems.map(currentItem => modelQueue.add(async () => {
                         try {
-                            const pluginViewContext = {
+                            const modelViewContext = {
                                 ...currentItem.row,
+                                ...currentItem.workspace,
                                 ...currentItem.workspace,
                                 steps: currentItem.stepHistory,
                                 index: currentItem.originalIndex
                             };
 
-                            // Resolve plugin config with row context
-                            const resolvedPluginConfig = await plugin.resolveConfig(
-                                pluginDef.config,
-                                pluginViewContext,
-                                inheritedModel
-                            );
-
-                            // Execute plugin
-                            const result = await plugin.execute(resolvedPluginConfig, {
-                                row: pluginViewContext,
-                                stepIndex: stepNum,
-                                pluginIndex: pluginIdx,
-                                services: pluginServices,
-                                tempDirectory: resolvedStep.resolvedTempDir || tmpDir,
-                                outputDirectory: resolvedStep.resolvedOutputDir,
-                                outputBasename: resolvedStep.outputBasename,
-                                outputExtension: resolvedStep.outputExtension
-                            });
-
-                            const processedItems = ResultProcessor.process(
-                                [currentItem], 
-                                result.packets, 
-                                pluginDef.output,
-                                toCamel(pluginDef.name)
-                            );
-
-                            nextItems.push(...processedItems);
-
-                        } catch (pluginError: any) {
-                            console.error(`[Row ${item.originalIndex}] Step ${stepNum} Plugin '${pluginDef.name}' Failed:`, pluginError);
-                            rowErrors.push({ index: item.originalIndex, error: pluginError });
-                        }
-                    })));
-
-                    activeItems = nextItems;
-                }
-
-                const nextItemsForQueue: PipelineItem[] = [];
-                
-                // Parallelize Model Execution
-                const modelQueue = new PQueue({ concurrency: taskConcurrency });
-
-                await Promise.all(activeItems.map(currentItem => modelQueue.add(async () => {
-                    try {
-                        const modelViewContext = {
-                            ...currentItem.row,
-                            ...currentItem.workspace,
-                            steps: currentItem.stepHistory,
-                            index: currentItem.originalIndex
-                        };
-
-                        // Combine accumulated content from plugins with user prompt parts
-                        let effectiveParts = [...currentItem.accumulatedContent, ...resolvedStep.userPromptParts];
-                        
-                        for (const ppDef of resolvedStep.preprocessors) {
-                            const preprocessor = this.preprocessorRegistry.get(ppDef.name);
-                            if (preprocessor) {
-                                effectiveParts = await preprocessor.process(effectiveParts, {
-                                    row: modelViewContext,
-                                    services: {
-                                        puppeteerHelper: this.globalContext.puppeteerHelper,
-                                        fetcher: this.globalContext.fetcher,
-                                        puppeteerQueue: this.globalContext.puppeteerQueue
-                                    }
-                                }, ppDef.config);
-                            }
-                        }
-
-                        const result = await executor.executeModel(
-                            stepContext,
-                            modelViewContext,
-                            currentItem.originalIndex,
-                            stepNum,
-                            resolvedStep,
-                            currentItem.history,
-                            effectiveParts,
-                            currentItem.variationIndex
-                        );
-
-                        // Wrap model result in a packet for uniform processing
-                        const modelPacket: PluginPacket = {
-                            data: result.modelResult,
-                            contentParts: []
-                        };
-
-                        const processedItems = ResultProcessor.process(
-                            [currentItem], 
-                            [modelPacket], 
-                            resolvedStep.output,
-                            'modelOutput'
-                        );
-
-                        for (const finalItem of processedItems) {
-                            const newHistory = [...finalItem.history];
-
-                            const hasUserPrompt = resolvedStep.userPromptParts.length > 0 && resolvedStep.userPromptParts.some(p => {
-                                if (p.type === 'text') return p.text.trim().length > 0;
-                                return true;
-                            });
-
-                            const assistantContent = result.historyMessage.content;
-                            const hasAssistantResponse = 
-                                assistantContent !== null && 
-                                assistantContent !== undefined && 
-                                assistantContent !== '' && 
-                                !(Array.isArray(assistantContent) && assistantContent.length === 0);
-
-                            if (hasUserPrompt) {
-                                newHistory.push({ role: 'user', content: resolvedStep.userPromptParts });
-                                
-                                if (hasAssistantResponse) {
-                                    newHistory.push(result.historyMessage);
+                            // Combine accumulated content from plugins with user prompt parts
+                            let effectiveParts = [...currentItem.accumulatedContent, ...resolvedStep.userPromptParts];
+                            
+                            for (const ppDef of resolvedStep.preprocessors) {
+                                const preprocessor = this.preprocessorRegistry.get(ppDef.name);
+                                if (preprocessor) {
+                                    effectiveParts = await preprocessor.process(effectiveParts, {
+                                        row: modelViewContext,
+                                        services: {
+                                            puppeteerHelper: this.globalContext.puppeteerHelper,
+                                            fetcher: this.globalContext.fetcher,
+                                            puppeteerQueue: this.globalContext.puppeteerQueue
+                                        }
+                                    }, ppDef.config);
                                 }
                             }
 
-                            finalItem.history = newHistory;
-                            finalItem.stepHistory = [...finalItem.stepHistory, result.modelResult];
-                            
-                            nextItemsForQueue.push(finalItem);
+                            const result = await executor.executeModel(
+                                stepContext,
+                                modelViewContext,
+                                currentItem.originalIndex,
+                                stepNum,
+                                resolvedStep,
+                                currentItem.history,
+                                effectiveParts,
+                                currentItem.variationIndex
+                            );
+
+                            // Wrap model result in a packet for uniform processing
+                            const modelPacket: PluginPacket = {
+                                data: result.modelResult,
+                                contentParts: []
+                            };
+
+                            const processedItems = ResultProcessor.process(
+                                [currentItem], 
+                                [modelPacket], 
+                                resolvedStep.output,
+                                'modelOutput'
+                            );
+
+                            for (const finalItem of processedItems) {
+                                const newHistory = [...finalItem.history];
+
+                                const hasUserPrompt = resolvedStep.userPromptParts.length > 0 && resolvedStep.userPromptParts.some(p => {
+                                    if (p.type === 'text') return p.text.trim().length > 0;
+                                    return true;
+                                });
+
+                                const assistantContent = result.historyMessage.content;
+                                const hasAssistantResponse = 
+                                    assistantContent !== null && 
+                                    assistantContent !== undefined && 
+                                    assistantContent !== '' && 
+                                    !(Array.isArray(assistantContent) && assistantContent.length === 0);
+
+                                if (hasUserPrompt) {
+                                    newHistory.push({ role: 'user', content: resolvedStep.userPromptParts });
+                                    
+                                    if (hasAssistantResponse) {
+                                        newHistory.push(result.historyMessage);
+                                    }
+                                }
+
+                                finalItem.history = newHistory;
+                                finalItem.stepHistory = [...finalItem.stepHistory, result.modelResult];
+                                
+                                nextItemsForQueue.push(finalItem);
+                            }
+                        } catch (modelError: any) {
+                            console.error(`[Row ${item.originalIndex}] Step ${stepNum} Model Execution Failed:`, modelError.message);
+                            rowErrors.push({ index: item.originalIndex, error: modelError });
                         }
-                    } catch (modelError: any) {
-                        console.error(`[Row ${item.originalIndex}] Step ${stepNum} Model Execution Failed:`, modelError.message);
-                        rowErrors.push({ index: item.originalIndex, error: modelError });
-                    }
-                })));
+                    })));
+                })();
+
+                try {
+                    await Promise.race([executionPromise, timeoutPromise]);
+                } finally {
+                    clearTimeout(timer!);
+                }
 
                 if (stepIndex === steps.length - 1) {
                     finalResults.push(...nextItemsForQueue.map(i => i.row));
@@ -269,8 +291,8 @@ export class ActionRunner {
                     }
                 }
 
-            } catch (err) {
-                console.error(`[Row ${item.originalIndex}] Step ${stepNum} Setup Error:`, err);
+            } catch (err: any) {
+                console.error(`[Row ${item.originalIndex}] Step ${stepNum} Error:`, err.message || err);
                 rowErrors.push({ index: item.originalIndex, error: err });
             }
         };
