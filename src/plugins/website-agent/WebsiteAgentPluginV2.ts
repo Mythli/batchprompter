@@ -22,7 +22,10 @@ import { PuppeteerPageHelper, ScrapedPageContent } from '../../utils/puppeteer/P
 export const WebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional().default({}),
+    output: OutputConfigSchema.default({
+        mode: 'ignore',
+        explode: false
+    }),
     url: z.string(),
     schema: z.union([z.string(), z.record(z.string(), z.any())]),
     budget: z.number().int().positive().default(10),

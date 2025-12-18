@@ -22,7 +22,10 @@ import { LlmListSelector } from '../../utils/LlmListSelector.js';
 export const WebSearchConfigSchemaV2 = z.object({
     type: z.literal('web-search'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional().default({}),
+    output: OutputConfigSchema.default({
+        mode: 'ignore',
+        explode: false
+    }),
     query: z.string().optional(),
     // Query model config
     queryPrompt: PromptDefSchema.optional(),

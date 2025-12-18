@@ -16,7 +16,10 @@ import { OutputConfigSchema } from '../../config/schema.js';
 export const DedupeConfigSchemaV2 = z.object({
     type: z.literal('dedupe'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional().default({}),
+    output: OutputConfigSchema.default({
+        mode: 'ignore',
+        explode: false
+    }),
     key: z.string()
 });
 

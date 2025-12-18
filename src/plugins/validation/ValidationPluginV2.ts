@@ -18,7 +18,10 @@ import { SchemaLoader } from '../../config/SchemaLoader.js';
 export const ValidationConfigSchemaV2 = z.object({
     type: z.literal('validation'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional().default({}),
+    output: OutputConfigSchema.default({
+        mode: 'ignore',
+        explode: false
+    }),
     schema: z.union([z.string(), z.record(z.string(), z.any())]),
     target: z.string().optional()
 });

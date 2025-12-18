@@ -21,7 +21,10 @@ import { ensureDir } from '../../utils/fileUtils.js';
 export const StyleScraperConfigSchemaV2 = z.object({
     type: z.literal('style-scraper'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional().default({}),
+    output: OutputConfigSchema.default({
+        mode: 'ignore',
+        explode: false
+    }),
     url: z.string(),
     resolution: z.string().default('1920x1080'),
     mobile: z.boolean().default(false),
