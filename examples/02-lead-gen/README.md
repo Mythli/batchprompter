@@ -2,6 +2,8 @@
 
 This example demonstrates a sophisticated **multi-stage pipeline** configured via JSON files. It automates the process of finding companies, qualifying them, and finding contact details for decision-makers.
 
+> **💡 Tip:** This tutorial is the primary reference for understanding and configuring the **Website Agent**.
+
 ## 🎯 Goal
 Create a CSV list of "Sprachschulen" (Language Schools) in Münster, enriched with the CEO's name, their LinkedIn profile, and their top product offer.
 
@@ -57,12 +59,21 @@ This configuration takes the list of URLs and extracts deep insights.
     {
       "type": "website-agent",
       "url": "{{link}}",
-      "schema": { ... }
+      "schema": { ... },
+      "budget": 10,
+      "batchSize": 3
     }
   ]
 }
 ```
 *   **`website-agent`**: This is an autonomous scraper. It visits the URL, and if it doesn't find the info on the homepage, it clicks links (like "Impressum", "About Us", "Team") to find it.
+*   **Configuration Options:**
+    *   `url`: The starting URL to scrape.
+    *   `schema`: The JSON schema defining the data to extract.
+    *   `budget` (Default: 10): The maximum number of pages the agent is allowed to visit per website. Increase this for complex sites, decrease it to save tokens/time.
+    *   `batchSize` (Default: 3): How many pages the agent visits in parallel during each iteration.
+    *   `navigatorModel`: (Optional) Specific model to use for deciding which links to click.
+    *   `extractModel`: (Optional) Specific model to use for extracting data from pages.
 *   **`schema`**: Defines exactly what we want.
     *   **Why is everything optional?** The agent visits up to 10 pages per website. It extracts data from *each* page individually. A single page (like "About Us") might contain the CEO's name but not the pricing, while another page (like "Offers") has the pricing but not the CEO. By making fields nullable (`["string", "null"]`), we allow the agent to extract partial information from each page. These partial results are then merged into a complete profile.
     *   `decisionMaker`: We ask for the CEO/Founder's name.
