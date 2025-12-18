@@ -122,6 +122,7 @@ export const GlobalsConfigSchema = z.object({
     concurrency: z.number().int().positive().default(50),
     taskConcurrency: z.number().int().positive().default(100),
     tmpDir: z.string().default('.tmp'),
+    outputPath: z.string().optional(),
     dataOutputPath: z.string().optional(),
     timeout: z.number().int().positive().default(180)
 });

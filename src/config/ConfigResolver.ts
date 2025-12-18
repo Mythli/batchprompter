@@ -123,6 +123,7 @@ export class ConfigResolver {
             thinkingLevel: mergedModel.thinkingLevel,
             plugins,
             output: step.output,
+            outputTemplate: step.outputPath ?? globals.outputPath,
             schema,
             candidates: step.candidates,
             skipCandidateCommand: step.skipCandidateCommand,

@@ -63,7 +63,12 @@ export class StepResolver {
 
         // Temp Directory
         const tmpDirDelegate = Handlebars.compile(globalTmpDir, { noEscape: true });
-        const resolvedGlobalTmpDir = tmpDirDelegate(sanitizedRow);
+        let resolvedGlobalTmpDir = tmpDirDelegate(sanitizedRow);
+
+        // If the global tmpDir looks like a file path (has extension), use its directory
+        if (path.extname(resolvedGlobalTmpDir)) {
+            resolvedGlobalTmpDir = path.dirname(resolvedGlobalTmpDir);
+        }
 
         if (resolvedStep.resolvedOutputDir) {
             resolvedStep.resolvedTempDir = path.join(resolvedGlobalTmpDir, resolvedStep.resolvedOutputDir);
