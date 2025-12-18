@@ -30,7 +30,7 @@ These flags control how we find the reference image.
 | `--image-select-prompt` | *"Select the best image..."* | **The Judge.** This prompt contains a scoring table (e.g., "+5 points if core activity visible"). The AI uses this to look at the search results and pick the single best image. |
 | `--image-search-sprite-size` | `6` | To save tokens, we stitch 6 images into one "sprite" sheet before sending them to the Vision Model for selection. |
 | `--image-search-select` | `6` | We keep the top 6 images (though usually, we just want the best one for the next step). |
-| `--image-search-explode` | (Present) | **Crucial.** This turns the selected images into separate processing tasks. If 1 image is selected, the pipeline continues with that 1 image context. |
+| `--image-search-explode` | (Present) | Splits the selected images into separate processing tasks. This ensures that the subsequent generation model receives one reference image at a time, even if multiple were selected. |
 
 #### 🤖 How the Image Search Plugin Works Internally
 The plugin employs a **Visual RAG (Retrieval-Augmented Generation)** strategy:
