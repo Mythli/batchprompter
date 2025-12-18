@@ -85,6 +85,14 @@ The magic happens in the `plugins` section of the config file.
       "type": "string",
       "description": "Model used to generate search queries."
     },
+    "queryThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the query model."
+    },
+    "queryTemperature": {
+      "type": "number",
+      "description": "Temperature for the query model."
+    },
     "queryPrompt": {
       "type": "string",
       "description": "Instructions for generating search queries."
@@ -93,6 +101,14 @@ The magic happens in the `plugins` section of the config file.
       "type": "string",
       "description": "Model used to select/filter results."
     },
+    "selectThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the selection model."
+    },
+    "selectTemperature": {
+      "type": "number",
+      "description": "Temperature for the selection model."
+    },
     "selectPrompt": {
       "type": "string",
       "description": "Criteria for selecting results."
@@ -100,6 +116,14 @@ The magic happens in the `plugins` section of the config file.
     "compressModel": {
       "type": "string",
       "description": "Model used to summarize page content (if mode is not 'none')."
+    },
+    "compressThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the compression model."
+    },
+    "compressTemperature": {
+      "type": "number",
+      "description": "Temperature for the compression model."
     },
     "compressPrompt": {
       "type": "string",

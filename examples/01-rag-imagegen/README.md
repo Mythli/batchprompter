@@ -87,6 +87,14 @@ These flags control how we find the reference image.
       "type": "string",
       "description": "Model used to generate search queries."
     },
+    "queryThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the query model."
+    },
+    "queryTemperature": {
+      "type": "number",
+      "description": "Temperature for the query model."
+    },
     "queryPrompt": {
       "type": "string",
       "description": "Instructions for generating search queries."
@@ -94,6 +102,14 @@ These flags control how we find the reference image.
     "selectModel": {
       "type": "string",
       "description": "Vision model used to select the best images."
+    },
+    "selectThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the selection model."
+    },
+    "selectTemperature": {
+      "type": "number",
+      "description": "Temperature for the selection model."
     },
     "selectPrompt": {
       "type": "string",
