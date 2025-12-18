@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
-import TurndownService from 'turndown';
 import OpenAI from 'openai';
 import {
     Plugin,
@@ -12,10 +11,9 @@ import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '
 import { OutputConfigSchema, PromptDefSchema } from '../../config/schema.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
-import { compressHtml } from '../../utils/compressHtml.js';
 import { makeSchemaOptional } from '../../utils/schemaUtils.js';
-import { LinkData } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
+import { PuppeteerPageHelper, ScrapedPageContent } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -322,28 +320,17 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         console.log(`[WebsiteAgent] Starting at ${initialUrl} (Budget: ${budget})`);
 
         // Helper to get page content
-        const getPageContent = async (url: string) => {
+        const getPageContent = async (url: string): Promise<ScrapedPageContent> => {
             return puppeteerQueue.add(async () => {
                 const pageHelper = await puppeteerHelper.getPageHelper();
                 try {
-                    return await pageHelper.navigateAndCache(
-                        url,
-                        async (ph: any) => {
-                            const html = await ph.getFinalHtml();
-                            const links = await ph.extractLinksWithText();
-                            const compressed = compressHtml(html);
-                            const turndownService = new TurndownService();
-                            turndownService.remove(['script', 'style', 'noscript', 'iframe']);
-                            const markdown = turndownService.turndown(compressed);
-                            return { html, markdown, links };
-                        },
-                        {
-                            dismissCookies: false,
-                            htmlOnly: true,
-                            cacheKey: `website-agent-v1:${url}`,
-                            ttl: 24 * 60 * 60 * 1000
-                        }
-                    );
+                    // Use the new scrapeUrl helper which handles navigation, caching, and markdown conversion
+                    return await pageHelper.scrapeUrl(url, {
+                        dismissCookies: false,
+                        htmlOnly: true,
+                        cacheKey: `website-agent-v1:${url}`,
+                        ttl: 24 * 60 * 60 * 1000
+                    });
                 } finally {
                     await pageHelper.close();
                 }

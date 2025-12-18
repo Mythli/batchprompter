@@ -2,6 +2,8 @@ import {Page, CDPSession, Viewport, HTTPResponse, ElementHandle, Protocol, HTTPR
 import { Cache } from 'cache-manager';
 import browserScriptFunction from './drawPuppeteerGrid.js';
 import {CachedResponse, Fetcher} from "llm-fns";
+import TurndownService from 'turndown';
+import { compressHtml } from '../compressHtml.js';
 
 /** Defines the viewport dimensions for a screenshot. */
 export interface Resolution {
@@ -110,6 +112,12 @@ type PageFetchResult = {
     finalUrl: string;
 };
 
+export interface ScrapedPageContent {
+    html: string;
+    markdown: string;
+    links: LinkData[];
+}
+
 /**
  * A helper class providing utility methods to interact with and extract data from a Puppeteer Page.
  */
@@ -214,14 +222,14 @@ export class PuppeteerPageHelper {
         const response = await this.navigateToUrl(url, options);
         if (!response) {
             console.warn(`[PuppeteerPageHelper] Navigation to ${url} did not return a response (likely timeout). Returning current page content.`);
-            return this.page.content();
+            return this.getFinalHtml();
         }
         try {
             const originalHtml = await response.text();
             return originalHtml;
         } catch (e) {
             console.warn(`[PuppeteerPageHelper] Could not get text from response. Returning current page content.`);
-            return this.page.content();
+            return this.getFinalHtml();
         }
     }
 
@@ -326,6 +334,34 @@ export class PuppeteerPageHelper {
     }
 
     /**
+     * High-level helper to navigate to a URL, extract content, convert to Markdown,
+     * and cache the result.
+     */
+    async scrapeUrl(url: string, options: NavigateAndCacheOptions = {}): Promise<ScrapedPageContent> {
+        return this.navigateAndCache(
+            url,
+            async (ph) => ph.getProcessedContent(),
+            options
+        );
+    }
+
+    /**
+     * Extracts HTML, converts to Markdown, and extracts links from the current page.
+     */
+    async getProcessedContent(): Promise<ScrapedPageContent> {
+        const html = await this.getFinalHtml();
+        const links = await this.extractLinksWithText();
+        
+        // Compression and Markdown conversion
+        const compressed = compressHtml(html);
+        const turndownService = new TurndownService();
+        turndownService.remove(['script', 'style', 'noscript', 'iframe']);
+        const markdown = turndownService.turndown(compressed);
+        
+        return { html, markdown, links };
+    }
+
+    /**
      * Ensures the page is at the specified URL, navigating only if necessary.
      * This is useful after a potential cache hit that prevented navigation.
      * @param url The URL the page should be at.
@@ -376,10 +412,38 @@ export class PuppeteerPageHelper {
 
     /**
      * Gets the final, rendered HTML content of the page.
-     * @returns The page's full HTML content.
+     * Uses a timeout and fallback to prevent hanging indefinitely.
+     * @param timeoutMs Max time to wait for content (default 15s).
+     * @returns The page's full HTML content. Throws error if completely failed.
      */
-    async getFinalHtml(): Promise<string> {
-        return this.page.content();
+    async getFinalHtml(timeoutMs: number = 15000): Promise<string> {
+        try {
+            // 1. Try the standard Puppeteer method with a timeout
+            return await Promise.race([
+                this.page.content(),
+                new Promise<string>((_, reject) => 
+                    setTimeout(() => reject(new Error(`Timeout of ${timeoutMs}ms exceeded`)), timeoutMs)
+                )
+            ]);
+        } catch (e: any) {
+            console.warn(`[PuppeteerPageHelper] page.content() failed or timed out: ${e.message}. Trying fallback JS evaluation.`);
+            
+            try {
+                // 2. Fallback: Try to get HTML via JS evaluation.
+                // This is often faster/lighter and might work if the CDP protocol is stuck.
+                const html = await Promise.race([
+                    this.page.evaluate(() => document.documentElement.outerHTML),
+                    new Promise<string>((_, reject) => 
+                        setTimeout(() => reject(new Error('Fallback JS evaluation timed out')), 5000)
+                    )
+                ]);
+                return html as string;
+            } catch (fallbackError: any) {
+                console.error(`[PuppeteerPageHelper] Critical: Failed to get HTML content via fallback: ${fallbackError.message}`);
+                // 3. Throw error to ensure the process moves on and doesn't hang.
+                throw new Error(`Failed to get page content: ${fallbackError.message}`);
+            }
+        }
     }
 
     /**
