@@ -18,7 +18,7 @@ CONFIG=$(cat <<EOF
   },
   "steps": [
     {
-      "prompt": "List the city of Münster. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name).\n",
+      "prompt": "List all cities in Germany with more than 50,000 inhabitants. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name).\n",
       "schema": {
         "type": "array",
         "items": {
