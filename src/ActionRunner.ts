@@ -10,7 +10,6 @@ import { SchemaHelper } from './utils/SchemaHelper.js';
 import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
 import { PluginRegistryV2, PluginPacket, PluginServices } from './plugins/types.js';
 import { ResultProcessor } from './core/ResultProcessor.js';
-import OpenAI from 'openai';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
 import { StepContextFactory } from './core/StepContextFactory.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
@@ -33,21 +32,21 @@ export class ActionRunner {
         const { concurrency, taskConcurrency, data, steps, dataOutputPath, tmpDir, offset = 0, limit } = config;
 
         console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
-        
+
         const endIndex = limit ? offset + limit : undefined;
         const dataToProcess = data.slice(offset, endIndex);
-        
+
         console.log(`Found ${data.length} rows in input.`);
         if (offset > 0 || limit) {
             console.log(`Processing subset: Rows ${offset} to ${endIndex ? endIndex - 1 : data.length - 1} (${dataToProcess.length} total).`);
         } else {
             console.log(`Processing all ${data.length} rows.`);
         }
-        
+
         console.log(`Pipeline has ${steps.length} steps.`);
 
         const rowErrors: { index: number, error: any }[] = [];
-        
+
         const queue = new PQueue({ concurrency: taskConcurrency });
 
         const executor = new StepExecutor(tmpDir, this.messageBuilder);
@@ -88,11 +87,11 @@ export class ActionRunner {
                 }
 
                 const resolvedStep = await this.prepareStepConfig(
-                    stepConfig, 
-                    viewContext, 
-                    sanitizedRow, 
-                    item.originalIndex, 
-                    stepNum, 
+                    stepConfig,
+                    viewContext,
+                    sanitizedRow,
+                    item.originalIndex,
+                    stepNum,
                     tmpDir
                 );
 
@@ -163,8 +162,8 @@ export class ActionRunner {
                                 });
 
                                 const processedItems = ResultProcessor.process(
-                                    [currentItem], 
-                                    result.packets, 
+                                    [currentItem],
+                                    result.packets,
                                     pluginDef.output,
                                     toCamel(pluginDef.name)
                                 );
@@ -195,7 +194,7 @@ export class ActionRunner {
 
                             // Combine accumulated content from plugins with user prompt parts
                             let effectiveParts = [...currentItem.accumulatedContent, ...resolvedStep.userPromptParts];
-                            
+
                             for (const ppDef of resolvedStep.preprocessors) {
                                 const preprocessor = this.preprocessorRegistry.get(ppDef.name);
                                 if (preprocessor) {
@@ -228,8 +227,8 @@ export class ActionRunner {
                             };
 
                             const processedItems = ResultProcessor.process(
-                                [currentItem], 
-                                [modelPacket], 
+                                [currentItem],
+                                [modelPacket],
                                 resolvedStep.output,
                                 'modelOutput'
                             );
@@ -243,15 +242,15 @@ export class ActionRunner {
                                 });
 
                                 const assistantContent = result.historyMessage.content;
-                                const hasAssistantResponse = 
-                                    assistantContent !== null && 
-                                    assistantContent !== undefined && 
-                                    assistantContent !== '' && 
+                                const hasAssistantResponse =
+                                    assistantContent !== null &&
+                                    assistantContent !== undefined &&
+                                    assistantContent !== '' &&
                                     !(Array.isArray(assistantContent) && assistantContent.length === 0);
 
                                 if (hasUserPrompt) {
                                     newHistory.push({ role: 'user', content: resolvedStep.userPromptParts });
-                                    
+
                                     if (hasAssistantResponse) {
                                         newHistory.push(result.historyMessage);
                                     }
@@ -259,7 +258,7 @@ export class ActionRunner {
 
                                 finalItem.history = newHistory;
                                 finalItem.stepHistory = [...finalItem.stepHistory, result.modelResult];
-                                
+
                                 nextItemsForQueue.push(finalItem);
                             }
                         } catch (modelError: any) {
@@ -295,7 +294,7 @@ export class ActionRunner {
         try {
             for (let i = 0; i < dataToProcess.length; i++) {
                 const originalIndex = offset + i;
-                
+
                 const initialItem: PipelineItem = {
                     row: dataToProcess[i],
                     workspace: {},
@@ -371,7 +370,7 @@ export class ActionRunner {
         if (stepConfig.outputTemplate) {
             const delegate = Handlebars.compile(stepConfig.outputTemplate, { noEscape: true });
             resolvedStep.outputPath = delegate(sanitizedRow);
-            
+
             resolvedStep.resolvedOutputDir = path.dirname(resolvedStep.outputPath);
             await ensureDir(resolvedStep.resolvedOutputDir);
 
