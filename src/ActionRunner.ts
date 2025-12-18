@@ -9,6 +9,7 @@ import { ResultProcessor } from './core/ResultProcessor.js';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
 import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
+import { ensureDir } from './utils/fileUtils.js';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -389,6 +390,8 @@ export class ActionRunner {
         } else {
             finalOutputPath = path.join(process.cwd(), 'output.csv');
         }
+
+        await ensureDir(finalOutputPath);
 
         if (isJson) {
             await fsPromises.writeFile(finalOutputPath, JSON.stringify(validResults, null, 2));
