@@ -68,18 +68,56 @@ This configuration takes the list of URLs and extracts deep insights.
 ```
 *   **`website-agent`**: This is an autonomous scraper. It visits the URL, and if it doesn't find the info on the homepage, it clicks links (like "Impressum", "About Us", "Team") to find it.
 
-#### ⚙️ Configuration Reference
+#### ⚙️ Full Configuration Schema
 
-| Option | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `type` | `string` | - | Must be `"website-agent"`. |
-| `url` | `string` | - | The starting URL to scrape. Supports Handlebars (e.g., `{{link}}`). |
-| `schema` | `object` | - | JSON Schema defining the data to extract. |
-| `budget` | `number` | `10` | Max pages to visit per website. Increase for complex sites. |
-| `batchSize` | `number` | `3` | Number of pages to visit in parallel per iteration. |
-| `navigatorModel` | `string` | Global | Model used to decide which links to click next. |
-| `extractModel` | `string` | Global | Model used to extract data from page content. |
-| `mergeModel` | `string` | Global | Model used to consolidate partial data from multiple pages. |
+The `website-agent` is highly configurable. You can control the specific models, prompts, and reasoning levels for each internal agent (Navigator, Extractor, Merger).
+
+```json
+{
+  "type": "website-agent",
+  "url": "{{link}}", // Supports Handlebars
+  "schema": { ... }, // Inline JSON Schema object OR path to file (e.g. "schemas/extraction.json")
+
+  // --- Execution Control ---
+  "budget": 10,      // Max pages to visit (default: 10)
+  "batchSize": 3,    // Parallel pages per step (default: 3)
+
+  // --- Navigator Agent (Decides which links to click) ---
+  "navigatorModel": "google/gemini-3-flash",
+  "navigatorThinkingLevel": "high", // "low", "medium", "high" (for reasoning models)
+  "navigatorTemperature": 0.7,
+  "navigatorPrompt": "prompts/nav_instructions.md", // Path to file, folder, or raw text
+
+  // --- Extractor Agent (Reads page content) ---
+  "extractModel": "gpt-4o",
+  "extractThinkingLevel": "low",
+  "extractTemperature": 0.0,
+  "extractPrompt": "prompts/extract.md",
+
+  // --- Merger Agent (Consolidates data) ---
+  "mergeModel": "gpt-4o",
+  "mergeThinkingLevel": "medium",
+  "mergeTemperature": 0.0,
+  "mergePrompt": "prompts/merge.md"
+}
+```
+
+#### 🧠 Advanced Model Configuration
+
+**1. Reasoning Levels (`thinkingLevel`)**
+For complex tasks, you can enable "reasoning" (Chain of Thought) if the underlying model supports it (e.g., Gemini 2.0 Flash Thinking, OpenAI o1/o3).
+*   **`high`**: Best for the **Navigator** to make smart decisions about which links are relevant.
+*   **`low`** / **`medium`**: Good for extraction or merging.
+
+**2. Custom Prompts (Files & Folders)**
+All `*Prompt` fields (e.g., `navigatorPrompt`) accept three types of input:
+*   **Raw Text**: `"You are a navigator..."`
+*   **File Path**: `"prompts/navigator.md"` (The file content is loaded).
+*   **Directory Path**: `"prompts/navigator/"` (All files in the directory are loaded and concatenated. Useful for providing few-shot examples as separate files).
+
+**3. Schema as File**
+Instead of writing a huge JSON object inline, you can save your schema to a file and reference it:
+`"schema": "schemas/company-schema.json"`
 
 *   **`schema`**: Defines exactly what we want.
     *   **Why is everything optional?** The agent visits up to 10 pages per website. It extracts data from *each* page individually. A single page (like "About Us") might contain the CEO's name but not the pricing, while another page (like "Offers") has the pricing but not the CEO. By making fields nullable (`["string", "null"]`), we allow the agent to extract partial information from each page. These partial results are then merged into a complete profile.
