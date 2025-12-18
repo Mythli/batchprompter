@@ -30,6 +30,15 @@ These flags control how we find the reference image.
 *   `--image-search-select 6`: We keep the top 6 images (though usually, we just want the best one for the next step).
 *   `--image-search-explode`: **Crucial.** This turns the selected images into separate processing tasks. If 1 image is selected, the pipeline continues with that 1 image context.
 
+#### 🤖 How the Image Search Plugin Works Internally
+The plugin employs a **Visual RAG (Retrieval-Augmented Generation)** strategy:
+
+1.  **Generate Queries:** An LLM creates diverse search terms (e.g., "Sailing boat close up", "Sailing instructor teaching") to find a wide range of visual references.
+2.  **Scatter (Search):** It executes these searches in parallel using Google Images.
+3.  **Sprite Generation:** To efficiently process many images with a Vision Model, the plugin stitches the search results into a single **Sprite Sheet** (a grid of images). This drastically reduces token usage and latency compared to sending individual image files.
+4.  **Visual Selection:** The Vision Model (The Judge) looks at the sprite sheet. It uses your `selectPrompt` (the scoring rubric) to identify the specific image index that best matches your criteria.
+5.  **Context Injection:** The high-resolution version of the winning image is retrieved and injected into the context of the final Image Generation model, ensuring the output follows the reference's composition and style.
+
 #### ⚙️ Image Search Configuration Schema
 
 ```json
