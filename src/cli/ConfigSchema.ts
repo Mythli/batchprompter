@@ -37,7 +37,7 @@ const toCamel = (s: string) => {
  * Merges CLI options into the file configuration.
  * CLI options take precedence.
  */
-function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: string[]): any {
+function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: string[], pluginRegistry: PluginRegistryV2): any {
     const config = JSON.parse(JSON.stringify(fileConfig || {})); // Deep clone
 
     // Ensure basic structure exists
@@ -156,6 +156,27 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
             step.feedback = step.feedback || {};
             step.feedback.loops = parseInt(String(options[`feedbackLoops${stepNum}`]), 10);
         }
+
+        // --- Plugin Overrides ---
+        // We iterate through all registered plugins and ask them to parse CLI options for this step.
+        // If a plugin returns a config, we add it to the step's plugins list.
+        // Note: This appends new plugin configs. It does NOT merge with existing file-based plugin configs
+        // because matching them by ID or type is ambiguous (a step can have multiple plugins of the same type).
+        // This means CLI flags for plugins generally *add* a plugin instance to the step.
+        
+        step.plugins = step.plugins || [];
+        
+        for (const plugin of pluginRegistry.getAll()) {
+            const pluginConfig = plugin.parseCLIOptions(options, stepNum);
+            if (pluginConfig) {
+                // Check if we should replace an existing plugin config or append?
+                // For simplicity and predictability, CLI flags usually imply "I want to run this plugin".
+                // If the file already has it, we might be duplicating.
+                // However, without a unique ID in CLI flags, we can't target a specific existing plugin instance.
+                // Current behavior in legacy code was to append. We stick to that.
+                step.plugins.push(pluginConfig);
+            }
+        }
     }
 
     return config;
@@ -173,7 +194,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     const { fileConfig, options, args } = input;
 
     // 1. Merge CLI overrides into file config
-    const mergedConfig = mergeCliOverrides(fileConfig, options, args);
+    const mergedConfig = mergeCliOverrides(fileConfig, options, args, pluginRegistry);
 
     // 2. Validate against strict Zod schema
     const config = PipelineConfigSchema.parse(mergedConfig);
