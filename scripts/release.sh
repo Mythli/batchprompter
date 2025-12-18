@@ -21,9 +21,14 @@ echo ""
 echo "⬆️  Step 3: Pushing to git..."
 git push --follow-tags
 
-# 4. Publish to Registry
+# 4. Generate LLM Context
 echo ""
-echo "📢 Step 4: Publishing to registry..."
+echo "📝 Step 4: Generating llms-full.txt..."
+bash scripts/create-llms-full.sh
+
+# 5. Publish to Registry
+echo ""
+echo "📢 Step 5: Publishing to registry..."
 # --no-git-checks avoids errors if pnpm thinks the repo is dirty (though npm version should have committed everything)
 pnpm publish --no-git-checks
 
