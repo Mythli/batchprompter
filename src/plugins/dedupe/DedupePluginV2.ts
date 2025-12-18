@@ -59,7 +59,11 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
 
         return {
             type: 'dedupe',
-            key
+            key,
+            output: {
+                mode: 'ignore',
+                explode: false
+            }
         };
     }
 

@@ -107,8 +107,6 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         tmpDir: options.tmpDir,
         dataOutputPath: options.dataOutput,
         model: globalModel,
-        offset: options.offset ? parseInt(String(options.offset), 10) : undefined,
-        limit: options.limit ? parseInt(String(options.limit), 10) : undefined,
         timeout: options.timeout ? parseInt(String(options.timeout), 10) : undefined
     };
     
@@ -239,6 +237,11 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
 
     return {
         global: globalConfig,
-        steps
+        steps,
+        data: {
+            format: 'auto',
+            offset: options.offset ? parseInt(String(options.offset), 10) : undefined,
+            limit: options.limit ? parseInt(String(options.limit), 10) : undefined
+        }
     };
 });

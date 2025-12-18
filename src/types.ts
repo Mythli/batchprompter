@@ -73,6 +73,11 @@ export interface NormalizedConfig {
     dataFilePath?: string;
     global: GlobalsConfig;
     steps: StepDefinition[];
+    data: {
+        format: string;
+        offset?: number;
+        limit?: number;
+    };
 }
 
 // --- Resolved Configuration (Post-Load) ---

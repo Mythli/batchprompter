@@ -71,7 +71,11 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         return {
             type: 'validation',
             schema,
-            target: getOpt('validateTarget')
+            target: getOpt('validateTarget'),
+            output: {
+                mode: 'ignore',
+                explode: false
+            }
         };
     }
 

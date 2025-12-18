@@ -38,6 +38,7 @@ export class CLIAdapter {
         program.option('--task-concurrency <number>', 'Task concurrency', parseInt);
         program.option('--tmp-dir <path>', 'Temporary directory', '.tmp');
         program.option('--data-output <path>', 'Output data file path');
+        program.option('--timeout <seconds>', 'Global timeout in seconds', parseInt);
 
         // Step output options
         program.option('-o, --output <path>', 'Output file path template');
@@ -88,6 +89,7 @@ export class CLIAdapter {
             program.option(`--feedback-${i}-prompt <text>`, `Feedback prompt for step ${i}`);
             program.option(`--feedback-${i}-model <model>`, `Feedback model for step ${i}`);
             program.option(`--feedback-loops-${i} <number>`, `Feedback loops for step ${i}`, parseInt);
+            program.option(`--timeout-${i} <seconds>`, `Timeout for step ${i}`, parseInt);
         }
     }
 
@@ -116,7 +118,8 @@ export class CLIAdapter {
             concurrency: options.concurrency,
             taskConcurrency: options.taskConcurrency,
             tmpDir: options.tmpDir || '.tmp',
-            outputPath: options.dataOutput
+            dataOutputPath: options.dataOutput,
+            timeout: options.timeout
         };
 
         // Build steps
@@ -226,7 +229,8 @@ export class CLIAdapter {
             feedback,
             aspectRatio: getOpt('aspectRatio'),
             command: getOpt('command'),
-            verifyCommand: getOpt('verifyCommand')
+            verifyCommand: getOpt('verifyCommand'),
+            timeout: getOpt('timeout')
         };
     }
 

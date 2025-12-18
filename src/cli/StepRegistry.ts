@@ -157,8 +157,8 @@ export class StepRegistry {
             steps,
             data,
             options,
-            offset: normalized.global.offset,
-            limit: normalized.global.limit
+            offset: normalized.data.offset,
+            limit: normalized.data.limit
         };
     }
 }
