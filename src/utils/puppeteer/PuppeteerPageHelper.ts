@@ -164,7 +164,7 @@ export class PuppeteerPageHelper {
      */
     async setupPage(): Promise<void> {
         await this.page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
-        
+
         // Automatically dismiss dialogs (alerts, confirms, beforeunload)
         this.page.on('dialog', async (dialog) => {
             console.log(`[Puppeteer] Dismissing dialog: ${dialog.message()}`);
@@ -320,6 +320,7 @@ export class PuppeteerPageHelper {
         } finally {
             if (closePage) {
                 await this.close();
+                console.log('yeah');
             }
         }
     }
