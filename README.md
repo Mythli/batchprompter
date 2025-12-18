@@ -39,7 +39,7 @@ The best way to learn BatchPrompt is by doing. We have prepared step-by-step tut
 | Tutorial | Difficulty | What you'll learn |
 | :--- | :--- | :--- |
 | **[1. RAG Image Generation](examples/01-rag-imagegen/README.md)** | 🟢 Easy | How to use **Search** to find reference images and guide **Image Generation**. |
-| **[2. B2B Lead Generation](examples/02-lead-gen/README.md)** | 🔴 Advanced | How to build a **Multi-Stage Pipeline** (Find -> Enrich) with **YAML config**. |
+| **[2. B2B Lead Generation](examples/02-lead-gen/README.md)** | 🔴 Advanced | How to build a **Multi-Stage Pipeline** (Find -> Enrich) with **JSON config**. |
 | **[3. SEO Rank Tracker](examples/03-seo-rank/README.md)** | 🟡 Medium | How to use **Web Search** and **AI Selectors** to analyze search results. |
 | **[4. Website Style Analyzer](examples/04-describe-website-css/README.md)** | 🟡 Medium | How to use the **Style Scraper** (Vision + CSS) to reverse-engineer design systems. |
 

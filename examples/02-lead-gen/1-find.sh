@@ -7,5 +7,5 @@
 # Navigate to the project root directory
 cd "$(dirname "$0")/../.."
 
-# Run using YAML config
-cat examples/02-lead-gen/test.csv | npx tsx src/index.ts generate --config examples/02-lead-gen/1-find.yaml
+# Run using JSON config
+cat examples/02-lead-gen/test.csv | npx tsx src/index.ts generate --config examples/02-lead-gen/1-find.json

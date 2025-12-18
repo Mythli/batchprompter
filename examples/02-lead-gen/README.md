@@ -1,6 +1,6 @@
 # B2B Lead Generation Tutorial
 
-This example demonstrates a sophisticated **multi-stage pipeline** configured via YAML files. It automates the process of finding companies, qualifying them, and finding contact details for decision-makers.
+This example demonstrates a sophisticated **multi-stage pipeline** configured via JSON files. It automates the process of finding companies, qualifying them, and finding contact details for decision-makers.
 
 ## 🎯 Goal
 Create a CSV list of "Sprachschulen" (Language Schools) in Münster, enriched with the CEO's name, their LinkedIn profile, and their top product offer.
@@ -9,29 +9,36 @@ Create a CSV list of "Sprachschulen" (Language Schools) in Münster, enriched wi
 
 The pipeline is split into two phases to allow for manual review in between if necessary.
 
-1.  **Phase 1: Find (`1-find.yaml`)** -> Scans the web for companies.
-2.  **Phase 2: Enrich (`2-enrich.yaml`)** -> Visits websites and finds people.
+1.  **Phase 1: Find (`1-find.json`)** -> Scans the web for companies.
+2.  **Phase 2: Enrich (`2-enrich.json`)** -> Visits websites and finds people.
 
 ---
 
-## 🔎 Phase 1: Discovery (`1-find.yaml`)
+## 🔎 Phase 1: Discovery (`1-find.json`)
 
 This configuration finds the raw list of company websites.
 
 ### Step 1: Location Expansion
-```yaml
-- prompt: "List the city of Münster..."
-  output: { mode: merge, explode: true }
+```json
+{
+  "prompt": "List the city of Münster...",
+  "output": { "mode": "merge", "explode": true }
+}
 ```
 *   **What it does:** It asks the AI to output a list of locations. `explode: true` means if the AI lists multiple districts or cities, the pipeline splits here, creating a separate search task for each location.
 
 ### Step 2: Intelligent Search
-```yaml
-- plugins:
-    - type: web-search
-      queryPrompt: "Generate 3 distinct search queries..."
-      selectPrompt: "Select only the official websites..."
-      dedupeStrategy: domain
+```json
+{
+  "plugins": [
+    {
+      "type": "web-search",
+      "queryPrompt": "Generate 3 distinct search queries...",
+      "selectPrompt": "Select only the official websites...",
+      "dedupeStrategy": "domain"
+    }
+  ]
+}
 ```
 *   **`queryPrompt`**: Instead of searching for "Sprachschule Münster", the AI generates variations like "Language school Münster contact", "German courses Münster", etc.
 *   **`selectPrompt`**: The AI reviews the Google Search snippets and filters out directories (like Yelp or Yellow Pages), keeping only actual company websites.
@@ -39,16 +46,21 @@ This configuration finds the raw list of company websites.
 
 ---
 
-## 💎 Phase 2: Enrichment (`2-enrich.yaml`)
+## 💎 Phase 2: Enrichment (`2-enrich.json`)
 
 This configuration takes the list of URLs and extracts deep insights.
 
 ### Step 1: The Website Agent
-```yaml
-- plugins:
-    - type: website-agent
-      url: "{{link}}"
-      schema: { ... }
+```json
+{
+  "plugins": [
+    {
+      "type": "website-agent",
+      "url": "{{link}}",
+      "schema": { ... }
+    }
+  ]
+}
 ```
 *   **`website-agent`**: This is an autonomous scraper. It visits the URL, and if it doesn't find the info on the homepage, it clicks links (like "Impressum", "About Us", "Team") to find it.
 *   **`schema`**: Defines exactly what we want.
@@ -57,19 +69,29 @@ This configuration takes the list of URLs and extracts deep insights.
     *   `isIndustry`: A boolean check to ensure this is actually a language school.
 
 ### Step 2: Validation
-```yaml
-- plugins:
-    - type: validation
-      schema: { ... required: [companyName, decisionMaker] ... }
+```json
+{
+  "plugins": [
+    {
+      "type": "validation",
+      "schema": { ... "required": ["companyName", "decisionMaker"] ... }
+    }
+  ]
+}
 ```
 *   **What it does:** If the Website Agent failed to find a Company Name or a Decision Maker, this row is dropped. This ensures your final list only contains high-quality leads.
 
 ### Step 3: LinkedIn Finder
-```yaml
-- plugins:
-    - type: web-search
-      query: "site:linkedin.com/in/ {{decisionMaker.firstName}}..."
-      selectPrompt: "Select the LinkedIn personal profile..."
+```json
+{
+  "plugins": [
+    {
+      "type": "web-search",
+      "query": "site:linkedin.com/in/ {{decisionMaker.firstName}}...",
+      "selectPrompt": "Select the LinkedIn personal profile..."
+    }
+  ]
+}
 ```
 *   **What it does:** It constructs a targeted Google search using the name found in Step 1.
 *   **`selectPrompt`**: The AI looks at the search results to pick the correct LinkedIn profile URL, ignoring company pages.

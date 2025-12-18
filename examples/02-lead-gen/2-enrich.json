@@ -1,11 +1,10 @@
 {
-  "data": {
-    "limit": 2
-  },
+  "data": {},
   "globals": {
-    "model": "google/gemini-3-pro-preview",
-    "tmpDir": "out/13-industry-search/.tmp",
-    "outputPath": "out/13-industry-search/companies_enriched.csv"
+    "model": "google/gemini-3-flash-preview",
+    "thinkingLevel": "high",
+    "tmpDir": "out/02-lead-gen/.tmp",
+    "outputPath": "out/02-lead-gen/companies_enriched.csv"
   },
   "steps": [
     {
@@ -19,7 +18,7 @@
             "properties": {
               "isIndustry": {
                 "type": ["boolean", "null"],
-                "description": "Is this company offering {{industry}}?"
+                "description": "Is this company offering {{industry}} as their core product?"
               },
               "isIndustryReason": {
                 "type": ["string", "null"],
@@ -40,7 +39,7 @@
               },
               "decisionMaker": {
                 "type": ["object", "null"],
-                "description": "The best person to contact for business decisions. Look for the CEO (Geschäftsführer), Owner (Inhaber), or Founder. If not available, look for Head of Department or similar high-level roles. Optional.",
+                "description": "The best person to contact for business decisions. Look for the CEO (Geschäftsführer), Owner (Inhaber), or Founder. If not available, look for Head of Department or similar high-level roles. Optional.\n",
                 "properties": {
                   "firstName": { "type": ["string", "null"], "description": "Optional." },
                   "lastName": { "type": ["string", "null"], "description": "Optional." },
@@ -51,7 +50,7 @@
               },
               "webDesignAgency": {
                 "type": ["object", "null"],
-                "description": "Information about the agency that built the website, usually found in the footer (e.g. 'Made by...', 'Webdesign by...'). Important: We need the web design agency which build the site and not the author of the theme. Do not include generic homepage builders like Jimdo, Wix, Squarespace, etc. Optional.",
+                "description": "Information about the agency that built the website, usually found in the footer (e.g. 'Made by...', 'Webdesign by...'). Important: We need the web design agency which build the site and not the author of the theme. Do not include generic homepage builders like Jimdo, Wix, Squarespace, etc. Optional.\n",
                 "properties": {
                   "name": { "type": ["string", "null"], "description": "Optional." },
                   "url": { "type": ["string", "null"], "description": "The URL of the web design agency. Optional." }
@@ -59,32 +58,14 @@
               },
               "topOffer": {
                 "type": ["object", "null"],
-                "description": "Identify ONE single, concrete, purchasable 'Top Offer'. It must be the MAIN product or service this business is trying to sell. Look for the 'Hero' offer featured on the homepage, the core service that defines the business. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').",
+                "description": "Identify ONE single, concrete, purchasable 'Top Offer'. It must be the MAIN product or service this business is trying to sell. Look for the 'Hero' offer featured on the homepage, the core service that defines the business. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').\n",
                 "properties": {
-                  "name": {
-                    "type": ["string", "null"],
-                    "description": "The specific name of the single offer (e.g. 'Open Water Diver Course', 'Full Body Massage 60min'). (in German)"
-                  },
-                  "price": {
-                    "type": ["number", "null"],
-                    "description": "The price of this specific offer in Euros (e.g. 2990). Do not include currency symbols."
-                  },
-                  "description": {
-                    "type": ["string", "null"],
-                    "description": "A detailed description of exactly what is included in this specific offer. Do not list general services."
-                  },
-                  "link": {
-                    "type": ["string", "null"],
-                    "description": "The specific URL to this offer's page."
-                  },
-                  "bookingPage": {
-                    "type": ["string", "null"],
-                    "description": "Link to the booking page, contact form, or checkout page specifically for this offer."
-                  },
-                  "reason": {
-                    "type": ["string", "null"],
-                    "description": "Reason why this specific item was selected as the top offer (e.g. 'Featured prominently on homepage', 'Core business service'). (in German)"
-                  }
+                  "name": { "type": ["string", "null"], "description": "The specific name of the single offer (e.g. 'Open Water Diver Course', 'Full Body Massage 60min'). (in German)" },
+                  "price": { "type": ["number", "null"], "description": "The price of this specific offer in Euros (e.g. 2990). Do not include currency symbols." },
+                  "description": { "type": ["string", "null"], "description": "A detailed description of exactly what is included in this specific offer. Do not list general services." },
+                  "link": { "type": ["string", "null"], "description": "The specific URL to this offer's page." },
+                  "bookingPage": { "type": ["string", "null"], "description": "Link to the booking page, contact form, or checkout page specifically for this offer." },
+                  "reason": { "type": ["string", "null"], "description": "Reason why this specific item was selected as the top offer (e.g. 'Featured prominently on homepage', 'Core business service'). (in German)" }
                 }
               },
               "top5Offers": {
@@ -123,7 +104,7 @@
       ]
     },
     {
-      "prompt": "You are a data extraction engine. Extract the LinkedIn URL for {{decisionMaker.firstName}} {{decisionMaker.lastName}} from the search results.\nOutput Rules:\n1. Return ONLY the URL (starting with https://).\n2. If no valid personal profile is found, return an empty string.\n3. Do NOT return JSON, Markdown, quotes, or explanations.",
+      "prompt": "You are a data extraction engine. Extract the LinkedIn URL for {{decisionMaker.firstName}} {{decisionMaker.lastName}} from the search results.\n\nOutput Rules:\n\n1. Return ONLY the URL (starting with https://).\n\n2. If no valid personal profile is found, return an empty string.\n\n3. Do NOT return JSON, Markdown, quotes, or explanations.\n",
       "output": {
         "mode": "column",
         "column": "linkedinUrl"
@@ -133,7 +114,7 @@
           "type": "web-search",
           "query": "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company",
           "limit": 5,
-          "selectPrompt": "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything."
+          "selectPrompt": "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything.\n"
         }
       ]
     }
