@@ -20,7 +20,8 @@
           "hl": "de",
           "selectPrompt": "Select up to 10 links that point to Butlerapp (butlerapp.de). If no Butlerapp link exists, select nothing.",
           "output": {
-            "mode": "merge"
+            "mode": "merge",
+            "explode": true
           }
         }
       ]
