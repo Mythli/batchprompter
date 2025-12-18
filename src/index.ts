@@ -1,4 +1,4 @@
-// 
+//
 import { Command } from 'commander';
 import 'dotenv/config';
 import { StepRegistry } from './cli/StepRegistry.js';
@@ -41,20 +41,20 @@ generateCmd.action(async (templateFilePaths, options) => {
         if (options.config) {
             const fileAdapter = new FileAdapter();
             const yamlConfig = await fileAdapter.load(options.config);
-            
+
             // Transform YAML config to CLI options format
             const transformed = transformYamlToCli(yamlConfig);
-            
+
             // Merge CLI overrides (CLI takes precedence over config file)
             const mergedOptions = { ...transformed.options, ...options };
-            
+
             // For config file, we assume templates might be in the file or passed as args
-            // If passed as args, they override/append? 
+            // If passed as args, they override/append?
             // Current logic: args passed to parseConfig are treated as prompts.
             // If yaml has prompts, they are in transformed.args.
             // We concatenate them.
             const combinedArgs = [...transformed.args, ...templateFilePaths];
-            
+
             config = await StepRegistry.parseConfig(mergedOptions, combinedArgs, pluginRegistry);
         } else {
             // Original CLI-only flow
@@ -71,7 +71,7 @@ generateCmd.action(async (templateFilePaths, options) => {
 
         // Run
         await actionRunner.run(finalConfig);
-        
+
         // Cleanup
         if (puppeteerHelperInstance) {
             await puppeteerHelperInstance.close();
@@ -81,7 +81,7 @@ generateCmd.action(async (templateFilePaths, options) => {
         console.error("\n❌ Error:", e.message || e);
         console.log("\n--- Usage Help ---\n");
         generateCmd.outputHelp();
-        
+
         // Cleanup on error
         if (puppeteerHelperInstance) {
             await puppeteerHelperInstance.close();
@@ -96,11 +96,11 @@ generateCmd.action(async (templateFilePaths, options) => {
 function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, args: string[] } {
     const options: Record<string, any> = {};
     const args: string[] = [];
-    
+
     // Data options
     if (yamlConfig.data?.offset !== undefined) options.offset = yamlConfig.data.offset;
     if (yamlConfig.data?.limit !== undefined) options.limit = yamlConfig.data.limit;
-    
+
     // Global options
     if (yamlConfig.globals) {
         const g = yamlConfig.globals;
@@ -113,32 +113,32 @@ function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, ar
         if (g.outputPath) options.dataOutput = g.outputPath;
         if (g.timeout !== undefined) options.timeout = g.timeout;
     }
-    
+
     // Steps
     if (yamlConfig.steps && Array.isArray(yamlConfig.steps)) {
         yamlConfig.steps.forEach((step: any, stepIdx: number) => {
             const stepNum = stepIdx + 1;
-            
+
             // Step-level prompt becomes positional arg
             // In the new system, args[0] is step 1 prompt, args[1] is step 2 prompt, etc.
             if (step.prompt) {
                 while (args.length < stepIdx) args.push('');
                 args[stepIdx] = typeof step.prompt === 'string' ? step.prompt : '';
             }
-            
+
             // Step-level system prompt
             if (step.system) {
                 const key = stepNum === 1 ? 'system' : `system${stepNum}`;
                 options[key] = typeof step.system === 'string' ? step.system : '';
             }
-            
+
             // Step model options
             if (step.model) {
                 if (step.model.model) options[`model${stepNum}`] = step.model.model;
                 if (step.model.temperature !== undefined) options[`temperature${stepNum}`] = step.model.temperature;
                 if (step.model.thinkingLevel) options[`thinkingLevel${stepNum}`] = step.model.thinkingLevel;
             }
-            
+
             // Step output options
             if (step.output) {
                 if (step.output.mode === 'merge') options[`export${stepNum}`] = true;
@@ -147,33 +147,33 @@ function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, ar
                 }
                 if (step.output.explode) options[`explode${stepNum}`] = true;
             }
-            
+
             // Step schema
             if (step.schema) {
                 options[`jsonSchema${stepNum}`] = typeof step.schema === 'string' ? step.schema : JSON.stringify(step.schema);
             }
-            
+
             // Step commands
             if (step.command) options[`command${stepNum}`] = step.command;
             if (step.verifyCommand) options[`verifyCommand${stepNum}`] = step.verifyCommand;
-            
+
             // Step candidates
             if (step.candidates !== undefined) options[`candidates${stepNum}`] = step.candidates;
             if (step.skipCandidateCommand) options[`skipCandidateCommand${stepNum}`] = true;
-            
+
             // Step aspect ratio
             if (step.aspectRatio) options[`aspectRatio${stepNum}`] = step.aspectRatio;
 
             // Step timeout
             if (step.timeout !== undefined) options[`timeout${stepNum}`] = step.timeout;
-            
+
             // Plugins
             if (step.plugins && Array.isArray(step.plugins)) {
                 for (const plugin of step.plugins) {
                     transformPluginToCli(plugin, stepNum, options);
                 }
             }
-            
+
             // Preprocessors (if specified separately from plugins)
             if (step.preprocessors && Array.isArray(step.preprocessors)) {
                 for (const preprocessor of step.preprocessors) {
@@ -182,24 +182,8 @@ function transformYamlToCli(yamlConfig: any): { options: Record<string, any>, ar
             }
         });
     }
-    
-    return { options, args };
-}
 
-/**
- * Helper to transform model config fields for a plugin sub-model
- */
-function transformModelConfig(
-    config: any,
-    prefix: string,
-    stepNum: number,
-    options: Record<string, any>
-) {
-    if (config.model) options[`${prefix}Model${stepNum}`] = config.model;
-    if (config.temperature !== undefined) options[`${prefix}Temperature${stepNum}`] = config.temperature;
-    if (config.thinkingLevel) options[`${prefix}ThinkingLevel${stepNum}`] = config.thinkingLevel;
-    if (config.prompt) options[`${prefix}Prompt${stepNum}`] = config.prompt;
-    if (config.system) options[`${prefix}System${stepNum}`] = config.system;
+    return { options, args };
 }
 
 /**
@@ -207,7 +191,7 @@ function transformModelConfig(
  */
 function transformPluginToCli(plugin: any, stepNum: number, options: Record<string, any>) {
     const type = plugin.type;
-    
+
     if (type === 'web-search') {
         if (plugin.query) options[`webSearchQuery${stepNum}`] = plugin.query;
         if (plugin.limit !== undefined) options[`webSearchLimit${stepNum}`] = plugin.limit;
@@ -217,25 +201,25 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
         if (plugin.dedupeStrategy) options[`webSearchDedupeStrategy${stepNum}`] = plugin.dedupeStrategy;
         if (plugin.gl) options[`webSearchGl${stepNum}`] = plugin.gl;
         if (plugin.hl) options[`webSearchHl${stepNum}`] = plugin.hl;
-        
+
         // Query model config
         if (plugin.queryPrompt) options[`webQueryPrompt${stepNum}`] = plugin.queryPrompt;
         if (plugin.queryModel) options[`webQueryModel${stepNum}`] = plugin.queryModel;
         if (plugin.queryTemperature !== undefined) options[`webQueryTemperature${stepNum}`] = plugin.queryTemperature;
         if (plugin.queryThinkingLevel) options[`webQueryThinkingLevel${stepNum}`] = plugin.queryThinkingLevel;
-        
+
         // Select model config
         if (plugin.selectPrompt) options[`webSelectPrompt${stepNum}`] = plugin.selectPrompt;
         if (plugin.selectModel) options[`webSelectModel${stepNum}`] = plugin.selectModel;
         if (plugin.selectTemperature !== undefined) options[`webSelectTemperature${stepNum}`] = plugin.selectTemperature;
         if (plugin.selectThinkingLevel) options[`webSelectThinkingLevel${stepNum}`] = plugin.selectThinkingLevel;
-        
+
         // Compress model config
         if (plugin.compressPrompt) options[`webCompressPrompt${stepNum}`] = plugin.compressPrompt;
         if (plugin.compressModel) options[`webCompressModel${stepNum}`] = plugin.compressModel;
         if (plugin.compressTemperature !== undefined) options[`webCompressTemperature${stepNum}`] = plugin.compressTemperature;
         if (plugin.compressThinkingLevel) options[`webCompressThinkingLevel${stepNum}`] = plugin.compressThinkingLevel;
-        
+
         // Output config
         if (plugin.output) {
             if (plugin.output.mode === 'merge') options[`webSearchExport${stepNum}`] = true;
@@ -252,19 +236,19 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
         if (plugin.dedupeStrategy) options[`imageSearchDedupeStrategy${stepNum}`] = plugin.dedupeStrategy;
         if (plugin.gl) options[`imageSearchGl${stepNum}`] = plugin.gl;
         if (plugin.hl) options[`imageSearchHl${stepNum}`] = plugin.hl;
-        
+
         // Query model config
         if (plugin.queryPrompt) options[`imageQueryPrompt${stepNum}`] = plugin.queryPrompt;
         if (plugin.queryModel) options[`imageQueryModel${stepNum}`] = plugin.queryModel;
         if (plugin.queryTemperature !== undefined) options[`imageQueryTemperature${stepNum}`] = plugin.queryTemperature;
         if (plugin.queryThinkingLevel) options[`imageQueryThinkingLevel${stepNum}`] = plugin.queryThinkingLevel;
-        
+
         // Select model config
         if (plugin.selectPrompt) options[`imageSelectPrompt${stepNum}`] = plugin.selectPrompt;
         if (plugin.selectModel) options[`imageSelectModel${stepNum}`] = plugin.selectModel;
         if (plugin.selectTemperature !== undefined) options[`imageSelectTemperature${stepNum}`] = plugin.selectTemperature;
         if (plugin.selectThinkingLevel) options[`imageSelectThinkingLevel${stepNum}`] = plugin.selectThinkingLevel;
-        
+
         // Output config
         if (plugin.output) {
             if (plugin.output.mode === 'merge') options[`imageSearchExport${stepNum}`] = true;
@@ -274,31 +258,31 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
     } else if (type === 'website-agent') {
         if (plugin.url) options[`websiteAgentUrl${stepNum}`] = plugin.url;
         if (plugin.schema) {
-            options[`websiteAgentSchema${stepNum}`] = typeof plugin.schema === 'string' 
-                ? plugin.schema 
+            options[`websiteAgentSchema${stepNum}`] = typeof plugin.schema === 'string'
+                ? plugin.schema
                 : JSON.stringify(plugin.schema);
         }
         if (plugin.budget !== undefined) options[`websiteAgentBudget${stepNum}`] = plugin.budget;
         if (plugin.batchSize !== undefined) options[`websiteAgentBatchSize${stepNum}`] = plugin.batchSize;
-        
+
         // Navigator model config
         if (plugin.navigatorPrompt) options[`websiteNavigatorPrompt${stepNum}`] = plugin.navigatorPrompt;
         if (plugin.navigatorModel) options[`websiteNavigatorModel${stepNum}`] = plugin.navigatorModel;
         if (plugin.navigatorTemperature !== undefined) options[`websiteNavigatorTemperature${stepNum}`] = plugin.navigatorTemperature;
         if (plugin.navigatorThinkingLevel) options[`websiteNavigatorThinkingLevel${stepNum}`] = plugin.navigatorThinkingLevel;
-        
+
         // Extract model config
         if (plugin.extractPrompt) options[`websiteExtractPrompt${stepNum}`] = plugin.extractPrompt;
         if (plugin.extractModel) options[`websiteExtractModel${stepNum}`] = plugin.extractModel;
         if (plugin.extractTemperature !== undefined) options[`websiteExtractTemperature${stepNum}`] = plugin.extractTemperature;
         if (plugin.extractThinkingLevel) options[`websiteExtractThinkingLevel${stepNum}`] = plugin.extractThinkingLevel;
-        
+
         // Merge model config
         if (plugin.mergePrompt) options[`websiteMergePrompt${stepNum}`] = plugin.mergePrompt;
         if (plugin.mergeModel) options[`websiteMergeModel${stepNum}`] = plugin.mergeModel;
         if (plugin.mergeTemperature !== undefined) options[`websiteMergeTemperature${stepNum}`] = plugin.mergeTemperature;
         if (plugin.mergeThinkingLevel) options[`websiteMergeThinkingLevel${stepNum}`] = plugin.mergeThinkingLevel;
-        
+
         // Output config
         if (plugin.output) {
             if (plugin.output.mode === 'merge') options[`websiteAgentExport${stepNum}`] = true;
@@ -309,15 +293,15 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
         if (plugin.resolution) options[`styleScrapeResolution${stepNum}`] = plugin.resolution;
         if (plugin.mobile) options[`styleScrapeMobile${stepNum}`] = true;
         if (plugin.interactive) options[`styleScrapeInteractive${stepNum}`] = true;
-        
+
         if (plugin.output) {
             if (plugin.output.mode === 'merge') options[`styleScraperExport${stepNum}`] = true;
             if (plugin.output.mode === 'column') options[`styleScraperOutput${stepNum}`] = plugin.output.column;
         }
     } else if (type === 'validation') {
         if (plugin.schema) {
-            options[`validateSchema${stepNum}`] = typeof plugin.schema === 'string' 
-                ? plugin.schema 
+            options[`validateSchema${stepNum}`] = typeof plugin.schema === 'string'
+                ? plugin.schema
                 : JSON.stringify(plugin.schema);
         }
         if (plugin.target) options[`validateTarget${stepNum}`] = plugin.target;
@@ -334,17 +318,17 @@ function transformPluginToCli(plugin: any, stepNum: number, options: Record<stri
  */
 function transformPreprocessorToCli(preprocessor: any, stepNum: number, options: Record<string, any>) {
     const type = preprocessor.type;
-    
+
     if (type === 'url-expander') {
         // Enable URL expansion for this step
         options[`expandUrls${stepNum}`] = true;
-        
+
         // Mode defaults to 'puppeteer' if not specified
         if (preprocessor.mode) {
             options[`expandUrlsMode${stepNum}`] = preprocessor.mode;
         }
         // Note: If mode is not specified, the preprocessor will use its default ('puppeteer')
-        
+
         if (preprocessor.maxChars !== undefined) {
             options[`expandUrlsMaxChars${stepNum}`] = preprocessor.maxChars;
         }
