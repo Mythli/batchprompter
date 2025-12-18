@@ -320,26 +320,23 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         console.log(`[WebsiteAgent] Starting at ${initialUrl} (Budget: ${budget})`);
 
         // Helper to get page content
-        const getPageContent = async (url: string): Promise<ScrapedPageContent> => {
+        const scrape = async (url: string): Promise<ScrapedPageContent> => {
             return puppeteerQueue.add(async () => {
                 const pageHelper = await puppeteerHelper.getPageHelper();
-                try {
-                    // Use the new scrapeUrl helper which handles navigation, caching, and markdown conversion
-                    return await pageHelper.scrapeUrl(url, {
-                        dismissCookies: false,
-                        htmlOnly: true,
-                        cacheKey: `website-agent-v1:${url}`,
-                        ttl: 24 * 60 * 60 * 1000
-                    });
-                } finally {
-                    await pageHelper.close();
-                }
+                // scrapeUrl handles navigation, caching, markdown conversion, and closing the page
+                return await pageHelper.scrapeUrl(url, {
+                    dismissCookies: false,
+                    htmlOnly: true,
+                    cacheKey: `website-agent-v1:${url}`,
+                    ttl: 24 * 60 * 60 * 1000,
+                    closePage: true // Ensure page is closed after scraping
+                });
             });
         };
 
         // Scrape initial page (using relaxed extractionSchema)
         try {
-            const initial = await getPageContent(initialUrl);
+            const initial = await scrape(initialUrl);
             visitedUrls.add(initialUrl);
             remaining--;
 
@@ -409,7 +406,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
                     visitedUrls.add(url);
 
                     try {
-                        const page = await getPageContent(url);
+                        const page = await scrape(url);
                         const truncated = page.markdown.substring(0, 20000);
                         const data = await extLlm.promptJson(
                             { suffix: [{ type: 'text', text: `URL: ${url}\n\nContent:\n${truncated}` }] },
