@@ -15,7 +15,7 @@ const clean = <T extends object>(obj: T): T => {
     ) as T;
 };
 
-// Helper to get env var with fallbacks (duplicated from getConfig to ensure consistency during sync parsing)
+// Helper to get env var with fallbacks
 function getEnvVar(keys: string[]): string | undefined {
     for (const key of keys) {
         const value = process.env[key];
@@ -29,7 +29,7 @@ const toCamel = (s: string) => {
     return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
 };
 
-// Helper to resolve OutputStrategy
+// Helper to resolve OutputStrategy with Limit/Offset Hierarchy
 const resolveOutputStrategy = (options: Record<string, any>, prefix: string, stepIndex: number): OutputStrategy => {
     // Prefix is e.g. "webSearch" or "" (for main model)
     
@@ -46,7 +46,7 @@ const resolveOutputStrategy = (options: Record<string, any>, prefix: string, ste
     };
 
     const explode = !!getOpt('Explode');
-    const outputCol = getOpt('Output') || getOpt('OutputColumn'); // Support both --output and --output-column aliases if needed, mostly --output-column for plugins
+    const outputCol = getOpt('Output') || getOpt('OutputColumn'); 
     const exportVal = !!getOpt('Export');
 
     let mode: 'merge' | 'column' | 'ignore' = 'ignore';
@@ -57,19 +57,42 @@ const resolveOutputStrategy = (options: Record<string, any>, prefix: string, ste
         columnName = String(outputCol);
     } else if (exportVal) {
         mode = 'merge';
-    } else if (!prefix && outputCol) { 
-        // Main model specific: if outputColumn is set (via --output-column), it implies column mode.
-        // The getOpt logic above handles the lookup.
-    } 
-    
-    // Special case for Main Model: 
-    // In the old logic: "else if (outputColumn) exportResult = true;"
-    // If it's the main model (prefix == ''), and we have an output column, we definitely want to save it.
-    
+    }
+
+    // --- Resolve Limit & Offset Hierarchy ---
+    // 1. Step Specific (e.g. --limit-1)
+    // 2. Category Default (e.g. --explode-limit)
+    // 3. Master Default (e.g. --limit)
+
+    const getHierarchyVal = (suffix: string, categorySuffix: string, masterKey: string) => {
+        // 1. Step Specific
+        // e.g. webSearchLimit1 or limit1
+        const specificKey = prefix ? `${prefix}${suffix}${stepIndex}` : `${suffix.toLowerCase()}${stepIndex}`;
+        if (options[specificKey] !== undefined) return options[specificKey];
+
+        // 2. Category Default (Explode)
+        // e.g. webSearchExplodeLimit or explodeLimit
+        const categoryKey = prefix ? `${prefix}${categorySuffix}` : categorySuffix.charAt(0).toLowerCase() + categorySuffix.slice(1);
+        if (options[categoryKey] !== undefined) return options[categoryKey];
+
+        // 3. Master Default
+        if (options[masterKey] !== undefined) return options[masterKey];
+
+        return undefined;
+    };
+
+    const limitRaw = getHierarchyVal('Limit', 'ExplodeLimit', 'limit');
+    const offsetRaw = getHierarchyVal('Offset', 'ExplodeOffset', 'offset');
+
+    const limit = limitRaw ? parseInt(String(limitRaw), 10) : undefined;
+    const offset = offsetRaw ? parseInt(String(offsetRaw), 10) : undefined;
+
     return {
         mode,
         columnName,
-        explode
+        explode,
+        limit,
+        offset
     };
 };
 
@@ -80,14 +103,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     const { options, args } = input;
     
     // Determine Max Step
-    // args contains only prompt templates now.
-    // args[0] is prompt for step 1.
-    // args[1] is prompt for step 2.
     let maxStep = Math.max(1, args.length); 
-    
-    // Scan options for step indicators to expand maxStep if needed
     Object.keys(options).forEach(key => {
-        // Check for keys ending in a number (e.g. output1, judge1Model)
         const match = key.match(/(\d+)(?:[A-Z]|$)/);
         if (match) {
             const stepNum = parseInt(match[1], 10);
@@ -96,11 +113,10 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     });
 
     // Resolve Global Model Default
-    // Priority: Flag > Env Var > Hardcoded
     const envModel = getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']);
     const globalModel = options.model || envModel;
 
-    // Parse global config through Zod to apply defaults
+    // Parse global config
     const rawGlobalConfig = {
         concurrency: options.concurrency ? parseInt(String(options.concurrency), 10) : undefined,
         taskConcurrency: options.taskConcurrency ? parseInt(String(options.taskConcurrency), 10) : undefined,
@@ -112,9 +128,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     
     const globalConfig = GlobalsConfigSchema.parse(rawGlobalConfig);
 
-    // Instantiate ModelFlags with the resolved global model
     const modelFlags = new ModelFlags(globalModel);
-    // Instantiate a strict ModelFlags (no default) to check for explicit configuration
     const strictModelFlags = new ModelFlags();
 
     const steps: StepDefinition[] = [];
@@ -124,7 +138,6 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         const mainModel = modelFlags.extract(options, `${i}`, '');
         
         // 2. Prompt Merging
-        // args[0] corresponds to step 1
         const posArg = args[i - 1]; 
         let promptSource = mainModel?.promptSource;
         
@@ -143,21 +156,14 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
 
         // 3. Auxiliary Models
         const strictJudge = strictModelFlags.extract(options, `judge-${i}`, 'judge');
-        // Judge is only configured if it has an explicit prompt or system prompt
-        // Just inheriting a model from global --model is not enough
         const isJudgeConfigured = !!(strictJudge.promptSource || strictJudge.systemSource);
         const judge = modelFlags.extract(options, `judge-${i}`, 'judge') as ModelDefinition;
         
         const strictFeedback = strictModelFlags.extract(options, `feedback-${i}`, 'feedback');
-        // Feedback is only configured if it has an explicit prompt or system prompt
         const isFeedbackConfigured = !!(strictFeedback.promptSource || strictFeedback.systemSource);
         const feedback = modelFlags.extract(options, `feedback-${i}`, 'feedback') as ModelDefinition;
         
         // 4. Step Options & Output Strategy
-        // Main Model Output Strategy
-        // We need to handle the specific logic for main model output flags
-        // --output-column, --export, --explode
-        
         const getStepOpt = (key: string): string | undefined => {
             const specific = options[`${key}${i}`];
             if (specific !== undefined) return String(specific);
@@ -166,19 +172,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             return undefined;
         };
 
-        const outputColumn = getStepOpt('outputColumn');
-        const exportFlag = !!(options[`exportResult${i}`] || options[`export${i}`] || options.exportResult || options.export);
-        const explodeFlag = !!(options[`explode${i}`] || options.explode);
-
-        let modelOutputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) modelOutputMode = 'column';
-        else if (exportFlag) modelOutputMode = 'merge';
-
-        const modelOutputStrategy: OutputStrategy = {
-            mode: modelOutputMode,
-            columnName: outputColumn,
-            explode: explodeFlag
-        };
+        // Resolve Main Model Output Strategy (using the hierarchy helper with empty prefix)
+        const modelOutputStrategy = resolveOutputStrategy(options, '', i);
 
         // 5. Plugins
         const plugins: PluginConfigDefinition[] = [];
@@ -196,15 +191,12 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             }
         }
 
-        // Parse candidates with default
         const candidatesRaw = getStepOpt('candidates');
         const candidates = candidatesRaw ? parseInt(candidatesRaw, 10) : 1;
 
-        // Parse feedbackLoops with default
         const feedbackLoopsRaw = getStepOpt('feedbackLoops');
         const feedbackLoops = feedbackLoopsRaw ? parseInt(feedbackLoopsRaw, 10) : 0;
 
-        // Parse timeout
         const timeoutRaw = getStepOpt('timeout');
         const timeout = timeoutRaw ? parseInt(timeoutRaw, 10) : globalConfig.timeout;
 
@@ -213,7 +205,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             modelConfig: baseModel,
             
             outputPath: getStepOpt('output'),
-            outputTemplate: getStepOpt('output'), // Alias
+            outputTemplate: getStepOpt('output'),
             
             output: modelOutputStrategy,
             
@@ -230,18 +222,22 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             
             aspectRatio: getStepOpt('aspectRatio'),
             plugins,
-            preprocessors: [], // Initialized empty, populated in StepRegistry
+            preprocessors: [],
             timeout: timeout
         }));
     }
+
+    // Resolve Data Limits (Hierarchy: Input Specific > Master)
+    const inputLimitRaw = options.inputLimit ?? options.limit;
+    const inputOffsetRaw = options.inputOffset ?? options.offset;
 
     return {
         global: globalConfig,
         steps,
         data: {
             format: 'auto',
-            offset: options.offset ? parseInt(String(options.offset), 10) : undefined,
-            limit: options.limit ? parseInt(String(options.limit), 10) : undefined
+            offset: inputOffsetRaw ? parseInt(String(inputOffsetRaw), 10) : undefined,
+            limit: inputLimitRaw ? parseInt(String(inputLimitRaw), 10) : undefined
         }
     };
 });

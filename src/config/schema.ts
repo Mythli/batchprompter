@@ -37,7 +37,9 @@ export const ModelConfigSchema = z.object({
 export const OutputConfigSchema = z.object({
     mode: z.enum(['merge', 'column', 'ignore']).default('ignore'),
     column: z.string().optional(),
-    explode: z.boolean().default(false)
+    explode: z.boolean().default(false),
+    limit: z.number().int().positive().optional(),
+    offset: z.number().int().min(0).optional()
 });
 
 /**

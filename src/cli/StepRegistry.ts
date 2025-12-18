@@ -18,7 +18,7 @@ export class StepRegistry {
         ModelFlags.register(program, 'judge', { includePrompt: true }); // Global Judge
         ModelFlags.register(program, 'feedback', { includePrompt: true }); // Global Feedback
 
-        // Global Workflow (defaults in description only - Zod handles actual defaults)
+        // Global Workflow
         program.option('-o, --output <path>', 'Template path for the output');
         program.option('--output-column <column>', 'Column name to write output to');
         program.option('--export', 'Export step result to output row');
@@ -34,9 +34,18 @@ export class StepRegistry {
         program.option('--feedback-loops <number>', 'Number of feedback loops (default: 0)');
         program.option('--aspect-ratio <ratio>', 'Aspect ratio for image generation');
         program.option('--explode', 'Explode array results into multiple rows');
-        program.option('--offset <number>', 'Start processing from this row index (0-based)');
-        program.option('--limit <number>', 'Limit the number of rows to process');
         program.option('--timeout <seconds>', 'Timeout for each step in seconds (default: 180)');
+
+        // --- Limits & Offsets (Hierarchy) ---
+        // 1. Master (Test Mode)
+        program.option('--limit <number>', 'Master limit for input rows and explode steps', parseInt);
+        program.option('--offset <number>', 'Master offset for input rows and explode steps', parseInt);
+        
+        // 2. Category (Input vs Explode)
+        program.option('--input-limit <number>', 'Limit for input rows', parseInt);
+        program.option('--input-offset <number>', 'Offset for input rows', parseInt);
+        program.option('--explode-limit <number>', 'Default limit for explode steps', parseInt);
+        program.option('--explode-offset <number>', 'Default offset for explode steps', parseInt);
 
         // --- Step Level (1-10) ---
         for (let i = 1; i <= 10; i++) {
@@ -56,13 +65,16 @@ export class StepRegistry {
             program.option(`--aspect-ratio-${i} <ratio>`, `Aspect ratio for step ${i}`);
             program.option(`--explode-${i}`, `Explode results for step ${i}`);
             program.option(`--timeout-${i} <seconds>`, `Timeout for step ${i} in seconds`);
+
+            // Step-Specific Limits
+            program.option(`--limit-${i} <number>`, `Limit output items for step ${i}`, parseInt);
+            program.option(`--offset-${i} <number>`, `Offset output items for step ${i}`, parseInt);
         }
 
         // --- Plugins ---
         registry.registerCLI(program);
 
         // --- Preprocessors ---
-        // We create a temporary registry just to register CLI args
         const preprocessorRegistry = createPreprocessorRegistry();
         preprocessorRegistry.configureCLI(program);
     }
@@ -124,7 +136,6 @@ export class StepRegistry {
                 outputPath: stepDef.outputPath,
                 outputTemplate: stepDef.outputTemplate,
 
-                // --- FIX: Map the output strategy ---
                 output: stepDef.output,
 
                 schemaPath: stepDef.schemaPath,
@@ -143,7 +154,7 @@ export class StepRegistry {
                 plugins: stepDef.plugins,
                 preprocessors: activePreprocessors,
 
-                // Pass raw options to allow preprocessors to check flags later (Legacy support, can be removed if all preprocessors use normalize)
+                // Pass raw options to allow preprocessors to check flags later (Legacy support)
                 options: options,
                 timeout: stepDef.timeout
             });

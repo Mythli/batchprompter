@@ -31,6 +31,8 @@ export interface OutputStrategy {
     mode: OutputMode;
     columnName?: string;
     explode: boolean;
+    limit?: number;
+    offset?: number;
 }
 
 export interface PluginConfigDefinition {

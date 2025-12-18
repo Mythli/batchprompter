@@ -26,7 +26,19 @@ export class ResultProcessor {
         for (const item of currentItems) {
             if (strategy.explode) {
                 // EXPLODE: Create one new item per packet
-                packets.forEach((packet, index) => {
+                
+                // Apply Offset & Limit logic for explosion
+                let packetsToProcess = packets;
+                
+                if (strategy.offset !== undefined && strategy.offset > 0) {
+                    packetsToProcess = packetsToProcess.slice(strategy.offset);
+                }
+                
+                if (strategy.limit !== undefined && strategy.limit > 0) {
+                    packetsToProcess = packetsToProcess.slice(0, strategy.limit);
+                }
+
+                packetsToProcess.forEach((packet, index) => {
                     const newItem = ResultProcessor.cloneItem(item);
                     
                     // Set variation index (0-based)

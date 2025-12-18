@@ -38,6 +38,8 @@ export interface ResolvedOutputConfig {
     mode: 'merge' | 'column' | 'ignore';
     column?: string;
     explode: boolean;
+    limit?: number;
+    offset?: number;
 }
 
 export interface ResolvedPluginBase {
