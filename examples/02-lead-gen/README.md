@@ -64,7 +64,7 @@ This configuration takes the list of URLs and extracts deep insights.
 ```
 *   **`website-agent`**: This is an autonomous scraper. It visits the URL, and if it doesn't find the info on the homepage, it clicks links (like "Impressum", "About Us", "Team") to find it.
 *   **`schema`**: Defines exactly what we want.
-    *   **Why is everything optional?** You will notice fields are defined as `["string", "null"]`. Real-world websites are messy. Some don't list a CEO, some don't show prices. By making fields nullable, we allow the agent to capture *partial data* (e.g., just the company name) instead of failing the entire extraction if one piece is missing.
+    *   **Why is everything optional?** The agent visits up to 10 pages per website. It extracts data from *each* page individually. A single page (like "About Us") might contain the CEO's name but not the pricing, while another page (like "Offers") has the pricing but not the CEO. By making fields nullable (`["string", "null"]`), we allow the agent to extract partial information from each page. These partial results are then merged into a complete profile.
     *   `decisionMaker`: We ask for the CEO/Founder's name.
     *   `topOffer`: We ask the AI to identify the main product and its price.
     *   `isIndustry`: A boolean check to ensure this is actually a language school.
