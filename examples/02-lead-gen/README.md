@@ -74,31 +74,81 @@ The `website-agent` is highly configurable. You can control the specific models,
 
 ```json
 {
-  "type": "website-agent",
-  "url": "{{link}}", // Supports Handlebars
-  "schema": { ... }, // Inline JSON Schema object OR path to file (e.g. "schemas/extraction.json")
-
-  // --- Execution Control ---
-  "budget": 10,      // Max pages to visit (default: 10)
-  "batchSize": 3,    // Parallel pages per step (default: 3)
-
-  // --- Navigator Agent (Decides which links to click) ---
-  "navigatorModel": "google/gemini-3-flash",
-  "navigatorThinkingLevel": "high", // "low", "medium", "high" (for reasoning models)
-  "navigatorTemperature": 0.7,
-  "navigatorPrompt": "prompts/nav_instructions.md", // Path to file, folder, or raw text
-
-  // --- Extractor Agent (Reads page content) ---
-  "extractModel": "gpt-4o",
-  "extractThinkingLevel": "low",
-  "extractTemperature": 0.0,
-  "extractPrompt": "prompts/extract.md",
-
-  // --- Merger Agent (Consolidates data) ---
-  "mergeModel": "gpt-4o",
-  "mergeThinkingLevel": "medium",
-  "mergeTemperature": 0.0,
-  "mergePrompt": "prompts/merge.md"
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "const": "website-agent",
+      "description": "Must be 'website-agent'"
+    },
+    "url": {
+      "type": "string",
+      "description": "The starting URL to scrape. Supports Handlebars syntax (e.g., '{{link}}')."
+    },
+    "schema": {
+      "type": ["object", "string"],
+      "description": "The JSON Schema defining the data to extract. Can be an inline object or a path to a schema file."
+    },
+    "budget": {
+      "type": "integer",
+      "default": 10,
+      "description": "Maximum number of pages to visit per website."
+    },
+    "batchSize": {
+      "type": "integer",
+      "default": 3,
+      "description": "Number of pages to visit in parallel during each iteration."
+    },
+    "navigatorModel": {
+      "type": "string",
+      "description": "Model used by the Navigator agent to decide which links to click."
+    },
+    "navigatorThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the Navigator model."
+    },
+    "navigatorTemperature": {
+      "type": "number",
+      "description": "Temperature for the Navigator model."
+    },
+    "navigatorPrompt": {
+      "type": "string",
+      "description": "Custom instructions for the Navigator. Can be raw text, a file path, or a directory path."
+    },
+    "extractModel": {
+      "type": "string",
+      "description": "Model used by the Extractor agent to read page content."
+    },
+    "extractThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the Extractor model."
+    },
+    "extractTemperature": {
+      "type": "number",
+      "description": "Temperature for the Extractor model."
+    },
+    "extractPrompt": {
+      "type": "string",
+      "description": "Custom instructions for the Extractor."
+    },
+    "mergeModel": {
+      "type": "string",
+      "description": "Model used by the Merger agent to consolidate data."
+    },
+    "mergeThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the Merger model."
+    },
+    "mergeTemperature": {
+      "type": "number",
+      "description": "Temperature for the Merger model."
+    },
+    "mergePrompt": {
+      "type": "string",
+      "description": "Custom instructions for the Merger."
+    }
+  },
+  "required": ["type", "url", "schema"]
 }
 ```
 
