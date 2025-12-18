@@ -37,7 +37,7 @@ bash examples/01-rag-imagegen/run.sh
 The input is piped into the command via `echo` in the `run.sh` script:
 
 ```csv
-industries
+industry
 Sailing school
 ```
 
@@ -69,4 +69,4 @@ The `run.sh` script uses the following flags to configure the pipeline:
 
 ## Output
 
-The generated images will be saved in `batchprompt/out/{industry}/HeroImage.jpg`.
+The generated images will be saved in `out/01-rag-imagegen/{industry}/HeroImage.jpg`.
