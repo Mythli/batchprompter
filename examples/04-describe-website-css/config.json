@@ -1,0 +1,26 @@
+{
+  "globals": {
+    "model": "gpt-4o",
+    "tmpDir": "out/04-describe-website-css/.tmp"
+  },
+  "steps": [
+    {
+      "prompt": {
+        "file": "examples/04-describe-website-css/describe-styles.md"
+      },
+      "output": {
+        "mode": "ignore"
+      },
+      "outputPath": "out/04-describe-website-css/{{website_url}}/style-analysis.md",
+      "plugins": [
+        {
+          "type": "style-scraper",
+          "url": "{{website_url}}",
+          "resolution": "1920x1080",
+          "mobile": true,
+          "interactive": true
+        }
+      ]
+    }
+  ]
+}
