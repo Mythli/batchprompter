@@ -70,13 +70,11 @@ export class StepResolver {
             resolvedGlobalTmpDir = path.dirname(resolvedGlobalTmpDir);
         }
 
-        if (resolvedStep.resolvedOutputDir) {
-            resolvedStep.resolvedTempDir = path.join(resolvedGlobalTmpDir, resolvedStep.resolvedOutputDir);
-        } else {
-            const rowStr = String(item.originalIndex).padStart(3, '0');
-            const stepStr = String(stepNum).padStart(2, '0');
-            resolvedStep.resolvedTempDir = path.join(resolvedGlobalTmpDir, `${rowStr}_${stepStr}`);
-        }
+        // Always use row_step structure for isolation to prevent collisions
+        const rowStr = String(item.originalIndex).padStart(3, '0');
+        const stepStr = String(stepNum).padStart(2, '0');
+        resolvedStep.resolvedTempDir = path.join(resolvedGlobalTmpDir, `${rowStr}_${stepStr}`);
+        
         await ensureDir(resolvedStep.resolvedTempDir);
 
         // Schema

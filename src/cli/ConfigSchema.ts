@@ -214,8 +214,9 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             // The resolver handles string vs object vs parts.
             // We cast to any here because ModelDefinition expects string | undefined for source,
             // but we are passing the raw Zod output which might be an object.
-            // We need to update ModelDefinition or handle it here.
-            // For now, let's assume PromptResolver can handle the object if we pass it.
+            // We need to update ModelDefinition in types.ts to allow the object, OR serialize it here?
+            // Better: Let's update the PromptResolver to accept the PromptDef object.
+            // For now, we'll pass it as 'promptSource' and cast, assuming PromptResolver is updated.
             // Actually, let's normalize to the ModelDefinition structure expected by the rest of the app.
             // The app expects `promptSource` to be a string (path or text).
             // If it's an object, we need to handle it.
@@ -261,7 +262,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             stepIndex,
             modelConfig,
             outputPath: stepDef.outputPath, 
-            outputTemplate: stepDef.outputPath, // Alias
+            outputTemplate: stepDef.outputPath ?? config.globals.outputPath, // Inherit global output path if not set on step
 
             output: stepDef.output,
 
