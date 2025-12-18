@@ -69,6 +69,14 @@ This configuration takes the list of URLs and extracts deep insights.
     *   `topOffer`: We ask the AI to identify the main product and its price.
     *   `isIndustry`: A boolean check to ensure this is actually a language school.
 
+#### 🤖 How the Website Agent Works Internally
+The agent operates in a loop to gather information intelligently:
+1.  **Visit & Extract:** It visits the current URL and uses an LLM to extract any data matching your schema found on *that specific page*.
+2.  **Scan Links:** It identifies all internal links on the page (e.g., "Contact", "Imprint", "Pricing").
+3.  **Navigate:** A "Navigator" LLM reviews the data collected so far and the available links. It decides which page to visit next to fill in the missing blanks (e.g., "I have the company name, but I still need the CEO. I will visit the 'Team' page next.").
+4.  **Repeat:** It repeats this process until the `budget` (max pages) is reached or the Navigator decides it has found everything.
+5.  **Merge:** Finally, a "Merger" LLM consolidates all the partial data snippets from the different pages into one final, clean JSON object.
+
 ### Step 2: Validation
 ```json
 {
