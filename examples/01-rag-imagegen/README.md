@@ -2,6 +2,8 @@
 
 This tutorial shows how to build a **Retrieval-Augmented Generation (RAG)** pipeline for images. Instead of generating images from scratch with a simple prompt, this pipeline first searches for real-world reference images, selects the best one using AI, and then uses that reference to guide the generation of a new, high-quality image.
 
+> **💡 Tip:** This tutorial is the primary reference for understanding and configuring the **Image Search Plugin**.
+
 ## 🎯 Goal
 Generate a photorealistic "Hero Image" for a specific industry (e.g., "Sailing School") that adheres to strict brand guidelines (German features, specific lighting, no text).
 
@@ -27,6 +29,24 @@ These flags control how we find the reference image.
 *   `--image-search-sprite-size 6`: To save tokens, we stitch 6 images into one "sprite" sheet before sending them to the Vision Model for selection.
 *   `--image-search-select 6`: We keep the top 6 images (though usually, we just want the best one for the next step).
 *   `--image-search-explode`: **Crucial.** This turns the selected images into separate processing tasks. If 1 image is selected, the pipeline continues with that 1 image context.
+
+#### ⚙️ Image Search Configuration Reference
+
+| Option | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `--image-search-query` | `string` | - | Static search query (e.g. "Sailing boat"). |
+| `--image-search-limit` | `number` | `12` | Max total images to fetch. |
+| `--image-search-select` | `number` | `1` | Number of images to select after filtering. |
+| `--image-search-query-count` | `number` | `3` | Number of search queries to generate (if using query model). |
+| `--image-search-sprite-size` | `number` | `4` | Number of images per sprite sheet for LLM selection. |
+| `--image-search-max-pages` | `number` | `1` | Max pages of search results to fetch per query. |
+| `--image-search-dedupe-strategy` | `string` | `url` | Deduplication strategy: `none`, `domain`, `url`. |
+| `--image-search-gl` | `string` | - | Google Search country code (e.g. `de`, `us`). |
+| `--image-search-hl` | `string` | - | Google Search language code (e.g. `de`, `en`). |
+| `--image-query-model` | `string` | Global | Model used to generate search queries. |
+| `--image-query-prompt` | `string` | - | Instructions for generating search queries. |
+| `--image-select-model` | `string` | Global | Vision model used to select the best images. |
+| `--image-select-prompt` | `string` | - | Criteria for selecting the best images. |
 
 ### 2. Generation
 *   `--model "google/gemini-3-pro-image-preview"`: The model used for the actual image generation.
