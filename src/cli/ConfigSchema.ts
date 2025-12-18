@@ -207,9 +207,9 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
 
         // Resolve Model Config
         const modelConfig: ModelDefinition = {
-            model: stepDef.model?.model,
-            temperature: stepDef.model?.temperature,
-            thinkingLevel: stepDef.model?.thinkingLevel,
+            model: stepDef.model?.model ?? config.globals.model,
+            temperature: stepDef.model?.temperature ?? config.globals.temperature,
+            thinkingLevel: stepDef.model?.thinkingLevel ?? config.globals.thinkingLevel,
             // We pass the raw prompt definition to the resolver.
             // The resolver handles string vs object vs parts.
             // We cast to any here because ModelDefinition expects string | undefined for source,
