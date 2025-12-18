@@ -10,7 +10,6 @@ import {
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/schema.js';
-import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
@@ -22,7 +21,7 @@ import { ensureDir } from '../../utils/fileUtils.js';
 export const StyleScraperConfigSchemaV2 = z.object({
     type: z.literal('style-scraper'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional(),
+    output: OutputConfigSchema.default({}),
     url: z.string(),
     resolution: z.string().default('1920x1080'),
     mobile: z.boolean().default(false),
@@ -110,9 +109,9 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
             type: 'style-scraper',
             id: rawConfig.id ?? `style-scraper-${Date.now()}`,
             output: {
-                mode: rawConfig.output?.mode ?? DEFAULT_OUTPUT.mode,
+                mode: rawConfig.output?.mode,
                 column: rawConfig.output?.column,
-                explode: rawConfig.output?.explode ?? DEFAULT_OUTPUT.explode
+                explode: rawConfig.output?.explode
             },
             url,
             resolution: { width: w || 1920, height: h || 1080 },

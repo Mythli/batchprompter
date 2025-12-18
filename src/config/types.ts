@@ -72,6 +72,7 @@ export interface ResolvedStepConfig {
     outputDir?: string;
     outputBasename?: string;
     outputExtension?: string;
+    timeout: number;
 }
 
 export interface ResolvedPipelineConfig {
@@ -80,15 +81,7 @@ export interface ResolvedPipelineConfig {
         offset: number;
         limit?: number;
     };
-    globals: {
-        model: string;
-        temperature?: number;
-        thinkingLevel?: 'low' | 'medium' | 'high';
-        concurrency: number;
-        taskConcurrency: number;
-        tmpDir: string;
-        outputPath?: string;
-    };
+    globals: GlobalsConfig;
     steps: ResolvedStepConfig[];
 }
 
@@ -112,15 +105,7 @@ export interface ServiceCapabilities {
 }
 
 export interface NormalizedConfig {
-    global: {
-        concurrency: number;
-        taskConcurrency: number;
-        tmpDir: string;
-        dataOutputPath?: string;
-        model?: string;
-        offset?: number;
-        limit?: number;
-    };
+    global: GlobalsConfig;
     steps: import('../types.js').StepDefinition[];
 }
 

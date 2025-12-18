@@ -10,7 +10,6 @@ import {
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/schema.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
-import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 
 // =============================================================================
 // Config Schema
@@ -19,7 +18,7 @@ import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 export const ValidationConfigSchemaV2 = z.object({
     type: z.literal('validation'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional(),
+    output: OutputConfigSchema.default({}),
     schema: z.union([z.string(), z.record(z.string(), z.any())]),
     target: z.string().optional()
 });
@@ -98,9 +97,9 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             type: 'validation',
             id: rawConfig.id ?? `validation-${Date.now()}`,
             output: {
-                mode: rawConfig.output?.mode ?? DEFAULT_OUTPUT.mode,
+                mode: rawConfig.output?.mode,
                 column: rawConfig.output?.column,
-                explode: rawConfig.output?.explode ?? DEFAULT_OUTPUT.explode
+                explode: rawConfig.output?.explode
             },
             schema,
             target: rawConfig.target,

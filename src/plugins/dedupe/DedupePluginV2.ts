@@ -8,7 +8,6 @@ import {
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/schema.js';
-import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 
 // =============================================================================
 // Config Schema
@@ -17,7 +16,7 @@ import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 export const DedupeConfigSchemaV2 = z.object({
     type: z.literal('dedupe'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional(),
+    output: OutputConfigSchema.default({}),
     key: z.string()
 });
 
@@ -73,9 +72,9 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             type: 'dedupe',
             id: rawConfig.id ?? `dedupe-${Date.now()}`,
             output: {
-                mode: rawConfig.output?.mode ?? DEFAULT_OUTPUT.mode,
+                mode: rawConfig.output?.mode,
                 column: rawConfig.output?.column,
-                explode: rawConfig.output?.explode ?? DEFAULT_OUTPUT.explode
+                explode: rawConfig.output?.explode
             },
             keyTemplate: rawConfig.key
         };

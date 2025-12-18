@@ -144,7 +144,8 @@ export class StepRegistry {
                 preprocessors: activePreprocessors,
 
                 // Pass raw options to allow preprocessors to check flags later (Legacy support, can be removed if all preprocessors use normalize)
-                options: options
+                options: options,
+                timeout: stepDef.timeout
             });
         }
 

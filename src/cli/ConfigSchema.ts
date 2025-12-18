@@ -2,27 +2,11 @@ import { z } from 'zod';
 import { ModelDefinition, StepDefinition, NormalizedConfig, PluginConfigDefinition, OutputStrategy } from '../types.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ModelFlags } from './ModelFlags.js';
+import { GlobalsConfigSchema } from '../config/schema.js';
 
 // =============================================================================
 // Zod Schemas for CLI Config (Single source of truth for defaults)
 // =============================================================================
-
-const GlobalConfigSchema = z.object({
-    concurrency: z.number().int().positive().default(50),
-    taskConcurrency: z.number().int().positive().default(100),
-    tmpDir: z.string().default('.tmp'),
-    dataOutputPath: z.string().optional(),
-    model: z.string().optional(),
-    offset: z.number().int().min(0).optional(),
-    limit: z.number().int().positive().optional(),
-    timeout: z.number().int().positive().default(180)
-});
-
-const OutputStrategySchema = z.object({
-    mode: z.enum(['merge', 'column', 'ignore']).default('ignore'),
-    columnName: z.string().optional(),
-    explode: z.boolean().default(false)
-});
 
 // Helper to remove undefined keys
 const clean = <T extends object>(obj: T): T => {
@@ -128,11 +112,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         timeout: options.timeout ? parseInt(String(options.timeout), 10) : undefined
     };
     
-    const globalConfig = GlobalConfigSchema.parse(rawGlobalConfig);
-
-    // Apply defaults back to options so they are available downstream (e.g. in ActionRunner)
-    // since we can't easily modify the NormalizedConfig interface in this context.
-    options.timeout = globalConfig.timeout;
+    const globalConfig = GlobalsConfigSchema.parse(rawGlobalConfig);
 
     // Instantiate ModelFlags with the resolved global model
     const modelFlags = new ModelFlags(globalModel);
@@ -226,6 +206,10 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         const feedbackLoopsRaw = getStepOpt('feedbackLoops');
         const feedbackLoops = feedbackLoopsRaw ? parseInt(feedbackLoopsRaw, 10) : 0;
 
+        // Parse timeout
+        const timeoutRaw = getStepOpt('timeout');
+        const timeout = timeoutRaw ? parseInt(timeoutRaw, 10) : globalConfig.timeout;
+
         steps.push(clean({
             stepIndex: i,
             modelConfig: baseModel,
@@ -248,7 +232,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             
             aspectRatio: getStepOpt('aspectRatio'),
             plugins,
-            preprocessors: [] // Initialized empty, populated in StepRegistry
+            preprocessors: [], // Initialized empty, populated in StepRegistry
+            timeout: timeout
         }));
     }
 

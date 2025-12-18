@@ -46,7 +46,7 @@ export const OutputConfigSchema = z.object({
 export const BasePluginSchema = z.object({
     type: z.string(),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional()
+    output: OutputConfigSchema.default({})
 });
 
 /**
@@ -81,7 +81,7 @@ export const StepConfigSchema = z.object({
     model: ModelConfigSchema.optional(),
     plugins: z.array(BasePluginSchema.passthrough()).default([]),
     preprocessors: z.array(PreprocessorSchema).default([]),
-    output: OutputConfigSchema.optional(),
+    output: OutputConfigSchema.default({}),
     schema: z.union([z.string(), z.record(z.string(), z.any())]).optional(),
     candidates: z.number().int().positive().default(1),
     skipCandidateCommand: z.boolean().default(false),
@@ -89,7 +89,8 @@ export const StepConfigSchema = z.object({
     feedback: FeedbackConfigSchema.optional(),
     aspectRatio: z.string().optional(),
     command: z.string().optional(),
-    verifyCommand: z.string().optional()
+    verifyCommand: z.string().optional(),
+    timeout: z.number().int().positive().optional() // Inherits from global if undefined
 });
 
 /**
@@ -105,13 +106,14 @@ export const DataConfigSchema = z.object({
  * Global configuration
  */
 export const GlobalsConfigSchema = z.object({
-    model: z.string().optional(),
+    model: z.string().default('gpt-4o-mini'),
     temperature: z.number().min(0).max(2).optional(),
     thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     concurrency: z.number().int().positive().default(50),
     taskConcurrency: z.number().int().positive().default(100),
     tmpDir: z.string().default('.tmp'),
-    outputPath: z.string().optional()
+    outputPath: z.string().optional(),
+    timeout: z.number().int().positive().default(180)
 });
 
 /**
@@ -119,6 +121,6 @@ export const GlobalsConfigSchema = z.object({
  */
 export const PipelineConfigSchema = z.object({
     data: DataConfigSchema,
-    globals: GlobalsConfigSchema.optional(),
+    globals: GlobalsConfigSchema.default({}),
     steps: z.array(StepConfigSchema).min(1)
 });

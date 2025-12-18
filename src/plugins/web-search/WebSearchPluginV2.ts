@@ -11,7 +11,6 @@ import {
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/schema.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
@@ -23,7 +22,7 @@ import { LlmListSelector } from '../../utils/LlmListSelector.js';
 export const WebSearchConfigSchemaV2 = z.object({
     type: z.literal('web-search'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional(),
+    output: OutputConfigSchema.default({}),
     query: z.string().optional(),
     // Query model config
     queryPrompt: PromptDefSchema.optional(),
@@ -213,9 +212,9 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             type: 'web-search',
             id: rawConfig.id ?? `web-search-${Date.now()}`,
             output: {
-                mode: rawConfig.output?.mode ?? DEFAULT_OUTPUT.mode,
+                mode: rawConfig.output?.mode,
                 column: rawConfig.output?.column,
-                explode: rawConfig.output?.explode ?? DEFAULT_OUTPUT.explode
+                explode: rawConfig.output?.explode
             },
             query,
             queryModel: await resolvePrompt(

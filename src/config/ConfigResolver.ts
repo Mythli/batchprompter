@@ -9,7 +9,6 @@ import {
     ServiceCapabilities
 } from './types.js';
 import { PipelineConfigSchema } from './schema.js';
-import { DEFAULT_MODEL, DEFAULT_OUTPUT, applyGlobalsDefaults, mergeModelSettings } from './defaults.js';
 import { PromptLoader } from './PromptLoader.js';
 import { SchemaLoader } from './SchemaLoader.js';
 import { loadData } from '../utils/dataLoader.js';
@@ -30,7 +29,7 @@ export class ConfigResolver {
      * Validate and resolve a raw pipeline configuration
      */
     async resolve(rawConfig: unknown): Promise<ResolvedPipelineConfig> {
-        // 1. Validate with Zod
+        // 1. Validate with Zod (applies defaults)
         const config = PipelineConfigSchema.parse(rawConfig);
 
         // 2. Validate plugin capabilities
@@ -42,15 +41,12 @@ export class ConfigResolver {
         const limit = config.data.limit;
         const rows = limit ? allRows.slice(offset, offset + limit) : allRows.slice(offset);
 
-        // 4. Apply global defaults
-        const globals = applyGlobalsDefaults(config.globals);
-
-        // 5. Resolve steps (without row context - templates remain)
+        // 4. Resolve steps (without row context - templates remain)
         const resolvedSteps: ResolvedStepConfig[] = [];
 
         for (let i = 0; i < config.steps.length; i++) {
             const step = config.steps[i];
-            const resolved = await this.resolveStep(step, globals, i);
+            const resolved = await this.resolveStep(step, config.globals, i);
             resolvedSteps.push(resolved);
         }
 
@@ -60,29 +56,24 @@ export class ConfigResolver {
                 offset,
                 limit
             },
-            globals: {
-                model: globals.model ?? DEFAULT_MODEL,
-                temperature: globals.temperature,
-                thinkingLevel: globals.thinkingLevel,
-                concurrency: globals.concurrency,
-                taskConcurrency: globals.taskConcurrency,
-                tmpDir: globals.tmpDir,
-                outputPath: globals.outputPath
-            },
+            globals: config.globals,
             steps: resolvedSteps
         };
     }
 
     private async resolveStep(
         step: PipelineConfig['steps'][number],
-        globals: ReturnType<typeof applyGlobalsDefaults>,
+        globals: PipelineConfig['globals'],
         stepIndex: number
     ): Promise<ResolvedStepConfig> {
         const stepModelConfig = step.model ?? {};
-        const mergedModel = mergeModelSettings(
-            { model: globals.model, temperature: globals.temperature, thinkingLevel: globals.thinkingLevel },
-            stepModelConfig
-        );
+        
+        // Merge model settings: Step > Global
+        const mergedModel = {
+            model: stepModelConfig.model ?? globals.model,
+            temperature: stepModelConfig.temperature ?? globals.temperature,
+            thinkingLevel: stepModelConfig.thinkingLevel ?? globals.thinkingLevel
+        };
 
         // Resolve prompts (templates remain unrendered)
         const prompt = await this.resolvePrompt(step.prompt);
@@ -93,7 +84,7 @@ export class ConfigResolver {
         const plugins = step.plugins.map((p, idx) => ({
             type: p.type as string,
             id: (p as any).id ?? `${p.type}-${stepIndex}-${idx}`,
-            output: this.resolveOutput((p as any).output),
+            output: p.output,
             rawConfig: p
         }));
 
@@ -131,7 +122,7 @@ export class ConfigResolver {
             temperature: mergedModel.temperature,
             thinkingLevel: mergedModel.thinkingLevel,
             plugins,
-            output: this.resolveOutput(step.output),
+            output: step.output,
             schema,
             candidates: step.candidates,
             skipCandidateCommand: step.skipCandidateCommand,
@@ -140,7 +131,8 @@ export class ConfigResolver {
             aspectRatio: step.aspectRatio,
             command: step.command,
             verifyCommand: step.verifyCommand,
-            tmpDir: globals.tmpDir
+            tmpDir: globals.tmpDir,
+            timeout: step.timeout ?? globals.timeout
         };
     }
 
@@ -155,7 +147,11 @@ export class ConfigResolver {
         config: { model?: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high'; prompt?: any; system?: any },
         inherited: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
     ): Promise<ResolvedModelConfig> {
-        const merged = mergeModelSettings(inherited, config);
+        const merged = {
+            model: config.model ?? inherited.model,
+            temperature: config.temperature ?? inherited.temperature,
+            thinkingLevel: config.thinkingLevel ?? inherited.thinkingLevel
+        };
 
         return {
             model: merged.model,
@@ -163,14 +159,6 @@ export class ConfigResolver {
             thinkingLevel: merged.thinkingLevel,
             systemParts: await this.resolvePrompt(config.system),
             promptParts: await this.resolvePrompt(config.prompt)
-        };
-    }
-
-    private resolveOutput(output?: { mode?: string; column?: string; explode?: boolean }): ResolvedOutputConfig {
-        return {
-            mode: (output?.mode as ResolvedOutputConfig['mode']) ?? DEFAULT_OUTPUT.mode,
-            column: output?.column,
-            explode: output?.explode ?? DEFAULT_OUTPUT.explode
         };
     }
 }

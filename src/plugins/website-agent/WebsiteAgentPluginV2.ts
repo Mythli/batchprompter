@@ -12,7 +12,6 @@ import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '
 import { OutputConfigSchema, PromptDefSchema } from '../../config/schema.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
-import { DEFAULT_OUTPUT } from '../../config/defaults.js';
 import { compressHtml } from '../../utils/compressHtml.js';
 import { makeSchemaOptional } from '../../utils/schemaUtils.js';
 import { LinkData } from '../../utils/puppeteer/PuppeteerPageHelper.js';
@@ -25,7 +24,7 @@ import { ModelFlags } from '../../cli/ModelFlags.js';
 export const WebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent'),
     id: z.string().optional(),
-    output: OutputConfigSchema.optional(),
+    output: OutputConfigSchema.default({}),
     url: z.string(),
     schema: z.union([z.string(), z.record(z.string(), z.any())]),
     budget: z.number().int().positive().default(10),
@@ -217,9 +216,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             type: 'website-agent',
             id: rawConfig.id ?? `website-agent-${Date.now()}`,
             output: {
-                mode: rawConfig.output?.mode ?? DEFAULT_OUTPUT.mode,
+                mode: rawConfig.output?.mode,
                 column: rawConfig.output?.column,
-                explode: rawConfig.output?.explode ?? DEFAULT_OUTPUT.explode
+                explode: rawConfig.output?.explode
             },
             url,
             schema,

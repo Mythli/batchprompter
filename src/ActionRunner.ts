@@ -70,13 +70,8 @@ export class ActionRunner {
             const stepConfig = steps[stepIndex];
             const stepNum = stepIndex + 1;
 
-            // Determine timeout for this step
-            // Priority: Step specific flag > Global flag > Default (180s)
-            const stepTimeoutSeconds = stepConfig.options[`timeout${stepNum}`] 
-                ? parseInt(stepConfig.options[`timeout${stepNum}`], 10)
-                : (stepConfig.options.timeout ? parseInt(stepConfig.options.timeout, 10) : 180);
-            
-            const timeoutMs = stepTimeoutSeconds * 1000;
+            // Use the prepared timeout from the step config
+            const timeoutMs = stepConfig.timeout * 1000;
 
             try {
                 const viewContext = {
@@ -112,7 +107,7 @@ export class ActionRunner {
                 // Wrap execution in timeout
                 let timer: NodeJS.Timeout;
                 const timeoutPromise = new Promise<never>((_, reject) => {
-                    timer = setTimeout(() => reject(new Error(`Step timed out after ${stepTimeoutSeconds}s`)), timeoutMs);
+                    timer = setTimeout(() => reject(new Error(`Step timed out after ${stepConfig.timeout}s`)), timeoutMs);
                 });
 
                 const executionPromise = (async () => {

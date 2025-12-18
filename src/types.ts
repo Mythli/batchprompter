@@ -6,6 +6,7 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import PQueue from 'p-queue';
 import { Cache } from 'cache-manager';
 import { BoundLlmClient } from './core/BoundLlmClient.js';
+import { GlobalsConfig, StepConfig as ZodStepConfig } from './config/types.js';
 
 // --- Service Capabilities (for validation at startup) ---
 
@@ -65,19 +66,12 @@ export interface StepDefinition {
     aspectRatio?: string;
     plugins: PluginConfigDefinition[];
     preprocessors: PreprocessorConfigDefinition[];
+    timeout: number;
 }
 
 export interface NormalizedConfig {
     dataFilePath?: string;
-    global: {
-        concurrency: number;
-        taskConcurrency: number;
-        tmpDir: string;
-        dataOutputPath?: string;
-        model?: string;
-        offset?: number;
-        limit?: number;
-    };
+    global: GlobalsConfig;
     steps: StepDefinition[];
 }
 
@@ -122,6 +116,7 @@ export interface StepConfig {
     outputBasename?: string;
     outputExtension?: string;
     options?: Record<string, any>;
+    timeout: number;
 }
 
 export interface RuntimeConfig {
