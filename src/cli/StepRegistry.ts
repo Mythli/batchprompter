@@ -150,7 +150,7 @@ export class StepRegistry {
                 output: stepDef.output,
 
                 schemaPath: stepDef.schemaPath,
-                jsonSchema: typeof stepDef.schema === 'object' ? stepDef.schema : undefined,
+                jsonSchema: stepDef.jsonSchema,
                 verifyCommand: stepDef.verifyCommand,
                 postProcessCommand: stepDef.postProcessCommand,
 

@@ -9,7 +9,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, createFlatModelSchema } from '../../config/common.js';
+import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
@@ -31,13 +31,25 @@ export const WebSearchConfigSchemaV2 = z.object({
     query: z.string().optional(),
     
     // Query model config
-    ...createFlatModelSchema('query'),
+    queryModel: z.string().optional(),
+    queryTemperature: z.number().min(0).max(2).optional(),
+    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    queryPrompt: PromptDefSchema.optional(),
+    querySystem: PromptDefSchema.optional(),
     
     // Select model config
-    ...createFlatModelSchema('select'),
+    selectModel: z.string().optional(),
+    selectTemperature: z.number().min(0).max(2).optional(),
+    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    selectPrompt: PromptDefSchema.optional(),
+    selectSystem: PromptDefSchema.optional(),
     
     // Compress model config
-    ...createFlatModelSchema('compress'),
+    compressModel: z.string().optional(),
+    compressTemperature: z.number().min(0).max(2).optional(),
+    compressThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    compressPrompt: PromptDefSchema.optional(),
+    compressSystem: PromptDefSchema.optional(),
 
     // Search options
     limit: z.number().int().positive().default(5),

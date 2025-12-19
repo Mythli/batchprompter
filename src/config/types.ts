@@ -56,6 +56,7 @@ export interface ResolvedStepConfig {
     thinkingLevel?: 'low' | 'medium' | 'high';
     plugins: ResolvedPluginBase[];
     output: ResolvedOutputConfig;
+    outputTemplate?: string;
     schema?: any;
     candidates: number;
     skipCandidateCommand: boolean;

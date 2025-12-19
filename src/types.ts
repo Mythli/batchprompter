@@ -55,6 +55,7 @@ export interface StepDefinition {
     output: OutputStrategy;
 
     schemaPath?: string;
+    jsonSchema?: any;
     verifyCommand?: string;
     postProcessCommand?: string;
 

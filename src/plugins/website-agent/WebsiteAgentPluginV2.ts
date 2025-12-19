@@ -8,7 +8,7 @@ import {
     CLIOptionDefinition
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, createFlatModelSchema } from '../../config/common.js';
+import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
 import { makeSchemaOptional } from '../../utils/schemaUtils.js';
@@ -35,13 +35,25 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
     batchSize: z.number().int().positive().default(3),
     
     // Navigator model config
-    ...createFlatModelSchema('navigator'),
+    navigatorModel: z.string().optional(),
+    navigatorTemperature: z.number().min(0).max(2).optional(),
+    navigatorThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    navigatorPrompt: PromptDefSchema.optional(),
+    navigatorSystem: PromptDefSchema.optional(),
     
     // Extract model config
-    ...createFlatModelSchema('extract'),
+    extractModel: z.string().optional(),
+    extractTemperature: z.number().min(0).max(2).optional(),
+    extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    extractPrompt: PromptDefSchema.optional(),
+    extractSystem: PromptDefSchema.optional(),
     
     // Merge model config
-    ...createFlatModelSchema('merge')
+    mergeModel: z.string().optional(),
+    mergeTemperature: z.number().min(0).max(2).optional(),
+    mergeThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    mergePrompt: PromptDefSchema.optional(),
+    mergeSystem: PromptDefSchema.optional()
 });
 
 export type WebsiteAgentRawConfigV2 = z.infer<typeof WebsiteAgentConfigSchemaV2>;

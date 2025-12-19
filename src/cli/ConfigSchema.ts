@@ -217,12 +217,6 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             // We need to update ModelDefinition in types.ts to allow the object, OR serialize it here?
             // Better: Let's update the PromptResolver to accept the PromptDef object.
             // For now, we'll pass it as 'promptSource' and cast, assuming PromptResolver is updated.
-            // Actually, let's normalize to the ModelDefinition structure expected by the rest of the app.
-            // The app expects `promptSource` to be a string (path or text).
-            // If it's an object, we need to handle it.
-            // Let's update ModelDefinition in types.ts to allow the object, OR serialize it here?
-            // Better: Let's update the PromptResolver to accept the PromptDef object.
-            // For now, we'll pass it as 'promptSource' and cast, assuming PromptResolver is updated.
             promptSource: stepDef.prompt as any,
             systemSource: stepDef.system as any
         };
@@ -262,7 +256,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             output: stepDef.output,
 
             schemaPath: typeof stepDef.schema === 'string' ? stepDef.schema : undefined,
-            // If schema is object, it's handled in ActionRunner/StepResolver
+            jsonSchema: typeof stepDef.schema === 'object' ? stepDef.schema : undefined,
             
             verifyCommand: stepDef.verifyCommand,
             postProcessCommand: stepDef.command,
