@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { 
-    PromptDefSchema, 
-    ModelConfigSchema, 
-    OutputConfigSchema 
+import {
+    PromptDefSchema,
+    ModelConfigSchema,
+    OutputConfigSchema
 } from './common.js';
 import { PluginUnionSchema } from './pluginUnion.js';
 
@@ -80,7 +80,7 @@ export const GlobalsConfigSchema = z.object({
     thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     concurrency: z.number().int().positive().default(50),
     taskConcurrency: z.number().int().positive().default(100),
-    tmpDir: z.string().default('.tmp'),
+    tmpDir: z.string().optional(),
     outputPath: z.string().optional(),
     dataOutputPath: z.string().optional(),
     timeout: z.number().int().positive().default(180)
