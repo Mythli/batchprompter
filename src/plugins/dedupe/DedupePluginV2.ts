@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
+import { EventEmitter } from 'eventemitter3';
+import path from 'path';
 import {
     Plugin,
     PluginExecutionContext,
@@ -8,6 +10,8 @@ import {
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
+import { ensureDir } from '../../utils/fileUtils.js';
+import { DedupeArtifactHandler } from './DedupeArtifactHandler.js';
 
 // =============================================================================
 // Config Schema
@@ -42,6 +46,7 @@ const globalSeenKeys = new Map<string, Set<string>>();
 export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedConfigV2> {
     readonly type = 'dedupe';
     readonly configSchema = DedupeConfigSchemaV2;
+    public readonly events = new EventEmitter();
 
     readonly cliOptions: CLIOptionDefinition[] = [
         { flags: '--dedupe-key <template>', description: 'Deduplication key (Handlebars template)' }
@@ -94,7 +99,12 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         config: DedupeResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { row } = context;
+        const { row, tempDirectory } = context;
+
+        // Setup artifact handler
+        const artifactDir = path.join(tempDirectory, 'dedupe');
+        await ensureDir(artifactDir + '/x');
+        new DedupeArtifactHandler(artifactDir, this.events);
 
         // Render key from template
         const template = Handlebars.compile(config.keyTemplate, { noEscape: true });
@@ -108,11 +118,24 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
 
         if (seenKeys.has(key)) {
             console.log(`[Dedupe] ❌ Dropping duplicate: "${key}"`);
+            
+            this.events.emit('dedupe:result', {
+                id: config.id,
+                key,
+                isDuplicate: true
+            });
+
             return { packets: [] };
         }
 
         console.log(`[Dedupe] ✅ Keeping: "${key}"`);
         seenKeys.add(key);
+
+        this.events.emit('dedupe:result', {
+            id: config.id,
+            key,
+            isDuplicate: false
+        });
 
         return {
             packets: [{

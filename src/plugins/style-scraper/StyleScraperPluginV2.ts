@@ -2,6 +2,7 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import path from 'path';
 import OpenAI from 'openai';
+import { EventEmitter } from 'eventemitter3';
 import {
     Plugin,
     PluginExecutionContext,
@@ -11,8 +12,8 @@ import {
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
-import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
+import { StyleScraperArtifactHandler } from './StyleScraperArtifactHandler.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -50,6 +51,7 @@ export interface StyleScraperResolvedConfigV2 {
 export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, StyleScraperResolvedConfigV2> {
     readonly type = 'style-scraper';
     readonly configSchema = StyleScraperConfigSchemaV2;
+    public readonly events = new EventEmitter();
 
     readonly cliOptions: CLIOptionDefinition[] = [
         { flags: '--style-scrape-url <url>', description: 'URL to scrape styles from' },
@@ -134,6 +136,11 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
             throw new Error('[StyleScraper] Puppeteer not available');
         }
 
+        // Setup artifact handler
+        const artifactDir = path.join(tempDirectory, 'style_scraper');
+        await ensureDir(artifactDir + '/x');
+        new StyleScraperArtifactHandler(artifactDir, this.events);
+
         const pageHelper = await puppeteerHelper.getPageHelper();
 
         try {
@@ -162,6 +169,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                         contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${config.url}) ---` });
                         contentParts.push({ type: 'image_url', image_url: { url: desktopShot.screenshotBase64 } });
                         artifacts.push({ type: 'desktop', base64: desktopShot.screenshotBase64, extension: '.jpg' });
+                        this.events.emit('artifact:captured', { type: 'desktop', content: desktopShot.screenshotBase64, extension: '.jpg' });
                     }
 
                     // Mobile screenshot
@@ -172,6 +180,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                             contentParts.push({ type: 'text', text: `\n--- Mobile Screenshot ---` });
                             contentParts.push({ type: 'image_url', image_url: { url: mobileShot.screenshotBase64 } });
                             artifacts.push({ type: 'mobile', base64: mobileShot.screenshotBase64, extension: '.jpg' });
+                            this.events.emit('artifact:captured', { type: 'mobile', content: mobileShot.screenshotBase64, extension: '.jpg' });
                         }
                         await ph.getPage().setViewport(config.resolution);
                     }
@@ -192,6 +201,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                             contentParts.push({ type: 'text', text: `\n--- Interactive Elements ---` });
                             contentParts.push({ type: 'image_url', image_url: { url: interactiveResult.compositeImageBase64 } });
                             artifacts.push({ type: 'interactive', base64: interactiveResult.compositeImageBase64, extension: '.png' });
+                            this.events.emit('artifact:captured', { type: 'interactive', content: interactiveResult.compositeImageBase64, extension: '.png' });
                         }
 
                         if (interactiveResult.screenshots.length > 0) {
@@ -215,10 +225,19 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                                         base64: shot.screenshotBase64,
                                         extension: '.png'
                                     });
+                                    this.events.emit('artifact:captured', {
+                                        type: 'element',
+                                        subType: shot.type,
+                                        index: shot.elementIndex,
+                                        state: shot.state,
+                                        content: shot.screenshotBase64,
+                                        extension: '.png'
+                                    });
                                 }
                             }
                             contentParts.push({ type: 'text', text: stylesText });
                             artifacts.push({ type: 'css', base64: stylesText, extension: '.md' });
+                            this.events.emit('artifact:captured', { type: 'css', content: stylesText, extension: '.md' });
                         }
                     }
 
@@ -232,42 +251,22 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                 }
             );
 
-            // Save artifacts
+            // Build output data for row/workspace
             const baseName = outputBasename || 'style_scrape';
-            const screenshotsDir = path.join(tempDirectory, 'screenshots');
-            const interactiveDir = path.join(tempDirectory, 'interactive');
-
-            await ensureDir(screenshotsDir + '/x');
-            if (config.interactive) {
-                await ensureDir(interactiveDir + '/x');
-            }
-
             const outputData: Record<string, any> = {};
 
             for (const artifact of result.artifacts) {
-                let savePath = '';
-
                 if (artifact.type === 'desktop') {
-                    savePath = path.join(screenshotsDir, `${baseName}_desktop${artifact.extension}`);
-                    outputData.desktop = savePath;
+                    outputData.desktop = path.join(artifactDir, 'screenshots', `${baseName}_desktop${artifact.extension}`);
                 } else if (artifact.type === 'mobile') {
-                    savePath = path.join(screenshotsDir, `${baseName}_mobile${artifact.extension}`);
-                    outputData.mobile = savePath;
+                    outputData.mobile = path.join(artifactDir, 'screenshots', `${baseName}_mobile${artifact.extension}`);
                 } else if (artifact.type === 'interactive') {
-                    savePath = path.join(interactiveDir, `${baseName}_interactive${artifact.extension}`);
-                    outputData.interactive = savePath;
+                    outputData.interactive = path.join(artifactDir, 'interactive', `${baseName}_interactive${artifact.extension}`);
                 } else if (artifact.type === 'css') {
-                    savePath = path.join(interactiveDir, `${baseName}_styles${artifact.extension}`);
-                    outputData.css = savePath;
+                    outputData.css = path.join(artifactDir, 'css', `${baseName}_styles${artifact.extension}`);
                 } else if (artifact.type === 'element') {
-                    const filename = `${baseName}_${artifact.subType}_${artifact.index}_${artifact.state}${artifact.extension}`;
-                    savePath = path.join(interactiveDir, filename);
                     if (!outputData.elements) outputData.elements = {};
-                    outputData.elements[`${artifact.subType}_${artifact.index}_${artifact.state}`] = savePath;
-                }
-
-                if (savePath) {
-                    await ArtifactSaver.save(artifact.base64, savePath);
+                    outputData.elements[`${artifact.subType}_${artifact.index}_${artifact.state}`] = path.join(artifactDir, 'interactive', `${baseName}_${artifact.subType}_${artifact.index}_${artifact.state}${artifact.extension}`);
                 }
             }
 

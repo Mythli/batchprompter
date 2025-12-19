@@ -13,7 +13,10 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
 import { makeSchemaOptional } from '../../utils/schemaUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
-import { PuppeteerPageHelper, ScrapedPageContent } from '../../utils/puppeteer/PuppeteerPageHelper.js';
+import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
+import { WebsiteAgentArtifactHandler } from './WebsiteAgentArtifactHandler.js';
+import path from 'path';
+import { ensureDir } from '../../utils/fileUtils.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -248,7 +251,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         config: WebsiteAgentResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { services, row } = context;
+        const { services, row, tempDirectory } = context;
         const { puppeteerHelper, puppeteerQueue } = services;
 
         if (!puppeteerHelper || !puppeteerQueue) {
@@ -270,19 +273,24 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         const extLlm = services.createLlm(config.extractModel);
         const mrgLlm = services.createLlm(config.mergeModel);
 
+        // Setup utility
+        const agent = new AiWebsiteAgent(navLlm, extLlm, mrgLlm, puppeteerHelper, puppeteerQueue);
+
+        // Setup artifact handler
+        const artifactDir = path.join(tempDirectory, 'website_agent');
+        await ensureDir(artifactDir + '/x');
+        new WebsiteAgentArtifactHandler(artifactDir, agent.events);
+
         // Scrape
-        const result = await this.scrapeIterative(
+        const result = await agent.scrapeIterative(
             config.url,
-            config.schema,
             config.extractionSchema,
-            config.budget,
-            config.batchSize,
-            puppeteerHelper,
-            puppeteerQueue,
-            navLlm,
-            extLlm,
-            mrgLlm,
-            row
+            config.schema,
+            {
+                budget: config.budget,
+                batchSize: config.batchSize,
+                row
+            }
         );
 
         return {
@@ -294,156 +302,5 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
                 }]
             }]
         };
-    }
-
-    private async scrapeIterative(
-        initialUrl: string,
-        mergeSchema: any,
-        extractionSchema: any,
-        budget: number,
-        batchSize: number,
-        puppeteerHelper: any,
-        puppeteerQueue: any,
-        navLlm: any,
-        extLlm: any,
-        mrgLlm: any,
-        row: Record<string, any>
-    ): Promise<any> {
-        let remaining = budget;
-        const visitedUrls = new Set<string>();
-        const knownLinks = new Map<string, { href: string; text: string; firstSeenOn: string }>();
-        const extractedData: any[] = [];
-
-        console.log(`[WebsiteAgent] Starting at ${initialUrl} (Budget: ${budget})`);
-
-        // Helper to get page content
-        const scrape = async (url: string): Promise<ScrapedPageContent> => {
-            return puppeteerQueue.add(async () => {
-                const pageHelper = await puppeteerHelper.getPageHelper();
-                // scrapeUrl handles navigation, caching, markdown conversion, and closing the page
-                return await pageHelper.scrapeUrl(url, {
-                    dismissCookies: false,
-                    htmlOnly: true,
-                    cacheKey: `website-agent-v1:${url}`,
-                    ttl: 24 * 60 * 60 * 1000,
-                    closePage: true // Ensure page is closed after scraping
-                });
-            });
-        };
-
-        // Scrape initial page (using relaxed extractionSchema)
-        try {
-            const initial = await scrape(initialUrl);
-            visitedUrls.add(initialUrl);
-            remaining--;
-
-            const truncated = initial.markdown.substring(0, 20000);
-            const data = await extLlm.promptJson(
-                { suffix: [{ type: 'text', text: `URL: ${initialUrl}\n\nContent:\n${truncated}` }] },
-                extractionSchema
-            );
-
-            extractedData.push({ url: initialUrl, data });
-
-            for (const link of initial.links) {
-                if (!knownLinks.has(link.href)) {
-                    knownLinks.set(link.href, { ...link, firstSeenOn: initialUrl });
-                }
-            }
-        } catch (e) {
-            console.error(`[WebsiteAgent] Failed to scrape initial URL:`, e);
-            return {};
-        }
-
-        // Iterative scraping
-        while (remaining > 0) {
-            const candidates = Array.from(knownLinks.values())
-                .filter(l => !visitedUrls.has(l.href) && l.href.startsWith('http'))
-                .slice(0, 50);
-
-            if (candidates.length === 0) break;
-
-            // Ask navigator
-            const linksText = candidates
-                .map((l, i) => `[${i}] ${l.href} (Text: "${l.text}", Found on: "${l.firstSeenOn}")`)
-                .join('\n');
-
-            const NavigatorSchema = z.object({
-                next_urls: z.array(z.string()),
-                reasoning: z.string(),
-                is_done: z.boolean()
-            });
-
-            const navResponse = await navLlm.promptZod(
-                {
-                    suffix: [{
-                        type: 'text',
-                        text: `Status:\n- Visited: ${visitedUrls.size}\n- Budget: ${remaining}\n\nFindings:\n${JSON.stringify(extractedData.map(d => d.data), null, 2)}\n\nAvailable Links:\n${linksText}\n\nSelect up to ${batchSize} links.`
-                    }]
-                },
-                NavigatorSchema
-            );
-
-            if (navResponse.is_done || navResponse.next_urls.length === 0) {
-                console.log(`[WebsiteAgent] Stopping. Done: ${navResponse.is_done}`);
-                break;
-            }
-
-            // Filter valid URLs
-            const nextUrls = navResponse.next_urls
-                .filter((url: string) => candidates.some(c => c.href === url))
-                .slice(0, batchSize);
-
-            console.log(`[WebsiteAgent] Next batch: ${nextUrls.join(', ')}`);
-
-            // Scrape batch (using relaxed extractionSchema)
-            const batchResults = await Promise.allSettled(
-                nextUrls.map(async (url: string) => {
-                    if (visitedUrls.has(url)) return null;
-                    visitedUrls.add(url);
-
-                    try {
-                        const page = await scrape(url);
-                        const truncated = page.markdown.substring(0, 20000);
-                        const data = await extLlm.promptJson(
-                            { suffix: [{ type: 'text', text: `URL: ${url}\n\nContent:\n${truncated}` }] },
-                            extractionSchema
-                        );
-                        return { url, data, links: page.links };
-                    } catch (e) {
-                        console.warn(`[WebsiteAgent] Failed to scrape ${url}:`, e);
-                        return null;
-                    }
-                })
-            );
-
-            const successful = batchResults
-                .filter(r => r.status === 'fulfilled')
-                .map(r => (r as PromiseFulfilledResult<any>).value)
-                .filter(r => r !== null);
-
-            remaining -= successful.length;
-
-            for (const res of successful) {
-                extractedData.push({ url: res.url, data: res.data });
-                for (const link of res.links) {
-                    if (!knownLinks.has(link.href)) {
-                        knownLinks.set(link.href, { ...link, firstSeenOn: res.url });
-                    }
-                }
-            }
-        }
-
-        // Merge results using the original strict schema
-        const dataToMerge = extractedData.map(d => d.data);
-
-        if (dataToMerge.length === 0) return {};
-        if (dataToMerge.length === 1) return dataToMerge[0];
-
-        console.log(`[WebsiteAgent] Merging ${dataToMerge.length} results with strict schema...`);
-        return mrgLlm.promptJson(
-            { suffix: [{ type: 'text', text: `Objects to merge:\n${JSON.stringify(dataToMerge, null, 2)}` }] },
-            mergeSchema
-        );
     }
 }

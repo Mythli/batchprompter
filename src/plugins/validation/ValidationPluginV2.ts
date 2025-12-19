@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import Ajv from 'ajv';
+import { EventEmitter } from 'eventemitter3';
+import path from 'path';
 import {
     Plugin,
     PluginExecutionContext,
@@ -10,6 +12,8 @@ import {
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
+import { ensureDir } from '../../utils/fileUtils.js';
+import { ValidationArtifactHandler } from './ValidationArtifactHandler.js';
 
 // =============================================================================
 // Config Schema
@@ -44,6 +48,7 @@ export interface ValidationResolvedConfigV2 {
 export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, ValidationResolvedConfigV2> {
     readonly type = 'validation';
     readonly configSchema = ValidationConfigSchemaV2;
+    public readonly events = new EventEmitter();
 
     private schemaLoader = new SchemaLoader();
     private ajv: any;
@@ -120,7 +125,12 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         config: ValidationResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { row } = context;
+        const { row, tempDirectory } = context;
+
+        // Setup artifact handler
+        const artifactDir = path.join(tempDirectory, 'validation');
+        await ensureDir(artifactDir + '/x');
+        new ValidationArtifactHandler(artifactDir, this.events);
 
         let dataToValidate: any = row;
 
@@ -145,10 +155,27 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         if (!valid) {
             const errors = this.ajv.errorsText(validate.errors);
             console.log(`[Validation] ❌ Failed (${config.schemaSource}): ${errors}`);
+            
+            this.events.emit('validation:result', {
+                schemaSource: config.schemaSource,
+                target: config.target,
+                data: dataToValidate,
+                valid: false,
+                errors
+            });
+
             return { packets: [] }; // Drop item
         }
 
         console.log(`[Validation] ✅ Passed (${config.schemaSource})`);
+        
+        this.events.emit('validation:result', {
+            schemaSource: config.schemaSource,
+            target: config.target,
+            data: dataToValidate,
+            valid: true
+        });
+
         return {
             packets: [{
                 data: {},

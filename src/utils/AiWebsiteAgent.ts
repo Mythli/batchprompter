@@ -2,6 +2,7 @@ import { z } from 'zod';
 import PQueue from 'p-queue';
 import TurndownService from 'turndown';
 import OpenAI from 'openai';
+import { EventEmitter } from 'eventemitter3';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { PuppeteerHelper } from './puppeteer/PuppeteerHelper.js';
 import { LinkData } from './puppeteer/PuppeteerPageHelper.js';
@@ -24,6 +25,7 @@ interface EnrichedLinkData extends LinkData {
 }
 
 export class AiWebsiteAgent {
+    public readonly events = new EventEmitter();
     
     constructor(
         private navigatorLlm: BoundLlmClient,
@@ -37,7 +39,7 @@ export class AiWebsiteAgent {
         return this.puppeteerQueue.add(async () => {
             const pageHelper = await this.puppeteerHelper.getPageHelper();
             try {
-                return await pageHelper.navigateAndCache(
+                const result = await pageHelper.navigateAndCache(
                     url,
                     async (ph) => {
                         const html = await ph.getFinalHtml();
@@ -57,6 +59,9 @@ export class AiWebsiteAgent {
                         ttl: 24 * 60 * 60 * 1000
                     }
                 );
+
+                this.events.emit('page:scraped', { url, ...result });
+                return result;
             } finally {
                 await pageHelper.close();
             }
@@ -75,7 +80,11 @@ export class AiWebsiteAgent {
             { type: 'text', text: `URL: ${url}\n\nWebsite content (markdown):\n${truncatedMarkdown}` }
         ];
 
-        return await this.extractLlm.promptJson({ suffix: contentParts }, schema);
+        const data = await this.extractLlm.promptJson({ suffix: contentParts }, schema);
+        
+        this.events.emit('data:extracted', { url, data });
+        
+        return data;
     }
 
     private async decideNextSteps(
@@ -128,6 +137,12 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
             NavigatorSchema
         );
 
+        this.events.emit('decision:made', { 
+            findings: extractedData, 
+            links: Array.from(knownLinks.values()), 
+            response 
+        });
+
         const validNextUrls = response.next_urls.filter(url => 
             candidates.some(c => c.href === url)
         );
@@ -150,12 +165,17 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
             { type: 'text', text: `Objects to merge:\n${JSON.stringify(results, null, 2)}` }
         ];
 
-        return await this.mergeLlm.promptJson({ suffix: contentParts }, schema);
+        const merged = await this.mergeLlm.promptJson({ suffix: contentParts }, schema);
+        
+        this.events.emit('results:merged', { results, merged });
+        
+        return merged;
     }
 
     async scrapeIterative(
         initialUrl: string,
-        schema: any,
+        extractionSchema: any,
+        mergeSchema: any,
         options: AiWebsiteAgentOptions
     ): Promise<any> {
         let budget = options.budget;
@@ -173,7 +193,7 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
             const initialData = await this.extractDataFromMarkdown(
                 initialUrl,
                 initialPage.markdown,
-                schema,
+                extractionSchema,
                 options.row
             );
             
@@ -215,7 +235,7 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
                     const data = await this.extractDataFromMarkdown(
                         url,
                         page.markdown,
-                        schema,
+                        extractionSchema,
                         options.row
                     );
                     return { url, data, links: page.links };
@@ -248,6 +268,6 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
         const dataToMerge = extractedData.map(d => d.data);
         
         console.log(`[AiWebsiteAgent] Final merge of ${dataToMerge.length} results...`);
-        return await this.mergeResults(dataToMerge, schema, options.row);
+        return await this.mergeResults(dataToMerge, mergeSchema, options.row);
     }
 }
