@@ -9,7 +9,7 @@ import {
     CLIOptionDefinition
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PromptDefSchema } from '../../config/schema.js';
+import { OutputConfigSchema, createFlatModelSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
@@ -29,16 +29,13 @@ export const ImageSearchConfigSchemaV2 = z.object({
         explode: false
     }),
     query: z.string().optional(),
+    
     // Query model config
-    queryPrompt: PromptDefSchema.optional(),
-    queryModel: z.string().optional(),
-    queryTemperature: z.number().optional(),
-    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    ...createFlatModelSchema('query'),
+    
     // Select model config
-    selectPrompt: PromptDefSchema.optional(),
-    selectModel: z.string().optional(),
-    selectTemperature: z.number().optional(),
-    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    ...createFlatModelSchema('select'),
+
     // Search options
     limit: z.number().int().positive().default(12),
     select: z.number().int().positive().default(1),

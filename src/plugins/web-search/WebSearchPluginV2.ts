@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
-import OpenAI from 'openai';
 import {
     Plugin,
     PluginExecutionContext,
@@ -9,7 +8,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PromptDefSchema } from '../../config/schema.js';
+import { OutputConfigSchema, createFlatModelSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
@@ -27,21 +26,16 @@ export const WebSearchConfigSchemaV2 = z.object({
         explode: false
     }),
     query: z.string().optional(),
+    
     // Query model config
-    queryPrompt: PromptDefSchema.optional(),
-    queryModel: z.string().optional(),
-    queryTemperature: z.number().optional(),
-    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    ...createFlatModelSchema('query'),
+    
     // Select model config
-    selectPrompt: PromptDefSchema.optional(),
-    selectModel: z.string().optional(),
-    selectTemperature: z.number().optional(),
-    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    ...createFlatModelSchema('select'),
+    
     // Compress model config
-    compressPrompt: PromptDefSchema.optional(),
-    compressModel: z.string().optional(),
-    compressTemperature: z.number().optional(),
-    compressThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    ...createFlatModelSchema('compress'),
+
     // Search options
     limit: z.number().int().positive().default(5),
     mode: z.enum(['none', 'markdown', 'html']).default('none'),

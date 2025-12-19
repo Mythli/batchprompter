@@ -7,7 +7,7 @@ import {
     CLIOptionDefinition
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema } from '../../config/schema.js';
+import { OutputConfigSchema } from '../../config/common.js';
 
 // =============================================================================
 // Config Schema

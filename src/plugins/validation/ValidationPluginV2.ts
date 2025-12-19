@@ -8,7 +8,7 @@ import {
     CLIOptionDefinition
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema } from '../../config/schema.js';
+import { OutputConfigSchema } from '../../config/common.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
 
 // =============================================================================
@@ -54,8 +54,8 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
     }
 
     readonly cliOptions: CLIOptionDefinition[] = [
-        { flags: '--validate-schema <path>', description: 'JSON Schema for validation' },
-        { flags: '--validate-target <template>', description: 'Data to validate (Handlebars template)' }
+        { flags: `--validate-schema <path>`, description: 'JSON Schema for validation' },
+        { flags: `--validate-target <template>`, description: 'Data to validate (Handlebars template)' }
     ];
 
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
