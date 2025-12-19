@@ -14,6 +14,8 @@ export interface SelectionOptions<T> {
      * Default is 0. Use 1 if the LLM sees a 1-based list (e.g. numbered sprites).
      */
     indexOffset?: number;
+    /** Optional callback to capture the raw decision data for debugging */
+    onDecision?: (decision: { selected_indices: number[], reasoning: string }, items: T[], formattedContent: OpenAI.Chat.Completions.ChatCompletionContentPart[]) => Promise<void>;
 }
 
 export class LlmListSelector {
@@ -22,7 +24,7 @@ export class LlmListSelector {
     async select<T>(items: T[], options: SelectionOptions<T>): Promise<T[]> {
         if (items.length === 0) return [];
 
-        const { maxSelected, formatContent, promptPreamble, indexOffset = 0 } = options;
+        const { maxSelected, formatContent, promptPreamble, indexOffset = 0, onDecision } = options;
 
         // 1. Generate Content
         const contentParts = await formatContent(items);
@@ -45,6 +47,10 @@ export class LlmListSelector {
             { suffix: promptParts },
             SelectionSchema
         );
+
+        if (onDecision) {
+            await onDecision(response, items, contentParts);
+        }
 
         // 5. Map Indices & Filter
         const selectedItems: T[] = [];

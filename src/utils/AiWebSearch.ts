@@ -4,6 +4,12 @@ import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { WebSearch, WebSearchResult, WebSearchMode } from '../plugins/web-search/WebSearch.js';
 import { LlmListSelector } from './LlmListSelector.js';
 
+export type WebSearchDebugEvent = 
+    | { type: 'queries', queries: string[] }
+    | { type: 'scatter', query: string, page: number, results: WebSearchResult[], selection: { indices: number[], reasoning: string } }
+    | { type: 'reduce', input: WebSearchResult[], selection: { indices: number[], reasoning: string } }
+    | { type: 'enrich', url: string, rawContent: string, compressedContent: string };
+
 export class AiWebSearch {
     constructor(
         private webSearch: WebSearch,
@@ -23,6 +29,7 @@ export class AiWebSearch {
             dedupeStrategy: 'none' | 'domain' | 'url';
             gl?: string;
             hl?: string;
+            onDebug?: (event: WebSearchDebugEvent) => Promise<void>;
         }
     ): Promise<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[], data: WebSearchResult[] }> {
         
@@ -41,6 +48,12 @@ export class AiWebSearch {
             const response = await this.queryLlm.promptZod(QuerySchema);
             queries.push(...response.queries);
             console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
+            
+            if (config.onDebug) {
+                await config.onDebug({ type: 'queries', queries: response.queries });
+            }
+        } else if (config.onDebug && queries.length > 0) {
+             await config.onDebug({ type: 'queries', queries });
         }
 
         if (queries.length === 0) return { contentParts: [], data: [] };
@@ -69,7 +82,18 @@ export class AiWebSearch {
                             return [{ type: 'text', text: `Search results for "${query}" (Page ${page}):\n\n${listText}` }];
                         },
                         promptPreamble: "Select the indices of the most relevant results.",
-                        indexOffset: 0
+                        indexOffset: 0,
+                        onDecision: async (decision, items) => {
+                            if (config.onDebug) {
+                                await config.onDebug({
+                                    type: 'scatter',
+                                    query,
+                                    page,
+                                    results: items,
+                                    selection: { indices: decision.selected_indices, reasoning: decision.reasoning }
+                                });
+                            }
+                        }
                     });
                 }
 
@@ -132,7 +156,16 @@ export class AiWebSearch {
                     return [{ type: 'text', text: `Combined search results:\n\n${listText}` }];
                 },
                 promptPreamble: `Select the indices of the top ${config.limit} most relevant results.`,
-                indexOffset: 0
+                indexOffset: 0,
+                onDecision: async (decision, items) => {
+                    if (config.onDebug) {
+                        await config.onDebug({
+                            type: 'reduce',
+                            input: items,
+                            selection: { indices: decision.selected_indices, reasoning: decision.reasoning }
+                        });
+                    }
+                }
             });
         } else if (uniqueSurvivors.length > config.limit) {
             // Simple slice if no LLM selection configured but limit exceeded
@@ -149,12 +182,14 @@ export class AiWebSearch {
 
         await Promise.all(finalSelection.map(async (result) => {
             let content = "";
+            let rawContent = "";
             
             if (config.mode !== 'none') {
-                const rawContent = await this.webSearch.fetchContent(result.link, config.mode);
+                rawContent = await this.webSearch.fetchContent(result.link, config.mode);
                 content = rawContent || result.snippet || "";
             } else {
                 content = result.snippet || "";
+                rawContent = content;
             }
 
             if (this.compressLlm) {
@@ -164,6 +199,15 @@ export class AiWebSearch {
                 ];
                 const summary = await this.compressLlm.promptText({ suffix: contentToCompress });
                 content = summary;
+            }
+
+            if (config.onDebug) {
+                await config.onDebug({
+                    type: 'enrich',
+                    url: result.link,
+                    rawContent: rawContent,
+                    compressedContent: content
+                });
             }
 
             let domain: string | undefined;
