@@ -14,8 +14,8 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
-import { ArtifactSaver } from '../../ArtifactSaver.js';
 import { ensureDir } from '../../utils/fileUtils.js';
+import { WebSearchDebugHandler } from './WebSearchDebugHandler.js';
 
 // =============================================================================
 // Raw Config Schema (Single source of truth for defaults)
@@ -268,8 +268,11 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         const aiWebSearch = new AiWebSearch(webSearch, queryLlm, selector, compressLlm);
 
         // Setup debug directory
-        const debugDir = path.join(tempDirectory, 'debug', 'web_search');
+        const debugDir = path.join(tempDirectory, 'web_search');
         await ensureDir(debugDir + '/x'); // Hack to ensure parent dir exists
+
+        // Initialize debug handler
+        new WebSearchDebugHandler(debugDir, aiWebSearch.events);
 
         const result = await aiWebSearch.process(row, {
             query: config.query,
@@ -279,22 +282,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             maxPages: config.maxPages,
             dedupeStrategy: config.dedupeStrategy,
             gl: config.gl,
-            hl: config.hl,
-            onDebug: async (event) => {
-                const timestamp = Date.now();
-                if (event.type === 'queries') {
-                    await ArtifactSaver.save(JSON.stringify(event, null, 2), path.join(debugDir, 'queries', `queries_${timestamp}.json`));
-                } else if (event.type === 'scatter') {
-                    // Sanitize query for filename
-                    const safeQuery = event.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-                    await ArtifactSaver.save(JSON.stringify(event, null, 2), path.join(debugDir, 'scatter', `scatter_${safeQuery}_p${event.page}_${timestamp}.json`));
-                } else if (event.type === 'reduce') {
-                    await ArtifactSaver.save(JSON.stringify(event, null, 2), path.join(debugDir, 'reduce', `reduce_${timestamp}.json`));
-                } else if (event.type === 'enrich') {
-                    const safeUrl = event.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-                    await ArtifactSaver.save(JSON.stringify(event, null, 2), path.join(debugDir, 'enrich', `enrich_${safeUrl}_${timestamp}.json`));
-                }
-            }
+            hl: config.hl
         });
 
         // Convert results into individual packets.

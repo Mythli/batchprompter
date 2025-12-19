@@ -1,11 +1,14 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
+import { EventEmitter } from 'eventemitter3';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { ImageSearch, ImageSearchResult } from '../plugins/image-search/ImageSearch.js';
 import { SpriteGenerator } from './SpriteGenerator.js';
 import { LlmListSelector } from './LlmListSelector.js';
 
 export class AiImageSearch {
+    public readonly events = new EventEmitter();
+
     constructor(
         private imageSearch: ImageSearch,
         private queryLlm?: BoundLlmClient,
@@ -23,8 +26,6 @@ export class AiImageSearch {
             dedupeStrategy: 'none' | 'domain' | 'url';
             gl?: string;
             hl?: string;
-            onArtifact?: (type: 'sprite' | 'candidate', buffer: Buffer, index: number, context: any) => Promise<void>;
-            onDebug?: (data: any, name: string) => Promise<void>;
         }
     ): Promise<ImageSearchResult[]> {
         
@@ -43,9 +44,7 @@ export class AiImageSearch {
             queries.push(...response.queries);
             console.log(`[AiImageSearch] Generated queries: ${response.queries.join(', ')}`);
             
-            if (config.onDebug) {
-                await config.onDebug({ queries: response.queries }, 'generated_queries');
-            }
+            this.events.emit('query:generated', { queries: response.queries });
         }
 
         if (queries.length === 0) return [];
@@ -64,11 +63,13 @@ export class AiImageSearch {
             try {
                 const results = await this.imageSearch.search(query, 10, page, config.gl, config.hl);
                 
-                if (config.onDebug) {
-                    // Strip buffers for debug log to save space/time
-                    const debugResults = results.map(r => ({ ...r.metadata }));
-                    await config.onDebug(debugResults, `search_results_task${taskIndex}_${query.replace(/[^a-z0-9]/gi, '_')}_p${page}`);
-                }
+                // Emit raw results (metadata only to save space/time in event payload if needed, but full object is better for debug)
+                this.events.emit('search:result', { 
+                    query, 
+                    page, 
+                    taskIndex,
+                    results: results.map(r => r.metadata) 
+                });
 
                 if (results.length === 0) return [];
 
@@ -78,7 +79,7 @@ export class AiImageSearch {
                         this.selector, 
                         results, 
                         results.length, // Select as many as good ones
-                        config.onArtifact ? (t, b, i, c) => config.onArtifact!(t, b, i, { ...c, phase: 'scatter', query, page, taskIndex }) : undefined
+                        { phase: 'scatter', query, page, taskIndex }
                     ); 
                 }
                 return results;
@@ -120,11 +121,13 @@ export class AiImageSearch {
                 this.selector, 
                 uniqueSurvivors, 
                 config.limit,
-                config.onArtifact ? (t, b, i, c) => config.onArtifact!(t, b, i, { ...c, phase: 'reduce' }) : undefined
+                { phase: 'reduce' }
             );
         } else if (uniqueSurvivors.length > config.limit) {
             finalSelection = uniqueSurvivors.slice(0, config.limit);
         }
+
+        this.events.emit('result:selected', { results: finalSelection });
 
         return finalSelection;
     }
@@ -133,7 +136,7 @@ export class AiImageSearch {
         selector: LlmListSelector,
         images: ImageSearchResult[],
         maxSelected: number = 1,
-        onArtifact?: (type: 'sprite' | 'candidate', buffer: Buffer, index: number, context: any) => Promise<void>
+        context: any = {}
     ): Promise<ImageSearchResult[]> {
         if (images.length === 0) return [];
 
@@ -154,13 +157,21 @@ export class AiImageSearch {
                     try {
                         const result = await SpriteGenerator.generate(chunk, startNum);
                         
-                        if (onArtifact) {
-                            // Save sprite
-                            await onArtifact('sprite', result.spriteBuffer, i, { startNum });
-                            // Save candidates
-                            for (let j = 0; j < chunk.length; j++) {
-                                await onArtifact('candidate', chunk[j].buffer, startNum + j, { originalIndex: startNum + j });
-                            }
+                        // Emit artifacts
+                        this.events.emit('artifact:sprite', {
+                            buffer: result.spriteBuffer,
+                            index: i,
+                            startNum,
+                            ...context
+                        });
+
+                        for (let j = 0; j < chunk.length; j++) {
+                            this.events.emit('artifact:candidate', {
+                                buffer: chunk[j].buffer,
+                                index: startNum + j,
+                                originalIndex: startNum + j,
+                                ...context
+                            });
                         }
 
                         return { ...result, startNum, chunk, success: true };

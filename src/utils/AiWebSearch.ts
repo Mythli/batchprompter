@@ -1,16 +1,13 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
+import { EventEmitter } from 'eventemitter3';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { WebSearch, WebSearchResult, WebSearchMode } from '../plugins/web-search/WebSearch.js';
 import { LlmListSelector } from './LlmListSelector.js';
 
-export type WebSearchDebugEvent = 
-    | { type: 'queries', queries: string[] }
-    | { type: 'scatter', query: string, page: number, results: WebSearchResult[], selection: { indices: number[], reasoning: string } }
-    | { type: 'reduce', input: WebSearchResult[], selection: { indices: number[], reasoning: string } }
-    | { type: 'enrich', url: string, rawContent: string, compressedContent: string };
-
 export class AiWebSearch {
+    public readonly events = new EventEmitter();
+
     constructor(
         private webSearch: WebSearch,
         private queryLlm?: BoundLlmClient,
@@ -29,7 +26,6 @@ export class AiWebSearch {
             dedupeStrategy: 'none' | 'domain' | 'url';
             gl?: string;
             hl?: string;
-            onDebug?: (event: WebSearchDebugEvent) => Promise<void>;
         }
     ): Promise<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[], data: WebSearchResult[] }> {
         
@@ -49,11 +45,9 @@ export class AiWebSearch {
             queries.push(...response.queries);
             console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
             
-            if (config.onDebug) {
-                await config.onDebug({ type: 'queries', queries: response.queries });
-            }
-        } else if (config.onDebug && queries.length > 0) {
-             await config.onDebug({ type: 'queries', queries });
+            this.events.emit('query:generated', { queries: response.queries });
+        } else if (queries.length > 0) {
+             this.events.emit('query:generated', { queries });
         }
 
         if (queries.length === 0) return { contentParts: [], data: [] };
@@ -84,16 +78,20 @@ export class AiWebSearch {
                         promptPreamble: "Select the indices of the most relevant results.",
                         indexOffset: 0,
                         onDecision: async (decision, items) => {
-                            if (config.onDebug) {
-                                await config.onDebug({
-                                    type: 'scatter',
-                                    query,
-                                    page,
-                                    results: items,
-                                    selection: { indices: decision.selected_indices, reasoning: decision.reasoning }
-                                });
-                            }
+                            this.events.emit('search:result', {
+                                query,
+                                page,
+                                results: items,
+                                selection: { indices: decision.selected_indices, reasoning: decision.reasoning }
+                            });
                         }
+                    });
+                } else {
+                    // No selector, just emit raw results
+                    this.events.emit('search:result', {
+                        query,
+                        page,
+                        results
                     });
                 }
 
@@ -158,13 +156,10 @@ export class AiWebSearch {
                 promptPreamble: `Select the indices of the top ${config.limit} most relevant results.`,
                 indexOffset: 0,
                 onDecision: async (decision, items) => {
-                    if (config.onDebug) {
-                        await config.onDebug({
-                            type: 'reduce',
-                            input: items,
-                            selection: { indices: decision.selected_indices, reasoning: decision.reasoning }
-                        });
-                    }
+                    this.events.emit('selection:reduce', {
+                        input: items,
+                        selection: { indices: decision.selected_indices, reasoning: decision.reasoning }
+                    });
                 }
             });
         } else if (uniqueSurvivors.length > config.limit) {
@@ -201,14 +196,11 @@ export class AiWebSearch {
                 content = summary;
             }
 
-            if (config.onDebug) {
-                await config.onDebug({
-                    type: 'enrich',
-                    url: result.link,
-                    rawContent: rawContent,
-                    compressedContent: content
-                });
-            }
+            this.events.emit('content:enrich', {
+                url: result.link,
+                rawContent: rawContent,
+                compressedContent: content
+            });
 
             let domain: string | undefined;
             try {
@@ -234,6 +226,8 @@ export class AiWebSearch {
         const text = finalOutputs.length > 0
             ? `\n--- Web Search Results ---\n${finalOutputs.join('\n\n')}\n--------------------------\n`
             : "No results found.";
+
+        this.events.emit('result:selected', { results: processedResults });
 
         return { 
             contentParts: [{ type: 'text', text }], 

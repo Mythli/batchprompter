@@ -16,6 +16,7 @@ import { ensureDir } from '../../utils/fileUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
+import { ImageSearchDebugHandler } from './ImageSearchDebugHandler.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -246,9 +247,12 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         // Use AiImageSearch utility for Map-Reduce execution
         const aiImageSearch = new AiImageSearch(imageSearch, queryLlm, selector, config.spriteSize);
 
-        // Setup debug directory
-        const debugDir = path.join(tempDirectory, 'debug', 'image_search');
+        // Setup debug handler
+        const debugDir = path.join(tempDirectory, 'image_search');
         await ensureDir(debugDir + '/x');
+        
+        // Initialize the debug handler to listen to events
+        new ImageSearchDebugHandler(debugDir, aiImageSearch.events);
 
         const selectedImages = await aiImageSearch.process(row, {
             query: config.query,
@@ -257,37 +261,14 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             maxPages: config.maxPages,
             dedupeStrategy: config.dedupeStrategy,
             gl: config.gl,
-            hl: config.hl,
-            onDebug: async (data, name) => {
-                const timestamp = Date.now();
-                await ArtifactSaver.save(JSON.stringify(data, null, 2), path.join(debugDir, 'raw_results', `${name}_${timestamp}.json`));
-            },
-            onArtifact: async (type, buffer, index, ctx) => {
-                // ctx contains: phase, query, page, taskIndex (if scatter), startNum (if sprite), originalIndex (if candidate)
-                
-                let filename = `${outputBasename || 'image'}`;
-                
-                if (ctx.phase === 'scatter') {
-                    filename += `_scatter_task${ctx.taskIndex}`;
-                } else if (ctx.phase === 'reduce') {
-                    filename += `_reduce`;
-                }
-                
-                if (type === 'sprite') {
-                    filename += `_sprite_${index}.jpg`;
-                    await ArtifactSaver.save(buffer, path.join(debugDir, 'sprites', filename));
-                } else {
-                    filename += `_cand_${index}.jpg`;
-                    await ArtifactSaver.save(buffer, path.join(debugDir, 'candidates', filename));
-                }
-            }
+            hl: config.hl
         });
 
         if (selectedImages.length === 0) {
             return { packets: [] };
         }
 
-        // Setup directories
+        // Setup directories for final output (handled by plugin logic, but also mirrored by debug handler)
         const baseName = outputBasename || 'image';
         const selectedDir = path.join(tempDirectory, 'selected');
         await ensureDir(selectedDir + '/x');
