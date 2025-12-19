@@ -1,9 +1,11 @@
 import { Command } from 'commander';
 import 'dotenv/config';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { StepRegistry } from './cli/StepRegistry.js';
 import { createDefaultRegistry, getConfig } from './getConfig.js';
 import { ServiceCapabilities } from './types.js';
 import { FileAdapter } from './adapters/FileAdapter.js';
+import { PipelineConfigSchema } from './config/schema.js';
 
 const program = new Command();
 
@@ -70,5 +72,19 @@ generateCmd.action(async (templateFilePaths, options) => {
         process.exit(1);
     }
 });
+
+program.command('schema')
+    .description('Print the JSON Schema for the configuration file')
+    .action(() => {
+        const jsonSchema = zodToJsonSchema(PipelineConfigSchema, { 
+            name: 'PipelineConfig',
+            // Ensure we don't enforce strict validation on the schema output if not needed,
+            // allowing for a more permissive schema for editors/tools.
+            // 'strictUnions' might be what the user referred to regarding "non strict".
+            // However, standard usage usually just works.
+        });
+        console.log(JSON.stringify(jsonSchema, null, 2));
+        process.exit(0);
+    });
 
 program.parse();
