@@ -374,6 +374,10 @@ export class ActionRunner {
     }
 
     private async saveResults(results: Record<string, any>[], outputPath?: string) {
+        if (!outputPath) {
+            return;
+        }
+
         const validResults = results.filter(r => r !== undefined && r !== null);
 
         if (validResults.length === 0) {
@@ -381,15 +385,8 @@ export class ActionRunner {
             return;
         }
 
-        let finalOutputPath: string;
-        let isJson = false;
-
-        if (outputPath) {
-            finalOutputPath = outputPath;
-            isJson = outputPath.toLowerCase().endsWith('.json');
-        } else {
-            finalOutputPath = path.join(process.cwd(), 'output.csv');
-        }
+        const finalOutputPath = outputPath;
+        const isJson = outputPath.toLowerCase().endsWith('.json');
 
         await ensureDir(finalOutputPath);
 
