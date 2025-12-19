@@ -23,6 +23,7 @@ export class AiImageSearch {
             dedupeStrategy: 'none' | 'domain' | 'url';
             gl?: string;
             hl?: string;
+            onArtifact?: (type: 'sprite' | 'candidate', buffer: Buffer, index: number, context: any) => Promise<void>;
         }
     ): Promise<ImageSearchResult[]> {
         
@@ -54,14 +55,19 @@ export class AiImageSearch {
 
         console.log(`[AiImageSearch] Executing ${tasks.length} search tasks in parallel...`);
 
-        const pageResults = await Promise.all(tasks.map(async ({ query, page }) => {
+        const pageResults = await Promise.all(tasks.map(async ({ query, page }, taskIndex) => {
             try {
                 const results = await this.imageSearch.search(query, 10, page, config.gl, config.hl);
                 if (results.length === 0) return [];
 
                 // 3. Map (Local Selection)
                 if (this.selector) {
-                    return await this.selectFromPool(this.selector, results, results.length); // Select as many as good ones
+                    return await this.selectFromPool(
+                        this.selector, 
+                        results, 
+                        results.length, // Select as many as good ones
+                        config.onArtifact ? (t, b, i, c) => config.onArtifact!(t, b, i, { ...c, phase: 'scatter', query, page, taskIndex }) : undefined
+                    ); 
                 }
                 return results;
             } catch (e) {
@@ -98,7 +104,12 @@ export class AiImageSearch {
         if (this.selector && uniqueSurvivors.length > config.limit) {
             console.log(`[AiImageSearch] Reducing ${uniqueSurvivors.length} survivors to limit ${config.limit}...`);
             // Re-run selection on the combined pool
-            finalSelection = await this.selectFromPool(this.selector, uniqueSurvivors, config.limit);
+            finalSelection = await this.selectFromPool(
+                this.selector, 
+                uniqueSurvivors, 
+                config.limit,
+                config.onArtifact ? (t, b, i, c) => config.onArtifact!(t, b, i, { ...c, phase: 'reduce' }) : undefined
+            );
         } else if (uniqueSurvivors.length > config.limit) {
             finalSelection = uniqueSurvivors.slice(0, config.limit);
         }
@@ -109,7 +120,8 @@ export class AiImageSearch {
     private async selectFromPool(
         selector: LlmListSelector,
         images: ImageSearchResult[],
-        maxSelected: number = 1
+        maxSelected: number = 1,
+        onArtifact?: (type: 'sprite' | 'candidate', buffer: Buffer, index: number, context: any) => Promise<void>
     ): Promise<ImageSearchResult[]> {
         if (images.length === 0) return [];
 
@@ -129,6 +141,16 @@ export class AiImageSearch {
                     const startNum = (i * spriteSize) + 1;
                     try {
                         const result = await SpriteGenerator.generate(chunk, startNum);
+                        
+                        if (onArtifact) {
+                            // Save sprite
+                            await onArtifact('sprite', result.spriteBuffer, i, { startNum });
+                            // Save candidates
+                            for (let j = 0; j < chunk.length; j++) {
+                                await onArtifact('candidate', chunk[j].buffer, startNum + j, { originalIndex: startNum + j });
+                            }
+                        }
+
                         return { ...result, startNum, chunk, success: true };
                     } catch (e) {
                         return { success: false, startNum, chunk, spriteBuffer: Buffer.alloc(0), validIndices: [] };

@@ -246,6 +246,10 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         // Use AiImageSearch utility for Map-Reduce execution
         const aiImageSearch = new AiImageSearch(imageSearch, queryLlm, selector, config.spriteSize);
 
+        // Setup debug directory
+        const debugDir = path.join(tempDirectory, 'debug');
+        await ensureDir(debugDir + '/x');
+
         const selectedImages = await aiImageSearch.process(row, {
             query: config.query,
             limit: config.select, // We want 'select' number of final images
@@ -253,7 +257,26 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             maxPages: config.maxPages,
             dedupeStrategy: config.dedupeStrategy,
             gl: config.gl,
-            hl: config.hl
+            hl: config.hl,
+            onArtifact: async (type, buffer, index, ctx) => {
+                // ctx contains: phase, query, page, taskIndex (if scatter), startNum (if sprite), originalIndex (if candidate)
+                
+                let filename = `${outputBasename || 'image'}`;
+                
+                if (ctx.phase === 'scatter') {
+                    filename += `_scatter_task${ctx.taskIndex}`;
+                } else if (ctx.phase === 'reduce') {
+                    filename += `_reduce`;
+                }
+                
+                if (type === 'sprite') {
+                    filename += `_sprite_${index}.jpg`;
+                } else {
+                    filename += `_cand_${index}.jpg`;
+                }
+                
+                await ArtifactSaver.save(buffer, path.join(debugDir, filename));
+            }
         });
 
         if (selectedImages.length === 0) {
