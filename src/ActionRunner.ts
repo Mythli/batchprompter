@@ -94,7 +94,7 @@ export class ActionRunner {
 
                 // 2. Execute with Timeout
                 let activeItems: PipelineItem[] = [item];
-                
+
                 let timer: NodeJS.Timeout;
                 const timeoutPromise = new Promise<never>((_, reject) => {
                     timer = setTimeout(() => reject(new Error(`Step timed out after ${stepConfig.timeout}s`)), timeoutMs);
@@ -103,19 +103,19 @@ export class ActionRunner {
                 const executionPromise = (async () => {
                     // A. Plugins
                     activeItems = await this.executePlugins(
-                        activeItems, 
-                        resolvedStep, 
-                        stepNum, 
+                        activeItems,
+                        resolvedStep,
+                        stepNum,
                         pluginServices,
                         resolvedStep.resolvedTempDir || tmpDir
                     );
 
                     // B. Model
                     return await this.executeModel(
-                        activeItems, 
-                        resolvedStep, 
-                        stepContext, 
-                        stepNum, 
+                        activeItems,
+                        resolvedStep,
+                        stepContext,
+                        stepNum,
                         executor
                     );
                 })();
@@ -235,7 +235,7 @@ export class ActionRunner {
         stepNum: number,
         executor: StepExecutor
     ): Promise<PipelineItem[]> {
-        
+
         return this.processBatch(
             items,
             async (currentItem) => {
@@ -315,7 +315,7 @@ export class ActionRunner {
 
                 newItem.history = newHistory;
                 newItem.stepHistory = [...newItem.stepHistory, packet.data];
-                
+
                 // Clean up internal metadata
                 delete (packet as any)._historyUpdate;
             }
@@ -339,7 +339,7 @@ export class ActionRunner {
                 const packets = await operation(item);
                 return { item, packets };
             } catch (e: any) {
-                console.error(`[Row ${item.originalIndex}] Step ${stepNum} ${namespace} Failed:`, e.message);
+                console.error(`[Row ${item.originalIndex}] Step ${stepNum} ${namespace} Failed:`, e);
                 return null;
             }
         }));
@@ -349,9 +349,9 @@ export class ActionRunner {
 
         for (const res of validResults) {
             const processed = ResultProcessor.process(
-                [res.item], 
-                res.packets, 
-                outputStrategy, 
+                [res.item],
+                res.packets,
+                outputStrategy,
                 namespace
             );
 
