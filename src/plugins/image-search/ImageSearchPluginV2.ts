@@ -16,7 +16,7 @@ import { ensureDir } from '../../utils/fileUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
-import { ImageSearchDebugHandler } from './ImageSearchDebugHandler.js';
+import { ImageSearchArtifactHandler } from './ImageSearchArtifactHandler.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -247,12 +247,12 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         // Use AiImageSearch utility for Map-Reduce execution
         const aiImageSearch = new AiImageSearch(imageSearch, queryLlm, selector, config.spriteSize);
 
-        // Setup debug handler
-        const debugDir = path.join(tempDirectory, 'image_search');
-        await ensureDir(debugDir + '/x');
+        // Setup artifact handler
+        const artifactDir = path.join(tempDirectory, 'image_search');
+        await ensureDir(artifactDir + '/x');
         
-        // Initialize the debug handler to listen to events
-        new ImageSearchDebugHandler(debugDir, aiImageSearch.events);
+        // Initialize the artifact handler to listen to events
+        new ImageSearchArtifactHandler(artifactDir, aiImageSearch.events);
 
         const selectedImages = await aiImageSearch.process(row, {
             query: config.query,
@@ -268,7 +268,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             return { packets: [] };
         }
 
-        // Setup directories for final output (handled by plugin logic, but also mirrored by debug handler)
+        // Setup directories for final output (handled by plugin logic, but also mirrored by artifact handler)
         const baseName = outputBasename || 'image';
         const selectedDir = path.join(tempDirectory, 'selected');
         await ensureDir(selectedDir + '/x');

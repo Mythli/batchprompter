@@ -15,7 +15,7 @@ import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ensureDir } from '../../utils/fileUtils.js';
-import { WebSearchDebugHandler } from './WebSearchDebugHandler.js';
+import { WebSearchArtifactHandler } from './WebSearchArtifactHandler.js';
 
 // =============================================================================
 // Raw Config Schema (Single source of truth for defaults)
@@ -267,12 +267,12 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         // Use AiWebSearch utility for Map-Reduce execution
         const aiWebSearch = new AiWebSearch(webSearch, queryLlm, selector, compressLlm);
 
-        // Setup debug directory
-        const debugDir = path.join(tempDirectory, 'web_search');
-        await ensureDir(debugDir + '/x'); // Hack to ensure parent dir exists
+        // Setup artifact directory
+        const artifactDir = path.join(tempDirectory, 'web_search');
+        await ensureDir(artifactDir + '/x'); // Hack to ensure parent dir exists
 
-        // Initialize debug handler
-        new WebSearchDebugHandler(debugDir, aiWebSearch.events);
+        // Initialize artifact handler
+        new WebSearchArtifactHandler(artifactDir, aiWebSearch.events);
 
         const result = await aiWebSearch.process(row, {
             query: config.query,
