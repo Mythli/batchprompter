@@ -24,6 +24,7 @@ export class AiImageSearch {
             gl?: string;
             hl?: string;
             onArtifact?: (type: 'sprite' | 'candidate', buffer: Buffer, index: number, context: any) => Promise<void>;
+            onDebug?: (data: any, name: string) => Promise<void>;
         }
     ): Promise<ImageSearchResult[]> {
         
@@ -41,6 +42,10 @@ export class AiImageSearch {
             const response = await this.queryLlm.promptZod(QuerySchema);
             queries.push(...response.queries);
             console.log(`[AiImageSearch] Generated queries: ${response.queries.join(', ')}`);
+            
+            if (config.onDebug) {
+                await config.onDebug({ queries: response.queries }, 'generated_queries');
+            }
         }
 
         if (queries.length === 0) return [];
@@ -58,6 +63,13 @@ export class AiImageSearch {
         const pageResults = await Promise.all(tasks.map(async ({ query, page }, taskIndex) => {
             try {
                 const results = await this.imageSearch.search(query, 10, page, config.gl, config.hl);
+                
+                if (config.onDebug) {
+                    // Strip buffers for debug log to save space/time
+                    const debugResults = results.map(r => ({ ...r.metadata }));
+                    await config.onDebug(debugResults, `search_results_task${taskIndex}_${query.replace(/[^a-z0-9]/gi, '_')}_p${page}`);
+                }
+
                 if (results.length === 0) return [];
 
                 // 3. Map (Local Selection)

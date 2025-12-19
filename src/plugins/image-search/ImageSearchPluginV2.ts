@@ -247,7 +247,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         const aiImageSearch = new AiImageSearch(imageSearch, queryLlm, selector, config.spriteSize);
 
         // Setup debug directory
-        const debugDir = path.join(tempDirectory, 'debug');
+        const debugDir = path.join(tempDirectory, 'debug', 'image_search');
         await ensureDir(debugDir + '/x');
 
         const selectedImages = await aiImageSearch.process(row, {
@@ -258,6 +258,10 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             dedupeStrategy: config.dedupeStrategy,
             gl: config.gl,
             hl: config.hl,
+            onDebug: async (data, name) => {
+                const timestamp = Date.now();
+                await ArtifactSaver.save(JSON.stringify(data, null, 2), path.join(debugDir, 'raw_results', `${name}_${timestamp}.json`));
+            },
             onArtifact: async (type, buffer, index, ctx) => {
                 // ctx contains: phase, query, page, taskIndex (if scatter), startNum (if sprite), originalIndex (if candidate)
                 
@@ -271,11 +275,11 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                 
                 if (type === 'sprite') {
                     filename += `_sprite_${index}.jpg`;
+                    await ArtifactSaver.save(buffer, path.join(debugDir, 'sprites', filename));
                 } else {
                     filename += `_cand_${index}.jpg`;
+                    await ArtifactSaver.save(buffer, path.join(debugDir, 'candidates', filename));
                 }
-                
-                await ArtifactSaver.save(buffer, path.join(debugDir, filename));
             }
         });
 
