@@ -30,4 +30,10 @@ echo "=========================================="
 bash examples/04-describe-website-css/run.sh
 
 echo ""
+echo "=========================================="
+echo "Running Example 05: Simple Chain (3 Steps)"
+echo "=========================================="
+bash examples/05-simple-chain/run.sh
+
+echo ""
 echo "All examples finished successfully!"
