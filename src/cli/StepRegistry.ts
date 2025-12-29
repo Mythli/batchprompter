@@ -23,7 +23,7 @@ export class StepRegistry {
         program.option('--output-column <column>', 'Column name to write output to');
         program.option('--export', 'Export step result to output row');
         program.option('--data-output <path>', 'Path to save the processed data file');
-        program.option('--tmp-dir <path>', 'Directory for temporary files (default: .tmp)');
+        program.option('--tmp-dir <path>', 'Directory for temporary files');
         program.option('-c, --concurrency <number>', 'Number of concurrent requests (default: 50)');
         program.option('--task-concurrency <number>', 'Number of concurrent row tasks (default: 100)');
         program.option('-S, --schema <file>', 'Path to the JSON Schema file');

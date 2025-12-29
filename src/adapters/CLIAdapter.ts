@@ -36,7 +36,7 @@ export class CLIAdapter {
         // Execution options
         program.option('-c, --concurrency <number>', 'LLM concurrency', parseInt);
         program.option('--task-concurrency <number>', 'Task concurrency', parseInt);
-        program.option('--tmp-dir <path>', 'Temporary directory', '.tmp');
+        program.option('--tmp-dir <path>', 'Temporary directory');
         program.option('--data-output <path>', 'Output data file path');
         program.option('--timeout <seconds>', 'Global timeout in seconds', parseInt);
 

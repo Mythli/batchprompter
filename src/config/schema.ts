@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import os from 'os';
+import path from 'path';
 import {
     PromptDefSchema,
     ModelConfigSchema,
@@ -80,7 +82,7 @@ export const GlobalsConfigSchema = z.object({
     thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     concurrency: z.number().int().positive().default(50),
     taskConcurrency: z.number().int().positive().default(100),
-    tmpDir: z.string().optional(),
+    tmpDir: z.string().default(path.join(os.tmpdir(), 'batchprompt')),
     outputPath: z.string().optional(),
     dataOutputPath: z.string().optional(),
     timeout: z.number().int().positive().default(180)
