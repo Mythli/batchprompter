@@ -16,6 +16,7 @@ import { AiLogoScraper } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { LogoScraperArtifactHandler } from './LogoScraperArtifactHandler.js';
 import { EventEmitter } from 'eventemitter3';
+import { ArtifactSaver } from '../../ArtifactSaver.js';
 
 // =============================================================================
 // Config Schema
@@ -45,7 +46,10 @@ export const LogoScraperConfigSchemaV2 = z.object({
     extractSystem: PromptDefSchema.optional(),
 
     maxCandidates: z.number().int().positive().default(10),
-    minScore: z.number().int().min(1).max(10).default(5)
+    minScore: z.number().int().min(1).max(10).default(5),
+    
+    // Output path for the best logo
+    logoOutputPath: z.string().optional()
 });
 
 export type LogoScraperRawConfigV2 = z.infer<typeof LogoScraperConfigSchemaV2>;
@@ -59,6 +63,7 @@ export interface LogoScraperResolvedConfigV2 {
     extractModel: ResolvedModelConfig;
     maxCandidates: number;
     minScore: number;
+    logoOutputPath?: string;
 }
 
 // =============================================================================
@@ -76,6 +81,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         ...ModelFlags.getOptions('logo-extract', { includePrompt: true }),
         { flags: '--logo-scraper-max-candidates <number>', description: 'Max logo candidates to download', parser: parseInt },
         { flags: '--logo-scraper-min-score <number>', description: 'Min score (1-10) to keep a logo', parser: parseInt },
+        { flags: '--logo-scraper-logo-output-path <path>', description: 'Path to save the best logo (supports templates)' },
         { flags: '--logo-scraper-export', description: 'Merge results into row' },
         { flags: '--logo-scraper-output <column>', description: 'Save to column' }
     ];
@@ -116,6 +122,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             extractPrompt: extractConfig.prompt,
             maxCandidates: getOpt('logoScraperMaxCandidates'),
             minScore: getOpt('logoScraperMinScore'),
+            logoOutputPath: getOpt('logoScraperLogoOutputPath'),
             output: {
                 mode: outputMode,
                 column: outputColumn,
@@ -153,6 +160,12 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
         const url = urlTemplate(row);
 
+        let logoOutputPath: string | undefined;
+        if (rawConfig.logoOutputPath) {
+            const template = Handlebars.compile(rawConfig.logoOutputPath, { noEscape: true });
+            logoOutputPath = template(row);
+        }
+
         return {
             type: 'logo-scraper',
             id: rawConfig.id ?? `logo-scraper-${Date.now()}`,
@@ -175,7 +188,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 rawConfig.extractThinkingLevel
             ),
             maxCandidates: rawConfig.maxCandidates,
-            minScore: rawConfig.minScore
+            minScore: rawConfig.minScore,
+            logoOutputPath
         };
     }
 
@@ -221,6 +235,19 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 logos: result.logos,
                 brandColors: result.brandColors
             });
+
+            // Save the best logo if output path is configured
+            if (config.logoOutputPath) {
+                const bestLogo = result.logos[0];
+                if (bestLogo) {
+                    try {
+                        await ArtifactSaver.save(bestLogo.base64PngData, config.logoOutputPath);
+                        console.log(`[LogoScraper] Saved best logo to ${config.logoOutputPath}`);
+                    } catch (e: any) {
+                        console.error(`[LogoScraper] Failed to save logo to ${config.logoOutputPath}:`, e);
+                    }
+                }
+            }
         }
 
         return {
