@@ -3,7 +3,7 @@
     "format": "csv"
   },
   "globals": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "gpt-4o",
     "concurrency": 2,
     "tmpDir": "out/05-logo-downloader/.tmp"
   },
@@ -15,6 +15,7 @@
           "url": "{{website_url}}",
           "maxCandidates": 10,
           "minScore": 6,
+          "logoOutputPath": "out/05-logo-downloader/logos/{{website_url}}.png",
           "output": {
             "mode": "merge"
           }
