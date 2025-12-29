@@ -27,6 +27,7 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
     if (options.concurrency) config.globals.concurrency = parseInt(String(options.concurrency), 10);
     if (options.taskConcurrency) config.globals.taskConcurrency = parseInt(String(options.taskConcurrency), 10);
     if (options.tmpDir) config.globals.tmpDir = options.tmpDir;
+    if (options.output) config.globals.outputPath = options.output;
     if (options.dataOutput) config.globals.dataOutputPath = options.dataOutput;
     if (options.timeout) config.globals.timeout = parseInt(String(options.timeout), 10);
 
