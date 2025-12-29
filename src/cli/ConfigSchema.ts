@@ -60,21 +60,8 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
 
         // Positional Prompt (args[0] is step 1)
         if (args[i]) {
-            // If prompt exists, append? Or replace?
-            // For simplicity, if file has prompt and CLI has arg, we append.
-            // But we need to handle the structure (string vs object).
-            const cliPrompt = args[i];
-            if (!step.prompt) {
-                step.prompt = cliPrompt;
-            } else if (typeof step.prompt === 'string') {
-                step.prompt = `${step.prompt}\n\n${cliPrompt}`;
-            } else if (step.prompt.text) {
-                step.prompt.text = `${step.prompt.text}\n\n${cliPrompt}`;
-            } else {
-                // If it's a file-based prompt object, we can't easily append text.
-                // We'll just warn or ignore, or maybe convert to parts?
-                // Let's assume user knows what they are doing.
-            }
+            // Override existing prompt with CLI argument
+            step.prompt = args[i];
         }
 
         // Model Config
