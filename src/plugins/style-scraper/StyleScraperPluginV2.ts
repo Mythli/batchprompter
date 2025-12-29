@@ -169,7 +169,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                         contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${config.url}) ---` });
                         contentParts.push({ type: 'image_url', image_url: { url: desktopShot.screenshotBase64 } });
                         artifacts.push({ type: 'desktop', base64: desktopShot.screenshotBase64, extension: '.jpg' });
-                        this.events.emit('artifact:captured', { type: 'desktop', content: desktopShot.screenshotBase64, extension: '.jpg' });
                     }
 
                     // Mobile screenshot
@@ -180,7 +179,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                             contentParts.push({ type: 'text', text: `\n--- Mobile Screenshot ---` });
                             contentParts.push({ type: 'image_url', image_url: { url: mobileShot.screenshotBase64 } });
                             artifacts.push({ type: 'mobile', base64: mobileShot.screenshotBase64, extension: '.jpg' });
-                            this.events.emit('artifact:captured', { type: 'mobile', content: mobileShot.screenshotBase64, extension: '.jpg' });
                         }
                         await ph.getPage().setViewport(config.resolution);
                     }
@@ -201,7 +199,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                             contentParts.push({ type: 'text', text: `\n--- Interactive Elements ---` });
                             contentParts.push({ type: 'image_url', image_url: { url: interactiveResult.compositeImageBase64 } });
                             artifacts.push({ type: 'interactive', base64: interactiveResult.compositeImageBase64, extension: '.png' });
-                            this.events.emit('artifact:captured', { type: 'interactive', content: interactiveResult.compositeImageBase64, extension: '.png' });
                         }
 
                         if (interactiveResult.screenshots.length > 0) {
@@ -225,19 +222,10 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                                         base64: shot.screenshotBase64,
                                         extension: '.png'
                                     });
-                                    this.events.emit('artifact:captured', {
-                                        type: 'element',
-                                        subType: shot.type,
-                                        index: shot.elementIndex,
-                                        state: shot.state,
-                                        content: shot.screenshotBase64,
-                                        extension: '.png'
-                                    });
                                 }
                             }
                             contentParts.push({ type: 'text', text: stylesText });
                             artifacts.push({ type: 'css', base64: stylesText, extension: '.md' });
-                            this.events.emit('artifact:captured', { type: 'css', content: stylesText, extension: '.md' });
                         }
                     }
 
@@ -256,6 +244,16 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
             const outputData: Record<string, any> = {};
 
             for (const artifact of result.artifacts) {
+                // Emit event here to ensure artifacts are saved to disk for this run (even if cached)
+                this.events.emit('artifact:captured', {
+                    type: artifact.type,
+                    subType: artifact.subType,
+                    index: artifact.index,
+                    state: artifact.state,
+                    content: artifact.base64,
+                    extension: artifact.extension
+                });
+
                 if (artifact.type === 'desktop') {
                     outputData.desktop = path.join(artifactDir, 'screenshots', `${baseName}_desktop${artifact.extension}`);
                 } else if (artifact.type === 'mobile') {
