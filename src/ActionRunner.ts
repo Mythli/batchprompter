@@ -127,7 +127,7 @@ export class ActionRunner {
                 enqueueNext(nextItems, stepIndex + 1);
 
             } catch (err: any) {
-                console.error(`[Row ${item.originalIndex}] Step ${stepNum} Error:`, err.message || err);
+                console.error(`[Row ${item.originalIndex}] Step ${stepNum} Error:`, err);
                 rowErrors.push({ index: item.originalIndex, error: err });
             }
         };

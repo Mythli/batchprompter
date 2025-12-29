@@ -225,7 +225,7 @@ export class StandardStrategy implements GenerationStrategy {
                 const { stdout } = await execPromise(cmd);
                 if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
             } catch (error: any) {
-                console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error.message);
+                console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error);
             }
             if (isTemp) {
                 try { await fsPromises.unlink(filePathForCommand!); } catch (e) {}
@@ -318,7 +318,7 @@ export class StandardStrategy implements GenerationStrategy {
 
             } catch (error: any) {
                 lastError = error;
-                console.log(`[Row ${index}] Step ${stepIndex} Attempt ${attempt+1}/${maxRetries+1} failed: ${error.message}`);
+                console.log(`[Row ${index}] Step ${stepIndex} Attempt ${attempt+1}/${maxRetries+1} failed:`, error);
 
                 if (attempt < maxRetries) {
                     currentHistory.push({

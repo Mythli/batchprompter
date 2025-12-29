@@ -64,7 +64,7 @@ export class CandidateStrategy implements GenerationStrategy {
                 )
                 .then(res => ({ ...res, candidateIndex: i, outputPath: candidateOutputPath }))
                 .catch(err => {
-                    console.error(`[Row ${index}] Step ${stepIndex} Candidate ${i} failed:`, err.message);
+                    console.error(`[Row ${index}] Step ${stepIndex} Candidate ${i} failed:`, err);
                     throw err;
                 })
             );
@@ -104,7 +104,7 @@ export class CandidateStrategy implements GenerationStrategy {
                     winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex, row);
                     console.log(`[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}`);
                 } catch (e: any) {
-                    console.error(`[Row ${index}] Step ${stepIndex} Judging failed: ${e.message}`);
+                    console.error(`[Row ${index}] Step ${stepIndex} Judging failed:`, e);
                     throw e;
                 }
                 
@@ -258,7 +258,7 @@ export class CandidateStrategy implements GenerationStrategy {
             const { stdout } = await execPromise(cmd);
             if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
         } catch (error: any) {
-            console.error(`[Row ${index}] Step ${stepIndex} Deferred command failed:`, error.message);
+            console.error(`[Row ${index}] Step ${stepIndex} Deferred command failed:`, error);
         }
     }
 

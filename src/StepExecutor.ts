@@ -152,7 +152,7 @@ export class StepExecutor {
             const { stdout } = await execPromise(cmd);
             if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
         } catch (error: any) {
-            console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error.message);
+            console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error);
         }
     }
 }
