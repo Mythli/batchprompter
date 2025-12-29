@@ -1,38 +1,7 @@
 import { z } from 'zod';
 import { ModelDefinition, StepDefinition, NormalizedConfig, PluginConfigDefinition, OutputStrategy } from '../types.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
-import { ModelFlags } from './ModelFlags.js';
-import { GlobalsConfigSchema, PipelineConfigSchema } from '../config/schema.js';
-
-// =============================================================================
-// Helpers
-// =============================================================================
-
-// Helper to remove undefined keys
-const clean = <T extends object>(obj: T): T => {
-    return Object.fromEntries(
-        Object.entries(obj).filter(([_, v]) => v !== undefined)
-    ) as T;
-};
-
-// Helper to get env var with fallbacks
-function getEnvVar(keys: string[]): string | undefined {
-    for (const key of keys) {
-        const value = process.env[key];
-        if (value) return value;
-    }
-    return undefined;
-}
-
-// Helper to convert kebab-case plugin name to camelCase for option lookup
-const toCamel = (s: string) => {
-    return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
-};
-
-// =============================================================================
-// CLI Override Logic
-// =============================================================================
-
+import { PipelineConfigSchema } from '../config/schema.js';
 /**
  * Merges CLI options into the file configuration.
  * CLI options take precedence.
@@ -64,7 +33,7 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
     // --- Step Overrides ---
     // Determine how many steps we need based on args and options
     let maxStepIndex = config.steps.length;
-    
+
     // Check args (positional prompts)
     if (args.length > maxStepIndex) maxStepIndex = args.length;
 
@@ -87,10 +56,10 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
     for (let i = 0; i < maxStepIndex; i++) {
         const stepNum = i + 1;
         const step = config.steps[i];
-        
+
         // Positional Prompt (args[0] is step 1)
         if (args[i]) {
-            // If prompt exists, append? Or replace? 
+            // If prompt exists, append? Or replace?
             // For simplicity, if file has prompt and CLI has arg, we append.
             // But we need to handle the structure (string vs object).
             const cliPrompt = args[i];
@@ -163,9 +132,9 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
         // Note: This appends new plugin configs. It does NOT merge with existing file-based plugin configs
         // because matching them by ID or type is ambiguous (a step can have multiple plugins of the same type).
         // This means CLI flags for plugins generally *add* a plugin instance to the step.
-        
+
         step.plugins = step.plugins || [];
-        
+
         for (const plugin of pluginRegistry.getAll()) {
             const pluginConfig = plugin.parseCLIOptions(options, stepNum);
             if (pluginConfig) {
@@ -250,14 +219,14 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         steps.push({
             stepIndex,
             modelConfig,
-            outputPath: stepDef.outputPath, 
+            outputPath: stepDef.outputPath,
             outputTemplate: stepDef.outputPath ?? config.globals.outputPath, // Inherit global output path if not set on step
 
             output: stepDef.output,
 
             schemaPath: typeof stepDef.schema === 'string' ? stepDef.schema : undefined,
             jsonSchema: typeof stepDef.schema === 'object' ? stepDef.schema : undefined,
-            
+
             verifyCommand: stepDef.verifyCommand,
             postProcessCommand: stepDef.command,
             candidates: stepDef.candidates,
