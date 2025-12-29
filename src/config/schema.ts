@@ -90,7 +90,7 @@ export const GlobalsConfigSchema = z.object({
  * Top-level pipeline configuration
  */
 export const PipelineConfigSchema = z.object({
-    data: DataConfigSchema.optional().default({}),
-    globals: GlobalsConfigSchema.optional().default({}),
+    data: DataConfigSchema.optional().default(DataConfigSchema.parse({})),
+    globals: GlobalsConfigSchema.optional().default(GlobalsConfigSchema.parse({})),
     steps: z.array(StepConfigSchema).min(1)
 });
