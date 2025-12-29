@@ -229,30 +229,62 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
 
         const result = await scraper.scrape(config.url);
 
+        // Prepare data packet
+        const packetData: any = {
+            brandColor: result.primaryColor?.hex,
+            brandColors: result.brandColors?.map(c => c.hex) || [],
+            logos: []
+        };
+
         if (result.logos && result.logos.length > 0) {
+            // Emit event for artifact handler (saves to debug/artifact dir)
             scraper.events.emit('logo:selected', {
                 url: config.url,
                 logos: result.logos,
                 brandColors: result.brandColors
             });
 
-            // Save the best logo if output path is configured
+            // Save all logos to a stable temp location for reference in the data packet
+            const logosDir = path.join(tempDirectory, 'logos');
+            await ensureDir(logosDir);
+
+            for (let i = 0; i < result.logos.length; i++) {
+                const logo = result.logos[i];
+                const filename = `logo_${i}.png`;
+                const savePath = path.join(logosDir, filename);
+                
+                // Save to temp dir
+                await ArtifactSaver.save(logo.base64PngData, savePath);
+
+                packetData.logos.push({
+                    path: savePath,
+                    score: logo.brandLogoScore,
+                    isFavicon: logo.isFavicon
+                });
+            }
+
+            // Handle the "Best" logo (Index 0)
+            const bestLogo = result.logos[0];
+            let bestLogoPath = packetData.logos[0].path;
+
+            // If user specified a custom output path for the best logo, save it there
             if (config.logoOutputPath) {
-                const bestLogo = result.logos[0];
-                if (bestLogo) {
-                    try {
-                        await ArtifactSaver.save(bestLogo.base64PngData, config.logoOutputPath);
-                        console.log(`[LogoScraper] Saved best logo to ${config.logoOutputPath}`);
-                    } catch (e: any) {
-                        console.error(`[LogoScraper] Failed to save logo to ${config.logoOutputPath}:`, e);
-                    }
+                try {
+                    await ArtifactSaver.save(bestLogo.base64PngData, config.logoOutputPath);
+                    console.log(`[LogoScraper] Saved best logo to ${config.logoOutputPath}`);
+                    bestLogoPath = config.logoOutputPath;
+                } catch (e: any) {
+                    console.error(`[LogoScraper] Failed to save logo to ${config.logoOutputPath}:`, e);
                 }
             }
+
+            // Set the main 'logo' field to the best path (either temp or custom)
+            packetData.logo = bestLogoPath;
         }
 
         return {
             packets: [{
-                data: result,
+                data: packetData,
                 contentParts: []
             }]
         };
