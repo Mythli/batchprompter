@@ -5,6 +5,7 @@ import { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
 import { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
 import { ValidationPluginV2 } from './validation/ValidationPluginV2.js';
 import { DedupePluginV2 } from './dedupe/DedupePluginV2.js';
+import { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
 
 // Re-export types
 export * from './types.js';
@@ -16,6 +17,7 @@ export { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
 export { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
 export { ValidationPluginV2 } from './validation/ValidationPluginV2.js';
 export { DedupePluginV2 } from './dedupe/DedupePluginV2.js';
+export { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
 
 /**
  * Create a plugin registry with all built-in plugins registered
@@ -32,6 +34,7 @@ export function createPluginRegistry(): PluginRegistryV2 {
     registry.register(new StyleScraperPluginV2());
     registry.register(new ValidationPluginV2());
     registry.register(new DedupePluginV2());
+    registry.register(new LogoScraperPluginV2());
 
     return registry;
 }

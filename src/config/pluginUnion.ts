@@ -5,6 +5,7 @@ import { WebsiteAgentConfigSchemaV2 } from '../plugins/website-agent/WebsiteAgen
 import { StyleScraperConfigSchemaV2 } from '../plugins/style-scraper/StyleScraperPluginV2.js';
 import { ValidationConfigSchemaV2 } from '../plugins/validation/ValidationPluginV2.js';
 import { DedupeConfigSchemaV2 } from '../plugins/dedupe/DedupePluginV2.js';
+import { LogoScraperConfigSchemaV2 } from '../plugins/logo-scraper/LogoScraperPluginV2.js';
 
 /**
  * Union of all registered plugin configuration schemas.
@@ -16,7 +17,8 @@ export const PluginUnionSchema = z.discriminatedUnion('type', [
     WebsiteAgentConfigSchemaV2,
     StyleScraperConfigSchemaV2,
     ValidationConfigSchemaV2,
-    DedupeConfigSchemaV2
+    DedupeConfigSchemaV2,
+    LogoScraperConfigSchemaV2
 ]);
 
 export type PluginConfig = z.infer<typeof PluginUnionSchema>;
