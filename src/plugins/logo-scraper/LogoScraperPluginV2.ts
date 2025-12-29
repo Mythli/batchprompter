@@ -11,7 +11,7 @@ import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
-import { ensureDir } from '../../utils/fileUtils.js';
+import { ensureDir, aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { LogoScraperArtifactHandler } from './LogoScraperArtifactHandler.js';
@@ -162,8 +162,15 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
 
         let logoOutputPath: string | undefined;
         if (rawConfig.logoOutputPath) {
+            // Sanitize row data for file path usage
+            const sanitizedRow: Record<string, any> = {};
+            for (const [key, val] of Object.entries(row)) {
+                 const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+                 sanitizedRow[key] = aggressiveSanitize(stringVal);
+            }
+
             const template = Handlebars.compile(rawConfig.logoOutputPath, { noEscape: true });
-            logoOutputPath = template(row);
+            logoOutputPath = template(sanitizedRow);
         }
 
         return {
