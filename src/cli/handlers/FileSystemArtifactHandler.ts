@@ -8,10 +8,12 @@ export class FileSystemArtifactHandler {
         private events: EventEmitter<BatchPromptEvents>,
         private baseDir: string
     ) {
+        this.events.on('plugin:artifact', this.handleArtifact.bind(this));
+        // Legacy support
         this.events.on('artifact', this.handleArtifact.bind(this));
     }
 
-    private async handleArtifact(payload: Parameters<BatchPromptEvents['artifact']>[0]) {
+    private async handleArtifact(payload: Parameters<BatchPromptEvents['plugin:artifact']>[0]) {
         // Construct path: baseDir / row_step / filename
         // Note: payload.filename might contain subdirectories (e.g. "queries/q1.json")
         

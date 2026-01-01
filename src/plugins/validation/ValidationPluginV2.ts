@@ -12,6 +12,7 @@ import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/resolved
 import { OutputConfigSchema } from '../../config/common.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
+import { PluginScope } from '../PluginScope.js';
 
 // Strict Schema
 export const ValidationConfigSchemaV2 = z.object({
@@ -138,7 +139,8 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         config: ValidationResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { row, emit } = context;
+        const { row } = context;
+        const scope = new PluginScope(context, this.type);
 
         let dataToValidate: any = row;
 
@@ -162,11 +164,9 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
 
         if (!valid) {
             const errors = this.ajv.errorsText(validate.errors);
-            console.log(`[Validation] ❌ Failed (${config.schemaSource}): ${errors}`);
+            scope.emit('validation:failed', { source: config.schemaSource, errors });
             
-            emit('artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+            scope.artifact({
                 type: 'json',
                 filename: `validation/validation_${Date.now()}.json`,
                 content: JSON.stringify({
@@ -182,11 +182,9 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             return { packets: [] };
         }
 
-        console.log(`[Validation] ✅ Passed (${config.schemaSource})`);
+        scope.emit('validation:passed', { source: config.schemaSource });
         
-        emit('artifact', {
-            row: context.row.index,
-            step: context.stepIndex,
+        scope.artifact({
             type: 'json',
             filename: `validation/validation_${Date.now()}.json`,
             content: JSON.stringify({

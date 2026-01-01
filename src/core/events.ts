@@ -21,14 +21,35 @@ export interface BatchPromptEvents {
         data?: any;
     }) => void;
 
-    // Artifacts (The main output mechanism)
-    'artifact': (payload: {
+    // The Unified Data Stream for Plugins
+    'plugin:event': (payload: {
+        row: number;          // Context: Row Index
+        step: number;         // Context: Step Index
+        plugin: string;       // Source: 'website-agent', 'dedupe', etc.
+        event: string;        // Action: 'page:scraped', 'decision:made', 'duplicate:found'
+        data: any;            // Payload: The RAW data object
+    }) => void;
+
+    // Artifacts
+    'plugin:artifact': (payload: {
         row: number;
         step: number;
+        plugin: string;
         type: string; // 'image', 'text', 'json', 'html', 'audio'
         filename: string;
         content: string | Buffer;
         tags: string[]; // ['debug', 'final', 'candidate', etc]
+        metadata?: Record<string, any>;
+    }) => void;
+
+    // Legacy artifact event (kept for compatibility with non-refactored parts if any)
+    'artifact': (payload: {
+        row: number;
+        step: number;
+        type: string;
+        filename: string;
+        content: string | Buffer;
+        tags: string[];
         metadata?: Record<string, any>;
     }) => void;
 }

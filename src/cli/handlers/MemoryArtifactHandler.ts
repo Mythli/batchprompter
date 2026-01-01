@@ -11,10 +11,11 @@ export class MemoryArtifactHandler {
     public artifacts: Artifact[] = [];
 
     constructor(private events: EventEmitter<BatchPromptEvents>) {
+        this.events.on('plugin:artifact', this.handleArtifact.bind(this));
         this.events.on('artifact', this.handleArtifact.bind(this));
     }
 
-    private handleArtifact(payload: Parameters<BatchPromptEvents['artifact']>[0]) {
+    private handleArtifact(payload: Parameters<BatchPromptEvents['plugin:artifact']>[0]) {
         this.artifacts.push({
             path: payload.filename,
             content: payload.content,

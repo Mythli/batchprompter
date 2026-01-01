@@ -10,12 +10,12 @@ import {
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { SchemaLoader } from '../../config/SchemaLoader.js';
 import { makeSchemaOptional } from '../../utils/schemaUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
+import { PluginScope } from '../PluginScope.js';
 
 // =============================================================================
 // Config Schema
@@ -267,7 +267,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         config: WebsiteAgentResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { services, row, emit } = context;
+        const { services, row } = context;
         const { puppeteerHelper, puppeteerQueue } = services;
 
         if (!puppeteerHelper || !puppeteerQueue) {
@@ -288,12 +288,17 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         const mrgLlm = services.createLlm(config.mergeModel);
 
         const agent = new AiWebsiteAgent(navLlm, extLlm, mrgLlm, puppeteerHelper, puppeteerQueue);
+        const scope = new PluginScope(context, this.type);
 
+        // Bridge all agent events to the plugin scope
+        scope.bridge(agent.events);
+
+        // Handle artifacts specifically if needed, or rely on the bridge if the agent emits 'artifact'
+        // The agent emits specific events like 'page:scraped'. We can listen to them to save artifacts.
+        
         agent.events.on('page:scraped', (data) => {
             const safeUrl = data.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-            emit('artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+            scope.artifact({
                 type: 'text',
                 filename: `website_agent/pages/${safeUrl}_${Date.now()}.md`,
                 content: data.markdown,
@@ -303,9 +308,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
 
         agent.events.on('data:extracted', (data) => {
             const safeUrl = data.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-            emit('artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+            scope.artifact({
                 type: 'json',
                 filename: `website_agent/extractions/${safeUrl}_${Date.now()}.json`,
                 content: JSON.stringify(data.data, null, 2),
@@ -314,9 +317,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         });
 
         agent.events.on('decision:made', (data) => {
-            emit('artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+            scope.artifact({
                 type: 'json',
                 filename: `website_agent/decisions/decision_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -325,9 +326,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         });
 
         agent.events.on('results:merged', (data) => {
-            emit('artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+            scope.artifact({
                 type: 'json',
                 filename: `website_agent/final/final_merge_${Date.now()}.json`,
                 content: JSON.stringify(data.merged, null, 2),

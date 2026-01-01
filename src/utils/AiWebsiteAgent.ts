@@ -183,7 +183,7 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
         const knownLinks = new Map<string, EnrichedLinkData>();
         const extractedData: any[] = [];
         
-        console.log(`[AiWebsiteAgent] Starting at ${initialUrl} (Budget: ${budget})`);
+        this.events.emit('start', { url: initialUrl, budget });
         
         try {
             const initialPage = await this.getPageContent(initialUrl);
@@ -204,8 +204,8 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
                     knownLinks.set(link.href, { ...link, firstSeenOn: initialUrl });
                 }
             }
-        } catch (e) {
-            console.error(`[AiWebsiteAgent] Failed to scrape initial URL ${initialUrl}:`, e);
+        } catch (e: any) {
+            this.events.emit('error', { message: `Failed to scrape initial URL ${initialUrl}: ${e.message}` });
             return {};
         }
 
@@ -220,11 +220,11 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
             );
 
             if (isDone || nextUrls.length === 0) {
-                console.log(`[AiWebsiteAgent] Stopping. Done: ${isDone}, Next URLs: ${nextUrls.length}`);
+                this.events.emit('stop', { isDone, nextUrls });
                 break;
             }
 
-            console.log(`[AiWebsiteAgent] Next batch: ${nextUrls.join(', ')}`);
+            this.events.emit('batch', { urls: nextUrls });
 
             const batchPromises = nextUrls.map(async (url) => {
                 if (visitedUrls.has(url)) return null;
@@ -239,8 +239,8 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
                         options.row
                     );
                     return { url, data, links: page.links };
-                } catch (e) {
-                    console.warn(`[AiWebsiteAgent] Failed to scrape ${url}:`, e);
+                } catch (e: any) {
+                    this.events.emit('error', { message: `Failed to scrape ${url}: ${e.message}` });
                     return null;
                 }
             });
@@ -267,7 +267,6 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
 
         const dataToMerge = extractedData.map(d => d.data);
         
-        console.log(`[AiWebsiteAgent] Final merge of ${dataToMerge.length} results...`);
         return await this.mergeResults(dataToMerge, mergeSchema, options.row);
     }
 }

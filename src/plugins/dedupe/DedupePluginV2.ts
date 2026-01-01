@@ -11,6 +11,7 @@ import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js
 import { OutputConfigSchema } from '../../config/common.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
+import { PluginScope } from '../PluginScope.js';
 
 // =============================================================================
 // Config Schema
@@ -98,7 +99,8 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         config: DedupeResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { row, emit } = context;
+        const { row } = context;
+        const scope = new PluginScope(context, this.type);
 
         const template = Handlebars.compile(config.keyTemplate, { noEscape: true });
         const key = template(row);
@@ -109,11 +111,9 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         const seenKeys = globalSeenKeys.get(config.id)!;
 
         if (seenKeys.has(key)) {
-            console.log(`[Dedupe] ❌ Dropping duplicate: "${key}"`);
+            scope.emit('duplicate:found', { key });
             
-            emit('artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+            scope.artifact({
                 type: 'json',
                 filename: `dedupe/dedupe_${Date.now()}.json`,
                 content: JSON.stringify({
@@ -127,12 +127,10 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             return { packets: [] };
         }
 
-        console.log(`[Dedupe] ✅ Keeping: "${key}"`);
+        scope.emit('duplicate:kept', { key });
         seenKeys.add(key);
 
-        emit('artifact', {
-            row: context.row.index,
-            step: context.stepIndex,
+        scope.artifact({
             type: 'json',
             filename: `dedupe/dedupe_${Date.now()}.json`,
             content: JSON.stringify({
