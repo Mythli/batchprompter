@@ -9,7 +9,7 @@ import {
     PluginResult,
     CLIOptionDefinition
 } from '../types.js';
-import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
+import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/resolvedTypes.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';

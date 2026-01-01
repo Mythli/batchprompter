@@ -8,7 +8,7 @@ import {
     PluginResult,
     CLIOptionDefinition
 } from '../types.js';
-import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
+import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/resolvedTypes.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';

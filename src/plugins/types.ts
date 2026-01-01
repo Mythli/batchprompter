@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { ServiceCapabilities, ResolvedModelConfig } from '../types.js';
+import { ServiceCapabilities, ResolvedModelConfig } from '../config/resolvedTypes.js';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { BatchPromptEvents } from '../core/events.js';
 import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
