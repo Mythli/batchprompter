@@ -75,7 +75,13 @@ export const GlobalsConfigSchema = z.object({
     tmpDir: zHandlebars.default(path.join(os.tmpdir(), 'batchprompt')).describe("Directory for temporary files."),
     outputPath: zHandlebars.optional().describe("Default output path template."),
     dataOutputPath: z.string().optional().describe("Path to save the final dataset (CSV/JSON)."),
-    timeout: z.number().int().positive().default(180).describe("Default timeout in seconds for steps.")
+    timeout: z.number().int().positive().default(180).describe("Default timeout in seconds for steps."),
+    
+    // Limit & Offset Configuration
+    inputLimit: z.number().int().positive().optional().describe("Max rows to read from source."),
+    inputOffset: z.number().int().min(0).optional().describe("Starting row index from source."),
+    limit: z.number().int().positive().optional().describe("Default max items to keep when exploding."),
+    offset: z.number().int().min(0).optional().describe("Default starting index when exploding.")
 }).describe("Global configuration settings.");
 
 // --- Strict Pipeline Schema ---

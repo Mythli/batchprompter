@@ -23,8 +23,10 @@ export class CLIAdapter {
     private registerCoreOptions(program: Command): void {
         // Data options
         program.option('--config <file>', 'Path to YAML/JSON config file');
-        program.option('--offset <number>', 'Start from row index', parseInt);
-        program.option('--limit <number>', 'Limit number of rows', parseInt);
+        program.option('--offset <number>', 'Master offset (sets both input and output offsets)', parseInt);
+        program.option('--limit <number>', 'Master limit (sets both input and output limits)', parseInt);
+        program.option('--input-limit <number>', 'Limit for input rows', parseInt);
+        program.option('--input-offset <number>', 'Offset for input rows', parseInt);
 
         // Global model options
         program.option('--model <model>', 'Default model');
@@ -90,6 +92,8 @@ export class CLIAdapter {
             program.option(`--feedback-${i}-model <model>`, `Feedback model for step ${i}`);
             program.option(`--feedback-loops-${i} <number>`, `Feedback loops for step ${i}`, parseInt);
             program.option(`--timeout-${i} <seconds>`, `Timeout for step ${i}`, parseInt);
+            program.option(`--limit-${i} <number>`, `Limit output items for step ${i}`, parseInt);
+            program.option(`--offset-${i} <number>`, `Offset output items for step ${i}`, parseInt);
         }
     }
 
@@ -119,7 +123,11 @@ export class CLIAdapter {
             taskConcurrency: options.taskConcurrency,
             tmpDir: options.tmpDir || '.tmp',
             dataOutputPath: options.dataOutput,
-            timeout: options.timeout
+            timeout: options.timeout,
+            limit: options.limit,
+            offset: options.offset,
+            inputLimit: options.inputLimit,
+            inputOffset: options.inputOffset
         };
 
         // Build steps
@@ -133,8 +141,8 @@ export class CLIAdapter {
         return {
             data: {
                 format: 'auto',
-                offset: options.offset,
-                limit: options.limit
+                offset: options.inputOffset ?? options.offset,
+                limit: options.inputLimit ?? options.limit
             },
             globals,
             steps
@@ -164,6 +172,8 @@ export class CLIAdapter {
         const outputColumn = getOpt('outputColumn');
         const exportFlag = getOpt('export');
         const explodeFlag = getOpt('explode');
+        const limit = options[`limit${stepIndex}`];
+        const offset = options[`offset${stepIndex}`];
 
         let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
         if (outputColumn) outputMode = 'column';
@@ -172,7 +182,9 @@ export class CLIAdapter {
         const output: OutputConfig = {
             mode: outputMode,
             column: outputColumn,
-            explode: explodeFlag ?? false
+            explode: explodeFlag ?? false,
+            limit,
+            offset
         };
 
         // Parse plugins from CLI options

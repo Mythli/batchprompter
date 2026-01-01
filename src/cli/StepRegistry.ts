@@ -38,13 +38,11 @@ export class StepRegistry {
         program.option('--explode', 'Explode array results into multiple rows');
         program.option('--timeout <seconds>', 'Timeout for each step in seconds (default: 180)');
 
-        // --- Limits & Offsets (Hierarchy) ---
-        program.option('--limit <number>', 'Master limit for input rows and explode steps', parseInt);
-        program.option('--offset <number>', 'Master offset for input rows and explode steps', parseInt);
+        // --- Limits & Offsets ---
+        program.option('--limit <number>', 'Master limit (sets both input and output limits)', parseInt);
+        program.option('--offset <number>', 'Master offset (sets both input and output offsets)', parseInt);
         program.option('--input-limit <number>', 'Limit for input rows', parseInt);
         program.option('--input-offset <number>', 'Offset for input rows', parseInt);
-        program.option('--explode-limit <number>', 'Default limit for explode steps', parseInt);
-        program.option('--explode-offset <number>', 'Default offset for explode steps', parseInt);
 
         // --- Step Level (1-10) ---
         for (let i = 1; i <= 10; i++) {

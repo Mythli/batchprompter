@@ -55,11 +55,16 @@ export class ConfigResolver {
         // 6. Validate plugin capabilities
         this.deps.pluginRegistry.validateCapabilities(config.steps, this.deps.capabilities);
 
-        // 7. Slice Data
+        // 7. Slice Data (Input Limits)
         const allRows = config.data.rows;
-        const offset = config.data.offset ?? 0;
-        const limit = config.data.limit;
-        const rows = limit ? allRows.slice(offset, offset + limit) : allRows.slice(offset);
+        
+        // Priority: globals.inputLimit > globals.limit > data.limit
+        const effectiveInputLimit = config.globals.inputLimit ?? config.globals.limit ?? config.data.limit;
+        const effectiveInputOffset = config.globals.inputOffset ?? config.data.offset ?? 0;
+
+        const rows = effectiveInputLimit 
+            ? allRows.slice(effectiveInputOffset, effectiveInputOffset + effectiveInputLimit) 
+            : allRows.slice(effectiveInputOffset);
 
         // 8. Resolve steps (without row context - templates remain)
         const resolvedSteps: ResolvedStepConfig[] = [];
@@ -73,8 +78,8 @@ export class ConfigResolver {
         return {
             data: {
                 rows,
-                offset,
-                limit
+                offset: effectiveInputOffset,
+                limit: effectiveInputLimit
             },
             globals: config.globals,
             steps: resolvedSteps
@@ -99,14 +104,38 @@ export class ConfigResolver {
         const prompt = await this.resolvePrompt(step.prompt);
         const system = await this.resolvePrompt(step.system);
 
+        // Resolve Output Limits (Explode Limits)
+        // Priority: step.output.limit > globals.limit
+        if (step.output.explode) {
+            if (step.output.limit === undefined && globals.limit !== undefined) {
+                step.output.limit = globals.limit;
+            }
+            if (step.output.offset === undefined && globals.offset !== undefined) {
+                step.output.offset = globals.offset;
+            }
+        }
+
         // Plugins are resolved per-row during execution
         // Here we just store the raw config (which is now Normalized/Strict)
-        const plugins = step.plugins.map((p: any, idx: number) => ({
-            type: p.type as string,
-            id: (p as any).id ?? `${p.type}-${stepIndex}-${idx}`,
-            output: p.output,
-            rawConfig: p
-        }));
+        // AND inject global limits if needed
+        const plugins = step.plugins.map((p: any, idx: number) => {
+            // Inject global limits into plugin output if exploding
+            if (p.output.explode) {
+                if (p.output.limit === undefined && globals.limit !== undefined) {
+                    p.output.limit = globals.limit;
+                }
+                if (p.output.offset === undefined && globals.offset !== undefined) {
+                    p.output.offset = globals.offset;
+                }
+            }
+
+            return {
+                type: p.type as string,
+                id: (p as any).id ?? `${p.type}-${stepIndex}-${idx}`,
+                output: p.output,
+                rawConfig: p
+            };
+        });
 
         // Resolve judge
         let judge: ResolvedModelConfig | undefined;
