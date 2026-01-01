@@ -1,0 +1,84 @@
+{
+  "type": "scatter",
+  "query": "kursverwaltung",
+  "page": 3,
+  "results": [
+    {
+      "title": "Online-Kursverwaltung: Von A wie Anmeldung bis Z ...",
+      "link": "https://doo.net/de/knowhow/2017/03/23/online-kursverwaltung/",
+      "snippet": "Online-Kursverwaltungen verbinden dabei Kurs-Managementsystem mit Buchungs- und Teilnehmerplattform in einer Applikation. Das hat jede Menge ...",
+      "position": 21,
+      "date": "23.03.2017",
+      "type": "seo"
+    },
+    {
+      "title": "10 kostenlose Tools zur Kursverwaltung | EdApp ...",
+      "link": "https://training.safetyculture.com/blog/de/10-kostenlose-tools-zur-kursverwaltung/",
+      "snippet": "10 kostenlose Tools zur Kursverwaltung · 1. Arlo · 2. Tovuti · 3. Verwalten · 4. VAIRKKO · 5. AdaptiveU · 6. isEazy · 7. Zusammenstellen · 8.",
+      "position": 22,
+      "date": "16.08.2022",
+      "type": "seo"
+    },
+    {
+      "title": "Einführung in die Kursverwaltung",
+      "link": "https://help.docebo.com/hc/de/articles/360020079700-Einf%C3%BChrung-in-die-Kursverwaltung",
+      "snippet": "Das Hauptelement der Kursverwaltungsseite ist die Kurstabelle, die alle auf der Plattform erstellten Kurse auflistet. Sie können das ...",
+      "position": 23,
+      "date": "14.01.2025",
+      "type": "seo"
+    },
+    {
+      "title": "Effiziente Kursverwaltungs-Software für Gemeinden",
+      "link": "https://www.locaboo.com/funktionen/kursverwaltung",
+      "snippet": "Ob Digital oder vor Ort: Mit der Locaboo Kursverwaltung steigt Ihre Planung und Durchführung von Kursen auf ein neues Level. Mit Locaboo steigern Sie die ...",
+      "position": 24,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarsoftware nach Bedarf | Alle Funktionen im Überblick",
+      "link": "https://www.semcosoft.com/de/was-benoetigen-sie",
+      "snippet": "Entdecken Sie die SEMCO Seminarsoftware nach Ihrem Bedarf: Kursverwaltung, E-Learning, Zertifikate, E-Rechnungen und mehr – alle Funktionen im Überblick.",
+      "position": 25,
+      "type": "seo"
+    },
+    {
+      "title": "Kufer Software GmbH",
+      "link": "https://www.kufer.de/",
+      "snippet": "Wir entwickeln die führende Seminarverwaltung für alle Einrichtungen der Erwachsenenbildung. Seit über 30 Jahren. Für über 1.900 Kunden. Mehr erfahren.",
+      "position": 26,
+      "type": "seo"
+    },
+    {
+      "title": "Kursverwaltung - und Seminarverwaltung - AlphaTools",
+      "link": "https://www.alphatools.de/kursverwaltung.php?i=1",
+      "snippet": "Kursverwaltung. Die Software ermöglicht die vollständige und effektive Verwaltung Ihrer Kurse und Seminare. Neben Kursteilnehmern und Dozenten können ...",
+      "position": 27,
+      "type": "seo"
+    },
+    {
+      "title": "SPG-Verein Kursverwaltung",
+      "link": "https://spg-direkt.de/home/kursverwaltung.html",
+      "snippet": "Mit dem Kurskalender können Sie sich schnell eine Übersicht aller Kurse verschaffen. Die tägliche, wöchentliche und monatliche Auslastung haben Sie so auf einem ...",
+      "position": 28,
+      "type": "seo"
+    },
+    {
+      "title": "Themenkomplex Kursverwaltung - Lernplattform",
+      "link": "https://www.bycs.de/themenkomplex/lernplattform/kursverwaltung/index.html",
+      "snippet": "Über die Kursverwaltung lassen sich Ihre Kurse sichern, (in Teilen) wiederherstellen zurücksetzen und sogar löschen. Lernen Sie hier im Folgenden die ...",
+      "position": 29,
+      "type": "seo"
+    },
+    {
+      "title": "Ihre Kursverwaltung in der Cloud - Software",
+      "link": "https://beyond-sw.com/software/kursverwaltung/",
+      "snippet": "Kurse · Kurse hinzufügen, ändern, löschen, kopieren · Assistent zur Kurserfassung und Kursverschiebung · Automatische Datenübernahme auf Website · Kursgruppen/- ...",
+      "position": 30,
+      "type": "seo"
+    }
+  ],
+  "selection": {
+    "indices": [],
+    "reasoning": "None of the provided search results point to butlerapp.de; they refer to other providers such as doo.net, safetyculture.com, docebo.com, locaboo.com, semcosoft.com, kufer.de, alphatools.de, spg-direkt.de, bycs.de, and beyond-sw.com."
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "type": "scatter",
+  "query": "kurs buchungssystem",
+  "page": 1,
+  "results": [
+    {
+      "title": "kursifant | Einfaches Buchungssystem für Kursanbieter",
+      "link": "https://kursifant.com/",
+      "snippet": "kursifant ist eine Buchungsverwaltungssoftware für Anbieter von Freizeit- und Gesundheitskursen. Mit kursifant kommst du in 7 Minuten zur ersten ...",
+      "position": 1,
+      "type": "seo"
+    },
+    {
+      "title": "Online-Buchungssystem für Kurse, Seminare und ...",
+      "link": "https://www.cituro.com/online-kursbuchung",
+      "snippet": "Das flexible Buchungssystem für Kurse, Seminare und Veranstaltungen. Planen und verwalten Sie Ihre Gruppenveranstaltungen! Kostenlos testen.",
+      "position": 2,
+      "type": "seo"
+    },
+    {
+      "title": "Yolawo - Das Buchungssystem für deinen Verein",
+      "link": "https://yolawo.de/",
+      "snippet": "Bis zu 70% weniger Verwaltungsaufwand und keine manuelle Listenpflege mehr mit dem Buchungssystem Yolawo. Jetzt kostenlos testen!",
+      "position": 3,
+      "type": "seo"
+    },
+    {
+      "title": "Kostenloses Online-Terminbuchungssystem Kurse",
+      "link": "https://www.supersaas.de/info/kurse-reservieren",
+      "snippet": "Merkmale unserer Kurs-Buchungssoftware · Einständiges Buchen von Teilnehmern · Passt sich an Dein Schulungs-Business an · Layout & Formulare anpassen · Kurs-Buchung ...",
+      "position": 4,
+      "type": "seo"
+    },
+    {
+      "title": "Online-Buchungssystem",
+      "link": "https://zenamu.com/de/",
+      "snippet": "Online-Buchungssystem für Yoga, Tanz, Sportvereine und Familienzentren. Für alle, die Kurse, Workshops und Gruppenstunden anbieten.",
+      "position": 5,
+      "type": "seo"
+    },
+    {
+      "title": "Kursplanungssoftware | Kurse, Klassen und Schulungen",
+      "link": "https://www.bookeo.com/de/klassen-kurse/",
+      "snippet": "Mit unserer Online-Kursbuchungssoftware können Ihre Kursteilnehmer die Verfügbarkeit Ihrer Kurse in Echtzeit einsehen, ihre Kurse buchen und Zahlungen ...",
+      "position": 6,
+      "type": "seo"
+    },
+    {
+      "title": "Kursbuchung",
+      "link": "https://www.vibss.de/vereinsmanagement/digitalisierung/vereinsalltag/kursbuchung",
+      "snippet": "Durch die digitalen Buchungstools können Sie komfortabel von Zuhause oder von Unterwegs Plätze in Ihrem Verein, (Online)-Kurse oder weitere Aktivitäten anbieten ...",
+      "position": 7,
+      "type": "seo"
+    },
+    {
+      "title": "Course Booking System | Kurs-Buchungssystem",
+      "link": "https://de.wordpress.org/plugins/course-booking-system/",
+      "snippet": "Individuelles Kurs-Buchungssystem für wiederkehrende Veranstaltungen und spezielle Bedürfnisse.",
+      "position": 8,
+      "type": "seo"
+    },
+    {
+      "title": "Die 10 besten Buchungssysteme für Yogastudio ... - YOGO",
+      "link": "https://yogobooking.de/blog/die-besten-buchungssysteme",
+      "snippet": "1) YOGO - Das beste Buchungssystem für Studios jeder Größe. YOGO ist eine All-in-One-Softwarelösung, die speziell für Yoga-, Pilates- und ...",
+      "position": 9,
+      "date": "09.02.2025",
+      "type": "seo"
+    },
+    {
+      "title": "Butlerapp — Kurs-, Seminar-, und Kurs-, Seminar-, und ...",
+      "link": "https://butlerapp.de/",
+      "snippet": "Butlerapp ist dein smartes Kurs-, Seminar-, und Buchungssystem für Online-Termine, Kurse & Seminare. Spare Zeit mit automatisierter Verwaltung & E-Rechnung.",
+      "position": 10,
+      "type": "seo"
+    }
+  ],
+  "selection": {
+    "indices": [
+      9
+    ],
+    "reasoning": "The search result at index 9 is the only link that points to butlerapp.de."
+  }
+}

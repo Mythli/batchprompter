@@ -10,6 +10,7 @@ CONFIG=$(cat <<EOF
     "limit": 10
   },
   "globals": {
+    "dataOutputPath": "out/03-seo-rank/results.csv",
     "model": "google/gemini-3-flash-preview",
     "tmpDir": "out/03-seo-rank/.tmp",
     "outputPath": "out/03-seo-rank/results.csv"

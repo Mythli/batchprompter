@@ -14,7 +14,7 @@ CONFIG=$(cat <<EOF
     "model": "google/gemini-3-flash-preview",
     "thinkingLevel": "high",
     "tmpDir": "out/02-lead-gen/.tmp",
-    "outputPath": "out/02-lead-gen/companies_enriched.csv"
+    "dataOutputPath": "out/02-lead-gen/companies_enriched.csv"
   },
   "steps": [
     {

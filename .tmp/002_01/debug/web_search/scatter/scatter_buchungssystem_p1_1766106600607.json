@@ -1,0 +1,83 @@
+{
+  "type": "scatter",
+  "query": "buchungssystem",
+  "page": 1,
+  "results": [
+    {
+      "title": "Yolawo - Das Buchungssystem für deinen Verein",
+      "link": "https://yolawo.de/",
+      "snippet": "Das Yolawo Buchungssystem besitzt eine Vielzahl an Funktionen, darunter: individuelle Formularfragen, Auswahl verschiedener Ansichten zur Präsentation auf ...",
+      "position": 1,
+      "type": "seo"
+    },
+    {
+      "title": "SimplyBook.me - Die kostenlose Terminplanungssoftware",
+      "link": "https://simplybook.me/de/",
+      "snippet": "Online Terminbuchungssystem. Vereinbaren Sie mehr Termine und akzeptieren Zahlungen über Ihre Website, Google Business, Facebook oder Instagram.",
+      "position": 2,
+      "type": "seo"
+    },
+    {
+      "title": "Online Buchungssystem für kleine Unternehmen",
+      "link": "https://www.timify.com/de/solutions/online-buchungssystem-fuer-kleine-unternehmen/",
+      "snippet": "Online Buchungssystem für kleine Unternehmen. TIMIFY vereinfacht die Terminbuchung für Sie und Ihre Kunden, automatisiert die Kommunikation und Teamplanung ...",
+      "position": 3,
+      "type": "seo"
+    },
+    {
+      "title": "Online-Buchungssystem für Kurse, Seminare und ...",
+      "link": "https://www.cituro.com/online-kursbuchung",
+      "snippet": "Das flexible Buchungssystem für Kurse, Seminare und Veranstaltungen. Planen und verwalten Sie Ihre Gruppenveranstaltungen! Kostenlos testen.",
+      "position": 4,
+      "type": "seo"
+    },
+    {
+      "title": "Einfaches Online-Buchungssystem - Termine und mehr ...",
+      "link": "https://doodle.com/de/online-booking-system/",
+      "snippet": "Mit einfachen Schritt-für-Schritt-Anleitungen ist Doodle das einfachste Buchungssystem für Termine und Meetings. Nutze Doodle für deine Eventplanung!",
+      "position": 5,
+      "type": "seo"
+    },
+    {
+      "title": "Das Ferienwohnung-Buchungssystem für Gastgeber",
+      "link": "https://www.lodgify.com/de/buchungssystem/",
+      "snippet": "Mit unserem Buchungssystem für Ferienwohnungen können Sie sicher und bequem jegliche Zahlungsmethoden über Ihre eigene Webseite akzeptieren.",
+      "position": 6,
+      "type": "seo"
+    },
+    {
+      "title": "Buchungssystem",
+      "link": "https://de.wikipedia.org/wiki/Buchungssystem",
+      "snippet": "Unter einem Buchungssystem versteht man eine Computeranwendung, mit der Ressourcen zeitlich begrenzt und konfliktfrei reserviert werden können.",
+      "position": 7,
+      "type": "seo"
+    },
+    {
+      "title": "Das beste kostenlose Online Buchungssystem",
+      "link": "https://meetergo.com/blog/online-buchungssystem",
+      "snippet": "Mit simplybook.me können Unternehmen verschiedene Arten von Terminen und Buchungen anbieten, z. B. Kundentermine, Klassen, Veranstaltungen und ...",
+      "position": 8,
+      "date": "vor 6 Tagen",
+      "type": "seo"
+    },
+    {
+      "title": "Das online Buchungssystem für die eigene Webseite",
+      "link": "https://bookingkit.com/de/anleitungen/buchungssystem/",
+      "snippet": "Mit dem bookingkit Buchungssystem kannst du über deine eigene Homepage Buchungen verwalten! Die Vorteile: ➤ Intelligente Softwarelösung für Erlebnisanbieter ...",
+      "position": 9,
+      "type": "seo"
+    },
+    {
+      "title": "Beste Online-Buchungssysteme 2025: Test & Vergleich (10 ...",
+      "link": "https://trusted.de/buchungssystem",
+      "snippet": "Wenn Du auf der Suche nach einem flexiblen und umfangreichen Online-Buchungssystem bist, ist SimplyBook.me eine ausgezeichnete Wahl.",
+      "position": 10,
+      "date": "16.09.2025",
+      "type": "seo"
+    }
+  ],
+  "selection": {
+    "indices": [],
+    "reasoning": "None of the search results point to butlerapp.de; the provided links include yolawo.de, simplybook.me, timify.com, cituro.com, doodle.com, lodgify.com, wikipedia.org, meetergo.com, bookingkit.com, and trusted.de."
+  }
+}

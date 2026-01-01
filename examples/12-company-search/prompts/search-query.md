@@ -1,1 +1,0 @@
-Find the official website for the company '{{name}}'. Generate search queries to find their main homepage. To generate the queries exclude the person and try different variants/spellings. usually it pays to just search for the company name.

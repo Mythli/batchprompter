@@ -77,7 +77,7 @@ export const DataConfigSchema = z.object({
  * Global configuration
  */
 export const GlobalsConfigSchema = z.object({
-    model: z.string().default('gpt-4o-mini'),
+    model: z.string().default('google/gemini-3-flash-preview'),
     temperature: z.number().min(0).max(2).optional(),
     thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     concurrency: z.number().int().positive().default(50),

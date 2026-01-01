@@ -1,0 +1,85 @@
+{
+  "type": "scatter",
+  "query": "kursverwaltung",
+  "page": 2,
+  "results": [
+    {
+      "title": "Effiziente Kursverwaltung mit der richtigen Software",
+      "link": "https://cmxkonzepte.de/kursverwaltung",
+      "snippet": "Kursverwaltungssoftware ermöglicht es Bildungseinrichtungen, Kursdaten, Teilnehmerinformationen und Zahlungen zentral und effizient zu ...",
+      "position": 11,
+      "date": "14.11.2024",
+      "type": "seo"
+    },
+    {
+      "title": "Vorteile der Kursverwaltung in der Cloud - LANcloud",
+      "link": "https://www.lancloud.cloud/kursverwaltung-in-der-cloud/",
+      "snippet": "Eine Kursverwaltungssoftware ist ein digitales Tool, das dir hilft, deine Seminare effizient zu organisieren. Sie unterstützt dich bei der ...",
+      "position": 12,
+      "date": "09.01.2025",
+      "type": "seo"
+    },
+    {
+      "title": "MARVA: Software für Seminarverwaltung und Kursverwaltung",
+      "link": "https://www.marva.eu/",
+      "snippet": "Intuitiv für Einsteiger und gleichzeitig mächtig für Experten. Übersichtliche Bedienung, effiziente Arbeitsabläufe, umfangreiche Funktionen.",
+      "position": 13,
+      "type": "seo"
+    },
+    {
+      "title": "Software für Kursverwaltung",
+      "link": "https://www.planni.de/software-fuer-kursverwaltung",
+      "snippet": "Das deutschlandweit führende Software für Kursverwaltung für effizientes Teilnehmer- und Referenten-Management. Jetzt mit planni durchstarten.",
+      "position": 14,
+      "type": "seo"
+    },
+    {
+      "title": "Kursverwaltung",
+      "link": "https://www.pro-winner.de/index.php/module/kursverwaltung",
+      "snippet": "Mit dem Modul Kursverwaltung verwalten Sie ganz einfach Ihre angebotenen Kurse. Völlig egal ob es sich um klassische Sportkurse, Schwimmkurse oder Seminare ...",
+      "position": 15,
+      "type": "seo"
+    },
+    {
+      "title": "Kursverwaltung mit Online-Anmeldung - IntelliEvent",
+      "link": "https://www.intellionline.de/Loesungen/IntelliEvent/",
+      "snippet": "Ein Kursbuchungssystem, das alle Wünsche erfüllt – Online Anmeldung, Anwesenheitsliste, Zahlungssystem, Wartelistenfunktion u.v.m..",
+      "position": 16,
+      "type": "seo"
+    },
+    {
+      "title": "Kursverwaltung software | ChainWise Kursplaner",
+      "link": "https://www.chainwise.de/",
+      "snippet": "Planung von Kursen, Anmelden von Teilnehmern, einfache Rechnungserstellung und Echzeit-Einblicke in die Kursdurchführung. Dies und mehr bietet der ChainWise ...",
+      "position": 17,
+      "type": "seo"
+    },
+    {
+      "title": "Kurse & Prävention",
+      "link": "https://sovdwaer.de/kurse-pr%C3%A4vention",
+      "snippet": "Mit der durchdachten Kursverwaltung von THEORG können Sie Kurse unterschiedlichster Natur organisieren, planen und abrechnen. Egal ob Rückenschule, Aerobic-Kurs ...",
+      "position": 18,
+      "type": "seo"
+    },
+    {
+      "title": "Kursverwaltung",
+      "link": "https://kursimple.de/kursverwaltung/",
+      "snippet": "Kursimple bietet eine übersichtliche, schnelle und einfache Kursverwaltung in einem System gebündelt. Gut strukturierte Übersicht aller ...",
+      "position": 19,
+      "date": "03.12.2025",
+      "type": "seo"
+    },
+    {
+      "title": "KursOrganizer - Kursverwaltung und Organisation",
+      "link": "https://www.kursorganizer.de/",
+      "snippet": "Seit nunmehr 20 Jahren entwickeln wir Kursverwaltungssoftware. Unser Fokus liegt auf schnelle Integrierbarkeit in Ihre eigenen Webseiten ...",
+      "position": 20,
+      "date": "02.09.2025",
+      "type": "seo"
+    }
+  ],
+  "selection": {
+    "indices": [],
+    "reasoning": "None of the provided search results contain a link to butlerapp.de. All links point to competing software providers such as cmxkonzepte.de, lancloud.cloud, marva.eu, and others."
+  }
+}

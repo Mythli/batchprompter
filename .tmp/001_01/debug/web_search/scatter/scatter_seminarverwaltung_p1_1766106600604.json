@@ -1,0 +1,83 @@
+{
+  "type": "scatter",
+  "query": "seminarverwaltung",
+  "page": 1,
+  "results": [
+    {
+      "title": "Effiziente Seminarverwaltung Software simplyOrg",
+      "link": "https://simplyorg.de/seminarmanagement/",
+      "snippet": "Unsere Seminarverwaltungs Software stellt sicher, dass Sie Ihre Seminare, Schulungen und Weiterbildungen planen, bewerben und durchführen, während simplyOrg ...",
+      "position": 1,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltung - Unsere Kursverwaltungs-Software",
+      "link": "https://www.evidenz.de/",
+      "snippet": "evidenz Seminar-Management unterstützt Sie in allen Prozessen der Seminarverwaltung, von der Ressourcen- und Terminplanung über die Veröffentlichung auf Ihrer ...",
+      "position": 2,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltung von A wie Anmeldung bis Z wie Zahlung",
+      "link": "https://butlerapp.de/seminarverwaltung/",
+      "snippet": "Seminarverwaltung Software, die mitdenkt! Automatisiere Buchungen, Rechnungen & Teilnehmer. Spare Zeit & steigere deinen Umsatz mit Butlerapp.",
+      "position": 3,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltung Software im Vergleich (2025)",
+      "link": "https://www.antrago.de/seminarverwaltung-software-vergleich/",
+      "snippet": "Moderne Seminarverwaltungslösungen bieten Ihnen zusätzliche Komfort-Funktionen, wie beispielsweise das automatische Versenden von Online-Evaluationsbögen, ...",
+      "position": 4,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltung-Software – Seminare effizient managen",
+      "link": "https://www.combit.net/crm-software/seminarverwaltung/",
+      "snippet": "Mit der Seminarverwaltung in combit CRM organisieren Sie Seminare, Kurse und Weiterbildungen effizient und zentral an einem Ort. Unsere Lösung unterstützt ...",
+      "position": 5,
+      "type": "seo"
+    },
+    {
+      "title": "Software für die Seminarverwaltung und Kongressverwaltung",
+      "link": "https://www.softguide.de/software/seminarverwaltung-kongressverwaltung",
+      "snippet": "Die Seminarverwaltung ist eine modulbasierte Software zum Management von Seminaren und Kursen. Durch individuelle Anpassungen ist die Software auch in den ...",
+      "position": 6,
+      "type": "seo"
+    },
+    {
+      "title": "Linear Seminarverwaltung",
+      "link": "https://linear-software.de/seminarverwaltung/",
+      "snippet": "Die Linear Seminarverwaltung ist für die Verwaltung von Seminaren, Schulungen, Tagungen, Kongressen und jeglicher Veranstaltung konzipiert.",
+      "position": 7,
+      "type": "seo"
+    },
+    {
+      "title": "online Seminarverwaltung - LANcloud",
+      "link": "https://www.lancloud.cloud/funktionen/online-seminarverwaltung/",
+      "snippet": "Eine cloudbasierte Software für Seminarverwaltung vereinfacht die Organisation durch die zentrale Verwaltung von Teilnehmern, Kursplänen und Rechnungen.",
+      "position": 8,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltung leicht gemacht - 1CRM: Das CRM-System",
+      "link": "https://1crm-system.de/seminarverwaltung/",
+      "snippet": "Die Seminarverwaltung dient dazu, alle Informationen rund um die Teilnehmer zu bündeln und die Seminarorganisation zu erleichtern.",
+      "position": 9,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltung | deutschland",
+      "link": "https://www.doo.net/Seminarverwaltung",
+      "snippet": "Die einfache Verwaltung Ihrer Seminare steht bei doo im Fokus. Sparen Sie wertvolle Zeit durch clevere Automatisierung repetitiver Tätigkeiten.",
+      "position": 10,
+      "type": "seo"
+    }
+  ],
+  "selection": {
+    "indices": [
+      2
+    ],
+    "reasoning": "Index 2 is the only search result that points directly to the Butlerapp domain (butlerapp.de)."
+  }
+}

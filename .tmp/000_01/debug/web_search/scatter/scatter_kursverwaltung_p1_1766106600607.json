@@ -1,0 +1,84 @@
+{
+  "type": "scatter",
+  "query": "kursverwaltung",
+  "page": 1,
+  "results": [
+    {
+      "title": "Die 10 besten Kursverwaltung Software (2025)",
+      "link": "https://www.softwareabc24.de/kursverwaltung-software/",
+      "snippet": "Kursverwaltungsprogramme sind Softwareanwendungen, die bei allen Themen rund um das Thema Kursmanagement und -verwaltung unterstützen. Die Softwarelösungen ...",
+      "position": 1,
+      "type": "seo"
+    },
+    {
+      "title": "Kursverwaltung von A wie Anmeldung bis Z wie Zahlung",
+      "link": "https://butlerapp.de/kursverwaltung/",
+      "snippet": "Die smarte Kursverwaltung für dein Business! Automatisiere Buchungen, Zahlungen & Kommunikation. Spare Zeit & begeistere deine Kunden. Teste Butlerapp!",
+      "position": 2,
+      "type": "seo"
+    },
+    {
+      "title": "KURSO: Die Online-Kursverwaltung - für Kurse und Seminare",
+      "link": "https://www.kurso.de/",
+      "snippet": "Kurse ✓ Seminare ✓ Teilnehmende ✓ Lehrkräfte ✓ vieles mehr ✓ Für alle Bildungsträger ▷ schnell ✚ intuitiv ✚ kostengünstig ➨ Schnell loslegen!",
+      "position": 3,
+      "type": "seo"
+    },
+    {
+      "title": "Die All-in-One Software für deine Kursverwaltung",
+      "link": "https://yolawo.de/kursverwaltungssoftware/",
+      "snippet": "Kursverwaltungssoftware gesucht? Verwalte deine Kurse, Camps und Veranstaltungen einfach und effizient mit Yolawo! Jetzt kostenlos testen!",
+      "position": 4,
+      "type": "seo"
+    },
+    {
+      "title": "Was versteht man unter Kursverwaltung?",
+      "link": "https://www.softguide.de/funktion/kursverwaltung",
+      "snippet": "Typischerweise umfasst die Kursverwaltung Funktionen wie die Planung von Kursen, die Verwaltung von Teilnehmerdaten, die Organisation von Kursmaterialien sowie ...",
+      "position": 5,
+      "type": "seo"
+    },
+    {
+      "title": "Kurse: Online-Anmeldung und Teilnehmerverwaltung",
+      "link": "https://www.clubway.de/funktionen/kurse/",
+      "snippet": "Mit Clubway könnt ihr Anmeldungen, Kurseinheiten und Teilnehmerdaten ganz einfach planen und verwalten. Egal ob Schwimmunterricht, Selbstverteidigung, ...",
+      "position": 6,
+      "type": "seo"
+    },
+    {
+      "title": "Kursverwaltung - Linear Service GmbH",
+      "link": "https://linear-software.de/seminarverwaltung/kursverwaltung/",
+      "snippet": "Die Kursverwaltung Software dient der Verwaltung von Sprachkursen, Firmenkursen, Inhouse-Schulungen, Seminaren mit wiederkehrenden Terminen.",
+      "position": 7,
+      "type": "seo"
+    },
+    {
+      "title": "Course Manager – Die All-in-One Kursverwaltungssoftware ...",
+      "link": "https://www.course-manager.com/",
+      "snippet": "Verwalten Sie Ihre Kurse einfach digital: Der Course Manager automatisiert Kursbuchungen, Teilnehmerverwaltung, Rechnungen und Zahlungen – perfekt für ...",
+      "position": 8,
+      "type": "seo"
+    },
+    {
+      "title": "Intuitive Kursverwaltungssoftware - ALL4Schools",
+      "link": "https://all4schools.de/schulverwaltungssoftware-schulsoftware/kursverwaltungssoftware/",
+      "snippet": "Verwalten Sie Ihre Kurse, Seminare, Workshops oder Weiterbildungen ganz einfach mit unserer digitalen Kursverwaltungssoftware. Jetzt ansehen!",
+      "position": 9,
+      "type": "seo"
+    },
+    {
+      "title": "Effiziente Kursverwaltung mit der richtigen Software",
+      "link": "https://cmxkonzepte.de/kursverwaltung",
+      "snippet": "Kursverwaltungssoftware ermöglicht es Bildungseinrichtungen, Kursdaten, Teilnehmerinformationen und Zahlungen zentral und effizient zu ...",
+      "position": 10,
+      "date": "14.11.2024",
+      "type": "seo"
+    }
+  ],
+  "selection": {
+    "indices": [
+      1
+    ],
+    "reasoning": "The search result at index 1 is the only link pointing directly to butlerapp.de."
+  }
+}

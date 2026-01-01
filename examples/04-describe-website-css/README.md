@@ -9,24 +9,21 @@ Reverse-engineer the design system of a website (`butlerapp.de`) and generate a 
 
 ## 📸 The Style Scraper Plugin
 
-In `run.sh`, we configure the scraper to capture specific assets:
+In `run.sh`, we use specific flags to tell the scraper what to capture:
 
-```json
-{
-  "type": "style-scraper",
-  "url": "{{website_url}}",
-  "resolution": "1920x1080",
-  "mobile": true,
-  "interactive": true
-}
+```bash
+--style-scrape-url "{{website_url}}" \
+--style-scrape-resolution "1920x1080" \
+--style-scrape-mobile \
+--style-scrape-interactive
 ```
 
-| Setting | Value in Example | Description |
+| Flag | Value in Example | Description |
 | :--- | :--- | :--- |
-| `url` | `{{website_url}}` | The target website. Supports Handlebars. |
-| `resolution` | `1920x1080` | Sets the viewport for the desktop screenshot. |
-| `mobile` | `true` | **Crucial.** This forces the scraper to also emulate a mobile device (iPhone size) and take a second screenshot. This allows the AI to analyze responsiveness. |
-| `interactive` | `true` | This runs a script to find buttons, inputs, and links on the page. It hovers over them, takes snapshots of their states (Normal vs Hover), and extracts their computed CSS (colors, padding, fonts). |
+| `--style-scrape-url` | `{{website_url}}` | The target website. Supports Handlebars. |
+| `--style-scrape-resolution` | `1920x1080` | Sets the viewport for the desktop screenshot. |
+| `--style-scrape-mobile` | (Present) | **Crucial.** This forces the scraper to also emulate a mobile device (iPhone size) and take a second screenshot. This allows the AI to analyze responsiveness. |
+| `--style-scrape-interactive` | (Present) | This runs a script to find buttons, inputs, and links on the page. It hovers over them, takes snapshots of their states (Normal vs Hover), and extracts their computed CSS (colors, padding, fonts). |
 
 #### ⚙️ Style Scraper Configuration Schema
 
@@ -69,14 +66,12 @@ The prompt (`describe-styles.md`) receives all these assets (Desktop Image, Mobi
 
 ## 💾 Files vs. Data
 
-By default, this example generates **Files** (Markdown and Images) using the `outputPath` setting. The CSV rows are used as input but are not heavily modified.
+By default, this example generates **Files** (Markdown and Images) using the `--output` flag. The CSV rows are used as input but are not heavily modified.
 
-If you wanted to analyze the CSS programmatically later, you could change the output mode:
+If you wanted to analyze the CSS programmatically later, you could add the **Export** flag:
 
-```json
-"output": {
-  "mode": "merge"
-}
+```bash
+--style-scraper-export
 ```
 
 *   **Effect:** This sets the output mode to `merge`.
@@ -94,4 +89,4 @@ If you wanted to analyze the CSS programmatically later, you could change the ou
     bash examples/04-describe-website-css/run.sh
     ```
 
-The result is a Markdown file at `out/04-describe-website-css/httpsbutlerappde/style-analysis.md` (folder name is sanitized).
+The result is a Markdown file at `out/04-describe-website-css/butlerapp.de/style-analysis.md`.

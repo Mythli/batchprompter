@@ -1,0 +1,81 @@
+{
+  "type": "scatter",
+  "query": "seminarverwaltung",
+  "page": 2,
+  "results": [
+    {
+      "title": "planni: Seminarverwaltung-Software",
+      "link": "https://www.planni.de/",
+      "snippet": "Verwalte deine Seminare so einfach wie noch nie. Erstelle ein Seminar durch eine Vorlage in Sekunden. Ordne deinem Seminar einen Trainer und einen Ort zu und ...",
+      "position": 11,
+      "type": "seo"
+    },
+    {
+      "title": "MARVA: Software für Seminarverwaltung und Kursverwaltung",
+      "link": "https://www.marva.eu/",
+      "snippet": "„MARVA hat unsere Prozesse rund um die Seminar- und Teilnehmerverwaltung deutlich vereinfacht und beschleunigt. Das System ist, trotz der Vielzahl an ...",
+      "position": 12,
+      "type": "seo"
+    },
+    {
+      "title": "Cinnect - Deine intelligente Seminarverwaltung",
+      "link": "https://www.kursgestalter.de/cinnect-deine-intelligente-seminarverwaltung/",
+      "snippet": "Flexibel & ortsunabhängig. Die Seminarverwaltung von Cinnect ist vollständig webbasiert und in der Cloud verfügbar – Du brauchst keine Installation, keine ...",
+      "position": 13,
+      "type": "seo"
+    },
+    {
+      "title": "Die richtige Seminarverwaltung – kaufen, anpassen oder ...",
+      "link": "https://wundercoach.net/die-richtige-seminarverwaltung-kaufen-anpassen-oder-selbst-programmieren/",
+      "snippet": "Die Vorteile liegen auf der Hand: Die Seminarverwaltung muss nur gekauft oder gemietet und eingerichtet werden, und steht danach sehr schnell zur Verfügung. Oft ...",
+      "position": 14,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltungs-Software TCmanager",
+      "link": "https://www.softdecc.com/lms/seminarverwaltung.html",
+      "snippet": "TCmanager® ist eine flexible und umfassende Softwarelösung zur Verwaltung von Seminaren, Kursen und Qualifizierungsmaßnahmen. Sie richtet sich an Akademien, ...",
+      "position": 15,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltungssoftware für Bildungsanbieter | Die ...",
+      "link": "https://www.semcosoft.com/",
+      "snippet": "SEMCO ist die Seminarverwaltungssoftware für Bildungsanbieter. Verwalten Sie Kurse, Termine, Teilnehmer und Dokumentation – einfach, effizient, flexibel.",
+      "position": 16,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltung mit Software | Planung & Buchung - GFOS",
+      "link": "https://www.gfos.com/de/produkte/workforce-management/seminarverwaltung/",
+      "snippet": "Eine Seminarverwaltungssoftware ist eine spezialisierte Anwendung, die Unternehmen dabei unterstützt, ihre Weiterbildungsaktivitäten effizient zu organisieren ...",
+      "position": 17,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltung mit GRÜN VEWA | Planung leicht ...",
+      "link": "https://www.gruen.net/software/seminarverwaltung/",
+      "snippet": "GRÜN VEWA7 wird als Seminarverwaltung für die Planung, Durchführung und Abrechnung von Veranstaltungen und Seminaren jeder Art genutzt.",
+      "position": 18,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltungssoftware | Schulungen planen",
+      "link": "https://www.quality-circle.com/de/software/seminarverwaltung/",
+      "snippet": "Seminarverwaltung per Software sorgt für mehr Effizienz und Ordnung bei der Schulungsplanung. Wie kann die Software Sie bei der Arbeit unterstützen?",
+      "position": 19,
+      "type": "seo"
+    },
+    {
+      "title": "Seminarverwaltung, Seminarverwaltungssoftware ...",
+      "link": "https://celanio.com/",
+      "snippet": "Seminarverwaltung für einfaches und übersichtliches Management. Professionelle, webbasierte Seminarverwaltungssoftware.",
+      "position": 20,
+      "type": "seo"
+    }
+  ],
+  "selection": {
+    "indices": [],
+    "reasoning": "None of the provided search results contain a link to butlerapp.de. The results point to other software providers such as planni.de, marva.eu, kursgestalter.de, wundercoach.net, softdecc.com, semcosoft.com, gfos.com, gruen.net, quality-circle.com, and celanio.com."
+  }
+}

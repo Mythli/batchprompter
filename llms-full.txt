@@ -1,0 +1,1400 @@
+README.md
+````
+# BatchPrompt ⚡️
+
+**BatchPrompt** is a CLI tool for building **AI pipelines**. It automates the process of chaining LLMs, Web Search, and Scrapers to process data in bulk.
+
+Unlike a chatbot, BatchPrompt is **data-driven**: it takes a CSV/JSON file, and for every row, it executes a pipeline of steps to generate files or structured data.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Install
+```bash
+npm install -g batchprompt
+```
+
+### 2. Configure Keys
+(Recommended: Use [OpenRouter](https://openrouter.ai/) for access to OpenAI, Anthropic, and Google models via one key).
+
+**Mac/Linux:**
+```bash
+export BATCHPROMPT_OPENAI_BASE_URL="https://openrouter.ai/api/v1"
+export BATCHPROMPT_OPENAI_API_KEY="sk-or-..."
+export BATCHPROMPT_SERPER_API_KEY="your-serper-key" # Required for Search/Scraping
+```
+
+**Windows (PowerShell):**
+```powershell
+$env:BATCHPROMPT_OPENAI_BASE_URL="https://openrouter.ai/api/v1"
+$env:BATCHPROMPT_OPENAI_API_KEY="sk-or-..."
+$env:BATCHPROMPT_SERPER_API_KEY="your-serper-key"
+```
+
+---
+
+## 📚 Tutorials
+
+The best way to learn BatchPrompt is by doing. We have prepared step-by-step tutorials for common use cases.
+
+| Tutorial | Difficulty | What you'll learn |
+| :--- | :--- | :--- |
+| **[1. RAG Image Generation](examples/01-rag-imagegen/README.md)** | 🟢 Easy | How to use **Search** to find reference images and guide **Image Generation**. |
+| **[2. B2B Lead Generation](examples/02-lead-gen/README.md)** | 🔴 Advanced | How to build a **Multi-Stage Pipeline** (Find -> Enrich) with **JSON config**. |
+| **[3. SEO Rank Tracker](examples/03-seo-rank/README.md)** | 🟡 Medium | How to use **Web Search** and **AI Selectors** to analyze search results. |
+| **[4. Website Style Analyzer](examples/04-describe-website-css/README.md)** | 🟡 Medium | How to use the **Style Scraper** (Vision + CSS) to reverse-engineer design systems. |
+
+---
+
+## 🧠 How It Works
+
+Think of BatchPrompt as an **assembly line** for your data.
+
+1.  **Input:** You feed it a CSV file. Each row is a "raw material".
+2.  **The Pipeline:** You define a series of **Steps**.
+    *   **Fetch:** Plugins (Web Search, Image Search) go out and get data.
+    *   **Context:** The LLM receives the Row Data + Plugin Data.
+    *   **Generate:** The LLM creates content (Text, Code, JSON).
+3.  **Output:** The result is saved to a file OR merged back into the row for the next step.
+
+### The Data Flow
+
+```mermaid
+graph TD
+    Input[📂 Input CSV Row] -->|Load| Workspace[📦 Workspace]
+    
+    subgraph Step 1 [Step 1: Research]
+        Workspace -->|Query| Plugin1[🔌 Web Search Plugin]
+        Plugin1 -->|Results| Workspace
+        Workspace -->|Context| LLM1[🧠 LLM (Text)]
+        LLM1 -->|Summary| Workspace
+    end
+    
+    subgraph Step 2 [Step 2: Creation]
+        Workspace -->|Ref Image| LLM2[🎨 LLM (Image Gen)]
+        LLM2 -->|New Image| Output[💾 File Output]
+    end
+```
+
+---
+
+## 🔌 Plugins
+
+BatchPrompt comes with powerful built-in plugins to give your LLM access to the real world.
+
+*   **Web Search**: Google Search (Serper) with content fetching.
+*   **Image Search**: Find and download images for RAG or analysis.
+*   **Website Agent**: Autonomous scraper that navigates websites to extract specific data (JSON).
+*   **Style Scraper**: Captures screenshots (Desktop/Mobile) and computed CSS for design analysis.
+
+---
+
+## ⚙️ Configuration
+
+You can run BatchPrompt using simple CLI flags or robust YAML/JSON configuration files.
+
+**CLI Mode (Simple):**
+```bash
+batchprompt generate data.csv "Write a summary of {{topic}}" --model google/gemini-3-flash
+```
+
+**Config Mode (Advanced):**
+```bash
+batchprompt generate data.csv --config pipeline.yaml
+```
+
+See the [Tutorials](#-tutorials) for examples of both methods.
+
+````
+
+examples/01-rag-imagegen/README.md
+````
+# RAG Image Generation Tutorial
+
+This tutorial shows how to build a **Retrieval-Augmented Generation (RAG)** pipeline for images. Instead of generating images from scratch with a simple prompt, this pipeline first searches for real-world reference images, selects the best one using AI, and then uses that reference to guide the generation of a new, high-quality image.
+
+> **💡 Tip:** This tutorial is the primary reference for understanding and configuring the **Image Search Plugin**.
+
+## 🎯 Goal
+Generate a photorealistic "Hero Image" for a specific industry (e.g., "Sailing School") that adheres to strict brand guidelines (German features, specific lighting, no text).
+
+## 🧩 The Pipeline
+
+1.  **Query Generation**: The AI creates 5 different search queries to find diverse reference images for the industry.
+2.  **Visual Search**: It searches Google Images and retrieves candidates.
+3.  **AI Selection**: A Vision Model reviews the candidates against a scoring rubric (e.g., "Must be a woman", "Face visible") and picks the winner.
+4.  **Image-to-Image Generation**: The winning image is passed to the generation model as a reference to ensure the pose and composition are realistic.
+5.  **Post-Processing**: The final image is resized using ImageMagick.
+
+## ⚙️ Configuration
+
+The pipeline is defined inline in `run.sh`.
+
+### 1. Search & Retrieval (RAG)
+The `image-search` plugin handles the finding and selecting of reference images.
+
+```json
+{
+  "type": "image-search",
+  "queryModel": "google/gemini-3-flash-preview",
+  "queryPrompt": { "file": "examples/01-rag-imagegen/query-prompt.md" },
+  "queryCount": 5,
+  "selectModel": "google/gemini-3-flash-preview",
+  "selectThinkingLevel": "high",
+  "selectPrompt": { "file": "examples/01-rag-imagegen/select-prompt.md" },
+  "maxPages": 1,
+  "spriteSize": 6,
+  "select": 6,
+  "output": {
+    "mode": "ignore",
+    "explode": true
+  }
+}
+```
+
+| Setting | Value | Description |
+| :--- | :--- | :--- |
+| `queryPrompt` | (File) | Instructions for the AI to generate search keywords (e.g., "Girl sandbox" instead of just "Kindergarten"). |
+| `queryCount` | `5` | We generate 5 distinct search queries to cast a wide net. |
+| `selectPrompt` | (File) | **The Judge.** This prompt contains a scoring table (e.g., "+5 points if core activity visible"). The AI uses this to look at the search results and pick the single best image. |
+| `spriteSize` | `6` | To save tokens, we stitch 6 images into one "sprite" sheet before sending them to the Vision Model for selection. |
+| `select` | `6` | We keep the top 6 images. |
+| `output.explode` | `true` | **With flag:** Splits the selected images into separate processing tasks (one per image). The generation model runs multiple times, each with a single reference image.<br><br>**Without flag:** All selected images are passed to the generation model in a single context. The model runs once, seeing all references at the same time. |
+
+### 💥 Understanding `explode`
+
+This example uses `explode: true`. It changes the pipeline flow significantly:
+
+| Mode | Behavior | Result | Cost |
+| :--- | :--- | :--- | :--- |
+| **With Explode** | The 6 selected reference images are split into **6 separate tasks**. | You get **6 output images**. Each generated image is influenced by exactly *one* reference image. | Higher (6x generations) |
+| **Without Explode** | The 6 reference images are kept together in the context. | You get **1 output image**. The AI sees *all 6 references* at once and synthesizes them into one result. | Lower (1x generation) |
+
+### 2. Generation
+
+```json
+{
+  "prompt": { "file": "examples/01-rag-imagegen/prompt.md" },
+  "aspectRatio": "3:2",
+  "candidates": 2
+}
+```
+
+| Setting | Value | Description |
+| :--- | :--- | :--- |
+| `prompt` | (File) | The detailed instructions for the generation. Note that because we used `image-search`, the selected reference image is automatically passed to this model as context. |
+| `candidates` | `2` | We generate 2 variations of the final image. |
+
+### 3. Post-Processing
+
+```json
+{
+  "command": "magick '{{file}}' -resize 900x600 -quality 85 '{{file}}'"
+}
+```
+
+A shell command that runs after the file is saved. We use `magick` (ImageMagick) to resize the output to 900x600.
+
+## 🚀 Running the Example
+
+1.  **Install ImageMagick** (Required for the final step):
+    *   macOS: `brew install imagemagick`
+    *   Linux: `sudo apt-get install imagemagick`
+2.  **Set API Keys**:
+    ```bash
+    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
+    export BATCHPROMPT_SERPER_API_KEY="..."
+    ```
+3.  **Run**:
+    ```bash
+    bash examples/01-rag-imagegen/run.sh
+    ```
+
+The results will be saved to `out/01-rag-imagegen/Sailing_school/` (folder name is sanitized).
+
+Because we use **Explode** (6 reference images) and **Candidates** (2 variations per reference), you will get multiple files named with the pattern `HeroImage_{refIndex}_{candidateIndex}.jpg`:
+
+*   `HeroImage_0_1.jpg`
+*   `HeroImage_0_2.jpg`
+*   ...
+*   `HeroImage_5_1.jpg`
+*   `HeroImage_5_2.jpg`
+
+````
+
+examples/01-rag-imagegen/prompt.md
+````
+**Change the provided image based on the specific requirements listed below:**
+
+**General Instructions:**
+- Modify every subject to possess distinctively German facial features and styling, ensuring their ethnicity is natural to their appearance rather than relying on clothing stereotypes.
+- Do not add any new people who are not in the original image.
+- Do not remove existing people from the image.
+- Strictly preserve the original background and maintain the gender of every subject.
+- Eliminate all text overlays or graphics that appear to be digitally added in post-production.
+- **Strictly maintain the exact body posture, limb and feet positioning, and arm as well as finger placement of all subjects.**
+- Change the lighting to bright daylight
+- Upscale the image if it is pixelated
+- Leave all other visual elements strictly unchanged.
+- Remove all writing, logos, or branding from clothing.
+- do not change gear or tools
+
+**Change all women in the picture:**
+- Style all women as attractive **23–28-year-olds** with distinctively German features.
+- Change the face of the woman to change her identity
+- **Render their physiques as petite and slender, characterized by a delicate frame, narrow waist, and toned limbs.**
+- **Change clothing completely. Ensure their attire is form-fitting or flattering their figure while remaining consistent with the {{industry}} environment.**
+- **Depict a curvaceous, full bust proportion (C-D cup) that is prominent yet balances their slender frame.**
+
+````
+
+examples/01-rag-imagegen/query-prompt.md
+````
+You are an expert at image search queries. Generate 5 English search keywords for {{industry}}. Visual Logic: If {{industry}} is specific or abstract (e.g., 'Educator Training'), do NOT search for the term. Instead, deduce the physical objects and setting (e.g., 'sandbox', 'toys'). Subject: Girl/Woman. No lighting/mood terms. Instructions: 1. (Broad Visual) 'Girl' or 'Woman' + the most basic physical object or location (e.g., 'Girl sandbox'). 2. (Generic Action) 'Woman' + simple verb (e.g., 'reading', 'steering'). 3. (Generic Setting) Subject in the typical environment. 4. (Specific Object interaction) Subject holding/using a specific tool typical for this job. 5. (Descriptive Activity) Full sentence of the woman doing the physical task. Output exactly 5 numbered English queries.
+
+````
+
+examples/01-rag-imagegen/run.sh
+````
+#!/bin/bash
+
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
+# Define configuration inline
+CONFIG=$(cat <<EOF
+{
+  "globals": {
+    "model": "google/gemini-3-pro-image-preview",
+    "tmpDir": "out/01-rag-imagegen/{{industry}}/.tmp/HeroImage.jpg",
+    "outputPath": "out/01-rag-imagegen/{{industry}}/HeroImage.jpg"
+  },
+  "steps": [
+    {
+      "prompt": {
+        "file": "examples/01-rag-imagegen/prompt.md"
+      },
+      "aspectRatio": "3:2",
+      "candidates": 2,
+      "command": "magick '{{file}}' -resize 900x600 -quality 85 '{{file}}'",
+      "plugins": [
+        {
+          "type": "image-search",
+          "queryModel": "google/gemini-3-flash-preview",
+          "queryPrompt": {
+            "file": "examples/01-rag-imagegen/query-prompt.md"
+          },
+          "queryCount": 5,
+          "selectModel": "google/gemini-3-flash-preview",
+          "selectThinkingLevel": "high",
+          "selectPrompt": {
+            "file": "examples/01-rag-imagegen/select-prompt.md"
+          },
+          "maxPages": 1,
+          "spriteSize": 6,
+          "select": 6,
+          "output": {
+            "mode": "ignore",
+            "explode": true
+          }
+        }
+      ]
+    }
+  ]
+}
+EOF
+)
+
+# Run using inline JSON config
+echo -e "industry\nSailing school" | npx tsx src/index.ts generate --config "$CONFIG"
+
+````
+
+examples/01-rag-imagegen/select-prompt.md
+````
+Select the best image for {{industry}} using this scoring system. For each image, calculate the total score and select the image with the highest score.
+
+| Criterion | Points | Description |
+|-----------|--------|-------------|
+| Focal person is a woman 18-30 years old | +3 | The main subject is clearly a young adult woman |
+| Secondary person interaction | +2 | A second person is present and interacting with the focal person |
+| Core activity clearly visible | +5 | The woman is visibly performing the core activity of {{industry}} |
+| Face visible | +3 | The focal person's face is clearly visible |
+| Crowd of people in foreground | -3 | Multiple non-blurred people cluttering the image (blurred background people are OK) |
+
+**Automatic Disqualification (score = 0):**
+- Focal person is a child
+- Image contains a mirror
+- Low image quality
+- Visible watermarks or digitally added overlays
+
+Evaluate each image, calculate the score, and select the one with the highest total.
+
+````
+
+examples/02-lead-gen/1-find.sh
+````
+#!/bin/bash
+
+# This script finds and dedupes companies based on the industry and location.
+# It outputs a single CSV containing all companies: out/13-industry-search/companies.csv
+# The industry column is preserved so you can filter by industry.
+
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
+# Define configuration inline
+CONFIG=$(cat <<EOF
+{
+  "globals": {
+    "model": "google/gemini-3-flash-preview",
+    "thinkingLevel": "high",
+    "tmpDir": "out/02-lead-gen/.tmp",
+    "dataOutputPath": "out/02-lead-gen/companies.csv"
+  },
+  "steps": [
+    {
+      "prompt": "List all cities in Germany with more than 50,000 inhabitants. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name in German).\n",
+      "schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "location"
+          ]
+        }
+      },
+      "output": {
+        "mode": "merge",
+        "explode": true
+      },
+      "preprocessors": [
+        {
+          "type": "url-expander",
+          "mode": "puppeteer"
+        }
+      ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "web-search",
+          "queryPrompt": "Generate 3 distinct search queries to find the official websites of companies offering {{industry}} in {{location}}. Focus on finding direct company websites only. Do not include directories, lists, or aggregators.\n",
+          "selectPrompt": "Select only the official websites of companies offering {{industry}}. Ignore directories, lists, aggregators, and job boards. It does not matter where the companies are.\n",
+          "maxPages": 1,
+          "limit": 100,
+          "dedupeStrategy": "domain",
+          "gl": "de",
+          "hl": "de",
+          "output": {
+            "mode": "merge",
+            "explode": true
+          }
+        },
+        {
+          "type": "dedupe",
+          "key": "{{webSearch.domain}}"
+        },
+        {
+          "type": "validation",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "link": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "link"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
+EOF
+)
+
+# Run using inline JSON config
+cat examples/02-lead-gen/test.csv | npx tsx src/index.ts generate --config "$CONFIG"
+
+````
+
+examples/02-lead-gen/2-enrich.sh
+````
+#!/bin/bash
+
+# This script takes the list of companies and enriches it with contact details,
+# LinkedIn profiles, and offers.
+
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
+# Define configuration inline
+CONFIG=$(cat <<EOF
+{
+  "data": {},
+  "globals": {
+    "model": "google/gemini-3-flash-preview",
+    "thinkingLevel": "high",
+    "tmpDir": "out/02-lead-gen/.tmp",
+    "dataOutputPath": "out/02-lead-gen/companies_enriched.csv"
+  },
+  "steps": [
+    {
+      "plugins": [
+        {
+          "type": "website-agent",
+          "url": "{{link}}",
+          "schema": {
+            "type": "object",
+            "description": "Extract contact details, decision maker info, and identify the Top Offer of the business.",
+            "properties": {
+              "isIndustry": {
+                "type": ["boolean", "null"],
+                "description": "Is this company offering {{industry}} as their core product?"
+              },
+              "isIndustryReason": {
+                "type": ["string", "null"],
+                "description": "Reason why this company is or is not offering {{industry}}."
+              },
+              "companyName": {
+                "type": ["string", "null"],
+                "description": "The official name of the company (e.g. GmbH, AG, etc.). Optional."
+              },
+              "address": {
+                "type": ["object", "null"],
+                "description": "The postal address of the company. Optional.",
+                "properties": {
+                  "street": { "type": ["string", "null"], "description": "Optional." },
+                  "zip": { "type": ["string", "null"], "description": "Optional." },
+                  "city": { "type": ["string", "null"], "description": "Optional." }
+                }
+              },
+              "decisionMaker": {
+                "type": ["object", "null"],
+                "description": "The best person to contact for business decisions. Look for the CEO (Geschäftsführer), Owner (Inhaber), or Founder. If not available, look for Head of Department or similar high-level roles. Optional.\n",
+                "properties": {
+                  "firstName": { "type": ["string", "null"], "description": "Optional." },
+                  "lastName": { "type": ["string", "null"], "description": "Optional." },
+                  "role": { "type": ["string", "null"], "description": "The job title (e.g. CEO, Geschäftsführer). Optional." },
+                  "email": { "type": ["string", "null"], "description": "Direct email of the decision maker. Optional." },
+                  "phone": { "type": ["string", "null"], "description": "Direct phone number of the decision maker. Format: International format (e.g. +49 30 123456). Optional." }
+                }
+              },
+              "webDesignAgency": {
+                "type": ["object", "null"],
+                "description": "Information about the agency that built the website, usually found in the footer (e.g. 'Made by...', 'Webdesign by...'). Important: We need the web design agency which build the site and not the author of the theme. Do not include generic homepage builders like Jimdo, Wix, Squarespace, etc. Optional.\n",
+                "properties": {
+                  "name": { "type": ["string", "null"], "description": "Optional." },
+                  "url": { "type": ["string", "null"], "description": "The URL of the web design agency. Optional." }
+                }
+              },
+              "topOffer": {
+                "type": ["object", "null"],
+                "description": "Identify ONE single, concrete, purchasable 'Top Offer'. It must be the MAIN product or service this business is trying to sell. Look for the 'Hero' offer featured on the homepage, the core service that defines the business. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').\n",
+                "properties": {
+                  "name": { "type": ["string", "null"], "description": "The specific name of the single offer (e.g. 'Open Water Diver Course', 'Full Body Massage 60min'). (in German)" },
+                  "price": { "type": ["number", "null"], "description": "The price of this specific offer in Euros (e.g. 2990). Do not include currency symbols." },
+                  "description": { "type": ["string", "null"], "description": "A detailed description of exactly what is included in this specific offer. Do not list general services." },
+                  "link": { "type": ["string", "null"], "description": "The specific URL to this offer's page." },
+                  "bookingPage": { "type": ["string", "null"], "description": "Link to the booking page, contact form, or checkout page specifically for this offer." },
+                  "reason": { "type": ["string", "null"], "description": "Reason why this specific item was selected as the top offer (e.g. 'Featured prominently on homepage', 'Core business service'). (in German)" }
+                }
+              },
+              "top5Offers": {
+                "type": ["string", "null"],
+                "description": "A bulleted list of the top 5 offers found on the website. Each bullet point must include the Offer Name, Price (if available), Appointment info (if relevant), and a short description of what it is."
+              }
+            }
+          },
+          "output": {
+            "mode": "merge"
+          }
+        }
+      ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "validation",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "isIndustry": { "const": true },
+              "companyName": { "type": "string", "minLength": 1 },
+              "decisionMaker": {
+                "type": "object",
+                "properties": {
+                  "firstName": { "type": "string", "minLength": 1 },
+                  "lastName": { "type": "string", "minLength": 1 }
+                },
+                "required": ["firstName", "lastName"]
+              }
+            },
+            "required": ["companyName", "decisionMaker", "isIndustry"]
+          }
+        }
+      ]
+    },
+    {
+      "prompt": "You are a data extraction engine. Extract the LinkedIn URL for {{decisionMaker.firstName}} {{decisionMaker.lastName}} from the search results.\n\nOutput Rules:\n\n1. Return ONLY the URL (starting with https://).\n\n2. If no valid personal profile is found, return an empty string.\n\n3. Do NOT return JSON, Markdown, quotes, or explanations.\n",
+      "output": {
+        "mode": "column",
+        "column": "linkedinUrl"
+      },
+      "plugins": [
+        {
+          "type": "web-search",
+          "query": "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company",
+          "limit": 5,
+          "selectPrompt": "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything.\n"
+        }
+      ]
+    }
+  ]
+}
+EOF
+)
+
+# Run using inline JSON config
+# Input comes from the output of step 1
+cat out/02-lead-gen/companies.csv | npx tsx src/index.ts generate --config "$CONFIG"
+
+````
+
+examples/02-lead-gen/README.md
+````
+# B2B Lead Generation Tutorial
+
+This example demonstrates a sophisticated **multi-stage pipeline** configured via JSON files. It automates the process of finding companies, qualifying them, and finding contact details for decision-makers.
+
+> **💡 Tip:** This tutorial is the primary reference for understanding and configuring the **Website Agent**.
+
+## 🎯 Goal
+Create a CSV list of "Sprachschulen" (Language Schools) in Münster, enriched with the CEO's name, their LinkedIn profile, and their top product offer.
+
+## 🏗️ Architecture
+
+The pipeline is split into two phases to allow for manual review in between if necessary.
+
+1.  **Phase 1: Find (`1-find.sh`)** -> Scans the web for companies.
+2.  **Phase 2: Enrich (`2-enrich.sh`)** -> Visits websites and finds people.
+
+---
+
+## 💾 Data Output Strategies
+
+This pipeline demonstrates the three core ways BatchPrompt handles data:
+
+### 1. Explode (Expansion)
+Used in **Phase 1 (Step 1)**.
+*   **Config:** `"output": { "mode": "merge", "explode": true }`
+*   **Scenario:** The AI lists 5 districts of Münster.
+*   **Result:** The single row "Münster" is deleted and replaced by **5 new rows** (one for each district). The pipeline continues with 5x the volume.
+
+### 2. Merge (Enrichment)
+Used in **Phase 2 (Step 1 - Website Agent)**.
+*   **Config:** `"output": { "mode": "merge" }`
+*   **Scenario:** The agent finds `{ "ceo": "John Doe", "price": 500 }`.
+*   **Result:** These fields are **merged** into the existing row. The row count stays the same, but the columns grow.
+*   *Note:* If `explode` were true here, and the agent found 2 CEOs, the row would split into 2 rows (one for each CEO).
+
+### 3. Column (Assignment)
+Used in **Phase 2 (Step 3 - LinkedIn)**.
+*   **Config:** `"output": { "mode": "column", "column": "linkedinUrl" }`
+*   **Scenario:** We want the LinkedIn URL in a specific column, not merged at the root level.
+*   **Result:** The result string is saved specifically to the `linkedinUrl` column.
+
+---
+
+## 🔎 Phase 1: Discovery (`1-find.sh`)
+
+This configuration finds the raw list of company websites.
+
+### Step 1: Location Expansion
+```json
+{
+  "prompt": "List the city of Münster...",
+  "output": { "mode": "merge", "explode": true }
+}
+```
+
+| Property | Value | Description |
+| :--- | :--- | :--- |
+| `prompt` | *"List the city of Münster..."* | Asks the AI to output a list of locations. |
+| `output.explode` | `true` | If the AI lists multiple districts or cities, the pipeline splits here, creating a separate search task for each location. |
+
+### Step 2: Intelligent Search
+```json
+{
+  "plugins": [
+    {
+      "type": "web-search",
+      "queryPrompt": "Generate 3 distinct search queries...",
+      "selectPrompt": "Select only the official websites...",
+      "dedupeStrategy": "domain"
+    }
+  ]
+}
+```
+
+| Property | Value | Description |
+| :--- | :--- | :--- |
+| `queryPrompt` | *"Generate 3 distinct..."* | Instead of searching for "Sprachschule Münster", the AI generates variations like "Language school Münster contact", "German courses Münster", etc. |
+| `selectPrompt` | *"Select only the official..."* | The AI reviews the Google Search snippets and filters out directories (like Yelp or Yellow Pages), keeping only actual company websites. |
+| `dedupeStrategy` | `"domain"` | Ensures we don't list the same company twice if they appear in multiple searches. |
+
+---
+
+## 💎 Phase 2: Enrichment (`2-enrich.sh`)
+
+This configuration takes the list of URLs and extracts deep insights.
+
+### Step 1: The Website Agent
+```json
+{
+  "plugins": [
+    {
+      "type": "website-agent",
+      "url": "{{link}}",
+      "schema": { ... },
+      "budget": 10,
+      "batchSize": 3
+    }
+  ]
+}
+```
+*   **`website-agent`**: This is an autonomous scraper. It visits the URL, and if it doesn't find the info on the homepage, it clicks links (like "Impressum", "About Us", "Team") to find it.
+
+#### ⚙️ Full Configuration Schema
+
+The `website-agent` is highly configurable. You can control the specific models, prompts, and reasoning levels for each internal agent (Navigator, Extractor, Merger).
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "const": "website-agent",
+      "description": "Must be 'website-agent'"
+    },
+    "url": {
+      "type": "string",
+      "description": "The starting URL to scrape. Supports Handlebars syntax (e.g., '{{link}}')."
+    },
+    "schema": {
+      "type": ["object", "string"],
+      "description": "The JSON Schema defining the data to extract. Can be an inline object or a path to a schema file."
+    },
+    "budget": {
+      "type": "integer",
+      "default": 10,
+      "description": "Maximum number of pages to visit per website."
+    },
+    "batchSize": {
+      "type": "integer",
+      "default": 3,
+      "description": "Number of pages to visit in parallel during each iteration."
+    },
+    "navigatorModel": {
+      "type": "string",
+      "description": "Model used by the Navigator agent to decide which links to click."
+    },
+    "navigatorThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the Navigator model."
+    },
+    "navigatorTemperature": {
+      "type": "number",
+      "description": "Temperature for the Navigator model."
+    },
+    "navigatorPrompt": {
+      "type": "string",
+      "description": "Custom instructions for the Navigator. Can be raw text, a file path, or a directory path."
+    },
+    "extractModel": {
+      "type": "string",
+      "description": "Model used by the Extractor agent to read page content."
+    },
+    "extractThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the Extractor model."
+    },
+    "extractTemperature": {
+      "type": "number",
+      "description": "Temperature for the Extractor model."
+    },
+    "extractPrompt": {
+      "type": "string",
+      "description": "Custom instructions for the Extractor."
+    },
+    "mergeModel": {
+      "type": "string",
+      "description": "Model used by the Merger agent to consolidate data."
+    },
+    "mergeThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the Merger model."
+    },
+    "mergeTemperature": {
+      "type": "number",
+      "description": "Temperature for the Merger model."
+    },
+    "mergePrompt": {
+      "type": "string",
+      "description": "Custom instructions for the Merger."
+    }
+  },
+  "required": ["type", "url", "schema"]
+}
+```
+
+#### 🧠 Advanced Model Configuration
+
+**1. Reasoning Levels (`thinkingLevel`)**
+For complex tasks, you can enable "reasoning" (Chain of Thought) if the underlying model supports it (e.g., Gemini 2.0 Flash Thinking, OpenAI o1/o3).
+*   **`high`**: Best for the **Navigator** to make smart decisions about which links are relevant.
+*   **`low`** / **`medium`**: Good for extraction or merging.
+
+**2. Custom Prompts (Files & Folders)**
+All `*Prompt` fields (e.g., `navigatorPrompt`) accept three types of input:
+*   **Raw Text**: `"You are a navigator..."`
+*   **File Path**: `"prompts/navigator.md"` (The file content is loaded).
+*   **Directory Path**: `"prompts/navigator/"` (All files in the directory are loaded and concatenated. Useful for providing few-shot examples as separate files).
+
+**3. Schema as File**
+Instead of writing a huge JSON object inline, you can save your schema to a file and reference it:
+`"schema": "schemas/company-schema.json"`
+
+*   **`schema`**: Defines exactly what we want.
+    *   **Why is everything optional?** The agent visits up to 10 pages per website. It extracts data from *each* page individually. A single page (like "About Us") might contain the CEO's name but not the pricing, while another page (like "Offers") has the pricing but not the CEO. By making fields nullable (`["string", "null"]`), we allow the agent to extract partial information from each page. These partial results are then merged into a complete profile.
+    *   `decisionMaker`: We ask for the CEO/Founder's name.
+    *   `topOffer`: We ask the AI to identify the main product and its price.
+    *   `isIndustry`: A boolean check to ensure this is actually a language school.
+
+#### 🤖 How the Website Agent Works Internally
+The agent operates in a loop to gather information intelligently:
+1.  **Visit & Extract:** It visits the current URL and uses an LLM to extract any data matching your schema found on *that specific page*.
+2.  **Scan Links:** It identifies all internal links on the page (e.g., "Contact", "Imprint", "Pricing").
+3.  **Navigate:** A "Navigator" LLM reviews the data collected so far and the available links. It decides which page to visit next to fill in the missing blanks (e.g., "I have the company name, but I still need the CEO. I will visit the 'Team' page next.").
+4.  **Repeat:** It repeats this process until the `budget` (max pages) is reached or the Navigator decides it has found everything.
+5.  **Merge:** Finally, a "Merger" LLM consolidates all the partial data snippets from the different pages into one final, clean JSON object.
+
+### Step 2: Validation
+```json
+{
+  "plugins": [
+    {
+      "type": "validation",
+      "schema": { ... "required": ["companyName", "decisionMaker"] ... }
+    }
+  ]
+}
+```
+*   **What it does:** Since Step 1 was permissive (collecting whatever it could find), Step 2 is strict. It checks the extracted data against a rigid schema.
+*   **The Filter:** If the Website Agent failed to find a `companyName` or a `decisionMaker`, this row is **dropped**. This ensures your final list only contains high-quality leads with actionable contact info.
+
+### Step 3: LinkedIn Finder
+```json
+{
+  "plugins": [
+    {
+      "type": "web-search",
+      "query": "site:linkedin.com/in/ {{decisionMaker.firstName}}...",
+      "selectPrompt": "Select the LinkedIn personal profile..."
+    }
+  ]
+}
+```
+
+| Property | Value | Description |
+| :--- | :--- | :--- |
+| `query` | *"site:linkedin.com/in/..."* | It constructs a targeted Google search using the name found in Step 1. |
+| `selectPrompt` | *"Select the LinkedIn..."* | The AI looks at the search results to pick the correct LinkedIn profile URL, ignoring company pages. |
+
+---
+
+## 🚀 Running the Example
+
+1.  **Set API Keys**:
+    ```bash
+    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
+    export BATCHPROMPT_SERPER_API_KEY="..."
+    ```
+2.  **Run**:
+    ```bash
+    bash examples/02-lead-gen/run.sh
+    ```
+
+Check `out/02-lead-gen/companies_enriched.csv` for the results.
+
+````
+
+examples/02-lead-gen/run.sh
+````
+#!/bin/bash
+
+# Output directory: out/13-industry-search/
+# 
+# Data flow:
+# - Step 1 (find): out/13-industry-search/companies.csv (all industries)
+# - Step 2 (enrich): out/13-industry-search/enriched.csv (all industries)
+# - Temp files: out/13-industry-search/.tmp/
+#
+# The 'industry' column is preserved in the output CSV, so you can filter by industry.
+
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
+# 1. Find and dedupe companies
+echo "Running Step 1: Finding companies..."
+echo "Output: out/13-industry-search/companies.csv"
+bash examples/02-lead-gen/1-find.sh
+
+# 2. Enrich with contact info, LinkedIn, and offers
+echo ""
+echo "Running Step 2: Enriching data..."
+echo "Output: out/13-industry-search/enriched.csv"
+bash examples/02-lead-gen/2-enrich.sh
+
+echo ""
+echo "Done! Results saved to out/13-industry-search/"
+echo "Filter by 'industry' column to view results per industry."
+
+````
+
+examples/03-seo-rank/README.md
+````
+# SEO Rank Tracker Tutorial
+
+This example shows how to use `batchprompt` as a flexible SEO tool. It demonstrates how to use the **Web Search Plugin** with an **AI Selector** to perform intelligent rank tracking.
+
+> **💡 Tip:** This tutorial is the primary reference for understanding and configuring the **Web Search Plugin**.
+
+## 🎯 Goal
+Check a list of keywords (from `data.csv`) and determine if a specific domain (e.g., `butlerapp.de`) appears in the top Google search results.
+
+## ⚙️ Configuration
+
+The pipeline is defined inline in `run.sh`.
+
+```json
+{
+  "type": "web-search",
+  "query": "{{keyword}}",
+  "maxPages": 3,
+  "limit": 30,
+  "selectPrompt": "Select up to 10 links that point to Butlerapp (butlerapp.de). If no Butlerapp link exists, select nothing.",
+  "output": {
+    "mode": "merge",
+    "explode": true
+  }
+}
+```
+
+### Key Settings Explained
+
+| Setting | Value in Example | Description |
+| :--- | :--- | :--- |
+| `query` | `{{keyword}}` | This pulls the search term from the input CSV row. |
+| `maxPages` | `3` | We tell the scraper to fetch the first 3 pages of Google results (approx. 30 results). |
+| `selectPrompt` | *"Select up to 10 links..."* | **This is the filter.** Normally, `web-search` returns the most relevant results for the *query*. By setting a `selectPrompt`, we tell the AI to look at those 30 results and **only return the ones that match our criteria** (links to `butlerapp.de`). If the domain isn't found, the AI returns nothing, effectively telling us we are not ranking for that keyword. |
+
+### 💾 Output Configuration
+
+```json
+"output": {
+  "mode": "merge",
+  "explode": true
+}
+```
+
+*   **`mode: "merge"`**: This ensures the search result data (Title, Link, Snippet) is added to your CSV row. If you set this to `ignore` (default), the search would happen, but the data wouldn't appear in your final CSV.
+*   **`explode: true`**: The search returns an **Array** of results.
+    *   **True:** Creates 1 row per search result (e.g., 10 rows for 1 keyword). Useful for analyzing every ranking.
+    *   **False:** Keeps 1 row per keyword. The search results are stored as a JSON array inside that row. Useful if you just want to store the data without expanding the CSV.
+
+#### 🤖 How the Web Search Plugin Works Internally
+The plugin uses a **Map-Reduce** approach to handle large volumes of search results efficiently:
+
+1.  **Generate Queries:** If configured, an LLM generates multiple search variations (e.g., "Language school", "German courses") to cast a wide net.
+2.  **Scatter (Search & Filter):** It executes all searches in parallel. If a `selectPrompt` is provided, it applies a **Local Filter** to each page of results immediately. This discards irrelevant results (like directories or ads) before they clog up the pipeline.
+3.  **Gather & Dedupe:** It collects all surviving results and removes duplicates based on the `dedupeStrategy` (e.g., keeping only one result per domain).
+4.  **Reduce (Global Selection):** If the number of unique results still exceeds the `limit`, it runs a final **Global Selection** step to pick the absolute best matches.
+5.  **Enrich:** Finally, if `mode` is set to `markdown` or `html`, it visits the selected URLs to fetch their full content.
+
+#### ⚙️ Web Search Configuration Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "const": "web-search",
+      "description": "Must be 'web-search'"
+    },
+    "query": {
+      "type": "string",
+      "description": "The search query. Supports Handlebars (e.g., '{{keyword}}')."
+    },
+    "limit": {
+      "type": "integer",
+      "default": 5,
+      "description": "Max total results to return."
+    },
+    "mode": {
+      "enum": ["none", "markdown", "html"],
+      "default": "none",
+      "description": "Content fetching mode: 'none' (snippets only), 'markdown', 'html'."
+    },
+    "queryCount": {
+      "type": "integer",
+      "default": 3,
+      "description": "Number of queries to generate (if using query model)."
+    },
+    "maxPages": {
+      "type": "integer",
+      "default": 1,
+      "description": "Max pages of search results to fetch per query."
+    },
+    "dedupeStrategy": {
+      "enum": ["none", "domain", "url"],
+      "default": "none",
+      "description": "Deduplication strategy."
+    },
+    "gl": {
+      "type": "string",
+      "description": "Google Search country code (e.g. 'de', 'us')."
+    },
+    "hl": {
+      "type": "string",
+      "description": "Google Search language code (e.g. 'de', 'en')."
+    },
+    "queryModel": {
+      "type": "string",
+      "description": "Model used to generate search queries."
+    },
+    "queryThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the query model."
+    },
+    "queryTemperature": {
+      "type": "number",
+      "description": "Temperature for the query model."
+    },
+    "queryPrompt": {
+      "type": "string",
+      "description": "Instructions for generating search queries."
+    },
+    "selectModel": {
+      "type": "string",
+      "description": "Model used to select/filter results."
+    },
+    "selectThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the selection model."
+    },
+    "selectTemperature": {
+      "type": "number",
+      "description": "Temperature for the selection model."
+    },
+    "selectPrompt": {
+      "type": "string",
+      "description": "Criteria for selecting results."
+    },
+    "compressModel": {
+      "type": "string",
+      "description": "Model used to summarize page content (if mode is not 'none')."
+    },
+    "compressThinkingLevel": {
+      "enum": ["low", "medium", "high"],
+      "description": "Reasoning effort for the compression model."
+    },
+    "compressTemperature": {
+      "type": "number",
+      "description": "Temperature for the compression model."
+    },
+    "compressPrompt": {
+      "type": "string",
+      "description": "Instructions for summarizing content."
+    }
+  },
+  "required": ["type"]
+}
+```
+
+## 🚀 Running the Example
+
+1.  **Set API Keys**:
+    ```bash
+    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
+    export BATCHPROMPT_SERPER_API_KEY="..."
+    ```
+2.  **Run**:
+    ```bash
+    bash examples/03-seo-rank/run.sh
+    ```
+
+The output `out/03-seo-rank/results.csv` will contain the keywords and the specific URLs where the domain was found ranking.
+
+````
+
+examples/03-seo-rank/data.csv
+````
+keyword,impressions,clicks,conversions
+kursverwaltung
+seminarverwaltung
+buchungssystem
+kurs buchungssystem
+seminarverwaltungssoftware,159,30,3.00
+kursbuchungssystem,372,28,3.00
+kursverwaltungssoftware,214,22,2.50
+wordpress buchungssystem,234,33,2.00
+online buchungssystem,495,23,2.00
+kursverwaltung,316,18,2.00
+buchungstool für website,128,18,2.00
+buchungssystem für kurse,118,15,2.00
+seminarverwaltung software,284,13,2.00
+buchungssystem für kurse,60,11,2.00
+online buchungssystem für kurse,60,10,2.00
+seminarmanagement software,103,9,2.00
+software seminarverwaltung,88,8,2.00
+kursverwaltungssoftware schweiz,66,5,2.00
+buchungssystem wordpress,180,17,1.00
+buchungstool für kurse,65,11,1.00
+kursverwaltung software,67,10,1.00
+buchungstools,63,9,1.00
+online buchungstool,82,7,1.00
+online seminar software,38,7,1.00
+wix buchungssystem,171,5,1.00
+online buchungssystem wordpress,29,5,1.00
+seminar management system,27,5,1.00
+kurs software,25,5,1.00
+online buchungssystem für website,24,4,1.00
+kurs buchungssystem,21,3,1.00
+kursbuchungssystem online,18,2,1.00
+kurse online verwalten,8,2,1.00
+kurse online buchen software,8,2,1.00
+wordpress plugin seminarverwaltung,7,2,1.00
+wordpress plugin seminarverwaltung,3,2,1.00
+online buchungssystem kurse,2,2,1.00
+kurstool,43,1,1.00
+seminarverwaltung system,16,1,1.00
+software kursbuchung,9,1,1.00
+online buchung software,2,1,1.00
+online booking system for therapists,2,1,1.00
+workshops tools,2,1,1.00
+wordpress buchungssystem,95,18,0.50
+joomla kursverwaltung,13,4,0.50
+
+````
+
+examples/03-seo-rank/run.sh
+````
+#!/bin/bash
+
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
+# Define configuration inline
+CONFIG=$(cat <<EOF
+{
+  "data": {
+    "limit": 10
+  },
+  "globals": {
+    "dataOutputPath": "out/03-seo-rank/results.csv",
+    "model": "google/gemini-3-flash-preview",
+    "tmpDir": "out/03-seo-rank/.tmp",
+    "outputPath": "out/03-seo-rank/results.csv"
+  },
+  "steps": [
+    {
+      "plugins": [
+        {
+          "type": "web-search",
+          "query": "{{keyword}}",
+          "maxPages": 3,
+          "limit": 30,
+          "mode": "none",
+          "gl": "de",
+          "hl": "de",
+          "selectPrompt": "Select up to 10 links that point to Butlerapp (butlerapp.de). If no Butlerapp link exists, select nothing.",
+          "output": {
+            "mode": "merge",
+            "explode": true
+          }
+        }
+      ]
+    }
+  ]
+}
+EOF
+)
+
+# Run using inline JSON config
+cat examples/03-seo-rank/data.csv | npx tsx src/index.ts generate --config "$CONFIG"
+
+echo ""
+echo "Done! Results saved to out/03-seo-rank/results.csv"
+
+````
+
+examples/04-describe-website-css/README.md
+````
+# Website Style Analyzer Tutorial
+
+This example demonstrates the **Style Scraper** plugin. Unlike standard scrapers that look for text, this plugin captures the **visual state** of a website, including screenshots and computed CSS, to allow Vision Models to analyze design.
+
+> **💡 Tip:** This tutorial is the primary reference for understanding and configuring the **Style Scraper Plugin**.
+
+## 🎯 Goal
+Reverse-engineer the design system of a website (`butlerapp.de`) and generate a Markdown summary of its color palette, typography, and brand personality.
+
+## 📸 The Style Scraper Plugin
+
+In `run.sh`, we use specific flags to tell the scraper what to capture:
+
+```bash
+--style-scrape-url "{{website_url}}" \
+--style-scrape-resolution "1920x1080" \
+--style-scrape-mobile \
+--style-scrape-interactive
+```
+
+| Flag | Value in Example | Description |
+| :--- | :--- | :--- |
+| `--style-scrape-url` | `{{website_url}}` | The target website. Supports Handlebars. |
+| `--style-scrape-resolution` | `1920x1080` | Sets the viewport for the desktop screenshot. |
+| `--style-scrape-mobile` | (Present) | **Crucial.** This forces the scraper to also emulate a mobile device (iPhone size) and take a second screenshot. This allows the AI to analyze responsiveness. |
+| `--style-scrape-interactive` | (Present) | This runs a script to find buttons, inputs, and links on the page. It hovers over them, takes snapshots of their states (Normal vs Hover), and extracts their computed CSS (colors, padding, fonts). |
+
+#### ⚙️ Style Scraper Configuration Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "type": {
+      "const": "style-scraper",
+      "description": "Must be 'style-scraper'"
+    },
+    "url": {
+      "type": "string",
+      "description": "URL to scrape. Supports Handlebars (e.g., '{{url}}')."
+    },
+    "resolution": {
+      "type": "string",
+      "default": "1920x1080",
+      "description": "Viewport resolution for desktop screenshot."
+    },
+    "mobile": {
+      "type": "boolean",
+      "default": false,
+      "description": "Capture an additional mobile screenshot (iPhone X viewport)."
+    },
+    "interactive": {
+      "type": "boolean",
+      "default": false,
+      "description": "Find interactive elements, hover them, and capture screenshots + CSS."
+    }
+  },
+  "required": ["type", "url"]
+}
+```
+
+## 🧠 The Prompt
+
+The prompt (`describe-styles.md`) receives all these assets (Desktop Image, Mobile Image, Element Snapshots, CSS text) as context. It asks the AI to synthesize this into a design system document.
+
+## 💾 Files vs. Data
+
+By default, this example generates **Files** (Markdown and Images) using the `--output` flag. The CSV rows are used as input but are not heavily modified.
+
+If you wanted to analyze the CSS programmatically later, you could add the **Export** flag:
+
+```bash
+--style-scraper-export
+```
+
+*   **Effect:** This sets the output mode to `merge`.
+*   **Result:** The computed CSS text and the paths to the screenshots would be added as columns in your `data.csv` (e.g., `styleScraper.css`, `styleScraper.desktop`).
+
+## 🚀 Running the Example
+
+1.  **Set API Keys**:
+    ```bash
+    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
+    # Serper key is not strictly required for this plugin, but good practice
+    ```
+2.  **Run**:
+    ```bash
+    bash examples/04-describe-website-css/run.sh
+    ```
+
+The result is a Markdown file at `out/04-describe-website-css/butlerapp.de/style-analysis.md`.
+
+````
+
+examples/04-describe-website-css/data.csv
+````
+"website_url"
+"https://butlerapp.de"
+
+````
+
+examples/04-describe-website-css/describe-styles.md
+````
+# Website Style Analysis
+
+You are an expert UI/UX Designer. Your task is to analyze the visual style of the website {{website_url}} based on the provided screenshots and computed styles.
+
+Please output a design system summary in Markdown format covering:
+
+1.  **Color Palette**: Primary, secondary, and accent colors.
+2.  **Typography**: Headings and body fonts (family, weight, style).
+3.  **UI Components**:
+    *   **Buttons**: Shape, color, borders, hover effects.
+    *   **Cards/Containers**: Backgrounds, shadows, border radius.
+4.  **Layout & Spacing**: Density, whitespace usage, alignment.
+5.  **Brand Personality**: The overall mood (e.g., modern, trustworthy, playful).
+
+Do not output CSS code, just a descriptive analysis.
+
+````
+
+examples/04-describe-website-css/run.sh
+````
+#!/bin/bash
+
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
+# Run the batchprompt tool
+# - Uses the style-scraper plugin to capture screenshots (desktop & mobile) and interactive element styles.
+# - Passes these assets to GPT-4o to generate a design description.
+
+cat examples/04-describe-website-css/data.csv | npx tsx src/index.ts generate \
+  "examples/04-describe-website-css/describe-styles.md" \
+  --style-scrape-url "{{website_url}}" \
+  --style-scrape-resolution "1920x1080" \
+  --style-scrape-mobile \
+  --style-scrape-interactive \
+  --output "out/04-describe-website-css/{{website_url}}/style-analysis.md"
+
+````
+
+examples/05-simple-chain/data.csv
+````
+genre
+"Cyberpunk Jazz"
+"Medieval Techno"
+
+````
+
+examples/05-simple-chain/run.sh
+````
+#!/bin/bash
+
+# Navigate to the project root directory
+cd "$(dirname "$0")/../.."
+
+# Define configuration inline
+CONFIG=$(cat <<EOF
+{
+  "globals": {
+    "model": "google/gemini-3-flash-preview",
+    "dataOutputPath": "out/05-simple-chain/results.csv"
+  },
+  "steps": [
+    {
+      "prompt": "Generate a creative band name for a {{genre}} band. Return ONLY the name, nothing else.",
+      "output": {
+        "mode": "column",
+        "column": "band_name"
+      }
+    },
+    {
+      "prompt": "Write a short, catchy slogan for the band '{{band_name}}'.",
+      "output": {
+        "mode": "column",
+        "column": "slogan"
+      }
+    },
+    {
+      "prompt": "Act as a harsh music critic. Judge the potential of the band '{{band_name}}' with the slogan '{{slogan}}'. Write a short review.",
+      "candidates": 3,
+      "output": {
+        "mode": "column",
+        "column": "reviews"
+      }
+    }
+  ]
+}
+EOF
+)
+
+# Run using inline JSON config
+cat examples/05-simple-chain/data.csv | npx tsx src/index.ts generate --config "$CONFIG"
+
+echo ""
+echo "Done! Results saved to out/05-simple-chain/results.csv"
+
+````
+
+examples/run.sh
+````
+#!/bin/bash
+
+# Exit immediately if a command exits with a non-zero status
+set -e
+
+# Navigate to the project root directory
+cd "$(dirname "$0")/.."
+
+echo "=========================================="
+echo "Running Example 01: RAG Image Generation"
+echo "=========================================="
+bash examples/01-rag-imagegen/run.sh
+
+echo ""
+echo "=========================================="
+echo "Running Example 02: Lead Generation"
+echo "=========================================="
+bash examples/02-lead-gen/run.sh
+
+echo ""
+echo "=========================================="
+echo "Running Example 03: SEO Rank Tracker"
+echo "=========================================="
+bash examples/03-seo-rank/run.sh
+
+echo ""
+echo "=========================================="
+echo "Running Example 04: Website Style Analysis"
+echo "=========================================="
+bash examples/04-describe-website-css/run.sh
+
+echo ""
+echo "=========================================="
+echo "Running Example 05: Simple Chain (3 Steps)"
+echo "=========================================="
+bash examples/05-simple-chain/run.sh
+
+echo ""
+echo "All examples finished successfully!"
+
+````
+

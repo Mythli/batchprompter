@@ -1,0 +1,81 @@
+{
+  "type": "scatter",
+  "query": "buchungssystem",
+  "page": 3,
+  "results": [
+    {
+      "title": "Online-Buchungssystem - Beste Software & Kostenlose App",
+      "link": "https://www.booklux.com/de",
+      "snippet": "Mit der Buchungssoftware Booklux können Sie Online-Zahlungen einleiten, automatische Rechnungen erstellen, Bargeldtransaktionen verfolgen und das System in ...",
+      "position": 21,
+      "type": "seo"
+    },
+    {
+      "title": "Erstellen Sie eine kostenlose Kundenbuchungs-Website",
+      "link": "https://www.sumup.com/de-de/bookings/",
+      "snippet": "Melden Sie sich für eine kostenlose Online-Terminplanungssoftware an und vereinfachen Sie die Verwaltung der Buchungen Ihrer Kundschaft.",
+      "position": 22,
+      "type": "seo"
+    },
+    {
+      "title": "vioma BOOKING: Ihr Hotel-Buchungssystem online",
+      "link": "https://www.vioma.de/de/software/vioma-booking/",
+      "snippet": "Steigern Sie Ihre Direktbuchungen! Mit vioma BOOKING – der sicheren & schnellen Hotelbuchungssoftware. → Jetzt testen & mehr Buchungen erzielen!",
+      "position": 23,
+      "type": "seo"
+    },
+    {
+      "title": "Online-Buchungssystem: Kostenlos Termine vereinbaren",
+      "link": "https://www.brevo.com/de/online-buchungssystem/",
+      "snippet": "Mit dem Online-Buchungssystem von Brevo vereinbarst du mit nur wenigen Klicks Kundentermine. Einfach. Schnell. Kostenlos. Jetzt mehr erfahren!",
+      "position": 24,
+      "type": "seo"
+    },
+    {
+      "title": "eBuSy das Online-Buchungssystem für Sportanlagen",
+      "link": "https://www.ebusy.de/",
+      "snippet": "eBuSy ist ein flexibel einsetzbares Online Buchungs- und Reservierungssystem. Über 1100 Vereine, Sportzentren, Gemeindeverwaltungen und Unternehmen vertrauen ...",
+      "position": 25,
+      "type": "seo"
+    },
+    {
+      "title": "Arbeitsplatz Buchungssystem für flexible Arbeitsplätze",
+      "link": "https://www.flexopus.com/desk/arbeitsplatz-buchungssystem",
+      "snippet": "Ein Arbeitsplatz Buchungssystem wie Flexopus ermöglicht flexible Arbeitsplatzreservierungen. Es unterstützt flexible Arbeitsmodelle wie Hybrid Work und Desk ...",
+      "position": 26,
+      "type": "seo"
+    },
+    {
+      "title": "Kostenlose Online-Terminplanungssoftware",
+      "link": "https://calendly.com/de",
+      "snippet": "Calendly ist die moderne Planungsplattform, die das „zeitliche Abstimmen“ zum Kinderspiel macht – und wenn das Verbinden einfach ist, können Ihre Teams ...",
+      "position": 27,
+      "type": "seo"
+    },
+    {
+      "title": "Online Terminbuchungen für kleine Unternehmen",
+      "link": "https://www.jimdo.com/de/website/online-buchungen/",
+      "snippet": "Online-Buchungssystem: Der Booster für dein Business. Du veranstaltest Online-Workshops, gibst persönliche Coachings oder bietest kostenlose ...",
+      "position": 28,
+      "type": "seo"
+    },
+    {
+      "title": "ep-3 Buchungssystem",
+      "link": "https://bs.hbsys.de/",
+      "snippet": "Das ep-3 Buchungssystem ist eine Open Source Webanwendung (unter der MIT Lizenz), welche es Benutzern ermöglicht, freie Plätze einer Anlage oder Einrichtung ...",
+      "position": 29,
+      "type": "seo"
+    },
+    {
+      "title": "Arbeitsplatz Buchungssystem & App",
+      "link": "https://www.desk.ly/de/produkt/arbeitsplatz-buchungssystem",
+      "snippet": "Ein Arbeitsplatzbuchungssystem ist eine Softwarelösung, mit der sich Arbeitsplätze, Parkplätze oder andere Ressourcen im Unternehmen flexibel buchen und ...",
+      "position": 30,
+      "type": "seo"
+    }
+  ],
+  "selection": {
+    "indices": [],
+    "reasoning": "None of the search results provided in the list (indices 0-9) point to Butlerapp (butlerapp.de). The links lead to other booking systems such as Booklux, SumUp, vioma, Brevo, eBuSy, Flexopus, Calendly, Jimdo, ep-3, and Desk.ly."
+  }
+}
