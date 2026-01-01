@@ -142,7 +142,13 @@ export class ActionRunner {
 
             } catch (err: any) {
                 events.emit('row:error', { index: item.originalIndex, error: err });
-                events.emit('step:progress', { row: item.originalIndex, step: stepNum, type: 'error', message: `Step ${stepNum} Error: ${err.message}` });
+                events.emit('step:progress', { 
+                    row: item.originalIndex, 
+                    step: stepNum, 
+                    type: 'error', 
+                    message: `Step ${stepNum} Error: ${err.message}`,
+                    data: err 
+                });
             }
         };
 
@@ -354,7 +360,13 @@ export class ActionRunner {
                 const packets = await operation(item);
                 return { item, packets };
             } catch (e: any) {
-                this.globalContext.events.emit('step:progress', { row: item.originalIndex, step: stepNum, type: 'error', message: `Step ${stepNum} ${namespace} Failed: ${e.message}` });
+                this.globalContext.events.emit('step:progress', { 
+                    row: item.originalIndex, 
+                    step: stepNum, 
+                    type: 'error', 
+                    message: `Step ${stepNum} ${namespace} Failed: ${e.message}`,
+                    data: e
+                });
                 return null;
             }
         }));

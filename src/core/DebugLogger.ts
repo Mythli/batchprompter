@@ -22,6 +22,11 @@ export class DebugLogger {
                     break;
                 case 'error':
                     console.error(`${prefix} ❌ ${payload.message}`);
+                    if (payload.data instanceof Error) {
+                        console.error(payload.data);
+                    } else if (payload.data && payload.data.error instanceof Error) {
+                        console.error(payload.data.error);
+                    }
                     break;
                 case 'warn':
                     console.warn(`${prefix} ⚠️ ${payload.message}`);
@@ -41,6 +46,7 @@ export class DebugLogger {
 
         this.events.on('row:error', (payload) => {
             console.error(`[Row ${payload.index}] ❌ Failed: ${payload.error.message}`);
+            console.error(payload.error);
         });
     }
 }
