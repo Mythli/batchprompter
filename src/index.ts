@@ -58,6 +58,47 @@ generateCmd.action(async (templateFilePaths, options) => {
         // We use the tmpDir from the parsed runtime config
         new FileSystemArtifactHandler(globalContext.events, config.tmpDir);
 
+        // --- CLI Logging Setup ---
+        globalContext.events.on('log', (payload) => {
+            if (payload.level === 'error') {
+                console.error(`[ERROR] ${payload.message}`);
+            } else if (payload.level === 'warn') {
+                console.warn(`[WARN] ${payload.message}`);
+            } else {
+                console.log(`[INFO] ${payload.message}`);
+            }
+        });
+
+        globalContext.events.on('step:progress', (payload) => {
+            const prefix = `[Row ${payload.row}] Step ${payload.step}`;
+            
+            switch (payload.type) {
+                case 'explode':
+                    console.log(`${prefix} 💥 ${payload.message}`);
+                    break;
+                case 'generation':
+                    console.log(`${prefix} 🤖 ${payload.message}`);
+                    break;
+                case 'plugin':
+                    console.log(`${prefix} 🔌 ${payload.message}`);
+                    break;
+                case 'status':
+                default:
+                    console.log(`${prefix} ${payload.message}`);
+                    break;
+            }
+        });
+
+        globalContext.events.on('step:finish', (payload) => {
+             // Optional: Log step completion if not covered by progress
+             // console.log(`[Row ${payload.row}] Step ${payload.step} ✅ Finished`);
+        });
+
+        globalContext.events.on('row:error', (payload) => {
+            console.error(`[Row ${payload.index}] ❌ Failed: ${payload.error.message}`);
+        });
+        // -------------------------
+
         // Collect results for output
         const results: any[] = [];
         globalContext.events.on('row:end', ({ result }) => {
