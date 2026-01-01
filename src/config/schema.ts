@@ -63,7 +63,7 @@ export const DataConfigSchema = z.object({
     format: z.enum(['csv', 'json', 'auto']).default('auto').describe("Format of the input data."),
     offset: z.number().int().min(0).optional().describe("Start processing from this row index."),
     limit: z.number().int().positive().optional().describe("Limit the number of rows to process."),
-    rows: z.array(z.record(z.any())).default([{}]).describe("The input data rows.")
+    rows: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows.")
 }).describe("Configuration for input data loading.");
 
 export const GlobalsConfigSchema = z.object({
