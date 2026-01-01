@@ -51,7 +51,7 @@ export class ResultProcessor {
                     newItem.accumulatedContent.push(...packet.contentParts);
 
                     // Apply Row Update
-                    ResultProcessor.updateRow(newItem, packet.data, strategy);
+                    ResultProcessor.updateRow(newItem, packet.data, strategy, namespace);
 
                     nextItems.push(newItem);
                 });
@@ -68,7 +68,7 @@ export class ResultProcessor {
                 newItem.accumulatedContent.push(...allContent);
 
                 // Row Update
-                ResultProcessor.updateRow(newItem, mergedData, strategy);
+                ResultProcessor.updateRow(newItem, mergedData, strategy, namespace);
 
                 nextItems.push(newItem);
             }
@@ -89,7 +89,7 @@ export class ResultProcessor {
         };
     }
 
-    private static updateRow(item: PipelineItem, data: any, strategy: OutputStrategy) {
+    private static updateRow(item: PipelineItem, data: any, strategy: OutputStrategy, namespace: string) {
         if (strategy.mode === 'column' && strategy.columnName) {
             item.row[strategy.columnName] = data;
         } else if (strategy.mode === 'merge') {
@@ -107,9 +107,8 @@ export class ResultProcessor {
                 dataToMerge = dataToMerge[0];
             }
             
-            if (typeof dataToMerge === 'object' && dataToMerge !== null && !Array.isArray(dataToMerge)) {
-                Object.assign(item.row, dataToMerge);
-            }
+            // Use namespace for merge
+            item.row[namespace] = dataToMerge;
         }
     }
 }
