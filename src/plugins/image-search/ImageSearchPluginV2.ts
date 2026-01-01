@@ -8,7 +8,7 @@ import {
     PluginResult,
     CLIOptionDefinition
 } from '../types.js';
-import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/resolvedTypes.js';
+import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';

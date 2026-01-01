@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import OpenAI from 'openai';
 import {
     PipelineConfigSchema,
     GlobalsConfigSchema,
@@ -6,16 +7,6 @@ import {
     OutputConfigSchema,
     PromptDefSchema,
 } from './schema.js';
-import { 
-    ResolvedPrompt, 
-    ResolvedModelConfig, 
-    ResolvedOutputConfig, 
-    ResolvedPluginBase,
-    ServiceCapabilities 
-} from './resolvedTypes.js';
-
-// Re-export resolved types for convenience of non-plugin consumers
-export * from './resolvedTypes.js';
 
 // =============================================================================
 // Inferred Types from Zod Schemas (Raw Config)
@@ -30,6 +21,37 @@ export type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
 // =============================================================================
 // Resolved Types (After Loading Files, Rendering Templates)
 // =============================================================================
+
+export interface ResolvedPrompt {
+    parts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+}
+
+export interface ResolvedModelConfig {
+    model?: string;
+    temperature?: number;
+    thinkingLevel?: 'low' | 'medium' | 'high';
+    systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+    promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+}
+
+export interface ResolvedOutputConfig {
+    mode: 'merge' | 'column' | 'ignore';
+    column?: string;
+    explode: boolean;
+    limit?: number;
+    offset?: number;
+}
+
+export interface ResolvedPluginBase {
+    type: string;
+    id: string;
+    output: ResolvedOutputConfig;
+}
+
+export interface ServiceCapabilities {
+    hasSerper: boolean;
+    hasPuppeteer: boolean;
+}
 
 export interface ResolvedStepConfig {
     prompt: ResolvedPrompt;
