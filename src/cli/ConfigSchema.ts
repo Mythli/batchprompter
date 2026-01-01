@@ -147,6 +147,11 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     // 1. Merge CLI overrides into file config
     const mergedConfig = mergeCliOverrides(fileConfig, options, args, pluginRegistry);
 
+    if (options.limit !== undefined) {
+        console.log(`[ConfigSchema] Global limit from CLI: ${options.limit}`);
+        console.log(`[ConfigSchema] Merged global limit: ${mergedConfig.globals.limit}`);
+    }
+
     // 2. Validate against Loose Zod schema (allows strings)
     let config;
     try {
@@ -194,6 +199,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
                     // Apply Global Limits to Plugin Output
                     if (validatedConfig.output.explode) {
                         if (validatedConfig.output.limit === undefined && config.globals.limit !== undefined) {
+                            console.log(`[ConfigSchema] Applying global limit ${config.globals.limit} to plugin ${pluginConfig.type}`);
                             validatedConfig.output.limit = config.globals.limit;
                         }
                         if (validatedConfig.output.offset === undefined && config.globals.offset !== undefined) {
