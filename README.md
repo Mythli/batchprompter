@@ -99,7 +99,7 @@ batchprompt generate data.csv "Write a summary of {{topic}}" --model google/gemi
 
 **Config Mode (Advanced):**
 ```bash
-batchprompt generate data.csv --config pipeline.yaml
+batchprompt generate data.csv --config config.json
 ```
 
 See the [Tutorials](#-tutorials) for examples of both methods.

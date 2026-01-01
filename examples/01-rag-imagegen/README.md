@@ -17,7 +17,7 @@ Generate a photorealistic "Hero Image" for a specific industry (e.g., "Sailing S
 
 ## ⚙️ Configuration
 
-The pipeline is defined inline in `run.sh`.
+The pipeline is defined in `config.json`.
 
 ### 1. Search & Retrieval (RAG)
 The `image-search` plugin handles the finding and selecting of reference images.

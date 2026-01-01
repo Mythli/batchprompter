@@ -43,7 +43,7 @@ Used in **Phase 2 (Step 3 - LinkedIn)**.
 
 ## 🔎 Phase 1: Discovery (`1-find.sh`)
 
-This configuration finds the raw list of company websites.
+This configuration (`config-1-find.json`) finds the raw list of company websites.
 
 ### Step 1: Location Expansion
 ```json
@@ -82,7 +82,7 @@ This configuration finds the raw list of company websites.
 
 ## 💎 Phase 2: Enrichment (`2-enrich.sh`)
 
-This configuration takes the list of URLs and extracts deep insights.
+This configuration (`config-2-enrich.json`) takes the list of URLs and extracts deep insights.
 
 ### Step 1: The Website Agent
 ```json

@@ -9,7 +9,7 @@ Check a list of keywords (from `data.csv`) and determine if a specific domain (e
 
 ## ⚙️ Configuration
 
-The pipeline is defined inline in `run.sh`.
+The pipeline is defined in `config.json`.
 
 ```json
 {

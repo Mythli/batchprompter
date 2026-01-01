@@ -23,10 +23,19 @@ append_file() {
     fi
 }
 
-# Append README.md
+# 1. Append JSON Schema (Generated)
+echo "Generating JSON Schema..."
+echo "schema.json" >> "$OUTPUT_FILE"
+echo '````json' >> "$OUTPUT_FILE"
+npx tsx src/index.ts schema >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+echo '````' >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+# 2. Append README.md
 append_file "README.md"
 
-# Find all files in examples directory and append them
+# 3. Find all files in examples directory and append them
 find examples -type f -not -path '*/.*' | sort | while read -r file; do
     append_file "$file"
 done
