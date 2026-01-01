@@ -53,13 +53,21 @@
           "schema": {
             "type": "object",
             "properties": {
-              "link": {
-                "type": "string",
-                "minLength": 1
+              "webSearch": {
+                "type": "object",
+                "properties": {
+                  "link": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "link"
+                ]
               }
             },
             "required": [
-              "webSearch.link"
+              "webSearch"
             ]
           }
         }
