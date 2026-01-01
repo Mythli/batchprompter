@@ -13,8 +13,8 @@ app.post('/generate', async (c) => {
     if (!prompt) return c.json({ error: 'Prompt is required' }, 400);
 
     try {
-        const result = await generationService.generateConfig(prompt, partialConfig);
-        return c.json(result);
+        const config = await generationService.generateConfig(prompt, partialConfig);
+        return c.json(config);
     } catch (e: any) {
         return c.json({ error: e.message }, 500);
     }
@@ -28,13 +28,13 @@ app.post('/generate-and-run', async (c) => {
 
     try {
         // 1. Generate
-        const genResult = await generationService.generateConfig(prompt, partialConfig);
+        const config = await generationService.generateConfig(prompt, partialConfig);
         
         // 2. Run
-        const runResult = await executionService.runConfig(genResult.config);
+        const runResult = await executionService.runConfig(config);
 
         return c.json({
-            config: genResult.config,
+            config: config,
             results: runResult.results,
             zip: runResult.zip
         });

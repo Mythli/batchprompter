@@ -7,7 +7,7 @@ import { MemoryContentResolver } from '../core/io/MemoryContentResolver.js';
 
 export class ConfigService {
     
-    async generateConfig(prompt: string, partialConfig?: any): Promise<{ config: SafePipelineConfig, zip: string }> {
+    async generateConfig(prompt: string, partialConfig?: any): Promise<SafePipelineConfig> {
         const { llmFactory } = await getConfig();
         
         // Create a generator LLM
@@ -31,14 +31,7 @@ export class ConfigService {
 
         const config = await generatorLlm.promptZod({ suffix: userContent }, SafePipelineConfigSchema);
 
-        // Create Zip
-        const zip = new JSZip();
-        zip.file('config.json', JSON.stringify(config, null, 2));
-        zip.file('README.md', `# Generated Configuration\n\nGenerated from prompt: "${prompt}"`);
-        
-        const zipBase64 = await zip.generateAsync({ type: 'base64' });
-
-        return { config, zip: zipBase64 };
+        return config;
     }
 
     async runConfig(config: any): Promise<{ results: any[], artifacts: any[], zip: string }> {
