@@ -1,3 +1,4 @@
+import path from 'path';
 import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext, OutputStrategy, StepContext, StepExecutionContext } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PluginRegistryV2, PluginPacket, PluginServices } from './plugins/types.js';
@@ -205,7 +206,17 @@ export class ActionRunner {
                         services: services,
                         tempDirectory: tempDir,
                         // Pass emitter to plugin context
-                        emit: this.globalContext.events.emit.bind(this.globalContext.events)
+                        emit: (event, ...args) => {
+                            if (event === 'artifact') {
+                                const payload = args[0];
+                                if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
+                                    payload.filename = path.join(tempDir, payload.filename);
+                                }
+                                this.globalContext.events.emit('artifact', payload);
+                            } else {
+                                this.globalContext.events.emit(event, ...args);
+                            }
+                        }
                     });
 
                     return result.packets;

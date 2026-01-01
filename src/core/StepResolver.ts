@@ -70,6 +70,9 @@ export class StepResolver {
             resolvedGlobalTmpDir = path.dirname(resolvedGlobalTmpDir);
         }
 
+        // Ensure absolute path to bypass FileSystemArtifactHandler's relative logic
+        resolvedGlobalTmpDir = path.resolve(resolvedGlobalTmpDir);
+
         // Always use row_step structure for isolation to prevent collisions
         const rowStr = String(item.originalIndex).padStart(3, '0');
         const stepStr = String(stepNum).padStart(2, '0');

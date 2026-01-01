@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
+import path from 'path';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StepConfig } from '../types.js';
 import { MessageBuilder } from '../core/MessageBuilder.js';
@@ -145,6 +146,11 @@ export class StandardStrategy implements GenerationStrategy {
         // If variation index is present, append it
         if (variationIndex !== undefined) {
             filename = `${effectiveBasename}_${variationIndex}.${finalContent.extension}`;
+        }
+
+        // --- FIX: Use resolvedTempDir to make path absolute ---
+        if (config.resolvedTempDir) {
+            filename = path.join(config.resolvedTempDir, filename);
         }
 
         let contentPayload: string | Buffer = finalContent.data;

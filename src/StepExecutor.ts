@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import path from 'path';
 import { StepConfig, StepContext } from './types.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
@@ -66,9 +67,13 @@ export class StepExecutor {
                     ext = `.${part.input_audio.format}`;
                 }
 
-                const filename = effectiveUserPromptParts.length === 1
+                let filename = effectiveUserPromptParts.length === 1
                     ? `${config.outputBasename || 'output'}${ext}`
                     : `${config.outputBasename || 'output'}_${i}${ext}`;
+
+                if (config.resolvedTempDir) {
+                    filename = path.join(config.resolvedTempDir, filename);
+                }
 
                 this.events.emit('artifact', {
                     row: index,
