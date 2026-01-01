@@ -112,6 +112,16 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     ): TRawConfig | null;
 
     /**
+     * Optional: Normalize configuration during the loading phase.
+     * Useful for resolving static file paths (like schemas) before validation.
+     * This runs ONCE during config loading, not per-row.
+     */
+    normalizeConfig?(
+        config: TRawConfig,
+        contentResolver: ContentResolver
+    ): Promise<TRawConfig>;
+
+    /**
      * Resolve raw config (load files, render templates, etc.)
      * Called once per row before execution
      */

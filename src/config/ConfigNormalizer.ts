@@ -1,7 +1,11 @@
 import { ContentResolver } from '../core/io/ContentResolver.js';
+import { PluginRegistryV2 } from '../plugins/types.js';
 
 export class ConfigNormalizer {
-    constructor(private contentResolver: ContentResolver) {}
+    constructor(
+        private contentResolver: ContentResolver,
+        private pluginRegistry: PluginRegistryV2
+    ) {}
 
     async normalize(config: any): Promise<any> {
         // Deep clone to avoid mutation
@@ -16,11 +20,12 @@ export class ConfigNormalizer {
 
                 // Normalize Plugin Schemas
                 if (step.plugins) {
-                    for (const plugin of step.plugins) {
-                        if (plugin.type === 'website-agent' || plugin.type === 'validation') {
-                            if (plugin.schema && typeof plugin.schema === 'string') {
-                                plugin.schema = await this.loadSchema(plugin.schema);
-                            }
+                    for (let i = 0; i < step.plugins.length; i++) {
+                        const pluginConfig = step.plugins[i];
+                        const plugin = this.pluginRegistry.get(pluginConfig.type);
+                        
+                        if (plugin && plugin.normalizeConfig) {
+                            step.plugins[i] = await plugin.normalizeConfig(pluginConfig, this.contentResolver);
                         }
                     }
                 }

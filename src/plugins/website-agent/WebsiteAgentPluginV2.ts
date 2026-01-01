@@ -154,6 +154,29 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         return this.configSchema.parse(partialConfig);
     }
 
+    async normalizeConfig(
+        config: WebsiteAgentRawConfigV2,
+        contentResolver: ContentResolver
+    ): Promise<WebsiteAgentRawConfigV2> {
+        if (typeof config.schema === 'string') {
+            // If it looks like a template, skip static loading
+            if (config.schema.includes('{{')) {
+                return config;
+            }
+            
+            try {
+                const content = await contentResolver.readText(config.schema);
+                return {
+                    ...config,
+                    schema: JSON.parse(content)
+                };
+            } catch (e: any) {
+                throw new Error(`Failed to load schema from '${config.schema}': ${e.message}`);
+            }
+        }
+        return config;
+    }
+
     async resolveConfig(
         rawConfig: WebsiteAgentRawConfigV2,
         row: Record<string, any>,
