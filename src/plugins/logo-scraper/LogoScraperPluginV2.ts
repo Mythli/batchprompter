@@ -265,7 +265,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             brandColor: result.primaryColor?.hex,
             brandColors: result.brandColors?.map(c => c.hex) || [],
             logos: [],
-            favicons: []
+            favicons: [],
+            logoMetadata: []
         };
 
         if (result.logos && result.logos.length > 0) {
@@ -326,6 +327,16 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                             savedLogosCount++;
                             savedLogoPaths.push(finalPath);
                         }
+
+                        // Collect metadata for saved items
+                        packetData.logoMetadata.push({
+                            path: finalPath,
+                            score: logo.brandLogoScore,
+                            performance: logo.lightBackgroundPerformance,
+                            isFavicon: isFaviconTarget,
+                            width: logo.width,
+                            height: logo.height
+                        });
                     } catch (e: any) {
                         console.error(`[LogoScraper] Failed to save to ${finalPath}:`, e);
                     }

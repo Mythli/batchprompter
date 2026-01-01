@@ -350,11 +350,20 @@ Accurately populate the provided JSON schema.`;
         // Filter by threshold
         const brandLogos = uniqueHighestResLogos.filter(logo => logo.brandLogoScore >= this.options.brandLogoScoreThreshold!);
 
-        // Sort by performance then size
+        // Sort by score, then performance, then size
         const mergedAndSorted = brandLogos.sort((a, b) => {
-            const perfA = a.lightBackgroundPerformance ?? -1;
-            const perfB = b.lightBackgroundPerformance ?? -1;
+            // 1. Brand Logo Score (Higher is better)
+            if (b.brandLogoScore !== a.brandLogoScore) {
+                return b.brandLogoScore - a.brandLogoScore;
+            }
+
+            // 2. Light Background Performance (Higher is better)
+            // Treat missing as 0.
+            const perfA = a.lightBackgroundPerformance ?? 0;
+            const perfB = b.lightBackgroundPerformance ?? 0;
             if (perfB !== perfA) return perfB - perfA;
+
+            // 3. Resolution (Higher is better)
             const areaA = (a.width || 0) * (a.height || 0);
             const areaB = (b.width || 0) * (b.height || 0);
             return areaB - areaA;
