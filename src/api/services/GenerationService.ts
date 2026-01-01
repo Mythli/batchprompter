@@ -14,7 +14,7 @@ export class GenerationService {
             temperature: 0.7,
             systemParts: [
                 { type: 'text', text: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' },
-                { type: 'text', text: 'Here is the documentation and schema for the configuration format:\n\n' + CONFIG_DOCUMENTATION }
+                { type: 'text', text: 'Here is the documentation for the configuration format:\n\n' + CONFIG_DOCUMENTATION }
             ],
             promptParts: []
         });
