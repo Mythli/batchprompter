@@ -4,6 +4,12 @@ import { z } from 'zod';
 import { ServiceCapabilities, ResolvedModelConfig } from '../types.js';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { BatchPromptEvents } from '../core/events.js';
+import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
+import { Fetcher } from 'llm-fns';
+import { Cache } from 'cache-manager';
+import { ImageSearch } from './image-search/ImageSearch.js';
+import { WebSearch } from './web-search/WebSearch.js';
+import PQueue from 'p-queue';
 
 // =============================================================================
 // Plugin Packet (shared)
@@ -29,6 +35,12 @@ export interface PluginResult {
  */
 export interface PluginServices {
     createLlm: (config: ResolvedModelConfig) => BoundLlmClient;
+    puppeteerHelper?: PuppeteerHelper;
+    fetcher: Fetcher;
+    cache?: Cache;
+    imageSearch?: ImageSearch;
+    webSearch?: WebSearch;
+    puppeteerQueue?: PQueue;
 }
 
 /**
@@ -45,7 +57,9 @@ export interface PluginExecutionContext {
     outputExtension?: string;
     
     // Event emitter for artifacts and logs
-    emit: <K extends keyof BatchPromptEvents>(event: K, ...args: Parameters<BatchPromptEvents[K]>) => void;
+    // We use 'any' for args here to avoid strict type checking issues with bind() in ActionRunner
+    // The implementation in ActionRunner ensures the correct events are emitted.
+    emit: (event: keyof BatchPromptEvents, ...args: any[]) => void;
 }
 
 /**
@@ -189,7 +203,7 @@ export class PluginRegistryV2 {
                 for (const cap of required) {
                     if (!capabilities[cap]) {
                         throw new Error(
-                            `Step ${stepIdx + 1}: Plugin '${pluginConfig.type}' requires '${cap}' which is not available.`
+                            `Step ${stepIdx + 1}: Plugin '${pluginConfig.type}' requires '${String(cap)}' which is not available.`
                         );
                     }
                 }

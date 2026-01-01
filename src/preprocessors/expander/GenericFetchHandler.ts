@@ -1,5 +1,5 @@
 import { GenericHandler } from './types.js';
-import { PreprocessorServices } from '../types.js';
+import { PreprocessorServices } from '../../types.js';
 
 export class GenericFetchHandler implements GenericHandler {
     name = 'generic-fetch';

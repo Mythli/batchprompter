@@ -1,9 +1,21 @@
 import OpenAI from 'openai';
+import { Fetcher } from 'llm-fns';
+import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
+import { ImageSearch } from './plugins/image-search/ImageSearch.js';
+import { WebSearch } from './plugins/web-search/WebSearch.js';
 import PQueue from 'p-queue';
+import { Cache } from 'cache-manager';
 import { BoundLlmClient } from './core/BoundLlmClient.js';
 import { GlobalsConfig } from './config/types.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
+
+// --- Service Capabilities ---
+
+export interface ServiceCapabilities {
+    hasSerper: boolean;
+    hasPuppeteer: boolean;
+}
 
 // --- Definitions ---
 
@@ -174,10 +186,19 @@ export interface GlobalContext {
     openai: OpenAI;
     events: EventEmitter<BatchPromptEvents>;
 
-    // Queues for concurrency management
+    cache?: Cache;
     gptQueue: PQueue;
+    serperQueue: PQueue;
+    puppeteerQueue: PQueue;
     taskQueue: PQueue;
 
+    puppeteerHelper: PuppeteerHelper;
+    fetcher: Fetcher;
+
+    imageSearch?: ImageSearch;
+    webSearch?: WebSearch;
+
+    capabilities: ServiceCapabilities;
     defaultModel: string;
 }
 
@@ -187,4 +208,10 @@ export interface StepContext {
     judge?: BoundLlmClient;
     feedback?: BoundLlmClient;
     createLlm(config: ResolvedModelConfig): BoundLlmClient;
+}
+
+export interface PreprocessorServices {
+    puppeteerHelper?: PuppeteerHelper;
+    fetcher: Fetcher;
+    puppeteerQueue?: PQueue;
 }

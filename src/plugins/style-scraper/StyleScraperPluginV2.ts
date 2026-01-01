@@ -14,6 +14,7 @@ import { OutputConfigSchema } from '../../config/common.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { ensureDir } from '../../utils/fileUtils.js';
 import { StyleScraperArtifactHandler } from './StyleScraperArtifactHandler.js';
+import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -159,7 +160,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
 
             const result = await pageHelper.navigateAndCache<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]; artifacts: Artifact[] }>(
                 config.url,
-                async (ph) => {
+                async (ph: PuppeteerPageHelper) => {
                     const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
                     const artifacts: Artifact[] = [];
 

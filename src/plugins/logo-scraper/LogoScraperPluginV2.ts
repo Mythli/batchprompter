@@ -263,7 +263,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         // Prepare data packet
         const packetData: any = {
             brandColor: result.primaryColor?.hex,
-            brandColors: result.brandColors?.map(c => c.hex) || [],
+            brandColors: result.brandColors?.map((c: any) => c.hex) || [],
             logos: [],
             favicons: [],
             logoMetadata: []

@@ -39,6 +39,12 @@ export class ActionRunner {
         const executor = new StepExecutor(this.globalContext.events, this.messageBuilder);
 
         const pluginServices: PluginServices = {
+            puppeteerHelper: this.globalContext.puppeteerHelper,
+            puppeteerQueue: this.globalContext.puppeteerQueue,
+            fetcher: this.globalContext.fetcher,
+            cache: this.globalContext.cache,
+            imageSearch: this.globalContext.imageSearch,
+            webSearch: this.globalContext.webSearch,
             createLlm: (config) => this.stepResolver.createLlm(config)
         };
 
@@ -237,7 +243,12 @@ export class ActionRunner {
                     const preprocessor = this.preprocessorRegistry.get(ppDef.name);
                     if (preprocessor) {
                         effectiveParts = await preprocessor.process(effectiveParts, {
-                            row: modelViewContext
+                            row: modelViewContext,
+                            services: {
+                                puppeteerHelper: this.globalContext.puppeteerHelper,
+                                fetcher: this.globalContext.fetcher,
+                                puppeteerQueue: this.globalContext.puppeteerQueue
+                            }
                         }, ppDef.config);
                     }
                 }

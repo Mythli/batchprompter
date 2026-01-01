@@ -1,6 +1,7 @@
 import { GenericHandler } from './types.js';
-import { PreprocessorServices } from '../types.js';
+import { PreprocessorServices } from '../../types.js';
 import { compressHtml } from '../../utils/compressHtml.js';
+import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 
 export class GenericPuppeteerHandler implements GenericHandler {
     name = 'generic-puppeteer';
@@ -16,7 +17,7 @@ export class GenericPuppeteerHandler implements GenericHandler {
                 // We use navigateAndCache to leverage existing caching logic if available
                 const html = await pageHelper.navigateAndCache<string>(
                     url,
-                    async (ph) => {
+                    async (ph: PuppeteerPageHelper) => {
                         const rawHtml = await ph.getFinalHtml();
                         return compressHtml(rawHtml);
                     },

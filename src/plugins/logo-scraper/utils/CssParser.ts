@@ -1,3 +1,4 @@
+// @ts-ignore
 import * as csstree from 'css-tree';
 
 export interface Stylesheet {

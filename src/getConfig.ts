@@ -193,8 +193,13 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         imageSearch,
         webSearch,
         capabilities,
-        defaultModel
+        defaultModel,
+        events: new (await import('eventemitter3')).EventEmitter() as any // Hack to avoid importing EventEmitter in types.ts if not needed, but we did import it.
     };
+    // Re-assign events properly
+    const { EventEmitter } = await import('eventemitter3');
+    globalContext.events = new EventEmitter();
+
 
     // Create Factories
     const llmFactory = new LlmClientFactory(openai, cache, gptQueue, defaultModel);
