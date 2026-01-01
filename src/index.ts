@@ -79,8 +79,16 @@ generateCmd.action(async (templateFilePaths, options) => {
                 ...results.map(row => headers.map(header => {
                     const val = row[header];
                     if (val === null || val === undefined) return '';
+                    
+                    let strVal: string;
+                    if (typeof val === 'object') {
+                        strVal = JSON.stringify(val);
+                    } else {
+                        strVal = String(val);
+                    }
+
                     // Simple CSV escaping
-                    const str = String(val).replace(/"/g, '""');
+                    const str = strVal.replace(/"/g, '""');
                     return `"${str}"`;
                 }).join(','))
             ].join('\n');
