@@ -49,13 +49,13 @@ export const LogoScraperConfigSchemaV2 = z.object({
     minScore: z.number().int().min(1).max(10).default(5),
     
     // Output path for the best logo
-    logoOutputPath: z.string().optional(),
+    logoPath: z.string().optional(),
     // Output path for the best favicon
-    faviconOutputPath: z.string().optional(),
+    faviconPath: z.string().optional(),
 
     // Limits
-    maxLogosToSave: z.number().int().positive().default(1),
-    maxFaviconsToSave: z.number().int().positive().default(1)
+    logoLimit: z.number().int().positive().default(1),
+    faviconLimit: z.number().int().positive().default(1)
 });
 
 export type LogoScraperRawConfigV2 = z.infer<typeof LogoScraperConfigSchemaV2>;
@@ -69,10 +69,10 @@ export interface LogoScraperResolvedConfigV2 {
     extractModel: ResolvedModelConfig;
     maxCandidates: number;
     minScore: number;
-    logoOutputPath?: string;
-    faviconOutputPath?: string;
-    maxLogosToSave: number;
-    maxFaviconsToSave: number;
+    logoPath?: string;
+    faviconPath?: string;
+    logoLimit: number;
+    faviconLimit: number;
 }
 
 // =============================================================================
@@ -90,10 +90,10 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         ...ModelFlags.getOptions('logo-extract', { includePrompt: true }),
         { flags: '--logo-scraper-max-candidates <number>', description: 'Max logo candidates to download', parser: parseInt },
         { flags: '--logo-scraper-min-score <number>', description: 'Min score (1-10) to keep a logo', parser: parseInt },
-        { flags: '--logo-scraper-logo-output-path <path>', description: 'Path to save the best logo (supports templates)' },
-        { flags: '--logo-scraper-favicon-output-path <path>', description: 'Path to save the best favicon (supports templates)' },
-        { flags: '--logo-scraper-max-save <number>', description: 'Max logos to save (default: 1)', parser: parseInt },
-        { flags: '--logo-scraper-max-favicon-save <number>', description: 'Max favicons to save (default: 1)', parser: parseInt },
+        { flags: '--logo-scraper-logo-path <path>', description: 'Path to save the best logo (supports templates)' },
+        { flags: '--logo-scraper-favicon-path <path>', description: 'Path to save the best favicon (supports templates)' },
+        { flags: '--logo-scraper-logo-limit <number>', description: 'Max logos to save (default: 1)', parser: parseInt },
+        { flags: '--logo-scraper-favicon-limit <number>', description: 'Max favicons to save (default: 1)', parser: parseInt },
         { flags: '--logo-scraper-export', description: 'Merge results into row' },
         { flags: '--logo-scraper-output <column>', description: 'Save to column' }
     ];
@@ -134,10 +134,10 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             extractPrompt: extractConfig.prompt,
             maxCandidates: getOpt('logoScraperMaxCandidates'),
             minScore: getOpt('logoScraperMinScore'),
-            logoOutputPath: getOpt('logoScraperLogoOutputPath'),
-            faviconOutputPath: getOpt('logoScraperFaviconOutputPath'),
-            maxLogosToSave: getOpt('logoScraperMaxSave'),
-            maxFaviconsToSave: getOpt('logoScraperMaxFaviconSave'),
+            logoPath: getOpt('logoScraperLogoPath'),
+            faviconPath: getOpt('logoScraperFaviconPath'),
+            logoLimit: getOpt('logoScraperLogoLimit'),
+            faviconLimit: getOpt('logoScraperFaviconLimit'),
             output: {
                 mode: outputMode,
                 column: outputColumn,
@@ -182,16 +182,16 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
              sanitizedRow[key] = aggressiveSanitize(stringVal);
         }
 
-        let logoOutputPath: string | undefined;
-        if (rawConfig.logoOutputPath) {
-            const template = Handlebars.compile(rawConfig.logoOutputPath, { noEscape: true });
-            logoOutputPath = template(sanitizedRow);
+        let logoPath: string | undefined;
+        if (rawConfig.logoPath) {
+            const template = Handlebars.compile(rawConfig.logoPath, { noEscape: true });
+            logoPath = template(sanitizedRow);
         }
 
-        let faviconOutputPath: string | undefined;
-        if (rawConfig.faviconOutputPath) {
-            const template = Handlebars.compile(rawConfig.faviconOutputPath, { noEscape: true });
-            faviconOutputPath = template(sanitizedRow);
+        let faviconPath: string | undefined;
+        if (rawConfig.faviconPath) {
+            const template = Handlebars.compile(rawConfig.faviconPath, { noEscape: true });
+            faviconPath = template(sanitizedRow);
         }
 
         return {
@@ -217,10 +217,10 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             ),
             maxCandidates: rawConfig.maxCandidates,
             minScore: rawConfig.minScore,
-            logoOutputPath,
-            faviconOutputPath,
-            maxLogosToSave: rawConfig.maxLogosToSave,
-            maxFaviconsToSave: rawConfig.maxFaviconsToSave
+            logoPath,
+            faviconPath,
+            logoLimit: rawConfig.logoLimit,
+            faviconLimit: rawConfig.faviconLimit
         };
     }
 
@@ -299,11 +299,11 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 const isSquare = Math.abs((logo.width || 0) - (logo.height || 0)) <= 1;
                 
                 // Route to Favicon ONLY if it is square AND we have a specific path for it
-                const isFaviconTarget = isSquare && !!config.faviconOutputPath;
+                const isFaviconTarget = isSquare && !!config.faviconPath;
 
-                const limit = isFaviconTarget ? config.maxFaviconsToSave : config.maxLogosToSave;
+                const limit = isFaviconTarget ? config.faviconLimit : config.logoLimit;
                 const currentCount = isFaviconTarget ? savedFaviconsCount : savedLogosCount;
-                const pathTemplate = isFaviconTarget ? config.faviconOutputPath : config.logoOutputPath;
+                const pathTemplate = isFaviconTarget ? config.faviconPath : config.logoPath;
 
                 if (pathTemplate && currentCount < limit) {
                     let finalPath = pathTemplate;
