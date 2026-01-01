@@ -107,8 +107,15 @@ export class ResultProcessor {
                 dataToMerge = dataToMerge[0];
             }
             
-            // Use namespace for merge
-            item.row[namespace] = dataToMerge;
+            // Special handling for model output: Merge at root if it's an object
+            // This ensures model results like { location: "Berlin" } become row.location
+            // instead of row.modelOutput.location
+            if (namespace === 'modelOutput' && typeof dataToMerge === 'object' && dataToMerge !== null && !Array.isArray(dataToMerge)) {
+                Object.assign(item.row, dataToMerge);
+            } else {
+                // Plugins or primitives: Use namespace to avoid collisions
+                item.row[namespace] = dataToMerge;
+            }
         }
     }
 }
