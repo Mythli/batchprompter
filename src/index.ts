@@ -3,7 +3,7 @@ import 'dotenv/config';
 import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
-import { Parser } from 'json2csv';
+import { Parser, transforms } from 'json2csv';
 import { StepRegistry } from './cli/StepRegistry.js';
 import { createDefaultRegistry, getConfig } from './getConfig.js';
 import { ServiceCapabilities } from './types.js';
@@ -85,7 +85,11 @@ generateCmd.action(async (templateFilePaths, options) => {
             if (config.dataOutputPath.endsWith('.json')) {
                 fs.writeFileSync(config.dataOutputPath, JSON.stringify(results, null, 2));
             } else {
-                const parser = new Parser({ flatten: true });
+                const parser = new Parser({
+                    transforms: [
+                        transforms.flatten({ objects: true, arrays: true, separator: '.' })
+                    ]
+                });
                 const csv = parser.parse(results);
                 fs.writeFileSync(config.dataOutputPath, csv);
             }
