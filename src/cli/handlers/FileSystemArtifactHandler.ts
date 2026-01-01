@@ -19,7 +19,15 @@ export class FileSystemArtifactHandler {
         const stepStr = String(payload.step).padStart(2, '0');
         const stepDir = path.join(this.baseDir, `${rowStr}_${stepStr}`);
         
-        const fullPath = path.join(stepDir, payload.filename);
+        let fullPath: string;
+
+        // Heuristic: If filename starts with 'out/' or is absolute, treat as explicit output path
+        // Otherwise, treat as temporary artifact inside stepDir
+        if (path.isAbsolute(payload.filename) || payload.filename.startsWith('out/') || payload.filename.startsWith('out\\')) {
+            fullPath = path.resolve(payload.filename);
+        } else {
+            fullPath = path.join(stepDir, payload.filename);
+        }
         
         await this.ensureDir(fullPath);
         

@@ -315,28 +315,26 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                     }
 
                     // Emit final artifact
-                    const finalFilename = path.basename(finalPath);
-                    
                     emit('artifact', {
                         row: context.row.index,
                         step: context.stepIndex,
                         type: 'image',
-                        filename: finalFilename,
+                        filename: finalPath,
                         content: logo.base64PngData,
                         tags: ['final', 'logo-scraper', isFaviconTarget ? 'favicon' : 'logo']
                     });
 
                     if (isFaviconTarget) {
                         savedFaviconsCount++;
-                        savedFaviconPaths.push(finalFilename);
+                        savedFaviconPaths.push(finalPath);
                     } else {
                         savedLogosCount++;
-                        savedLogoPaths.push(finalFilename);
+                        savedLogoPaths.push(finalPath);
                     }
 
                     // Collect metadata for saved items
                     packetData.logoMetadata.push({
-                        path: finalFilename,
+                        path: finalPath,
                         score: logo.brandLogoScore,
                         performance: logo.lightBackgroundPerformance,
                         isFavicon: isFaviconTarget,

@@ -1,6 +1,8 @@
 import { Command } from 'commander';
 import 'dotenv/config';
 import { z } from 'zod';
+import fs from 'fs';
+import path from 'path';
 import { StepRegistry } from './cli/StepRegistry.js';
 import { createDefaultRegistry, getConfig } from './getConfig.js';
 import { ServiceCapabilities } from './types.js';
@@ -52,6 +54,12 @@ generateCmd.action(async (templateFilePaths, options) => {
         // We use the tmpDir from the parsed runtime config
         new FileSystemArtifactHandler(globalContext.events, config.tmpDir);
 
+        // Collect results for output
+        const results: any[] = [];
+        globalContext.events.on('row:end', ({ result }) => {
+            results.push(result);
+        });
+
         // Update the runtime config with the resolved concurrency values if they weren't in CLI args
         // This ensures ActionRunner uses the correct values (Env > Default) if CLI didn't specify them
         const finalConfig = {
@@ -62,6 +70,28 @@ generateCmd.action(async (templateFilePaths, options) => {
 
         // Run
         await actionRunner.run(finalConfig);
+
+        // Write Data Output (CSV/JSON)
+        if (config.dataOutputPath && results.length > 0) {
+            const headers = Array.from(new Set(results.flatMap(Object.keys)));
+            const csvContent = [
+                headers.join(','),
+                ...results.map(row => headers.map(header => {
+                    const val = row[header];
+                    if (val === null || val === undefined) return '';
+                    // Simple CSV escaping
+                    const str = String(val).replace(/"/g, '""');
+                    return `"${str}"`;
+                }).join(','))
+            ].join('\n');
+
+            const outDir = path.dirname(config.dataOutputPath);
+            if (!fs.existsSync(outDir)) {
+                fs.mkdirSync(outDir, { recursive: true });
+            }
+            fs.writeFileSync(config.dataOutputPath, csvContent);
+            console.log(`\nData written to ${config.dataOutputPath}`);
+        }
 
         // Cleanup
         if (puppeteerHelperInstance) {
