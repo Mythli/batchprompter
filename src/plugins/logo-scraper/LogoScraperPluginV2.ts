@@ -249,7 +249,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             }
         );
 
-        const result = await scraper.scrape(config.url);
+        const result = await scraper.scrape(config.url) as any;
 
         // Prepare data packet
         const packetData: any = {
@@ -315,23 +315,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                     }
 
                     // Emit final artifact
-                    // Note: finalPath is likely absolute or relative to CWD, but FileSystemArtifactHandler
-                    // saves relative to step dir. This is a mismatch if user provided absolute path.
-                    // However, standard behavior in this tool is usually relative to output dir.
-                    // If user provided absolute path in config, we might need to handle it.
-                    // For now, we assume relative to output dir, but we pass it as filename.
-                    // FileSystemArtifactHandler joins it with step dir.
-                    // If we want to support custom paths, we might need a different tag or logic.
-                    // But let's stick to the pattern: emit artifact, handler saves it.
-                    // If the user wants it in a specific place, they should configure the output dir of the step?
-                    // Or we just save it as a 'final' artifact and let the handler deal with it.
-                    
-                    // Actually, LogoScraper allows custom paths per logo.
-                    // We can't easily support absolute paths with the current FileSystemArtifactHandler logic
-                    // which enforces `baseDir/row_step/filename`.
-                    // But we can just emit it and let the user find it in the step folder.
-                    // OR we can modify the handler to respect absolute paths?
-                    // Let's just save it to the step folder with the basename of the configured path.
                     const finalFilename = path.basename(finalPath);
                     
                     emit('artifact', {

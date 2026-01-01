@@ -1,4 +1,4 @@
-import { PreprocessorServices } from '../types.js';
+import { PreprocessorServices } from '../../types.js';
 
 export interface GenericHandler {
     name: string;

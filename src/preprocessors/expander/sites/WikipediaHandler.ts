@@ -1,7 +1,7 @@
 import * as cheerio from 'cheerio';
 import TurndownService from 'turndown';
 import { SiteHandler, GenericHandler } from '../types.js';
-import { PreprocessorServices } from '../../types.js';
+import { PreprocessorServices } from '../../../types.js';
 
 export class WikipediaHandler implements SiteHandler {
     name = 'wikipedia';

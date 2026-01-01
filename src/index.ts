@@ -37,10 +37,6 @@ generateCmd.action(async (templateFilePaths, options) => {
         const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry, globalContext } = await getConfig();
         puppeteerHelperInstance = puppeteerHelper;
 
-        // Initialize Artifact Handler
-        // We use the global tmpDir as the base for artifacts
-        new FileSystemArtifactHandler(globalContext.events, resolvedConfig.config.globals.tmpDir);
-
         let fileConfig = {};
 
         // Check if we're using a config file
@@ -51,6 +47,10 @@ generateCmd.action(async (templateFilePaths, options) => {
 
         // Parse Config (Merge File + CLI)
         const config = await StepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry);
+
+        // Initialize Artifact Handler
+        // We use the tmpDir from the parsed runtime config
+        new FileSystemArtifactHandler(globalContext.events, config.tmpDir);
 
         // Update the runtime config with the resolved concurrency values if they weren't in CLI args
         // This ensures ActionRunner uses the correct values (Env > Default) if CLI didn't specify them
