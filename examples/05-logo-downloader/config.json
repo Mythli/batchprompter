@@ -4,7 +4,8 @@
   },
   "globals": {
     "concurrency": 2,
-    "tmpDir": "out/05-logo-downloader/.tmp"
+    "tmpDir": "out/05-logo-downloader/.tmp",
+    "dataOutputPath": "out/05-logo-downloader/results.csv"
   },
   "steps": [
     {
