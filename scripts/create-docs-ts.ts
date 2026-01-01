@@ -42,9 +42,13 @@ try {
 console.log('  - Reading README.md...');
 appendFile(path.join(rootDir, 'README.md'));
 
-// 3. Examples
+// 3. Examples (Only README.md and config*.json)
 console.log('  - Reading Examples...');
-const exampleFiles = findFiles(examplesDir);
+const exampleFiles = findFiles(examplesDir).filter(file => {
+    const basename = path.basename(file);
+    return basename === 'README.md' || (basename.startsWith('config') && basename.endsWith('.json'));
+});
+
 for (const file of exampleFiles) {
     appendFile(file);
 }
