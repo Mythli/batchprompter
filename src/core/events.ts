@@ -11,6 +11,15 @@ export interface BatchPromptEvents {
     // Step Flow
     'step:start': (payload: { row: number; step: number; name?: string }) => void;
     'step:finish': (payload: { row: number; step: number; result: any }) => void;
+    
+    // Unified Progress Event
+    'step:progress': (payload: {
+        row: number;
+        step: number;
+        type: 'status' | 'explode' | 'generation' | 'plugin';
+        message: string;
+        data?: any;
+    }) => void;
 
     // Artifacts (The main output mechanism)
     'artifact': (payload: {

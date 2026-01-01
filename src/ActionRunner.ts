@@ -214,6 +214,14 @@ export class ActionRunner {
                                     payload.filename = path.join(tempDir, payload.filename);
                                 }
                                 this.globalContext.events.emit('artifact', payload);
+                            } else if (event === 'step:progress') {
+                                const payload = args[0];
+                                // Ensure row/step context is correct if not provided
+                                this.globalContext.events.emit('step:progress', {
+                                    row: currentItem.originalIndex,
+                                    step: stepNum,
+                                    ...payload
+                                });
                             } else {
                                 this.globalContext.events.emit(event, ...args);
                             }
@@ -359,6 +367,17 @@ export class ActionRunner {
                 outputStrategy,
                 namespace
             );
+
+            // Emit explode event if applicable
+            if (outputStrategy.explode && processed.length > 1) {
+                this.globalContext.events.emit('step:progress', {
+                    row: res.item.originalIndex,
+                    step: stepNum,
+                    type: 'explode',
+                    message: `Exploded into ${processed.length} items`,
+                    data: { count: processed.length, source: namespace }
+                });
+            }
 
             if (postProcess) {
                 if (outputStrategy.explode) {
