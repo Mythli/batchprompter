@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
-import { PromptResolver } from './PromptResolver.js';
+import { PromptLoader } from '../config/PromptLoader.js';
 import { ModelDefinition, ResolvedModelConfig } from '../types.js';
+import { ContentResolver } from '../core/io/ContentResolver.js';
 
 export class PluginHelpers {
     
@@ -11,22 +12,26 @@ export class PluginHelpers {
      */
     static async resolveModelConfig(
         def: ModelDefinition, 
-        row: Record<string, any>
+        row: Record<string, any>,
+        contentResolver: ContentResolver
     ): Promise<ResolvedModelConfig> {
         
+        const promptLoader = new PromptLoader(contentResolver);
+
         const systemParts = def.systemSource 
-            ? await PromptResolver.resolve(def.systemSource, row) 
+            ? await promptLoader.load(def.systemSource) 
             : [];
             
         const promptParts = def.promptSource 
-            ? await PromptResolver.resolve(def.promptSource, row) 
+            ? await promptLoader.load(def.promptSource) 
             : [];
 
         // Render content
         const render = (parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]): OpenAI.Chat.Completions.ChatCompletionContentPart[] => {
             return parts.map(part => {
                 if (part.type === 'text') {
-                    return { type: 'text' as const, text: Handlebars.compile(part.text, { noEscape: true })(row) };
+                    const template = Handlebars.compile(part.text, { noEscape: true });
+                    return { type: 'text' as const, text: template(row) };
                 }
                 return part;
             });

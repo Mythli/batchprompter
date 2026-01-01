@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { ModelFlags } from './ModelFlags.js';
 import { RuntimeConfig, StepConfig, ModelDefinition, ResolvedModelConfig, PreprocessorConfigDefinition } from '../types.js';
 import { loadData } from '../utils/dataLoader.js';
-import { PromptResolver } from '../utils/PromptResolver.js';
+import { PromptLoader } from '../config/PromptLoader.js';
 import { createConfigSchema } from './ConfigSchema.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { createPreprocessorRegistry } from '../getConfig.js';
@@ -131,7 +131,7 @@ export class StepRegistry {
 
         // 5. Resolve Steps
         const steps: StepConfig[] = [];
-        const promptResolver = new PromptResolver(contentResolver);
+        const promptLoader = new PromptLoader(contentResolver);
 
         const resolveModel = async (def: ModelDefinition | undefined): Promise<ResolvedModelConfig | undefined> => {
             if (!def) return undefined;
@@ -139,8 +139,8 @@ export class StepRegistry {
                 model: def.model,
                 temperature: def.temperature,
                 thinkingLevel: def.thinkingLevel,
-                systemParts: await promptResolver.resolve(def.systemSource),
-                promptParts: await promptResolver.resolve(def.promptSource)
+                systemParts: await promptLoader.load(def.systemSource),
+                promptParts: await promptLoader.load(def.promptSource)
             };
         };
 

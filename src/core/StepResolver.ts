@@ -5,7 +5,6 @@ import { GlobalContext, StepConfig, StepContext, ResolvedModelConfig, PipelineIt
 import { BoundLlmClient } from './BoundLlmClient.js';
 import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
 import { SchemaHelper } from '../utils/SchemaHelper.js';
-import { PromptResolver } from '../utils/PromptResolver.js';
 
 export interface ResolvedStepContext {
     resolvedStep: StepConfig;
@@ -88,12 +87,6 @@ export class StepResolver {
             } catch (e) {
                 console.warn(`[Row ${item.originalIndex}] Failed to load/parse schema from '${stepConfig.schemaPath}':`, e);
             }
-        }
-
-        // Dynamic Prompt Resolution (if needed)
-        if (stepConfig.userPromptParts.length === 1 && stepConfig.userPromptParts[0].type === 'text' && stepConfig.userPromptParts[0].text.includes('{{')) {
-            const template = stepConfig.userPromptParts[0].text;
-            resolvedStep.userPromptParts = await PromptResolver.resolve(template, viewContext);
         }
 
         // 3. Create Step Context (LLM Clients)
