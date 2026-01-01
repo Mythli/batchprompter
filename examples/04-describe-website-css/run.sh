@@ -3,6 +3,8 @@
 # Navigate to the project root directory
 cd "$(dirname "$0")/../.."
 
+rm -rf out/04-describe-website-css
+
 # Run the batchprompt tool
 # - Uses the style-scraper plugin to capture screenshots (desktop & mobile) and interactive element styles.
 # - Passes these assets to GPT-4o to generate a design description.
