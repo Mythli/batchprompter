@@ -144,7 +144,14 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     const mergedConfig = mergeCliOverrides(fileConfig, options, args, pluginRegistry);
 
     // 2. Validate against Loose Zod schema (allows strings)
-    const config = LoosePipelineConfigSchema.parse(mergedConfig);
+    let config;
+    try {
+        config = LoosePipelineConfigSchema.parse(mergedConfig);
+    } catch (e) {
+        console.error('\n\x1b[31m[Config Error] Failed to validate pipeline configuration:\x1b[0m');
+        console.error(JSON.stringify(mergedConfig, null, 2));
+        throw e;
+    }
 
     // 3. Normalize to internal runtime format
     const steps: StepDefinition[] = [];
@@ -163,17 +170,23 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
 
         // Resolve Plugins
         const plugins: PluginConfigDefinition[] = [];
-        stepDef.plugins.forEach(pluginConfig => {
+        stepDef.plugins.forEach((pluginConfig, pIdx) => {
             const plugin = pluginRegistry.get(pluginConfig.type);
             if (plugin) {
                 // Normalize immediately using the plugin's schema.
-                const validatedConfig = plugin.configSchema.parse(pluginConfig);
+                try {
+                    const validatedConfig = plugin.configSchema.parse(pluginConfig);
 
-                plugins.push({
-                    name: pluginConfig.type,
-                    config: validatedConfig,
-                    output: validatedConfig.output
-                });
+                    plugins.push({
+                        name: pluginConfig.type,
+                        config: validatedConfig,
+                        output: validatedConfig.output
+                    });
+                } catch (e) {
+                    console.error(`\n\x1b[31m[Config Error] Failed to validate plugin '${pluginConfig.type}' at step ${stepIndex}, plugin index ${pIdx}:\x1b[0m`);
+                    console.error(JSON.stringify(pluginConfig, null, 2));
+                    throw e;
+                }
             }
         });
 
