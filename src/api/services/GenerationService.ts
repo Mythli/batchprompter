@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { SafePipelineConfigSchema, SafePipelineConfig } from '../../config/safeSchema.js';
 import { getConfig } from '../../getConfig.js';
+import { CONFIG_DOCUMENTATION } from '../../generated/ConfigDocumentation.js';
 
 export class GenerationService {
     
@@ -11,7 +12,10 @@ export class GenerationService {
         const generatorLlm = llmFactory.create({
             model: process.env.MODEL || 'google/gemini-3-flash-preview',
             temperature: 0.7,
-            systemParts: [{ type: 'text', text: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' }],
+            systemParts: [
+                { type: 'text', text: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' },
+                { type: 'text', text: 'Here is the documentation and schema for the configuration format:\n\n' + CONFIG_DOCUMENTATION }
+            ],
             promptParts: []
         });
 
