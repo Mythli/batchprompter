@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
 import generateRoutes from './routes/generate.js';
 import runRoutes from './routes/run.js';
 
@@ -7,6 +8,10 @@ const app = new Hono();
 
 app.route('/', generateRoutes);
 app.route('/', runRoutes);
+
+app.use('/*', serveStatic({
+    root: './public',
+}));
 
 // Export for use or run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
