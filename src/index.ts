@@ -33,6 +33,22 @@ const cliRegistry = createDefaultRegistry(cliCapabilities);
 // Register all step arguments
 StepRegistry.registerStepArgs(generateCmd, cliRegistry);
 
+function flattenObject(obj: any, prefix = '', result: any = {}) {
+    for (const key in obj) {
+        if (Object.prototype.hasOwnProperty.call(obj, key)) {
+            const value = obj[key];
+            const newKey = prefix ? `${prefix}.${key}` : key;
+
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                flattenObject(value, newKey, result);
+            } else {
+                result[newKey] = value;
+            }
+        }
+    }
+    return result;
+}
+
 generateCmd.action(async (templateFilePaths, options) => {
     let puppeteerHelperInstance;
     try {
@@ -76,10 +92,13 @@ generateCmd.action(async (templateFilePaths, options) => {
 
         // Write Data Output (CSV/JSON)
         if (config.dataOutputPath && results.length > 0) {
-            const headers = Array.from(new Set(results.flatMap(Object.keys)));
+            // Flatten results to handle nested objects (like plugin outputs) gracefully in CSV
+            const flattenedResults = results.map(row => flattenObject(row));
+
+            const headers = Array.from(new Set(flattenedResults.flatMap(Object.keys)));
             const csvContent = [
                 headers.join(','),
-                ...results.map(row => headers.map(header => {
+                ...flattenedResults.map(row => headers.map(header => {
                     const val = row[header];
                     if (val === null || val === undefined) return '';
                     
