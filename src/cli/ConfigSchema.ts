@@ -16,10 +16,18 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
     config.steps = config.steps || [];
 
     // --- Data Overrides ---
-    if (options.limit !== undefined) config.data.limit = parseInt(String(options.limit), 10);
-    if (options.offset !== undefined) config.data.offset = parseInt(String(options.offset), 10);
-    if (options.inputLimit !== undefined) config.data.limit = parseInt(String(options.inputLimit), 10);
-    if (options.inputOffset !== undefined) config.data.offset = parseInt(String(options.inputOffset), 10);
+    // inputLimit/inputOffset take precedence over limit/offset for input data
+    if (options.inputLimit !== undefined) {
+        config.data.limit = parseInt(String(options.inputLimit), 10);
+    } else if (options.limit !== undefined) {
+        config.data.limit = parseInt(String(options.limit), 10);
+    }
+
+    if (options.inputOffset !== undefined) {
+        config.data.offset = parseInt(String(options.inputOffset), 10);
+    } else if (options.offset !== undefined) {
+        config.data.offset = parseInt(String(options.offset), 10);
+    }
 
     // --- Global Overrides ---
     if (options.model) config.globals.model = options.model;
@@ -84,8 +92,22 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
         if (options[`explode${stepNum}`]) step.output.explode = true;
 
         // Limits & Offsets (Step Specific)
-        if (options[`limit${stepNum}`] !== undefined) step.output.limit = parseInt(String(options[`limit${stepNum}`]), 10);
-        if (options[`offset${stepNum}`] !== undefined) step.output.offset = parseInt(String(options[`offset${stepNum}`]), 10);
+        // Precedence: limit{N} > explodeLimit > limit
+        if (options[`limit${stepNum}`] !== undefined) {
+            step.output.limit = parseInt(String(options[`limit${stepNum}`]), 10);
+        } else if (options.explodeLimit !== undefined) {
+            step.output.limit = parseInt(String(options.explodeLimit), 10);
+        } else if (options.limit !== undefined) {
+            step.output.limit = parseInt(String(options.limit), 10);
+        }
+
+        if (options[`offset${stepNum}`] !== undefined) {
+            step.output.offset = parseInt(String(options[`offset${stepNum}`]), 10);
+        } else if (options.explodeOffset !== undefined) {
+            step.output.offset = parseInt(String(options.explodeOffset), 10);
+        } else if (options.offset !== undefined) {
+            step.output.offset = parseInt(String(options.offset), 10);
+        }
 
         // Other Step Settings
         if (options[`candidates${stepNum}`] !== undefined) step.candidates = parseInt(String(options[`candidates${stepNum}`]), 10);
