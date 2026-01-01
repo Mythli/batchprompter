@@ -15,6 +15,7 @@
     "test": "echo \"Error: no examples specified\" && exit 1",
     "serptest": "tsx src/serptest.ts",
     "debug": "/Users/tobiasanhalt/Development/batchprompt/examples/04-describe-website-css/run.sh",
+    "create-docs": "tsx scripts/create-docs-ts.ts",
     "build": "tsc",
     "release": "bash scripts/release.sh"
   },
