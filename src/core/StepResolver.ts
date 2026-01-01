@@ -50,7 +50,8 @@ export class StepResolver {
             const delegate = Handlebars.compile(stepConfig.outputTemplate, { noEscape: true });
             resolvedStep.outputPath = delegate(sanitizedRow);
 
-            resolvedStep.resolvedOutputDir = path.dirname(resolvedStep.outputPath);
+            // Resolve to absolute path to ensure ArtifactHandler treats it as explicit output
+            resolvedStep.resolvedOutputDir = path.resolve(path.dirname(resolvedStep.outputPath));
             await ensureDir(resolvedStep.resolvedOutputDir);
 
             const parsed = path.parse(resolvedStep.outputPath);

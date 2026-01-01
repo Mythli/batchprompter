@@ -148,9 +148,10 @@ export class StandardStrategy implements GenerationStrategy {
             filename = `${effectiveBasename}_${variationIndex}.${finalContent.extension}`;
         }
 
-        // --- FIX: Use resolvedTempDir to make path absolute ---
-        if (config.resolvedTempDir) {
-            filename = path.join(config.resolvedTempDir, filename);
+        // Use resolvedOutputDir if available (explicit user output), otherwise temp dir
+        const targetDir = config.resolvedOutputDir || config.resolvedTempDir;
+        if (targetDir) {
+            filename = path.join(targetDir, filename);
         }
 
         let contentPayload: string | Buffer = finalContent.data;

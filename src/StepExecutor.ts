@@ -71,8 +71,9 @@ export class StepExecutor {
                     ? `${config.outputBasename || 'output'}${ext}`
                     : `${config.outputBasename || 'output'}_${i}${ext}`;
 
-                if (config.resolvedTempDir) {
-                    filename = path.join(config.resolvedTempDir, filename);
+                const targetDir = config.resolvedOutputDir || config.resolvedTempDir;
+                if (targetDir) {
+                    filename = path.join(targetDir, filename);
                 }
 
                 this.events.emit('artifact', {
