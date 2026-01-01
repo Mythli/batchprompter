@@ -33,4 +33,4 @@ The `config.json` defines the pipeline:
 ./run.sh
 ```
 
-Check the `out/05-logo-downloader` directory for results.
+Check the `out/05-logo-downloader` directory for results. The `results.csv` file will contain the paths to the downloaded logos and the extracted brand colors.
