@@ -3,6 +3,8 @@
 # Navigate to the project root directory
 cd "$(dirname "$0")/../.."
 
+rm -rf out/05-simple-chain
+
 # Define configuration inline
 CONFIG=$(cat <<EOF
 {

@@ -12,6 +12,8 @@
 # Navigate to the project root directory
 cd "$(dirname "$0")/../.."
 
+rm -rf out/02-lead-gen
+
 # 1. Find and dedupe companies
 echo "Running Step 1: Finding companies..."
 echo "Output: out/13-industry-search/companies.csv"
