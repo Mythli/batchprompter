@@ -49,7 +49,13 @@ export const LogoScraperConfigSchemaV2 = z.object({
     minScore: z.number().int().min(1).max(10).default(5),
     
     // Output path for the best logo
-    logoOutputPath: z.string().optional()
+    logoOutputPath: z.string().optional(),
+    // Output path for the best favicon
+    faviconOutputPath: z.string().optional(),
+
+    // Limits
+    maxLogosToSave: z.number().int().positive().default(1),
+    maxFaviconsToSave: z.number().int().positive().default(1)
 });
 
 export type LogoScraperRawConfigV2 = z.infer<typeof LogoScraperConfigSchemaV2>;
@@ -64,6 +70,9 @@ export interface LogoScraperResolvedConfigV2 {
     maxCandidates: number;
     minScore: number;
     logoOutputPath?: string;
+    faviconOutputPath?: string;
+    maxLogosToSave: number;
+    maxFaviconsToSave: number;
 }
 
 // =============================================================================
@@ -82,6 +91,9 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         { flags: '--logo-scraper-max-candidates <number>', description: 'Max logo candidates to download', parser: parseInt },
         { flags: '--logo-scraper-min-score <number>', description: 'Min score (1-10) to keep a logo', parser: parseInt },
         { flags: '--logo-scraper-logo-output-path <path>', description: 'Path to save the best logo (supports templates)' },
+        { flags: '--logo-scraper-favicon-output-path <path>', description: 'Path to save the best favicon (supports templates)' },
+        { flags: '--logo-scraper-max-save <number>', description: 'Max logos to save (default: 1)', parser: parseInt },
+        { flags: '--logo-scraper-max-favicon-save <number>', description: 'Max favicons to save (default: 1)', parser: parseInt },
         { flags: '--logo-scraper-export', description: 'Merge results into row' },
         { flags: '--logo-scraper-output <column>', description: 'Save to column' }
     ];
@@ -123,6 +135,9 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             maxCandidates: getOpt('logoScraperMaxCandidates'),
             minScore: getOpt('logoScraperMinScore'),
             logoOutputPath: getOpt('logoScraperLogoOutputPath'),
+            faviconOutputPath: getOpt('logoScraperFaviconOutputPath'),
+            maxLogosToSave: getOpt('logoScraperMaxSave'),
+            maxFaviconsToSave: getOpt('logoScraperMaxFaviconSave'),
             output: {
                 mode: outputMode,
                 column: outputColumn,
@@ -160,17 +175,23 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
         const url = urlTemplate(row);
 
+        // Sanitize row data for file path usage
+        const sanitizedRow: Record<string, any> = {};
+        for (const [key, val] of Object.entries(row)) {
+             const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+             sanitizedRow[key] = aggressiveSanitize(stringVal);
+        }
+
         let logoOutputPath: string | undefined;
         if (rawConfig.logoOutputPath) {
-            // Sanitize row data for file path usage
-            const sanitizedRow: Record<string, any> = {};
-            for (const [key, val] of Object.entries(row)) {
-                 const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                 sanitizedRow[key] = aggressiveSanitize(stringVal);
-            }
-
             const template = Handlebars.compile(rawConfig.logoOutputPath, { noEscape: true });
             logoOutputPath = template(sanitizedRow);
+        }
+
+        let faviconOutputPath: string | undefined;
+        if (rawConfig.faviconOutputPath) {
+            const template = Handlebars.compile(rawConfig.faviconOutputPath, { noEscape: true });
+            faviconOutputPath = template(sanitizedRow);
         }
 
         return {
@@ -196,7 +217,10 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             ),
             maxCandidates: rawConfig.maxCandidates,
             minScore: rawConfig.minScore,
-            logoOutputPath
+            logoOutputPath,
+            faviconOutputPath,
+            maxLogosToSave: rawConfig.maxLogosToSave,
+            maxFaviconsToSave: rawConfig.maxFaviconsToSave
         };
     }
 
@@ -240,7 +264,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         const packetData: any = {
             brandColor: result.primaryColor?.hex,
             brandColors: result.brandColors?.map(c => c.hex) || [],
-            logos: []
+            logos: [],
+            favicons: []
         };
 
         if (result.logos && result.logos.length > 0) {
@@ -255,38 +280,63 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             const logosDir = path.join(tempDirectory, 'logos');
             await ensureDir(logosDir);
 
+            // Counters for saving
+            let savedLogosCount = 0;
+            let savedFaviconsCount = 0;
+            const savedLogoPaths: string[] = [];
+            const savedFaviconPaths: string[] = [];
+
             for (let i = 0; i < result.logos.length; i++) {
                 const logo = result.logos[i];
-                const filename = `logo_${i}.png`;
-                const savePath = path.join(logosDir, filename);
                 
-                // Save to temp dir
-                await ArtifactSaver.save(logo.base64PngData, savePath);
+                // 1. Save to temp dir (always)
+                const tempFilename = `logo_${i}.png`;
+                const tempSavePath = path.join(logosDir, tempFilename);
+                await ArtifactSaver.save(logo.base64PngData, tempSavePath);
 
-                packetData.logos.push({
-                    path: savePath,
-                    score: logo.brandLogoScore,
-                    isFavicon: logo.isFavicon
-                });
-            }
+                // 2. Determine if this is a favicon candidate (Square)
+                const isSquare = Math.abs((logo.width || 0) - (logo.height || 0)) <= 1;
+                
+                // Route to Favicon ONLY if it is square AND we have a specific path for it
+                const isFaviconTarget = isSquare && !!config.faviconOutputPath;
 
-            // Handle the "Best" logo (Index 0)
-            const bestLogo = result.logos[0];
-            let bestLogoPath = packetData.logos[0].path;
+                const limit = isFaviconTarget ? config.maxFaviconsToSave : config.maxLogosToSave;
+                const currentCount = isFaviconTarget ? savedFaviconsCount : savedLogosCount;
+                const pathTemplate = isFaviconTarget ? config.faviconOutputPath : config.logoOutputPath;
 
-            // If user specified a custom output path for the best logo, save it there
-            if (config.logoOutputPath) {
-                try {
-                    await ArtifactSaver.save(bestLogo.base64PngData, config.logoOutputPath);
-                    console.log(`[LogoScraper] Saved best logo to ${config.logoOutputPath}`);
-                    bestLogoPath = config.logoOutputPath;
-                } catch (e: any) {
-                    console.error(`[LogoScraper] Failed to save logo to ${config.logoOutputPath}:`, e);
+                if (pathTemplate && currentCount < limit) {
+                    let finalPath = pathTemplate;
+                    
+                    // Only append suffix if the user requested multiple
+                    if (limit > 1) {
+                        const ext = path.extname(pathTemplate);
+                        const base = pathTemplate.slice(0, -ext.length);
+                        // 1-based index for suffix
+                        finalPath = `${base}_${currentCount + 1}${ext}`;
+                    }
+
+                    try {
+                        await ArtifactSaver.save(logo.base64PngData, finalPath);
+                        console.log(`[LogoScraper] Saved ${isFaviconTarget ? 'favicon' : 'logo'} to ${finalPath}`);
+
+                        if (isFaviconTarget) {
+                            savedFaviconsCount++;
+                            savedFaviconPaths.push(finalPath);
+                        } else {
+                            savedLogosCount++;
+                            savedLogoPaths.push(finalPath);
+                        }
+                    } catch (e: any) {
+                        console.error(`[LogoScraper] Failed to save to ${finalPath}:`, e);
+                    }
                 }
             }
 
-            // Set the main 'logo' field to the best path (either temp or custom)
-            packetData.logo = bestLogoPath;
+            // Populate packet data
+            packetData.logo = savedLogoPaths.length > 0 ? savedLogoPaths[0] : undefined;
+            packetData.favicon = savedFaviconPaths.length > 0 ? savedFaviconPaths[0] : undefined;
+            packetData.logos = savedLogoPaths;
+            packetData.favicons = savedFaviconPaths;
         }
 
         return {
