@@ -15,6 +15,7 @@
           "maxCandidates": 10,
           "minScore": 6,
           "logoOutputPath": "out/05-logo-downloader/logos/{{website_url}}.png",
+          "faviconOutputPath": "out/05-logo-downloader/favicons/{{website_url}}.png",
           "output": {
             "mode": "merge"
           }
