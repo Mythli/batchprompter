@@ -80,7 +80,7 @@ export class StandardStrategy implements GenerationStrategy {
 
         // Verification via Handler
         if (config.handlers?.verify) {
-            this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} 🔍 Verifying content...` });
+            this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `🔍 Verifying content...` });
             
             const result = await config.handlers.verify(validated.data, {
                 row,
@@ -94,7 +94,7 @@ export class StandardStrategy implements GenerationStrategy {
                 throw new Error(`Verification failed:\n${result.feedback || 'No feedback provided.'}\n\nPlease fix the content.`);
             }
             
-            this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} 🟢 Verification passed.` });
+            this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `🟢 Verification passed.` });
         }
 
         return validated;
@@ -122,7 +122,7 @@ export class StandardStrategy implements GenerationStrategy {
             const isFeedbackLoop = loop > 0;
 
             if (isFeedbackLoop) {
-                this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${loop}/${config.feedbackLoops}` });
+                this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `🔄 Feedback Loop ${loop}/${config.feedbackLoops}` });
             }
 
             finalContent = await this.generateWithRetry(
@@ -249,7 +249,7 @@ export class StandardStrategy implements GenerationStrategy {
 
             } catch (error: any) {
                 lastError = error;
-                this.events.emit('log', { level: 'warn', message: `[Row ${index}] Step ${stepIndex} Attempt ${attempt+1}/${maxRetries+1} failed: ${error.message}` });
+                this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Attempt ${attempt+1}/${maxRetries+1} failed: ${error.message}` });
 
                 if (attempt < maxRetries) {
                     currentHistory.push({

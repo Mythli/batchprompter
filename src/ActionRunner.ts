@@ -26,7 +26,8 @@ export class ActionRunner {
         const events = this.globalContext.events;
 
         events.emit('run:start', config);
-        events.emit('log', { level: 'info', message: `Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)` });
+        // Using step:progress with row -1 for global logs
+        events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)` });
 
         this.globalContext.taskQueue.concurrency = taskConcurrency;
         this.globalContext.gptQueue.concurrency = concurrency;
@@ -34,7 +35,7 @@ export class ActionRunner {
         const endIndex = limit ? offset + limit : undefined;
         const dataToProcess = data.slice(offset, endIndex);
 
-        events.emit('log', { level: 'info', message: `Processing ${dataToProcess.length} rows.` });
+        events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Processing ${dataToProcess.length} rows.` });
 
         const queue = this.globalContext.taskQueue;
         const executor = new StepExecutor(this.globalContext.events, this.messageBuilder);
@@ -141,7 +142,7 @@ export class ActionRunner {
 
             } catch (err: any) {
                 events.emit('row:error', { index: item.originalIndex, error: err });
-                events.emit('log', { level: 'error', message: `[Row ${item.originalIndex}] Step ${stepNum} Error: ${err.message}` });
+                events.emit('step:progress', { row: item.originalIndex, step: stepNum, type: 'error', message: `Step ${stepNum} Error: ${err.message}` });
             }
         };
 
@@ -223,6 +224,7 @@ export class ActionRunner {
                                     ...payload
                                 });
                             } else {
+                                // @ts-ignore - we know event is not 'log' anymore
                                 this.globalContext.events.emit(event, ...args);
                             }
                         }
@@ -352,7 +354,7 @@ export class ActionRunner {
                 const packets = await operation(item);
                 return { item, packets };
             } catch (e: any) {
-                this.globalContext.events.emit('log', { level: 'error', message: `[Row ${item.originalIndex}] Step ${stepNum} ${namespace} Failed: ${e.message}` });
+                this.globalContext.events.emit('step:progress', { row: item.originalIndex, step: stepNum, type: 'error', message: `Step ${stepNum} ${namespace} Failed: ${e.message}` });
                 return null;
             }
         }));

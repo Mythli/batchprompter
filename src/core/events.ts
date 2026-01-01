@@ -16,7 +16,7 @@ export interface BatchPromptEvents {
     'step:progress': (payload: {
         row: number;
         step: number;
-        type: 'status' | 'explode' | 'generation' | 'plugin';
+        type: 'status' | 'explode' | 'generation' | 'plugin' | 'info' | 'warn' | 'error';
         message: string;
         data?: any;
     }) => void;
@@ -31,7 +31,4 @@ export interface BatchPromptEvents {
         tags: string[]; // ['debug', 'final', 'candidate', etc]
         metadata?: Record<string, any>;
     }) => void;
-
-    // Logging (Replaces console.log)
-    'log': (payload: { level: 'debug' | 'info' | 'warn' | 'error'; message: string; meta?: any }) => void;
 }

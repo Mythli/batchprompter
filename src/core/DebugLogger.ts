@@ -7,18 +7,8 @@ export class DebugLogger {
     }
 
     private setupListeners() {
-        this.events.on('log', (payload) => {
-            if (payload.level === 'error') {
-                console.error(`[ERROR] ${payload.message}`);
-            } else if (payload.level === 'warn') {
-                console.warn(`[WARN] ${payload.message}`);
-            } else {
-                console.log(`[INFO] ${payload.message}`);
-            }
-        });
-
         this.events.on('step:progress', (payload) => {
-            const prefix = `[Row ${payload.row}] Step ${payload.step}`;
+            const prefix = payload.row >= 0 ? `[Row ${payload.row}] Step ${payload.step}` : `[Global]`;
             
             switch (payload.type) {
                 case 'explode':
@@ -30,6 +20,13 @@ export class DebugLogger {
                 case 'plugin':
                     console.log(`${prefix} 🔌 ${payload.message}`);
                     break;
+                case 'error':
+                    console.error(`${prefix} ❌ ${payload.message}`);
+                    break;
+                case 'warn':
+                    console.warn(`${prefix} ⚠️ ${payload.message}`);
+                    break;
+                case 'info':
                 case 'status':
                 default:
                     console.log(`${prefix} ${payload.message}`);

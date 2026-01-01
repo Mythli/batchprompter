@@ -27,7 +27,7 @@ export class CandidateStrategy implements GenerationStrategy {
     ): Promise<GenerationResult> {
         const candidateCount = config.candidates;
 
-        this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} Generating ${candidateCount} candidates...` });
+        this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Generating ${candidateCount} candidates...` });
 
         const promises: Promise<GenerationResult & { candidateIndex: number }>[] = [];
 
@@ -35,33 +35,13 @@ export class CandidateStrategy implements GenerationStrategy {
             // Salt must include variation index to avoid cache collisions between exploded items
             const salt = `${cacheSalt || ''}_var_${variationIndex ?? 'x'}_cand_${i}`;
             
-            // We pass a dummy output path override to StandardStrategy to trigger artifact emission with correct naming?
-            // Actually StandardStrategy emits artifact based on config.outputBasename.
-            // We need to ensure candidates don't overwrite each other in the artifact stream if they have same filename.
-            // But StandardStrategy doesn't know about candidate index.
-            // We might need to modify StandardStrategy to accept a filename suffix or handle it here.
-            // For now, let's assume StandardStrategy emits 'final' tag.
-            // We might want to intercept artifacts? No, StandardStrategy emits them.
-            // If we run in parallel, we get multiple artifacts.
-            // The consumer needs to handle them.
-            
-            // Ideally, we should probably NOT use StandardStrategy's artifact emission for candidates,
-            // or we should tag them as 'candidate'.
-            // But StandardStrategy is hardcoded to emit 'final'.
-            // Refactor idea: Pass tags to StandardStrategy?
-            
-            // For this refactor, let's just run them. The artifacts will be emitted.
-            // The filename in StandardStrategy uses variationIndex.
-            // We should probably pass a variationIndex that includes candidate index?
-            // Or just rely on the fact that we are returning the results and the Judge will pick one.
-            
             promises.push(
                 this.standardStrategy.execute(
                     row, index, stepIndex, config, userPromptParts, history, salt, undefined, skipCommands, variationIndex
                 )
                 .then(res => ({ ...res, candidateIndex: i }))
                 .catch(err => {
-                    this.events.emit('log', { level: 'error', message: `[Row ${index}] Step ${stepIndex} Candidate ${i} failed: ${err.message}` });
+                    this.events.emit('step:progress', { row: index, step: stepIndex, type: 'error', message: `Candidate ${i} failed: ${err.message}` });
                     throw err;
                 })
             );
@@ -81,7 +61,7 @@ export class CandidateStrategy implements GenerationStrategy {
         if (successfulCandidates.length === 1) {
             winner = successfulCandidates[0];
             if (candidateCount > 1) {
-                this.events.emit('log', { level: 'warn', message: `[Row ${index}] Step ${stepIndex} Only 1 candidate succeeded. Skipping judge.` });
+                this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Only 1 candidate succeeded. Skipping judge.` });
             }
             
             return {
@@ -91,12 +71,12 @@ export class CandidateStrategy implements GenerationStrategy {
             };
         } else {
             if (this.stepContext.judge) {
-                this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates...` });
+                this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Judging ${successfulCandidates.length} candidates...` });
                 try {
                     winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex, row);
-                    this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}` });
+                    this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Judge selected candidate #${winner.candidateIndex + 1}` });
                 } catch (e: any) {
-                    this.events.emit('log', { level: 'error', message: `[Row ${index}] Step ${stepIndex} Judging failed: ${e.message}` });
+                    this.events.emit('step:progress', { row: index, step: stepIndex, type: 'error', message: `Judging failed: ${e.message}` });
                     throw e;
                 }
                 
@@ -107,7 +87,7 @@ export class CandidateStrategy implements GenerationStrategy {
                 };
             } else {
                 // NO JUDGE: Return array for explode
-                this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} No judge configured. Returning all ${successfulCandidates.length} candidates.` });
+                this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `No judge configured. Returning all ${successfulCandidates.length} candidates.` });
                 
                 // We map to the raw result format expected by ResultProcessor (array of items)
                 const explodedResults = successfulCandidates.map(c => c.raw || c.columnValue);
@@ -171,7 +151,7 @@ export class CandidateStrategy implements GenerationStrategy {
             JudgeSchema
         );
 
-        this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} Judge Reason: ${result.reason}` });
+        this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Judge Reason: ${result.reason}` });
 
         return candidates[result.best_candidate_index];
     }

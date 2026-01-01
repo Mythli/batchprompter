@@ -38,7 +38,7 @@ export class StepExecutor {
         const hasModelPrompt = config.modelConfig.promptParts.length > 0;
 
         if (effectiveUserPromptParts.length === 0 && !hasSystemPrompt && !hasModelPrompt) {
-             this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} No prompt and no content. Treating as pass-through.` });
+             this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `No prompt and no content. Treating as pass-through.` });
              return {
                  historyMessage: { role: 'assistant', content: '' },
                  modelResult: {}
@@ -46,7 +46,7 @@ export class StepExecutor {
         }
 
         if (!hasUserPrompt && !hasSystemPrompt && !hasModelPrompt && effectiveUserPromptParts.length > 0) {
-             this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} No prompt detected. Saving plugin output directly...` });
+             this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `No prompt detected. Saving plugin output directly...` });
 
             // Emit artifacts for plugin content
             for (let i = 0; i < effectiveUserPromptParts.length; i++) {
