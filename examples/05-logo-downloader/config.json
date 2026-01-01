@@ -3,7 +3,6 @@
     "format": "csv"
   },
   "globals": {
-    "model": "gpt-4o",
     "concurrency": 2,
     "tmpDir": "out/05-logo-downloader/.tmp"
   },
