@@ -215,12 +215,12 @@ export class ActionRunner {
                         tempDirectory: tempDir,
                         // Pass emitter to plugin context
                         emit: (event, ...args) => {
-                            if (event === 'artifact') {
+                            if (event === 'plugin:artifact') {
                                 const payload = args[0];
                                 if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
                                     payload.filename = path.join(tempDir, payload.filename);
                                 }
-                                this.globalContext.events.emit('artifact', payload);
+                                this.globalContext.events.emit('plugin:artifact', payload);
                             } else if (event === 'step:progress') {
                                 const payload = args[0];
                                 // Ensure row/step context is correct if not provided

@@ -257,9 +257,10 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         // Wire up events
         aiImageSearch.events.on('search:result', (data) => {
             const safeQuery = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'image-search',
                 type: 'json',
                 filename: `image_search/search_results/result_task${data.taskIndex}_${safeQuery}_p${data.page}.json`,
                 content: JSON.stringify(data.results, null, 2),
@@ -272,9 +273,10 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             if (data.taskIndex !== undefined) filename += `_task${data.taskIndex}`;
             filename += `_${data.index}.jpg`;
             
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'image-search',
                 type: 'image',
                 filename,
                 content: data.buffer,
@@ -287,9 +289,10 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             if (data.taskIndex !== undefined) filename += `_task${data.taskIndex}`;
             filename += `_${data.index}.jpg`;
 
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'image-search',
                 type: 'image',
                 filename,
                 content: data.buffer,
@@ -298,9 +301,10 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         });
 
         aiImageSearch.events.on('query:generated', (data) => {
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'image-search',
                 type: 'json',
                 filename: `image_search/search_results/queries_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -338,9 +342,10 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                     .toBuffer();
 
                 // Emit final artifact
-                emit('artifact', {
+                emit('plugin:artifact', {
                     row: context.row.index,
                     step: context.stepIndex,
+                    plugin: 'image-search',
                     type: 'image',
                     filename,
                     content: processed,

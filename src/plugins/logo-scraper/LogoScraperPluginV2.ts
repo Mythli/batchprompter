@@ -261,9 +261,10 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         if (result.logos && result.logos.length > 0) {
             const safeUrl = config.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
 
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'logo-scraper',
                 type: 'json',
                 filename: `logo_scraper/analysis/${safeUrl}_analysis.json`,
                 content: JSON.stringify({ brandColors: result.brandColors, logos: result.logos }, null, 2),
@@ -279,9 +280,10 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 const logo = result.logos[i];
                 
                 const tempFilename = `logo_scraper/logos/${safeUrl}/logo_${i}.png`;
-                emit('artifact', {
+                emit('plugin:artifact', {
                     row: context.row.index,
                     step: context.stepIndex,
+                    plugin: 'logo-scraper',
                     type: 'image',
                     filename: tempFilename,
                     content: logo.base64PngData,
@@ -305,9 +307,10 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                         finalPath = `${base}_${currentCount + 1}${ext}`;
                     }
 
-                    emit('artifact', {
+                    emit('plugin:artifact', {
                         row: context.row.index,
                         step: context.stepIndex,
+                        plugin: 'logo-scraper',
                         type: 'image',
                         filename: finalPath,
                         content: logo.base64PngData,

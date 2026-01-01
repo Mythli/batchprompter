@@ -255,9 +255,10 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                 }
 
                 if (filename) {
-                    emit('artifact', {
+                    emit('plugin:artifact', {
                         row: context.row.index,
                         step: context.stepIndex,
+                        plugin: 'style-scraper',
                         type: artifact.type === 'css' ? 'text' : 'image',
                         filename: `style_scraper/${subDir}/${filename}`,
                         content: artifact.base64,

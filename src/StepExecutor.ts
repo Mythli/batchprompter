@@ -76,9 +76,10 @@ export class StepExecutor {
                     filename = path.join(targetDir, filename);
                 }
 
-                this.events.emit('artifact', {
+                this.events.emit('plugin:artifact', {
                     row: index,
                     step: stepIndex,
+                    plugin: 'model',
                     type,
                     filename,
                     content,

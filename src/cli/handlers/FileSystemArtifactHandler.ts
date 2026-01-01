@@ -9,8 +9,6 @@ export class FileSystemArtifactHandler {
         private baseDir: string
     ) {
         this.events.on('plugin:artifact', this.handleArtifact.bind(this));
-        // Legacy support
-        this.events.on('artifact', this.handleArtifact.bind(this));
     }
 
     private async handleArtifact(payload: Parameters<BatchPromptEvents['plugin:artifact']>[0]) {

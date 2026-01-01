@@ -12,7 +12,6 @@ export class MemoryArtifactHandler {
 
     constructor(private events: EventEmitter<BatchPromptEvents>) {
         this.events.on('plugin:artifact', this.handleArtifact.bind(this));
-        this.events.on('artifact', this.handleArtifact.bind(this));
     }
 
     private handleArtifact(payload: Parameters<BatchPromptEvents['plugin:artifact']>[0]) {

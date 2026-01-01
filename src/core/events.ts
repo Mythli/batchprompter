@@ -41,15 +41,4 @@ export interface BatchPromptEvents {
         tags: string[]; // ['debug', 'final', 'candidate', etc]
         metadata?: Record<string, any>;
     }) => void;
-
-    // Legacy artifact event (kept for compatibility with non-refactored parts if any)
-    'artifact': (payload: {
-        row: number;
-        step: number;
-        type: string;
-        filename: string;
-        content: string | Buffer;
-        tags: string[];
-        metadata?: Record<string, any>;
-    }) => void;
 }

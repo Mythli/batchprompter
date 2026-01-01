@@ -159,9 +159,10 @@ export class StandardStrategy implements GenerationStrategy {
             contentPayload = Buffer.from(finalContent.data, 'base64');
         }
 
-        this.events.emit('artifact', {
+        this.events.emit('plugin:artifact', {
             row: index,
             step: stepIndex,
+            plugin: 'model',
             type: finalContent.type,
             filename: filename,
             content: contentPayload,
