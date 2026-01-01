@@ -23,35 +23,38 @@ import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js'
 
 // Strict Schema (Object only)
 export const WebsiteAgentConfigSchemaV2 = z.object({
-    type: z.literal('website-agent'),
-    id: z.string().optional(),
+    type: z.literal('website-agent').describe("Identifies this as a Website Agent plugin."),
+    id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
         explode: false
-    }),
-    url: zHandlebars,
-    schema: zJsonSchemaObject,
-    budget: z.number().int().positive().default(10),
-    batchSize: z.number().int().positive().default(3),
+    }).describe("How to save the extracted data."),
+    url: zHandlebars.describe("The starting URL to scrape. Supports Handlebars."),
+    schema: zJsonSchemaObject.describe("The JSON Schema defining the data to extract."),
+    budget: z.number().int().positive().default(10).describe("Maximum number of pages to visit per website."),
+    batchSize: z.number().int().positive().default(3).describe("Number of pages to visit in parallel during each iteration."),
     
-    navigatorModel: z.string().optional(),
-    navigatorTemperature: z.number().min(0).max(2).optional(),
-    navigatorThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    navigatorPrompt: PromptDefSchema.optional(),
-    navigatorSystem: PromptDefSchema.optional(),
+    // Navigator model config
+    navigatorModel: z.string().optional().describe("Model used by the Navigator agent."),
+    navigatorTemperature: z.number().min(0).max(2).optional().describe("Temperature for the Navigator."),
+    navigatorThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for the Navigator."),
+    navigatorPrompt: PromptDefSchema.optional().describe("Custom instructions for the Navigator."),
+    navigatorSystem: PromptDefSchema.optional().describe("System prompt for the Navigator."),
     
-    extractModel: z.string().optional(),
-    extractTemperature: z.number().min(0).max(2).optional(),
-    extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    extractPrompt: PromptDefSchema.optional(),
-    extractSystem: PromptDefSchema.optional(),
+    // Extract model config
+    extractModel: z.string().optional().describe("Model used by the Extractor agent."),
+    extractTemperature: z.number().min(0).max(2).optional().describe("Temperature for the Extractor."),
+    extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for the Extractor."),
+    extractPrompt: PromptDefSchema.optional().describe("Custom instructions for the Extractor."),
+    extractSystem: PromptDefSchema.optional().describe("System prompt for the Extractor."),
     
-    mergeModel: z.string().optional(),
-    mergeTemperature: z.number().min(0).max(2).optional(),
-    mergeThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    mergePrompt: PromptDefSchema.optional(),
-    mergeSystem: PromptDefSchema.optional()
-});
+    // Merge model config
+    mergeModel: z.string().optional().describe("Model used by the Merger agent."),
+    mergeTemperature: z.number().min(0).max(2).optional().describe("Temperature for the Merger."),
+    mergeThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for the Merger."),
+    mergePrompt: PromptDefSchema.optional().describe("Custom instructions for the Merger."),
+    mergeSystem: PromptDefSchema.optional().describe("System prompt for the Merger.")
+}).describe("Configuration for the Website Agent plugin.");
 
 // Loose Schema (String or Object)
 export const LooseWebsiteAgentConfigSchemaV2 = WebsiteAgentConfigSchemaV2.extend({

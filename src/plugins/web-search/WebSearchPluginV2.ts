@@ -20,44 +20,44 @@ import { ContentResolver } from '../../core/io/ContentResolver.js';
 // =============================================================================
 
 export const WebSearchConfigSchemaV2 = z.object({
-    type: z.literal('web-search'),
-    id: z.string().optional(),
+    type: z.literal('web-search').describe("Identifies this as a Web Search plugin."),
+    id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
         explode: false
-    }),
-    query: z.string().optional(),
+    }).describe("How to save the search results."),
+    query: z.string().optional().describe("The search query. Supports Handlebars (e.g., '{{keyword}}')."),
     
     // Query model config
-    queryModel: z.string().optional(),
-    queryTemperature: z.number().min(0).max(2).optional(),
-    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    queryPrompt: PromptDefSchema.optional(),
-    querySystem: PromptDefSchema.optional(),
+    queryModel: z.string().optional().describe("Model used to generate search queries."),
+    queryTemperature: z.number().min(0).max(2).optional().describe("Temperature for query generation."),
+    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for query generation."),
+    queryPrompt: PromptDefSchema.optional().describe("Instructions for generating search queries."),
+    querySystem: PromptDefSchema.optional().describe("System prompt for query generation."),
     
     // Select model config
-    selectModel: z.string().optional(),
-    selectTemperature: z.number().min(0).max(2).optional(),
-    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    selectPrompt: PromptDefSchema.optional(),
-    selectSystem: PromptDefSchema.optional(),
+    selectModel: z.string().optional().describe("Model used to select/filter results."),
+    selectTemperature: z.number().min(0).max(2).optional().describe("Temperature for selection."),
+    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for selection."),
+    selectPrompt: PromptDefSchema.optional().describe("Criteria for selecting results."),
+    selectSystem: PromptDefSchema.optional().describe("System prompt for selection."),
     
     // Compress model config
-    compressModel: z.string().optional(),
-    compressTemperature: z.number().min(0).max(2).optional(),
-    compressThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    compressPrompt: PromptDefSchema.optional(),
-    compressSystem: PromptDefSchema.optional(),
+    compressModel: z.string().optional().describe("Model used to summarize page content."),
+    compressTemperature: z.number().min(0).max(2).optional().describe("Temperature for compression."),
+    compressThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for compression."),
+    compressPrompt: PromptDefSchema.optional().describe("Instructions for summarizing content."),
+    compressSystem: PromptDefSchema.optional().describe("System prompt for compression."),
 
     // Search options
-    limit: z.number().int().positive().default(5),
-    mode: z.enum(['none', 'markdown', 'html']).default('none'),
-    queryCount: z.number().int().positive().default(3),
-    maxPages: z.number().int().positive().default(1),
-    dedupeStrategy: z.enum(['none', 'domain', 'url']).default('none'),
-    gl: z.string().optional(),
-    hl: z.string().optional()
-});
+    limit: z.number().int().positive().default(5).describe("Max total results to return."),
+    mode: z.enum(['none', 'markdown', 'html']).default('none').describe("Content fetching mode: 'none' (snippets only), 'markdown', 'html'."),
+    queryCount: z.number().int().positive().default(3).describe("Number of queries to generate (if using query model)."),
+    maxPages: z.number().int().positive().default(1).describe("Max pages of search results to fetch per query."),
+    dedupeStrategy: z.enum(['none', 'domain', 'url']).default('none').describe("Deduplication strategy."),
+    gl: z.string().optional().describe("Google Search country code (e.g. 'de', 'us')."),
+    hl: z.string().optional().describe("Google Search language code (e.g. 'de', 'en').")
+}).describe("Configuration for the Web Search plugin.");
 
 export type WebSearchRawConfigV2 = z.infer<typeof WebSearchConfigSchemaV2>;
 

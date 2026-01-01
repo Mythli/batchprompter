@@ -15,15 +15,15 @@ import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js'
 
 // Strict Schema
 export const ValidationConfigSchemaV2 = z.object({
-    type: z.literal('validation'),
-    id: z.string().optional(),
+    type: z.literal('validation').describe("Identifies this as a Validation plugin."),
+    id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
         explode: false
-    }),
-    schema: zJsonSchemaObject,
-    target: zHandlebars.optional()
-});
+    }).describe("How to save validation results."),
+    schema: zJsonSchemaObject.describe("JSON Schema to validate the data against."),
+    target: zHandlebars.optional().describe("Data to validate (Handlebars template). Defaults to the current row.")
+}).describe("Configuration for the Validation plugin.");
 
 // Loose Schema
 export const LooseValidationConfigSchemaV2 = ValidationConfigSchemaV2.extend({

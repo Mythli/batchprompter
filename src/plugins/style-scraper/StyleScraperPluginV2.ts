@@ -17,21 +17,21 @@ import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
 
 // =============================================================================
-// Config Schema
+// Config Schema (Single source of truth for defaults)
 // =============================================================================
 
 export const StyleScraperConfigSchemaV2 = z.object({
-    type: z.literal('style-scraper'),
-    id: z.string().optional(),
+    type: z.literal('style-scraper').describe("Identifies this as a Style Scraper plugin."),
+    id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
         explode: false
-    }),
-    url: zHandlebars,
-    resolution: z.string().default('1920x1080'),
-    mobile: z.boolean().default(false),
-    interactive: z.boolean().default(false)
-});
+    }).describe("How to save the scraped style data."),
+    url: zHandlebars.describe("URL to scrape. Supports Handlebars."),
+    resolution: z.string().default('1920x1080').describe("Viewport resolution for desktop screenshot."),
+    mobile: z.boolean().default(false).describe("Capture an additional mobile screenshot (iPhone X viewport)."),
+    interactive: z.boolean().default(false).describe("Find interactive elements, hover them, and capture screenshots + CSS.")
+}).describe("Configuration for the Style Scraper plugin.");
 
 export type StyleScraperRawConfigV2 = z.infer<typeof StyleScraperConfigSchemaV2>;
 
@@ -83,6 +83,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         if (outputColumn) outputMode = 'column';
         else if (exportFlag) outputMode = 'merge';
 
+        // Return raw config - Zod will apply defaults
         const partialConfig = {
             type: 'style-scraper',
             url,
@@ -96,6 +97,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
             }
         };
 
+        // Parse through Zod to apply defaults
         return this.configSchema.parse(partialConfig);
     }
 

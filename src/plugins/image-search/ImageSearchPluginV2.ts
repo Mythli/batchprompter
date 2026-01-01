@@ -21,38 +21,38 @@ import { ContentResolver } from '../../core/io/ContentResolver.js';
 // =============================================================================
 
 export const ImageSearchConfigSchemaV2 = z.object({
-    type: z.literal('image-search'),
-    id: z.string().optional(),
+    type: z.literal('image-search').describe("Identifies this as an Image Search plugin."),
+    id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
         explode: false
-    }),
-    query: z.string().optional(),
+    }).describe("How to save the image results."),
+    query: z.string().optional().describe("Static image search query. Supports Handlebars."),
     
     // Query model config
-    queryModel: z.string().optional(),
-    queryTemperature: z.number().min(0).max(2).optional(),
-    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    queryPrompt: PromptDefSchema.optional(),
-    querySystem: PromptDefSchema.optional(),
+    queryModel: z.string().optional().describe("Model used to generate search queries."),
+    queryTemperature: z.number().min(0).max(2).optional().describe("Temperature for query generation."),
+    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for query generation."),
+    queryPrompt: PromptDefSchema.optional().describe("Instructions for generating search queries."),
+    querySystem: PromptDefSchema.optional().describe("System prompt for query generation."),
     
     // Select model config
-    selectModel: z.string().optional(),
-    selectTemperature: z.number().min(0).max(2).optional(),
-    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    selectPrompt: PromptDefSchema.optional(),
-    selectSystem: PromptDefSchema.optional(),
+    selectModel: z.string().optional().describe("Model used to select the best images."),
+    selectTemperature: z.number().min(0).max(2).optional().describe("Temperature for selection."),
+    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for selection."),
+    selectPrompt: PromptDefSchema.optional().describe("Criteria for selecting images (e.g., scoring rubric)."),
+    selectSystem: PromptDefSchema.optional().describe("System prompt for selection."),
 
     // Search options
-    limit: z.number().int().positive().default(12),
-    select: z.number().int().positive().default(1),
-    queryCount: z.number().int().positive().default(3),
-    spriteSize: z.number().int().positive().default(4),
-    maxPages: z.number().int().positive().default(1),
-    dedupeStrategy: z.enum(['none', 'domain', 'url']).default('url'),
-    gl: z.string().optional(),
-    hl: z.string().optional()
-});
+    limit: z.number().int().positive().default(12).describe("Images to fetch per query."),
+    select: z.number().int().positive().default(1).describe("Number of images to select/keep."),
+    queryCount: z.number().int().positive().default(3).describe("Number of queries to generate."),
+    spriteSize: z.number().int().positive().default(4).describe("Number of images to stitch into a sprite for selection."),
+    maxPages: z.number().int().positive().default(1).describe("Max pages of results to fetch per query."),
+    dedupeStrategy: z.enum(['none', 'domain', 'url']).default('url').describe("Deduplication strategy."),
+    gl: z.string().optional().describe("Country code."),
+    hl: z.string().optional().describe("Language code.")
+}).describe("Configuration for the Image Search plugin.");
 
 export type ImageSearchRawConfigV2 = z.infer<typeof ImageSearchConfigSchemaV2>;
 

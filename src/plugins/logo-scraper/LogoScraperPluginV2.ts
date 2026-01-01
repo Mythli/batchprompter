@@ -23,35 +23,37 @@ import { zHandlebars } from '../../config/validationRules.js';
 // =============================================================================
 
 export const LogoScraperConfigSchemaV2 = z.object({
-    type: z.literal('logo-scraper'),
-    id: z.string().optional(),
+    type: z.literal('logo-scraper').describe("Identifies this as a Logo Scraper plugin."),
+    id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
         explode: false
-    }),
-    url: zHandlebars,
+    }).describe("How to save the scraped logos."),
+    url: zHandlebars.describe("URL to scrape logos from. Supports Handlebars."),
     
-    analyzeModel: z.string().optional(),
-    analyzeTemperature: z.number().min(0).max(2).optional(),
-    analyzeThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    analyzePrompt: PromptDefSchema.optional(),
-    analyzeSystem: PromptDefSchema.optional(),
+    // Analyze model (Vision capable)
+    analyzeModel: z.string().optional().describe("Vision model used to analyze screenshots and score logos."),
+    analyzeTemperature: z.number().min(0).max(2).optional().describe("Temperature for analysis."),
+    analyzeThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for analysis."),
+    analyzePrompt: PromptDefSchema.optional().describe("Custom instructions for analysis."),
+    analyzeSystem: PromptDefSchema.optional().describe("System prompt for analysis."),
 
-    extractModel: z.string().optional(),
-    extractTemperature: z.number().min(0).max(2).optional(),
-    extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    extractPrompt: PromptDefSchema.optional(),
-    extractSystem: PromptDefSchema.optional(),
+    // Extract model (Cheaper/Faster)
+    extractModel: z.string().optional().describe("Model used to find inline SVGs and image URLs."),
+    extractTemperature: z.number().min(0).max(2).optional().describe("Temperature for extraction."),
+    extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for extraction."),
+    extractPrompt: PromptDefSchema.optional().describe("Custom instructions for extraction."),
+    extractSystem: PromptDefSchema.optional().describe("System prompt for extraction."),
 
-    maxCandidates: z.number().int().positive().default(10),
-    minScore: z.number().int().min(1).max(10).default(5),
+    maxCandidates: z.number().int().positive().default(10).describe("Max logo candidates to download and analyze."),
+    minScore: z.number().int().min(1).max(10).default(5).describe("Min score (1-10) to keep a logo."),
     
-    logoPath: zHandlebars.optional(),
-    faviconPath: zHandlebars.optional(),
+    logoPath: zHandlebars.optional().describe("Path to save the best logo (supports templates)."),
+    faviconPath: zHandlebars.optional().describe("Path to save the best favicon (supports templates)."),
 
-    logoLimit: z.number().int().positive().default(1),
-    faviconLimit: z.number().int().positive().default(1)
-});
+    logoLimit: z.number().int().positive().default(1).describe("Max logos to save."),
+    faviconLimit: z.number().int().positive().default(1).describe("Max favicons to save.")
+}).describe("Configuration for the Logo Scraper plugin.");
 
 export type LogoScraperRawConfigV2 = z.infer<typeof LogoScraperConfigSchemaV2>;
 

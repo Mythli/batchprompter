@@ -17,14 +17,14 @@ import { zHandlebars } from '../../config/validationRules.js';
 // =============================================================================
 
 export const DedupeConfigSchemaV2 = z.object({
-    type: z.literal('dedupe'),
-    id: z.string().optional(),
+    type: z.literal('dedupe').describe("Identifies this as a Dedupe plugin."),
+    id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
         explode: false
-    }),
-    key: zHandlebars
-});
+    }).describe("How to save deduplication results."),
+    key: zHandlebars.describe("Deduplication key (Handlebars template). Items with the same key are dropped.")
+}).describe("Configuration for the Dedupe plugin.");
 
 export type DedupeRawConfigV2 = z.infer<typeof DedupeConfigSchemaV2>;
 
