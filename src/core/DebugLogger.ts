@@ -12,7 +12,18 @@ export class DebugLogger {
             
             switch (payload.type) {
                 case 'explode':
-                    console.log(`${prefix} 💥 ${payload.message}`);
+                    let msg = payload.message;
+                    if (!msg && payload.data) {
+                        const { total, count, limit, offset } = payload.data;
+                        msg = `Exploded ${total} items into ${count}`;
+                        const details: string[] = [];
+                        if (offset) details.push(`Offset: ${offset}`);
+                        if (limit) details.push(`Limit: ${limit}`);
+                        if (details.length > 0) {
+                            msg += ` (${details.join(', ')})`;
+                        }
+                    }
+                    console.log(`${prefix} 💥 ${msg}`);
                     break;
                 case 'generation':
                     console.log(`${prefix} 🤖 ${payload.message}`);
