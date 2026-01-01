@@ -200,7 +200,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             verifyCommand: stepDef.verifyCommand,
             postProcessCommand: stepDef.command,
             candidates: stepDef.candidates,
-            noCandidateCommand: stepDef.skipCandidateCommand,
+            noCandidateCommand: stepDef.noCandidateCommand,
             judge: stepDef.judge ? {
                 model: stepDef.judge.model,
                 promptSource: stepDef.judge.prompt as any,
@@ -225,7 +225,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         data: {
             format: config.data.format,
             offset: config.data.offset,
-            limit: config.data.limit
+            limit: config.data.limit,
+            rows: config.data.rows
         }
     };
 });

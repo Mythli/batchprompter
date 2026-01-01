@@ -1,10 +1,10 @@
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 
-export async function loadData(): Promise<Record<string, any>[]> {
+export async function loadData(): Promise<Record<string, any>[] | undefined> {
     if (process.stdin.isTTY) {
         // No data piped
-        return [];
+        return undefined;
     }
 
     const chunks: Buffer[] = [];
@@ -15,7 +15,7 @@ export async function loadData(): Promise<Record<string, any>[]> {
     const content = buffer.toString('utf-8').trim();
 
     if (!content) {
-        return [];
+        return undefined;
     }
 
     // Simple heuristic for JSON

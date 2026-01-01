@@ -80,14 +80,28 @@ export class StepRegistry {
         registry: PluginRegistryV2,
         contentResolver: ContentResolver
     ): Promise<RuntimeConfig> {
-        // 1. Normalize via Zod Schema (Merge File + CLI)
+        // 1. Load Data from Pipe
+        const pipedData = await loadData();
+
+        // 2. Merge Data into Config
+        // We create a new object to avoid mutating fileConfig if it's reused
+        const configToParse = { ...fileConfig };
+        if (!configToParse.data) {
+            configToParse.data = {};
+        }
+
+        if (pipedData) {
+            configToParse.data.rows = pipedData;
+        }
+
+        // 3. Normalize via Zod Schema (Merge File + CLI)
         const normalized = createConfigSchema(registry).parse({ 
-            fileConfig, 
+            fileConfig: configToParse, 
             options, 
             args: positionalArgs 
         });
 
-        // 2. Normalize Schemas (Resolve paths to objects)
+        // 4. Normalize Schemas (Resolve paths to objects)
         for (const step of normalized.steps) {
             // Step Schema
             if (step.schemaPath) {
@@ -115,10 +129,7 @@ export class StepRegistry {
             }
         }
 
-        // 3. Load Data
-        const data = await loadData();
-
-        // 4. Resolve Steps
+        // 5. Resolve Steps
         const steps: StepConfig[] = [];
         const promptResolver = new PromptResolver(contentResolver);
 
@@ -180,7 +191,7 @@ export class StepRegistry {
             tmpDir: normalized.global.tmpDir,
             dataOutputPath: normalized.global.dataOutputPath,
             steps,
-            data,
+            data: normalized.data.rows,
             options,
             offset: normalized.data.offset,
             limit: normalized.data.limit

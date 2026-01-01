@@ -76,13 +76,13 @@ export interface StepDefinition {
 }
 
 export interface NormalizedConfig {
-    dataFilePath?: string;
     global: GlobalsConfig;
     steps: StepDefinition[];
     data: {
         format: string;
         offset?: number;
         limit?: number;
+        rows: Record<string, any>[];
     };
 }
 
@@ -158,7 +158,6 @@ export interface RuntimeConfig {
     concurrency: number;
     taskConcurrency: number;
     tmpDir: string;
-    dataFilePath?: string;
     dataOutputPath?: string;
     steps: StepConfig[];
     data: Record<string, any>[];

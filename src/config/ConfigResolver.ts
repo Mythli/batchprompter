@@ -34,26 +34,34 @@ export class ConfigResolver {
      * Validate and resolve a raw pipeline configuration
      */
     async resolve(rawConfig: unknown): Promise<ResolvedPipelineConfig> {
-        // 1. Parse with Loose Schema (allows strings for schemas)
-        // This applies defaults and basic structure validation
-        const looseConfig = LoosePipelineConfigSchema.parse(rawConfig);
+        // 1. Load Data (from stdin)
+        const pipedData = await loadData();
 
-        // 2. Normalize (Resolve file paths to objects)
+        // 2. Merge Data
+        const configToParse = typeof rawConfig === 'object' && rawConfig !== null ? { ...(rawConfig as any) } : {};
+        if (!configToParse.data) configToParse.data = {};
+        if (pipedData) configToParse.data.rows = pipedData;
+
+        // 3. Parse with Loose Schema (allows strings for schemas)
+        // This applies defaults and basic structure validation
+        const looseConfig = LoosePipelineConfigSchema.parse(configToParse);
+
+        // 4. Normalize (Resolve file paths to objects)
         const normalizedConfig = await this.normalizer.normalize(looseConfig);
 
-        // 3. Validate with Strict Schema (enforces objects and valid schemas)
+        // 5. Validate with Strict Schema (enforces objects and valid schemas)
         const config = PipelineConfigSchema.parse(normalizedConfig);
 
-        // 4. Validate plugin capabilities
+        // 6. Validate plugin capabilities
         this.deps.pluginRegistry.validateCapabilities(config.steps, this.deps.capabilities);
 
-        // 5. Load data (from stdin)
-        const allRows = await loadData();
+        // 7. Slice Data
+        const allRows = config.data.rows;
         const offset = config.data.offset ?? 0;
         const limit = config.data.limit;
         const rows = limit ? allRows.slice(offset, offset + limit) : allRows.slice(offset);
 
-        // 6. Resolve steps (without row context - templates remain)
+        // 8. Resolve steps (without row context - templates remain)
         const resolvedSteps: ResolvedStepConfig[] = [];
 
         for (let i = 0; i < config.steps.length; i++) {
