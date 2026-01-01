@@ -383,14 +383,30 @@ export class ActionRunner {
             );
 
             // Emit explode event if applicable
-            if (outputStrategy.explode && processed.length > 1) {
-                this.globalContext.events.emit('step:progress', {
-                    row: res.item.originalIndex,
-                    step: stepNum,
-                    type: 'explode',
-                    message: `Exploded into ${processed.length} items`,
-                    data: { count: processed.length, source: namespace }
-                });
+            if (outputStrategy.explode) {
+                const totalAvailable = res.packets.length;
+                const finalCount = processed.length;
+                
+                let msg = `Exploded ${totalAvailable} items into ${finalCount}`;
+                const details: string[] = [];
+                
+                if (outputStrategy.offset) details.push(`Offset: ${outputStrategy.offset}`);
+                if (outputStrategy.limit) details.push(`Limit: ${outputStrategy.limit}`);
+                
+                if (details.length > 0) {
+                    msg += ` (${details.join(', ')})`;
+                }
+
+                // Only log if something interesting happened (expansion or reduction via limit)
+                if (totalAvailable > 1 || finalCount !== totalAvailable) {
+                    this.globalContext.events.emit('step:progress', {
+                        row: res.item.originalIndex,
+                        step: stepNum,
+                        type: 'explode',
+                        message: msg,
+                        data: { count: finalCount, source: namespace, total: totalAvailable }
+                    });
+                }
             }
 
             if (postProcess) {
