@@ -276,6 +276,18 @@ export class ActionRunner {
                     currentItem.variationIndex
                 );
 
+                // Check if we need to unwrap an array result into multiple packets for explosion
+                if (resolvedStep.output.explode && Array.isArray(result.modelResult)) {
+                    return result.modelResult.map((item: any) => ({
+                        data: item,
+                        contentParts: [],
+                        _historyUpdate: {
+                            userPromptParts: resolvedStep.userPromptParts,
+                            historyMessage: result.historyMessage
+                        }
+                    }));
+                }
+
                 return [{
                     data: result.modelResult,
                     contentParts: [],
