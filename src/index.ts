@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { z } from 'zod';
 import fs from 'fs';
 import path from 'path';
+import { Parser } from 'json2csv';
 import { StepRegistry } from './cli/StepRegistry.js';
 import { createDefaultRegistry, getConfig } from './getConfig.js';
 import { ServiceCapabilities } from './types.js';
@@ -32,22 +33,6 @@ const cliRegistry = createDefaultRegistry(cliCapabilities);
 
 // Register all step arguments
 StepRegistry.registerStepArgs(generateCmd, cliRegistry);
-
-function flattenObject(obj: any, prefix = '', result: any = {}) {
-    for (const key in obj) {
-        if (Object.prototype.hasOwnProperty.call(obj, key)) {
-            const value = obj[key];
-            const newKey = prefix ? `${prefix}.${key}` : key;
-
-            if (value && typeof value === 'object' && !Array.isArray(value)) {
-                flattenObject(value, newKey, result);
-            } else {
-                result[newKey] = value;
-            }
-        }
-    }
-    return result;
-}
 
 generateCmd.action(async (templateFilePaths, options) => {
     let puppeteerHelperInstance;
@@ -92,34 +77,18 @@ generateCmd.action(async (templateFilePaths, options) => {
 
         // Write Data Output (CSV/JSON)
         if (config.dataOutputPath && results.length > 0) {
-            // Flatten results to handle nested objects (like plugin outputs) gracefully in CSV
-            const flattenedResults = results.map(row => flattenObject(row));
-
-            const headers = Array.from(new Set(flattenedResults.flatMap(Object.keys)));
-            const csvContent = [
-                headers.join(','),
-                ...flattenedResults.map(row => headers.map(header => {
-                    const val = row[header];
-                    if (val === null || val === undefined) return '';
-                    
-                    let strVal: string;
-                    if (typeof val === 'object') {
-                        strVal = JSON.stringify(val);
-                    } else {
-                        strVal = String(val);
-                    }
-
-                    // Simple CSV escaping
-                    const str = strVal.replace(/"/g, '""');
-                    return `"${str}"`;
-                }).join(','))
-            ].join('\n');
-
             const outDir = path.dirname(config.dataOutputPath);
             if (!fs.existsSync(outDir)) {
                 fs.mkdirSync(outDir, { recursive: true });
             }
-            fs.writeFileSync(config.dataOutputPath, csvContent);
+
+            if (config.dataOutputPath.endsWith('.json')) {
+                fs.writeFileSync(config.dataOutputPath, JSON.stringify(results, null, 2));
+            } else {
+                const parser = new Parser({ flatten: true });
+                const csv = parser.parse(results);
+                fs.writeFileSync(config.dataOutputPath, csv);
+            }
             console.log(`\nData written to ${config.dataOutputPath}`);
         }
 
