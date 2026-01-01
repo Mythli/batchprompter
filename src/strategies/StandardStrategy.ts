@@ -1,19 +1,11 @@
 import OpenAI from 'openai';
-import Handlebars from 'handlebars';
-import path from 'path';
-import util from 'util';
-import { exec } from 'child_process';
 import { z } from 'zod';
-import fsPromises from 'fs/promises';
-
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
-import { ArtifactSaver } from '../ArtifactSaver.js';
 import { StepConfig } from '../types.js';
-import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
 import { MessageBuilder } from '../core/MessageBuilder.js';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
-
-const execPromise = util.promisify(exec);
+import { EventEmitter } from 'eventemitter3';
+import { BatchPromptEvents } from '../core/events.js';
 
 const responseSchema = z.object({
     choices: z.array(z.object({
@@ -44,7 +36,8 @@ type ExtractedContent = {
 export class StandardStrategy implements GenerationStrategy {
     constructor(
         private llm: BoundLlmClient,
-        private messageBuilder: MessageBuilder
+        private messageBuilder: MessageBuilder,
+        private events: EventEmitter<BatchPromptEvents>
     ) {}
 
     private extractContent(message: z.infer<typeof responseSchema>['choices'][0]['message']): ExtractedContent {
@@ -67,8 +60,7 @@ export class StandardStrategy implements GenerationStrategy {
         config: StepConfig,
         row: Record<string, any>,
         index: number,
-        stepIndex: number,
-        skipCommands: boolean
+        stepIndex: number
     ): Promise<ExtractedContent> {
         let validated = { ...extracted };
 
@@ -85,61 +77,26 @@ export class StandardStrategy implements GenerationStrategy {
             }
         }
 
-        if (config.verifyCommand && !skipCommands) {
-            let tempPath: string;
+        // Verification via Handler
+        if (config.handlers?.verify) {
+            this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} 🔍 Verifying content...` });
+            
+            const result = await config.handlers.verify(validated.data, {
+                row,
+                workspace: {}, // TODO: Pass full context if needed
+                stepIndex,
+                rowIndex: index,
+                history: []
+            });
 
-            const baseTempDir = config.resolvedTempDir || config.tmpDir;
-            const verifyDir = path.join(baseTempDir, 'verify');
-            await ensureDir(verifyDir);
-
-            if (config.outputPath) {
-                const ext = path.extname(config.outputPath);
-                const name = path.basename(config.outputPath, ext);
-                const timestamp = Date.now();
-                const random = Math.random().toString(36).substring(7);
-
-                tempPath = path.join(verifyDir, `${name}_verify_${timestamp}_${random}.${validated.extension}`);
-            } else {
-                const tempFilename = `verify_${index}_${stepIndex}_${Date.now()}_${Math.random().toString(36).substring(7)}.${validated.extension}`;
-                tempPath = path.join(verifyDir, tempFilename);
+            if (!result.isValid) {
+                throw new Error(`Verification failed:\n${result.feedback || 'No feedback provided.'}\n\nPlease fix the content.`);
             }
-
-            try {
-                await this.saveArtifact(validated, tempPath);
-
-                const cmdTemplate = Handlebars.compile(config.verifyCommand, { noEscape: true });
-
-                const sanitizedRow: Record<string, string> = {};
-                for (const [key, val] of Object.entries(row)) {
-                    const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                    sanitizedRow[key] = aggressiveSanitize(stringVal);
-                }
-
-                const cmd = cmdTemplate({ ...sanitizedRow, file: tempPath });
-
-                console.log(`[Row ${index}] Step ${stepIndex} 🔍 Verifying: ${cmd}`);
-
-                const { stdout } = await execPromise(cmd);
-                if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} 🟢 Verify STDOUT:\n${stdout.trim()}`);
-
-            } catch (error: any) {
-                const feedback = error.stderr || error.stdout || error.message;
-                throw new Error(`Verification command failed:\n${feedback}\n\nPlease fix the content.`);
-            } finally {
-                try { await fsPromises.unlink(tempPath); } catch (e) {}
-            }
+            
+            this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} 🟢 Verification passed.` });
         }
 
         return validated;
-    }
-
-    private async saveArtifact(content: ExtractedContent, targetPath: string) {
-        if (content.type === 'audio') {
-            const buffer = Buffer.from(content.data, 'base64');
-            await ArtifactSaver.save(buffer, targetPath);
-        } else {
-            await ArtifactSaver.save(content.data, targetPath);
-        }
     }
 
     async execute(
@@ -155,8 +112,6 @@ export class StandardStrategy implements GenerationStrategy {
         variationIndex?: number
     ): Promise<GenerationResult> {
 
-        const effectiveOutputPath = outputPathOverride || config.outputPath;
-
         const totalIterations = 1 + (config.feedbackLoops || 0);
         let finalContent: ExtractedContent | null = null;
 
@@ -166,11 +121,7 @@ export class StandardStrategy implements GenerationStrategy {
             const isFeedbackLoop = loop > 0;
 
             if (isFeedbackLoop) {
-                console.log(`[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${loop}/${config.feedbackLoops}`);
-
-                if (config.feedback) {
-                    console.warn("Feedback loops require the feedback client which is not yet passed to StandardStrategy in this refactor.");
-                }
+                this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} 🔄 Feedback Loop ${loop}/${config.feedbackLoops}` });
             }
 
             finalContent = await this.generateWithRetry(
@@ -187,50 +138,28 @@ export class StandardStrategy implements GenerationStrategy {
 
         if (!finalContent) throw new Error("Generation failed.");
 
-        if (effectiveOutputPath && (!config.verifyCommand || skipCommands)) {
-            await this.saveArtifact(finalContent, effectiveOutputPath);
-            console.log(`[Row ${index}] Step ${stepIndex} Saved ${finalContent.type} to ${effectiveOutputPath}`);
+        // Emit Artifact
+        const effectiveBasename = config.outputBasename || 'output';
+        let filename = `${effectiveBasename}.${finalContent.extension}`;
+        
+        // If variation index is present, append it
+        if (variationIndex !== undefined) {
+            filename = `${effectiveBasename}_${variationIndex}.${finalContent.extension}`;
         }
 
-        if (config.postProcessCommand && !skipCommands) {
-            let filePathForCommand = effectiveOutputPath;
-            let isTemp = false;
-
-            if (!filePathForCommand) {
-                isTemp = true;
-
-                const baseTempDir = config.resolvedTempDir || config.tmpDir;
-                const postDir = path.join(baseTempDir, 'postprocess');
-                await ensureDir(postDir);
-
-                if (config.outputPath) {
-                    const ext = path.extname(config.outputPath);
-                    const name = path.basename(config.outputPath, ext);
-                    filePathForCommand = path.join(postDir, `${name}_temp_post.${finalContent.extension}`);
-                } else {
-                    filePathForCommand = path.join(postDir, `temp_post_${index}_${stepIndex}.${finalContent.extension}`);
-                }
-                await this.saveArtifact(finalContent, filePathForCommand);
-            }
-
-            const cmdTemplate = Handlebars.compile(config.postProcessCommand, { noEscape: true });
-            const sanitizedRow: Record<string, string> = {};
-            for (const [key, val] of Object.entries(row)) {
-                const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-                sanitizedRow[key] = aggressiveSanitize(stringVal);
-            }
-            const cmd = cmdTemplate({ ...sanitizedRow, file: filePathForCommand });
-            console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running command: ${cmd}`);
-            try {
-                const { stdout } = await execPromise(cmd);
-                if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
-            } catch (error: any) {
-                console.error(`[Row ${index}] Step ${stepIndex} Command failed:`, error);
-            }
-            if (isTemp) {
-                try { await fsPromises.unlink(filePathForCommand!); } catch (e) {}
-            }
+        let contentPayload: string | Buffer = finalContent.data;
+        if (finalContent.type === 'audio') {
+            contentPayload = Buffer.from(finalContent.data, 'base64');
         }
+
+        this.events.emit('artifact', {
+            row: index,
+            step: stepIndex,
+            type: finalContent.type,
+            filename: filename,
+            content: contentPayload,
+            tags: ['final']
+        });
 
         return {
             historyMessage: {
@@ -256,12 +185,10 @@ export class StandardStrategy implements GenerationStrategy {
         let currentHistory = [...history];
         let lastError: any;
 
-        // Build request options with cache salt header if provided
         const requestOptions = cacheSalt ? {
             headers: { 'X-Cache-Salt': String(cacheSalt) }
         } : undefined;
 
-        // Build additional model parameters (e.g., for image generation)
         const additionalParams: Record<string, any> = {};
         if (config.aspectRatio) {
              additionalParams.image_config = { aspect_ratio: config.aspectRatio };
@@ -271,10 +198,8 @@ export class StandardStrategy implements GenerationStrategy {
             try {
                 let extracted: ExtractedContent;
 
-                // Build messages using MessageBuilder
                 const messages = this.messageBuilder.build(config.modelConfig, row, userPromptParts);
 
-                // Merge with history
                 const finalMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
                 const systemMsg = messages.find(m => m.role === 'system');
                 if (systemMsg) {
@@ -286,7 +211,6 @@ export class StandardStrategy implements GenerationStrategy {
 
                 if (config.jsonSchema) {
                     const rawClient = this.llm.getRawClient();
-                    // Pass cache salt as third argument (options) to promptJson
                     const jsonResult = await rawClient.promptJson(
                         finalMessages,
                         config.jsonSchema,
@@ -312,13 +236,13 @@ export class StandardStrategy implements GenerationStrategy {
                     extracted = this.extractContent(message);
                 }
 
-                const validated = await this.validateContent(extracted, config, row, index, stepIndex, skipCommands);
+                const validated = await this.validateContent(extracted, config, row, index, stepIndex);
 
                 return validated;
 
             } catch (error: any) {
                 lastError = error;
-                console.log(`[Row ${index}] Step ${stepIndex} Attempt ${attempt+1}/${maxRetries+1} failed:`, error);
+                this.events.emit('log', { level: 'warn', message: `[Row ${index}] Step ${stepIndex} Attempt ${attempt+1}/${maxRetries+1} failed: ${error.message}` });
 
                 if (attempt < maxRetries) {
                     currentHistory.push({

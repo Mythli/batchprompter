@@ -1,15 +1,9 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { OutputStrategy, StepContext, ServiceCapabilities, ResolvedModelConfig as LegacyResolvedModelConfig } from '../types.js';
-import { ResolvedOutputConfig, ResolvedModelConfig } from '../config/types.js';
-import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
-import { Fetcher } from 'llm-fns';
-import PQueue from 'p-queue';
-import { Cache } from 'cache-manager';
+import { ServiceCapabilities, ResolvedModelConfig } from '../types.js';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
-import { ImageSearch } from './image-search/ImageSearch.js';
-import { WebSearch } from './web-search/WebSearch.js';
+import { BatchPromptEvents } from '../core/events.js';
 
 // =============================================================================
 // Plugin Packet (shared)
@@ -34,12 +28,6 @@ export interface PluginResult {
  * Services available to plugins via dependency injection
  */
 export interface PluginServices {
-    puppeteerHelper?: PuppeteerHelper;
-    puppeteerQueue?: PQueue;
-    fetcher: Fetcher;
-    cache?: Cache;
-    imageSearch?: ImageSearch;
-    webSearch?: WebSearch;
     createLlm: (config: ResolvedModelConfig) => BoundLlmClient;
 }
 
@@ -55,6 +43,9 @@ export interface PluginExecutionContext {
     outputDirectory?: string;
     outputBasename?: string;
     outputExtension?: string;
+    
+    // Event emitter for artifacts and logs
+    emit: <K extends keyof BatchPromptEvents>(event: K, ...args: Parameters<BatchPromptEvents[K]>) => void;
 }
 
 /**

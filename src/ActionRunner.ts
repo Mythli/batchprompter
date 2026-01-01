@@ -1,15 +1,10 @@
-import fsPromises from 'fs/promises';
-import path from 'path';
-import { Parser, transforms } from 'json2csv';
-import PQueue from 'p-queue';
-import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext, OutputStrategy, StepContext } from './types.js';
+import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext, OutputStrategy, StepContext, StepExecutionContext } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
 import { PluginRegistryV2, PluginPacket, PluginServices } from './plugins/types.js';
 import { ResultProcessor } from './core/ResultProcessor.js';
 import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
 import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
-import { ensureDir } from './utils/fileUtils.js';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -26,48 +21,32 @@ export class ActionRunner {
     ) {}
 
     async run(config: RuntimeConfig) {
-        const { concurrency, taskConcurrency, data, steps, dataOutputPath, tmpDir, offset = 0, limit } = config;
+        const { concurrency, taskConcurrency, data, steps, offset = 0, limit } = config;
+        const events = this.globalContext.events;
 
-        console.log(`Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)`);
+        events.emit('run:start', config);
+        events.emit('log', { level: 'info', message: `Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)` });
 
-        // Update global queue concurrency settings based on runtime config
         this.globalContext.taskQueue.concurrency = taskConcurrency;
         this.globalContext.gptQueue.concurrency = concurrency;
 
         const endIndex = limit ? offset + limit : undefined;
         const dataToProcess = data.slice(offset, endIndex);
 
-        console.log(`Found ${data.length} rows in input.`);
-        if (offset > 0 || limit) {
-            console.log(`Processing subset: Rows ${offset} to ${endIndex ? endIndex - 1 : data.length - 1} (${dataToProcess.length} total).`);
-        } else {
-            console.log(`Processing all ${data.length} rows.`);
-        }
+        events.emit('log', { level: 'info', message: `Processing ${dataToProcess.length} rows.` });
 
-        console.log(`Pipeline has ${steps.length} steps.`);
-
-        const rowErrors: { index: number, error: any }[] = [];
-        const finalResults: Record<string, any>[] = [];
-
-        // Task queue limits how many rows are processed in parallel
         const queue = this.globalContext.taskQueue;
-        const executor = new StepExecutor(tmpDir, this.messageBuilder);
+        const executor = new StepExecutor(this.globalContext.events, this.messageBuilder);
 
-        // Build plugin services once
         const pluginServices: PluginServices = {
-            puppeteerHelper: this.globalContext.puppeteerHelper,
-            puppeteerQueue: this.globalContext.puppeteerQueue,
-            fetcher: this.globalContext.fetcher,
-            cache: this.globalContext.cache,
-            imageSearch: this.globalContext.imageSearch,
-            webSearch: this.globalContext.webSearch,
             createLlm: (config) => this.stepResolver.createLlm(config)
         };
 
-        // Helper to enqueue next steps or collect results
         const enqueueNext = (items: PipelineItem[], nextStepIndex: number) => {
             if (nextStepIndex >= steps.length) {
-                finalResults.push(...items.map(i => i.row));
+                for (const item of items) {
+                    events.emit('row:end', { index: item.originalIndex, result: item.row });
+                }
             } else {
                 for (const item of items) {
                     queue.add(() => processTask({ item, stepIndex: nextStepIndex }));
@@ -81,16 +60,27 @@ export class ActionRunner {
             const stepNum = stepIndex + 1;
             const timeoutMs = stepConfig.timeout * 1000;
 
+            events.emit('step:start', { row: item.originalIndex, step: stepNum });
+
             try {
-                // 1. Resolve Step & Context
                 const { resolvedStep, stepContext } = await this.stepResolver.resolve(
                     item,
                     stepConfig,
                     stepIndex,
-                    tmpDir
+                    config.tmpDir
                 );
 
-                console.log(`[Row ${item.originalIndex}] Step ${stepNum} Processing...`);
+                // 1. Prepare Handler
+                if (resolvedStep.handlers?.prepare) {
+                    const execContext: StepExecutionContext = {
+                        row: item.row,
+                        workspace: item.workspace,
+                        stepIndex: stepIndex,
+                        rowIndex: item.originalIndex,
+                        history: item.history
+                    };
+                    await resolvedStep.handlers.prepare(execContext);
+                }
 
                 // 2. Execute with Timeout
                 let activeItems: PipelineItem[] = [item];
@@ -107,7 +97,7 @@ export class ActionRunner {
                         resolvedStep,
                         stepNum,
                         pluginServices,
-                        resolvedStep.resolvedTempDir || tmpDir
+                        resolvedStep.resolvedTempDir || config.tmpDir
                     );
 
                     // B. Model
@@ -123,16 +113,31 @@ export class ActionRunner {
                 const nextItems = await Promise.race([executionPromise, timeoutPromise]);
                 clearTimeout(timer!);
 
-                // 3. Queue Next Steps
+                // 3. Process Handler (Post-processing)
+                if (resolvedStep.handlers?.process) {
+                    for (const nextItem of nextItems) {
+                        // We assume the last entry in stepHistory is the result of this step
+                        const result = nextItem.stepHistory[nextItem.stepHistory.length - 1];
+                        const execContext: StepExecutionContext = {
+                            row: nextItem.row,
+                            workspace: nextItem.workspace,
+                            stepIndex: stepIndex,
+                            rowIndex: nextItem.originalIndex,
+                            history: nextItem.history
+                        };
+                        await resolvedStep.handlers.process(execContext, result);
+                    }
+                }
+
+                events.emit('step:finish', { row: item.originalIndex, step: stepNum, result: nextItems.length });
                 enqueueNext(nextItems, stepIndex + 1);
 
             } catch (err: any) {
-                console.error(`[Row ${item.originalIndex}] Step ${stepNum} Error:`, err);
-                rowErrors.push({ index: item.originalIndex, error: err });
+                events.emit('row:error', { index: item.originalIndex, error: err });
+                events.emit('log', { level: 'error', message: `[Row ${item.originalIndex}] Step ${stepNum} Error: ${err.message}` });
             }
         };
 
-        // Initial Queueing
         for (let i = 0; i < dataToProcess.length; i++) {
             const originalIndex = offset + i;
             const initialItem: PipelineItem = {
@@ -143,25 +148,14 @@ export class ActionRunner {
                 originalIndex: originalIndex,
                 accumulatedContent: []
             };
-
+            events.emit('row:start', { index: originalIndex, row: initialItem.row });
             queue.add(() => processTask({ item: initialItem, stepIndex: 0 }));
         }
 
         await queue.onIdle();
-        console.log("All tasks completed.");
-
-        if (rowErrors.length > 0) {
-            console.error(`\n⚠️  Completed with ${rowErrors.length} errors.`);
-        } else {
-            console.log(`\n✅ Successfully processed all tasks.\n`);
-        }
-
-        await this.saveResults(finalResults, dataOutputPath);
+        events.emit('run:end');
     }
 
-    /**
-     * Executes all configured plugins for the step.
-     */
     private async executePlugins(
         items: PipelineItem[],
         resolvedStep: StepConfig,
@@ -170,8 +164,6 @@ export class ActionRunner {
         tempDir: string
     ): Promise<PipelineItem[]> {
         let activeItems = items;
-
-        // Inherited model settings for plugins
         const inheritedModel = {
             model: resolvedStep.modelConfig.model || this.globalContext.defaultModel,
             temperature: resolvedStep.modelConfig.temperature,
@@ -182,10 +174,7 @@ export class ActionRunner {
             const pluginDef = resolvedStep.plugins[pluginIdx];
             const plugin = this.pluginRegistry.get(pluginDef.name);
 
-            if (!plugin) {
-                console.warn(`Step ${stepNum} Plugin '${pluginDef.name}' not found, skipping.`);
-                continue;
-            }
+            if (!plugin) continue;
 
             activeItems = await this.processBatch(
                 activeItems,
@@ -209,9 +198,8 @@ export class ActionRunner {
                         pluginIndex: pluginIdx,
                         services: services,
                         tempDirectory: tempDir,
-                        outputDirectory: resolvedStep.resolvedOutputDir,
-                        outputBasename: resolvedStep.outputBasename,
-                        outputExtension: resolvedStep.outputExtension
+                        // Pass emitter to plugin context
+                        emit: this.globalContext.events.emit.bind(this.globalContext.events)
                     });
 
                     return result.packets;
@@ -225,9 +213,6 @@ export class ActionRunner {
         return activeItems;
     }
 
-    /**
-     * Executes the main model generation for the step.
-     */
     private async executeModel(
         items: PipelineItem[],
         resolvedStep: StepConfig,
@@ -246,24 +231,17 @@ export class ActionRunner {
                     index: currentItem.originalIndex
                 };
 
-                // 1. Preprocessing
                 let effectiveParts = [...currentItem.accumulatedContent, ...resolvedStep.userPromptParts];
 
                 for (const ppDef of resolvedStep.preprocessors) {
                     const preprocessor = this.preprocessorRegistry.get(ppDef.name);
                     if (preprocessor) {
                         effectiveParts = await preprocessor.process(effectiveParts, {
-                            row: modelViewContext,
-                            services: {
-                                puppeteerHelper: this.globalContext.puppeteerHelper,
-                                fetcher: this.globalContext.fetcher,
-                                puppeteerQueue: this.globalContext.puppeteerQueue
-                            }
+                            row: modelViewContext
                         }, ppDef.config);
                     }
                 }
 
-                // 2. Execution
                 const result = await executor.executeModel(
                     stepContext,
                     modelViewContext,
@@ -278,7 +256,6 @@ export class ActionRunner {
                 return [{
                     data: result.modelResult,
                     contentParts: [],
-                    // Attach metadata for history update
                     _historyUpdate: {
                         userPromptParts: resolvedStep.userPromptParts,
                         historyMessage: result.historyMessage
@@ -289,7 +266,6 @@ export class ActionRunner {
             'modelOutput',
             stepNum,
             (newItem, packet) => {
-                // Custom post-processing for Model Execution to update history
                 const update = (packet as any)._historyUpdate;
                 if (!update) return;
 
@@ -315,16 +291,11 @@ export class ActionRunner {
 
                 newItem.history = newHistory;
                 newItem.stepHistory = [...newItem.stepHistory, packet.data];
-
-                // Clean up internal metadata
                 delete (packet as any)._historyUpdate;
             }
         );
     }
 
-    /**
-     * Generic helper to run an operation on items in parallel and process results.
-     */
     private async processBatch(
         items: PipelineItem[],
         operation: (item: PipelineItem) => Promise<PluginPacket[]>,
@@ -333,13 +304,12 @@ export class ActionRunner {
         stepNum: number,
         postProcess?: (newItem: PipelineItem, sourcePacket: PluginPacket) => void
     ): Promise<PipelineItem[]> {
-        // Run operations in parallel (concurrency limited by global queues)
         const results = await Promise.all(items.map(async (item) => {
             try {
                 const packets = await operation(item);
                 return { item, packets };
             } catch (e: any) {
-                console.error(`[Row ${item.originalIndex}] Step ${stepNum} ${namespace} Failed:`, e);
+                this.globalContext.events.emit('log', { level: 'error', message: `[Row ${item.originalIndex}] Step ${stepNum} ${namespace} Failed: ${e.message}` });
                 return null;
             }
         }));
@@ -371,41 +341,6 @@ export class ActionRunner {
         }
 
         return nextItems;
-    }
-
-    private async saveResults(results: Record<string, any>[], outputPath?: string) {
-        if (!outputPath) {
-            return;
-        }
-
-        const validResults = results.filter(r => r !== undefined && r !== null);
-
-        if (validResults.length === 0) {
-            console.warn("No results to save.");
-            return;
-        }
-
-        const finalOutputPath = outputPath;
-        const isJson = outputPath.toLowerCase().endsWith('.json');
-
-        await ensureDir(finalOutputPath);
-
-        if (isJson) {
-            await fsPromises.writeFile(finalOutputPath, JSON.stringify(validResults, null, 2));
-        } else {
-            try {
-                const parser = new Parser({
-                    transforms: [
-                        transforms.flatten({ separator: '.', objects: true, arrays: false })
-                    ]
-                });
-                const csv = parser.parse(validResults);
-                await fsPromises.writeFile(finalOutputPath, csv);
-            } catch (e) {
-                console.error("Failed to write CSV output.", e);
-            }
-        }
-        console.log(`Updated data saved to ${finalOutputPath}`);
     }
 }
 

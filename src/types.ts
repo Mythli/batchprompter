@@ -1,21 +1,11 @@
 import OpenAI from 'openai';
-import { Fetcher } from 'llm-fns';
-import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { ImageSearch } from './plugins/image-search/ImageSearch.js';
-import { WebSearch } from './plugins/web-search/WebSearch.js';
 import PQueue from 'p-queue';
-import { Cache } from 'cache-manager';
 import { BoundLlmClient } from './core/BoundLlmClient.js';
-import { GlobalsConfig, StepConfig as ZodStepConfig } from './config/types.js';
+import { GlobalsConfig } from './config/types.js';
+import { EventEmitter } from 'eventemitter3';
+import { BatchPromptEvents } from './core/events.js';
 
-// --- Service Capabilities (for validation at startup) ---
-
-export interface ServiceCapabilities {
-    hasSerper: boolean;
-    hasPuppeteer: boolean;
-}
-
-// --- Definitions (Pre-Load) ---
+// --- Definitions ---
 
 export interface ModelDefinition {
     model?: string;
@@ -83,7 +73,7 @@ export interface NormalizedConfig {
     };
 }
 
-// --- Resolved Configuration (Post-Load) ---
+// --- Resolved Configuration ---
 
 export interface ResolvedModelConfig {
     model?: string;
@@ -92,6 +82,25 @@ export interface ResolvedModelConfig {
 
     systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
     promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+}
+
+export interface StepExecutionContext {
+    row: Record<string, any>;
+    workspace: Record<string, any>;
+    stepIndex: number;
+    rowIndex: number;
+    history: any[];
+}
+
+export interface StepHandlers {
+    /** Runs before step execution. Can modify context. */
+    prepare?: (context: StepExecutionContext) => Promise<void>;
+    
+    /** Runs to verify content. Returns validity and feedback. */
+    verify?: (content: any, context: StepExecutionContext) => Promise<{ isValid: boolean; feedback?: string }>;
+    
+    /** Runs after step execution. Can save artifacts, modify result, etc. */
+    process?: (context: StepExecutionContext, result: any) => Promise<void>;
 }
 
 export interface StepConfig {
@@ -105,6 +114,8 @@ export interface StepConfig {
 
     schemaPath?: string;
     jsonSchema?: any;
+    
+    // Legacy command strings (kept for config loading, but Core uses handlers)
     verifyCommand?: string;
     postProcessCommand?: string;
 
@@ -125,6 +136,9 @@ export interface StepConfig {
     outputExtension?: string;
     options?: Record<string, any>;
     timeout: number;
+
+    // New: Handlers for logic injection
+    handlers?: StepHandlers;
 }
 
 export interface RuntimeConfig {
@@ -140,7 +154,6 @@ export interface RuntimeConfig {
     limit?: number;
 }
 
-// Compatibility / Aliases
 export interface ModelConfig extends ModelDefinition {}
 
 // --- Execution Architecture ---
@@ -151,10 +164,7 @@ export interface PipelineItem {
     stepHistory: Record<string, any>[];
     history: any[];
     originalIndex: number;
-
-    /** 0-based index if this item was created via explosion */
     variationIndex?: number;
-    /** The specific content accumulated for this specific item path */
     accumulatedContent: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
@@ -162,31 +172,19 @@ export interface PipelineItem {
 
 export interface GlobalContext {
     openai: OpenAI;
+    events: EventEmitter<BatchPromptEvents>;
 
-    cache?: Cache;
+    // Queues for concurrency management
     gptQueue: PQueue;
-    serperQueue: PQueue;
-    puppeteerQueue: PQueue;
     taskQueue: PQueue;
 
-    puppeteerHelper: PuppeteerHelper;
-    fetcher: Fetcher;
-
-    imageSearch?: ImageSearch;
-    webSearch?: WebSearch;
-
-    capabilities: ServiceCapabilities;
     defaultModel: string;
 }
 
 export interface StepContext {
     global: GlobalContext;
-
-    // Pre-configured LLM clients with prompts bound
     llm: BoundLlmClient;
     judge?: BoundLlmClient;
     feedback?: BoundLlmClient;
-
-    // Factory for plugins to create clients with bound prompts
     createLlm(config: ResolvedModelConfig): BoundLlmClient;
 }

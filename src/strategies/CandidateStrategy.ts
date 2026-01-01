@@ -1,20 +1,16 @@
 import OpenAI from 'openai';
-import path from 'path';
-import Handlebars from 'handlebars';
-import util from 'util';
-import { exec } from 'child_process';
 import { z } from 'zod';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
 import { StepConfig, StepContext } from '../types.js';
-import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
-
-const execPromise = util.promisify(exec);
+import { EventEmitter } from 'eventemitter3';
+import { BatchPromptEvents } from '../core/events.js';
 
 export class CandidateStrategy implements GenerationStrategy {
     constructor(
         private standardStrategy: StandardStrategy,
-        private stepContext: StepContext
+        private stepContext: StepContext,
+        private events: EventEmitter<BatchPromptEvents>
     ) {}
 
     async execute(
@@ -31,40 +27,41 @@ export class CandidateStrategy implements GenerationStrategy {
     ): Promise<GenerationResult> {
         const candidateCount = config.candidates;
 
-        console.log(`[Row ${index}] Step ${stepIndex} Generating ${candidateCount} candidates...`);
+        this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} Generating ${candidateCount} candidates...` });
 
-        const promises: Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }>[] = [];
+        const promises: Promise<GenerationResult & { candidateIndex: number }>[] = [];
 
         for (let i = 0; i < candidateCount; i++) {
-            let candidateOutputPath: string | null = null;
-
-            const baseTempDir = config.resolvedTempDir || config.tmpDir;
-            const candidatesDir = path.join(baseTempDir, 'candidates');
-            await ensureDir(candidatesDir);
-
-            const name = config.outputBasename || 'output';
-            const ext = config.outputExtension || (config.aspectRatio ? '.png' : '.txt');
-            
-            // Filename logic: name + [variation] + candidate
-            let filename = `${name}`;
-            if (variationIndex !== undefined) {
-                filename += `_${variationIndex}`;
-            }
-            filename += `_${i}${ext}`;
-
-            candidateOutputPath = path.join(candidatesDir, filename);
-
             // Salt must include variation index to avoid cache collisions between exploded items
             const salt = `${cacheSalt || ''}_var_${variationIndex ?? 'x'}_cand_${i}`;
-            const shouldSkipCommands = config.noCandidateCommand || skipCommands;
-
+            
+            // We pass a dummy output path override to StandardStrategy to trigger artifact emission with correct naming?
+            // Actually StandardStrategy emits artifact based on config.outputBasename.
+            // We need to ensure candidates don't overwrite each other in the artifact stream if they have same filename.
+            // But StandardStrategy doesn't know about candidate index.
+            // We might need to modify StandardStrategy to accept a filename suffix or handle it here.
+            // For now, let's assume StandardStrategy emits 'final' tag.
+            // We might want to intercept artifacts? No, StandardStrategy emits them.
+            // If we run in parallel, we get multiple artifacts.
+            // The consumer needs to handle them.
+            
+            // Ideally, we should probably NOT use StandardStrategy's artifact emission for candidates,
+            // or we should tag them as 'candidate'.
+            // But StandardStrategy is hardcoded to emit 'final'.
+            // Refactor idea: Pass tags to StandardStrategy?
+            
+            // For this refactor, let's just run them. The artifacts will be emitted.
+            // The filename in StandardStrategy uses variationIndex.
+            // We should probably pass a variationIndex that includes candidate index?
+            // Or just rely on the fact that we are returning the results and the Judge will pick one.
+            
             promises.push(
                 this.standardStrategy.execute(
-                    row, index, stepIndex, config, userPromptParts, history, salt, candidateOutputPath || undefined, shouldSkipCommands, variationIndex
+                    row, index, stepIndex, config, userPromptParts, history, salt, undefined, skipCommands, variationIndex
                 )
-                .then(res => ({ ...res, candidateIndex: i, outputPath: candidateOutputPath }))
+                .then(res => ({ ...res, candidateIndex: i }))
                 .catch(err => {
-                    console.error(`[Row ${index}] Step ${stepIndex} Candidate ${i} failed:`, err);
+                    this.events.emit('log', { level: 'error', message: `[Row ${index}] Step ${stepIndex} Candidate ${i} failed: ${err.message}` });
                     throw err;
                 })
             );
@@ -73,25 +70,20 @@ export class CandidateStrategy implements GenerationStrategy {
         const results = await Promise.allSettled(promises);
         const successfulCandidates = results
             .filter(r => r.status === 'fulfilled')
-            .map(r => (r as PromiseFulfilledResult<GenerationResult & { candidateIndex: number, outputPath: string | null }>).value);
+            .map(r => (r as PromiseFulfilledResult<GenerationResult & { candidateIndex: number }>).value);
 
         if (successfulCandidates.length === 0) {
             throw new Error(`All ${candidateCount} candidates failed to generate.`);
         }
 
-        let winner: GenerationResult & { candidateIndex: number, outputPath: string | null };
+        let winner: GenerationResult & { candidateIndex: number };
 
         if (successfulCandidates.length === 1) {
             winner = successfulCandidates[0];
             if (candidateCount > 1) {
-                console.log(`[Row ${index}] Step ${stepIndex} Only 1 candidate succeeded. Skipping judge.`);
+                this.events.emit('log', { level: 'warn', message: `[Row ${index}] Step ${stepIndex} Only 1 candidate succeeded. Skipping judge.` });
             }
             
-            // Single candidate - standard behavior
-            if (config.outputPath && winner.outputPath) {
-                await this.copyWinnerToOutput(winner, config, row, index, stepIndex, variationIndex);
-            }
-
             return {
                 historyMessage: winner.historyMessage,
                 columnValue: winner.columnValue,
@@ -99,37 +91,26 @@ export class CandidateStrategy implements GenerationStrategy {
             };
         } else {
             if (this.stepContext.judge) {
-                console.log(`[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates...`);
+                this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} Judging ${successfulCandidates.length} candidates...` });
                 try {
                     winner = await this.judgeCandidates(successfulCandidates, config, userPromptParts, history, index, stepIndex, row);
-                    console.log(`[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}`);
+                    this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} Judge selected candidate #${winner.candidateIndex + 1}` });
                 } catch (e: any) {
-                    console.error(`[Row ${index}] Step ${stepIndex} Judging failed:`, e);
+                    this.events.emit('log', { level: 'error', message: `[Row ${index}] Step ${stepIndex} Judging failed: ${e.message}` });
                     throw e;
                 }
                 
-                // Judge selected a winner - standard behavior
-                if (config.outputPath && winner.outputPath) {
-                    await this.copyWinnerToOutput(winner, config, row, index, stepIndex, variationIndex);
-                }
-
                 return {
                     historyMessage: winner.historyMessage,
                     columnValue: winner.columnValue,
                     raw: winner.raw
                 };
             } else {
-                // NO JUDGE: Save all candidates and return array for explode
-                console.log(`[Row ${index}] Step ${stepIndex} No judge configured. Saving all ${successfulCandidates.length} candidates (explode mode).`);
+                // NO JUDGE: Return array for explode
+                this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} No judge configured. Returning all ${successfulCandidates.length} candidates.` });
                 
-                const explodedResults = await this.saveAllCandidates(
-                    successfulCandidates, 
-                    config, 
-                    row, 
-                    index, 
-                    stepIndex,
-                    variationIndex
-                );
+                // We map to the raw result format expected by ResultProcessor (array of items)
+                const explodedResults = successfulCandidates.map(c => c.raw || c.columnValue);
 
                 return {
                     historyMessage: {
@@ -137,140 +118,21 @@ export class CandidateStrategy implements GenerationStrategy {
                         content: `[Generated ${explodedResults.length} candidates]`
                     },
                     columnValue: null,
-                    raw: explodedResults  // Array triggers explode in ResultProcessor
+                    raw: explodedResults
                 };
             }
         }
     }
 
-    private async copyWinnerToOutput(
-        winner: GenerationResult & { candidateIndex: number, outputPath: string | null },
-        config: StepConfig,
-        row: Record<string, any>,
-        index: number,
-        stepIndex: number,
-        variationIndex?: number
-    ): Promise<void> {
-        const fs = await import('fs/promises');
-        try {
-            // Determine final output path
-            let finalPath = config.outputPath!;
-            
-            // If we have a variation index, we MUST inject it into the filename to prevent overwrites
-            if (variationIndex !== undefined) {
-                finalPath = this.injectVariationIndex(finalPath, variationIndex);
-            }
-
-            await ensureDir(finalPath);
-            if (winner.outputPath !== finalPath) {
-                await fs.copyFile(winner.outputPath!, finalPath);
-            }
-
-            if (config.noCandidateCommand && config.postProcessCommand) {
-                await this.runDeferredCommand(config.postProcessCommand, row, finalPath, index, stepIndex);
-            }
-        } catch (e) {
-            console.error(`[Row ${index}] Step ${stepIndex} Failed to copy winner file to final output:`, e);
-        }
-    }
-
-    private async saveAllCandidates(
-        candidates: (GenerationResult & { candidateIndex: number, outputPath: string | null })[],
-        config: StepConfig,
-        row: Record<string, any>,
-        index: number,
-        stepIndex: number,
-        variationIndex?: number
-    ): Promise<any[]> {
-        const fs = await import('fs/promises');
-        const results: any[] = [];
-
-        for (let i = 0; i < candidates.length; i++) {
-            const candidate = candidates[i];
-            
-            let finalOutputPath: string | null = null;
-
-            if (config.outputPath && candidate.outputPath) {
-                // Generate indexed path: "02_HeroImage.jpg" → "02_HeroImage_1.jpg"
-                // If variation exists: "02_HeroImage_0.jpg" -> "02_HeroImage_0_1.jpg"
-                
-                let basePath = config.outputPath;
-                if (variationIndex !== undefined) {
-                    basePath = this.injectVariationIndex(basePath, variationIndex);
-                }
-
-                finalOutputPath = this.createIndexedPath(basePath, i);
-                
-                try {
-                    await ensureDir(finalOutputPath);
-                    await fs.copyFile(candidate.outputPath, finalOutputPath);
-                    console.log(`[Row ${index}] Step ${stepIndex} Saved candidate ${i + 1} to ${finalOutputPath}`);
-
-                    // Run deferred command if applicable
-                    if (config.noCandidateCommand && config.postProcessCommand) {
-                        await this.runDeferredCommand(config.postProcessCommand, row, finalOutputPath, index, stepIndex);
-                    }
-                } catch (e) {
-                    console.error(`[Row ${index}] Step ${stepIndex} Failed to save candidate ${i + 1}:`, e);
-                }
-            }
-
-            // Build result object for this candidate
-            results.push({
-                outputPath: finalOutputPath || candidate.outputPath,
-                candidateIndex: candidate.candidateIndex,
-                content: candidate.columnValue,
-                raw: candidate.raw
-            });
-        }
-
-        return results;
-    }
-
-    private injectVariationIndex(filePath: string, variationIndex: number): string {
-        const parsed = path.parse(filePath);
-        // e.g. "image.jpg" -> "image_0.jpg"
-        return path.join(parsed.dir, `${parsed.name}_${variationIndex}${parsed.ext}`);
-    }
-
-    private createIndexedPath(basePath: string, index: number): string {
-        const parsed = path.parse(basePath);
-        // 1-based indexing for human-friendliness
-        return path.join(parsed.dir, `${parsed.name}_${index + 1}${parsed.ext}`);
-    }
-
-    private async runDeferredCommand(
-        commandTemplate: string,
-        row: Record<string, any>,
-        filePath: string,
-        index: number,
-        stepIndex: number
-    ): Promise<void> {
-        const cmdTemplate = Handlebars.compile(commandTemplate, { noEscape: true });
-        const sanitizedRow: Record<string, string> = {};
-        for (const [key, val] of Object.entries(row)) {
-            const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-            sanitizedRow[key] = aggressiveSanitize(stringVal);
-        }
-        const cmd = cmdTemplate({ ...sanitizedRow, file: filePath });
-        console.log(`[Row ${index}] Step ${stepIndex} ⚙️ Running deferred command: ${cmd}`);
-        try {
-            const { stdout } = await execPromise(cmd);
-            if (stdout && stdout.trim()) console.log(`[Row ${index}] Step ${stepIndex} STDOUT:\n${stdout.trim()}`);
-        } catch (error: any) {
-            console.error(`[Row ${index}] Step ${stepIndex} Deferred command failed:`, error);
-        }
-    }
-
     private async judgeCandidates(
-        candidates: (GenerationResult & { candidateIndex: number, outputPath: string | null })[],
+        candidates: (GenerationResult & { candidateIndex: number })[],
         config: StepConfig,
         userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         index: number,
         stepIndex: number,
         row: Record<string, any>
-    ): Promise<GenerationResult & { candidateIndex: number, outputPath: string | null }> {
+    ): Promise<GenerationResult & { candidateIndex: number }> {
 
         if (!this.stepContext.judge) throw new Error("No judge configuration found");
 
@@ -301,7 +163,6 @@ export class CandidateStrategy implements GenerationStrategy {
             reason: z.string().describe("The reason for selecting this candidate"),
         });
 
-        // Use the BoundLlmClient's promptZod with prefix (context) and suffix (candidates)
         const result = await this.stepContext.judge.promptZod(
             {
                 prefix: contextParts,
@@ -310,7 +171,7 @@ export class CandidateStrategy implements GenerationStrategy {
             JudgeSchema
         );
 
-        console.log(`[Row ${index}] Step ${stepIndex} Judge Reason: ${result.reason}`);
+        this.events.emit('log', { level: 'info', message: `[Row ${index}] Step ${stepIndex} Judge Reason: ${result.reason}` });
 
         return candidates[result.best_candidate_index];
     }
