@@ -17,7 +17,8 @@
     "debug": "/Users/tobiasanhalt/Development/batchprompt/examples/04-describe-website-css/run.sh",
     "create-docs": "tsx scripts/create-docs-ts.ts",
     "build": "tsc",
-    "release": "bash scripts/release.sh"
+    "release": "bash scripts/release.sh",
+    "serve": "tsx src/api/server.ts"
   },
   "keywords": [],
   "author": "",
