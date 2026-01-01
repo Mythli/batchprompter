@@ -14,9 +14,6 @@ import { SchemaLoader } from '../../config/SchemaLoader.js';
 import { makeSchemaOptional } from '../../utils/schemaUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
-import { WebsiteAgentArtifactHandler } from './WebsiteAgentArtifactHandler.js';
-import path from 'path';
-import { ensureDir } from '../../utils/fileUtils.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -263,7 +260,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         config: WebsiteAgentResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { services, row, tempDirectory } = context;
+        const { services, row, emit } = context;
         const { puppeteerHelper, puppeteerQueue } = services;
 
         if (!puppeteerHelper || !puppeteerQueue) {
@@ -288,10 +285,52 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         // Setup utility
         const agent = new AiWebsiteAgent(navLlm, extLlm, mrgLlm, puppeteerHelper, puppeteerQueue);
 
-        // Setup artifact handler
-        const artifactDir = path.join(tempDirectory, 'website_agent');
-        await ensureDir(artifactDir + '/x');
-        new WebsiteAgentArtifactHandler(artifactDir, agent.events);
+        // Wire up events
+        agent.events.on('page:scraped', (data) => {
+            const safeUrl = data.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'text',
+                filename: `website_agent/pages/${safeUrl}_${Date.now()}.md`,
+                content: data.markdown,
+                tags: ['debug', 'website-agent', 'page']
+            });
+        });
+
+        agent.events.on('data:extracted', (data) => {
+            const safeUrl = data.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `website_agent/extractions/${safeUrl}_${Date.now()}.json`,
+                content: JSON.stringify(data.data, null, 2),
+                tags: ['debug', 'website-agent', 'extraction']
+            });
+        });
+
+        agent.events.on('decision:made', (data) => {
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `website_agent/decisions/decision_${Date.now()}.json`,
+                content: JSON.stringify(data, null, 2),
+                tags: ['debug', 'website-agent', 'decision']
+            });
+        });
+
+        agent.events.on('results:merged', (data) => {
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `website_agent/final/final_merge_${Date.now()}.json`,
+                content: JSON.stringify(data.merged, null, 2),
+                tags: ['final', 'website-agent', 'merged']
+            });
+        });
 
         // Scrape
         const result = await agent.scrapeIterative(

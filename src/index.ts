@@ -6,6 +6,7 @@ import { createDefaultRegistry, getConfig } from './getConfig.js';
 import { ServiceCapabilities } from './types.js';
 import { FileAdapter } from './adapters/FileAdapter.js';
 import { PipelineConfigSchema } from './config/schema.js';
+import { FileSystemArtifactHandler } from './cli/handlers/FileSystemArtifactHandler.js';
 
 const program = new Command();
 
@@ -33,8 +34,12 @@ generateCmd.action(async (templateFilePaths, options) => {
     let puppeteerHelperInstance;
     try {
         // Get the runner from DI first to get actual capabilities
-        const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry } = await getConfig();
+        const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry, globalContext } = await getConfig();
         puppeteerHelperInstance = puppeteerHelper;
+
+        // Initialize Artifact Handler
+        // We use the global tmpDir as the base for artifacts
+        new FileSystemArtifactHandler(globalContext.events, resolvedConfig.config.globals.tmpDir);
 
         let fileConfig = {};
 

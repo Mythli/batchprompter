@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { EventEmitter } from 'eventemitter3';
-import path from 'path';
 import {
     Plugin,
     PluginExecutionContext,
@@ -10,8 +9,6 @@ import {
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
-import { ensureDir } from '../../utils/fileUtils.js';
-import { DedupeArtifactHandler } from './DedupeArtifactHandler.js';
 
 // =============================================================================
 // Config Schema
@@ -99,12 +96,7 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         config: DedupeResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { row, tempDirectory } = context;
-
-        // Setup artifact handler
-        const artifactDir = path.join(tempDirectory, 'dedupe');
-        await ensureDir(artifactDir + '/x');
-        new DedupeArtifactHandler(artifactDir, this.events);
+        const { row, emit } = context;
 
         // Render key from template
         const template = Handlebars.compile(config.keyTemplate, { noEscape: true });
@@ -119,10 +111,17 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         if (seenKeys.has(key)) {
             console.log(`[Dedupe] ❌ Dropping duplicate: "${key}"`);
             
-            this.events.emit('dedupe:result', {
-                id: config.id,
-                key,
-                isDuplicate: true
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `dedupe/dedupe_${Date.now()}.json`,
+                content: JSON.stringify({
+                    id: config.id,
+                    key,
+                    isDuplicate: true
+                }, null, 2),
+                tags: ['debug', 'dedupe', 'duplicate']
             });
 
             return { packets: [] };
@@ -131,10 +130,17 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         console.log(`[Dedupe] ✅ Keeping: "${key}"`);
         seenKeys.add(key);
 
-        this.events.emit('dedupe:result', {
-            id: config.id,
-            key,
-            isDuplicate: false
+        emit('artifact', {
+            row: context.row.index,
+            step: context.stepIndex,
+            type: 'json',
+            filename: `dedupe/dedupe_${Date.now()}.json`,
+            content: JSON.stringify({
+                id: config.id,
+                key,
+                isDuplicate: false
+            }, null, 2),
+            tags: ['debug', 'dedupe', 'kept']
         });
 
         return {

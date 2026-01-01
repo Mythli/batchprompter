@@ -11,12 +11,9 @@ import {
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { ArtifactSaver } from '../../ArtifactSaver.js';
-import { ensureDir } from '../../utils/fileUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
-import { ImageSearchArtifactHandler } from './ImageSearchArtifactHandler.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -238,7 +235,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         config: ImageSearchResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { services, row, tempDirectory, outputBasename } = context;
+        const { services, row, outputBasename, emit } = context;
         const imageSearch = services.imageSearch;
 
         if (!imageSearch) {
@@ -255,12 +252,59 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         // Use AiImageSearch utility for Map-Reduce execution
         const aiImageSearch = new AiImageSearch(imageSearch, queryLlm, selector, config.spriteSize);
 
-        // Setup artifact handler
-        const artifactDir = path.join(tempDirectory, 'image_search');
-        await ensureDir(artifactDir + '/x');
-        
-        // Initialize the artifact handler to listen to events
-        new ImageSearchArtifactHandler(artifactDir, aiImageSearch.events);
+        // Wire up events
+        aiImageSearch.events.on('search:result', (data) => {
+            const safeQuery = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `image_search/search_results/result_task${data.taskIndex}_${safeQuery}_p${data.page}.json`,
+                content: JSON.stringify(data.results, null, 2),
+                tags: ['debug', 'image-search', 'search-result']
+            });
+        });
+
+        aiImageSearch.events.on('artifact:sprite', (data) => {
+            let filename = `image_search/sprites/sprite_${data.phase}`;
+            if (data.taskIndex !== undefined) filename += `_task${data.taskIndex}`;
+            filename += `_${data.index}.jpg`;
+            
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'image',
+                filename,
+                content: data.buffer,
+                tags: ['debug', 'image-search', 'sprite']
+            });
+        });
+
+        aiImageSearch.events.on('artifact:candidate', (data) => {
+            let filename = `image_search/candidates/candidate_${data.phase}`;
+            if (data.taskIndex !== undefined) filename += `_task${data.taskIndex}`;
+            filename += `_${data.index}.jpg`;
+
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'image',
+                filename,
+                content: data.buffer,
+                tags: ['debug', 'image-search', 'candidate']
+            });
+        });
+
+        aiImageSearch.events.on('query:generated', (data) => {
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `image_search/search_results/queries_${Date.now()}.json`,
+                content: JSON.stringify(data, null, 2),
+                tags: ['debug', 'image-search', 'queries']
+            });
+        });
 
         const selectedImages = await aiImageSearch.process(row, {
             query: config.query,
@@ -276,19 +320,14 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             return { packets: [] };
         }
 
-        // Setup directories for final output (handled by plugin logic, but also mirrored by artifact handler)
-        const baseName = outputBasename || 'image';
-        const selectedDir = path.join(tempDirectory, 'selected');
-        await ensureDir(selectedDir + '/x');
-
         // Build packets
         const packets: any[] = [];
         const sharp = (await import('sharp')).default;
+        const baseName = outputBasename || 'image';
 
         // Process final images in parallel
         await Promise.all(selectedImages.map(async (img, i) => {
-            const filename = `${baseName}_selected_${i}.jpg`;
-            const savePath = path.join(selectedDir, filename);
+            const filename = `image_search/selected/${baseName}_selected_${i}.jpg`;
 
             try {
                 const processed = await sharp(img.buffer)
@@ -296,7 +335,15 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                     .jpeg({ quality: 80 })
                     .toBuffer();
 
-                await ArtifactSaver.save(processed, savePath);
+                // Emit final artifact
+                emit('artifact', {
+                    row: context.row.index,
+                    step: context.stepIndex,
+                    type: 'image',
+                    filename,
+                    content: processed,
+                    tags: ['final', 'image-search', 'selected']
+                });
 
                 const base64 = processed.toString('base64');
                 const contentPart: OpenAI.Chat.Completions.ChatCompletionContentPart = {
@@ -307,7 +354,10 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                 packets.push({
                     data: {
                         ...img.metadata,
-                        localPath: savePath,
+                        // Note: localPath is no longer available directly here as we don't know where the handler saved it.
+                        // If downstream needs it, we might need to coordinate or assume standard path.
+                        // For now, we omit localPath or provide a relative hint.
+                        filename,
                         searchIndex: i + 1
                     },
                     contentParts: [contentPart]

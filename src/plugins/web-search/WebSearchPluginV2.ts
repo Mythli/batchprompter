@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
-import path from 'path';
 import {
     Plugin,
     PluginExecutionContext,
@@ -14,8 +13,6 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
-import { ensureDir } from '../../utils/fileUtils.js';
-import { WebSearchArtifactHandler } from './WebSearchArtifactHandler.js';
 
 // =============================================================================
 // Raw Config Schema (Single source of truth for defaults)
@@ -261,7 +258,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         config: WebSearchResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { services, row, tempDirectory } = context;
+        const { services, row, emit } = context;
         const webSearch = services.webSearch;
 
         if (!webSearch) {
@@ -279,12 +276,63 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         // Use AiWebSearch utility for Map-Reduce execution
         const aiWebSearch = new AiWebSearch(webSearch, queryLlm, selector, compressLlm);
 
-        // Setup artifact directory
-        const artifactDir = path.join(tempDirectory, 'web_search');
-        await ensureDir(artifactDir + '/x'); // Hack to ensure parent dir exists
+        // Wire up events to context.emit
+        aiWebSearch.events.on('query:generated', (data) => {
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `web_search/queries/queries_${Date.now()}.json`,
+                content: JSON.stringify(data, null, 2),
+                tags: ['debug', 'web-search', 'queries']
+            });
+        });
 
-        // Initialize artifact handler
-        new WebSearchArtifactHandler(artifactDir, aiWebSearch.events);
+        aiWebSearch.events.on('search:result', (data) => {
+            const safeQuery = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `web_search/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`,
+                content: JSON.stringify(data, null, 2),
+                tags: ['debug', 'web-search', 'scatter']
+            });
+        });
+
+        aiWebSearch.events.on('selection:reduce', (data) => {
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `web_search/reduce/reduce_${Date.now()}.json`,
+                content: JSON.stringify(data, null, 2),
+                tags: ['debug', 'web-search', 'reduce']
+            });
+        });
+
+        aiWebSearch.events.on('content:enrich', (data) => {
+            const safeUrl = data.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `web_search/enrich/enrich_${safeUrl}_${Date.now()}.json`,
+                content: JSON.stringify(data, null, 2),
+                tags: ['debug', 'web-search', 'enrich']
+            });
+        });
+
+        aiWebSearch.events.on('result:selected', (data) => {
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `web_search/selected/selected_${Date.now()}.json`,
+                content: JSON.stringify(data.results, null, 2),
+                tags: ['final', 'web-search', 'selected']
+            });
+        });
 
         const result = await aiWebSearch.process(row, {
             query: config.query,
@@ -298,8 +346,6 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         });
 
         // Convert results into individual packets.
-        // This allows the ResultProcessor to handle 'explode' correctly (one packet = one row),
-        // and also produces a cleaner array of objects in 'merge' mode (instead of array-of-arrays).
         const packets: PluginPacket[] = result.data.map(item => {
             const text = `Source: ${item.title} (${item.link})\nContent:\n${item.content}`;
             return {
@@ -308,7 +354,6 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             };
         });
 
-        // If no results, return the original "No results" message from AiWebSearch
         if (packets.length === 0) {
             return {
                 packets: [{

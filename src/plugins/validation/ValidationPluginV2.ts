@@ -2,7 +2,6 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import Ajv from 'ajv';
 import { EventEmitter } from 'eventemitter3';
-import path from 'path';
 import {
     Plugin,
     PluginExecutionContext,
@@ -12,8 +11,6 @@ import {
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
-import { ensureDir } from '../../utils/fileUtils.js';
-import { ValidationArtifactHandler } from './ValidationArtifactHandler.js';
 
 // =============================================================================
 // Config Schema
@@ -125,12 +122,7 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         config: ValidationResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { row, tempDirectory } = context;
-
-        // Setup artifact handler
-        const artifactDir = path.join(tempDirectory, 'validation');
-        await ensureDir(artifactDir + '/x');
-        new ValidationArtifactHandler(artifactDir, this.events);
+        const { row, emit } = context;
 
         let dataToValidate: any = row;
 
@@ -156,12 +148,19 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             const errors = this.ajv.errorsText(validate.errors);
             console.log(`[Validation] ❌ Failed (${config.schemaSource}): ${errors}`);
             
-            this.events.emit('validation:result', {
-                schemaSource: config.schemaSource,
-                target: config.target,
-                data: dataToValidate,
-                valid: false,
-                errors
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `validation/validation_${Date.now()}.json`,
+                content: JSON.stringify({
+                    schemaSource: config.schemaSource,
+                    target: config.target,
+                    data: dataToValidate,
+                    valid: false,
+                    errors
+                }, null, 2),
+                tags: ['debug', 'validation', 'error']
             });
 
             return { packets: [] }; // Drop item
@@ -169,11 +168,18 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
 
         console.log(`[Validation] ✅ Passed (${config.schemaSource})`);
         
-        this.events.emit('validation:result', {
-            schemaSource: config.schemaSource,
-            target: config.target,
-            data: dataToValidate,
-            valid: true
+        emit('artifact', {
+            row: context.row.index,
+            step: context.stepIndex,
+            type: 'json',
+            filename: `validation/validation_${Date.now()}.json`,
+            content: JSON.stringify({
+                schemaSource: config.schemaSource,
+                target: config.target,
+                data: dataToValidate,
+                valid: true
+            }, null, 2),
+            tags: ['debug', 'validation', 'success']
         });
 
         return {

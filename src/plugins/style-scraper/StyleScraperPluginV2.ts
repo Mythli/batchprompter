@@ -12,8 +12,6 @@ import {
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
-import { ensureDir } from '../../utils/fileUtils.js';
-import { StyleScraperArtifactHandler } from './StyleScraperArtifactHandler.js';
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 
 // =============================================================================
@@ -130,17 +128,12 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         config: StyleScraperResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { services, tempDirectory, outputBasename } = context;
+        const { services, outputBasename, emit } = context;
         const { puppeteerHelper } = services;
 
         if (!puppeteerHelper) {
             throw new Error('[StyleScraper] Puppeteer not available');
         }
-
-        // Setup artifact handler
-        const artifactDir = path.join(tempDirectory, 'style_scraper');
-        await ensureDir(artifactDir + '/x');
-        new StyleScraperArtifactHandler(artifactDir, this.events);
 
         const pageHelper = await puppeteerHelper.getPageHelper();
 
@@ -245,27 +238,42 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
             const outputData: Record<string, any> = {};
 
             for (const artifact of result.artifacts) {
-                // Emit event here to ensure artifacts are saved to disk for this run (even if cached)
-                this.events.emit('artifact:captured', {
-                    type: artifact.type,
-                    subType: artifact.subType,
-                    index: artifact.index,
-                    state: artifact.state,
-                    content: artifact.base64,
-                    extension: artifact.extension
-                });
+                let filename = '';
+                let subDir = '';
 
-                if (artifact.type === 'desktop') {
-                    outputData.desktop = path.join(artifactDir, 'screenshots', `${baseName}_desktop${artifact.extension}`);
-                } else if (artifact.type === 'mobile') {
-                    outputData.mobile = path.join(artifactDir, 'screenshots', `${baseName}_mobile${artifact.extension}`);
+                if (artifact.type === 'desktop' || artifact.type === 'mobile') {
+                    subDir = 'screenshots';
+                    filename = `${baseName}_${artifact.type}${artifact.extension}`;
                 } else if (artifact.type === 'interactive') {
-                    outputData.interactive = path.join(artifactDir, 'interactive', `${baseName}_interactive${artifact.extension}`);
+                    subDir = 'interactive';
+                    filename = `${baseName}_composite${artifact.extension}`;
                 } else if (artifact.type === 'css') {
-                    outputData.css = path.join(artifactDir, 'css', `${baseName}_styles${artifact.extension}`);
+                    subDir = 'css';
+                    filename = `${baseName}_styles${artifact.extension}`;
                 } else if (artifact.type === 'element') {
-                    if (!outputData.elements) outputData.elements = {};
-                    outputData.elements[`${artifact.subType}_${artifact.index}_${artifact.state}`] = path.join(artifactDir, 'interactive', `${baseName}_${artifact.subType}_${artifact.index}_${artifact.state}${artifact.extension}`);
+                    subDir = 'interactive';
+                    filename = `${baseName}_${artifact.subType}_${artifact.index}_${artifact.state}${artifact.extension}`;
+                }
+
+                if (filename) {
+                    emit('artifact', {
+                        row: context.row.index,
+                        step: context.stepIndex,
+                        type: artifact.type === 'css' ? 'text' : 'image',
+                        filename: `style_scraper/${subDir}/${filename}`,
+                        content: artifact.base64,
+                        tags: ['style-scraper', artifact.type]
+                    });
+
+                    // Populate output data with relative paths (assuming standard structure)
+                    if (artifact.type === 'desktop') outputData.desktop = filename;
+                    if (artifact.type === 'mobile') outputData.mobile = filename;
+                    if (artifact.type === 'interactive') outputData.interactive = filename;
+                    if (artifact.type === 'css') outputData.css = filename;
+                    if (artifact.type === 'element') {
+                        if (!outputData.elements) outputData.elements = {};
+                        outputData.elements[`${artifact.subType}_${artifact.index}_${artifact.state}`] = filename;
+                    }
                 }
             }
 

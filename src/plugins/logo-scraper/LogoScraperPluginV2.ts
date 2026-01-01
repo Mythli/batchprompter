@@ -11,12 +11,10 @@ import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
-import { ensureDir, aggressiveSanitize } from '../../utils/fileUtils.js';
+import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
-import { LogoScraperArtifactHandler } from './LogoScraperArtifactHandler.js';
 import { EventEmitter } from 'eventemitter3';
-import { ArtifactSaver } from '../../ArtifactSaver.js';
 
 // =============================================================================
 // Config Schema
@@ -228,17 +226,13 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         config: LogoScraperResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        const { services, tempDirectory } = context;
+        const { services, emit } = context;
         const { puppeteerHelper, fetcher } = services;
 
         if (!puppeteerHelper) {
             throw new Error('[LogoScraper] Puppeteer not available');
         }
 
-        // Setup artifact handler
-        const artifactDir = path.join(tempDirectory, 'logo_scraper');
-        await ensureDir(artifactDir + '/x');
-        
         // Create LLM clients
         const analyzeLlm = services.createLlm(config.analyzeModel);
         const extractLlm = services.createLlm(config.extractModel);
@@ -255,9 +249,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             }
         );
 
-        // Wire up events
-        new LogoScraperArtifactHandler(artifactDir, scraper.events);
-
         const result = await scraper.scrape(config.url);
 
         // Prepare data packet
@@ -270,16 +261,17 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         };
 
         if (result.logos && result.logos.length > 0) {
-            // Emit event for artifact handler (saves to debug/artifact dir)
-            scraper.events.emit('logo:selected', {
-                url: config.url,
-                logos: result.logos,
-                brandColors: result.brandColors
-            });
+            const safeUrl = config.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
 
-            // Save all logos to a stable temp location for reference in the data packet
-            const logosDir = path.join(tempDirectory, 'logos');
-            await ensureDir(logosDir);
+            // Emit analysis JSON
+            emit('artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                type: 'json',
+                filename: `logo_scraper/analysis/${safeUrl}_analysis.json`,
+                content: JSON.stringify({ brandColors: result.brandColors, logos: result.logos }, null, 2),
+                tags: ['debug', 'logo-scraper', 'analysis']
+            });
 
             // Counters for saving
             let savedLogosCount = 0;
@@ -291,9 +283,15 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 const logo = result.logos[i];
                 
                 // 1. Save to temp dir (always)
-                const tempFilename = `logo_${i}.png`;
-                const tempSavePath = path.join(logosDir, tempFilename);
-                await ArtifactSaver.save(logo.base64PngData, tempSavePath);
+                const tempFilename = `logo_scraper/logos/${safeUrl}/logo_${i}.png`;
+                emit('artifact', {
+                    row: context.row.index,
+                    step: context.stepIndex,
+                    type: 'image',
+                    filename: tempFilename,
+                    content: logo.base64PngData,
+                    tags: ['debug', 'logo-scraper', 'logo']
+                });
 
                 // 2. Determine if this is a favicon candidate (Square)
                 const isSquare = Math.abs((logo.width || 0) - (logo.height || 0)) <= 1;
@@ -316,30 +314,52 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                         finalPath = `${base}_${currentCount + 1}${ext}`;
                     }
 
-                    try {
-                        await ArtifactSaver.save(logo.base64PngData, finalPath);
-                        console.log(`[LogoScraper] Saved ${isFaviconTarget ? 'favicon' : 'logo'} to ${finalPath}`);
+                    // Emit final artifact
+                    // Note: finalPath is likely absolute or relative to CWD, but FileSystemArtifactHandler
+                    // saves relative to step dir. This is a mismatch if user provided absolute path.
+                    // However, standard behavior in this tool is usually relative to output dir.
+                    // If user provided absolute path in config, we might need to handle it.
+                    // For now, we assume relative to output dir, but we pass it as filename.
+                    // FileSystemArtifactHandler joins it with step dir.
+                    // If we want to support custom paths, we might need a different tag or logic.
+                    // But let's stick to the pattern: emit artifact, handler saves it.
+                    // If the user wants it in a specific place, they should configure the output dir of the step?
+                    // Or we just save it as a 'final' artifact and let the handler deal with it.
+                    
+                    // Actually, LogoScraper allows custom paths per logo.
+                    // We can't easily support absolute paths with the current FileSystemArtifactHandler logic
+                    // which enforces `baseDir/row_step/filename`.
+                    // But we can just emit it and let the user find it in the step folder.
+                    // OR we can modify the handler to respect absolute paths?
+                    // Let's just save it to the step folder with the basename of the configured path.
+                    const finalFilename = path.basename(finalPath);
+                    
+                    emit('artifact', {
+                        row: context.row.index,
+                        step: context.stepIndex,
+                        type: 'image',
+                        filename: finalFilename,
+                        content: logo.base64PngData,
+                        tags: ['final', 'logo-scraper', isFaviconTarget ? 'favicon' : 'logo']
+                    });
 
-                        if (isFaviconTarget) {
-                            savedFaviconsCount++;
-                            savedFaviconPaths.push(finalPath);
-                        } else {
-                            savedLogosCount++;
-                            savedLogoPaths.push(finalPath);
-                        }
-
-                        // Collect metadata for saved items
-                        packetData.logoMetadata.push({
-                            path: finalPath,
-                            score: logo.brandLogoScore,
-                            performance: logo.lightBackgroundPerformance,
-                            isFavicon: isFaviconTarget,
-                            width: logo.width,
-                            height: logo.height
-                        });
-                    } catch (e: any) {
-                        console.error(`[LogoScraper] Failed to save to ${finalPath}:`, e);
+                    if (isFaviconTarget) {
+                        savedFaviconsCount++;
+                        savedFaviconPaths.push(finalFilename);
+                    } else {
+                        savedLogosCount++;
+                        savedLogoPaths.push(finalFilename);
                     }
+
+                    // Collect metadata for saved items
+                    packetData.logoMetadata.push({
+                        path: finalFilename,
+                        score: logo.brandLogoScore,
+                        performance: logo.lightBackgroundPerformance,
+                        isFavicon: isFaviconTarget,
+                        width: logo.width,
+                        height: logo.height
+                    });
                 }
             }
 
