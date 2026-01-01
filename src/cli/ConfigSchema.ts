@@ -172,6 +172,16 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             systemSource: stepDef.system as any
         };
 
+        // Apply Global Limits to Step Output
+        if (stepDef.output.explode) {
+            if (stepDef.output.limit === undefined && config.globals.limit !== undefined) {
+                stepDef.output.limit = config.globals.limit;
+            }
+            if (stepDef.output.offset === undefined && config.globals.offset !== undefined) {
+                stepDef.output.offset = config.globals.offset;
+            }
+        }
+
         // Resolve Plugins
         const plugins: PluginConfigDefinition[] = [];
         stepDef.plugins.forEach((pluginConfig, pIdx) => {
@@ -180,6 +190,16 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
                 // Normalize immediately using the plugin's schema.
                 try {
                     const validatedConfig = plugin.configSchema.parse(pluginConfig);
+
+                    // Apply Global Limits to Plugin Output
+                    if (validatedConfig.output.explode) {
+                        if (validatedConfig.output.limit === undefined && config.globals.limit !== undefined) {
+                            validatedConfig.output.limit = config.globals.limit;
+                        }
+                        if (validatedConfig.output.offset === undefined && config.globals.offset !== undefined) {
+                            validatedConfig.output.offset = config.globals.offset;
+                        }
+                    }
 
                     plugins.push({
                         name: pluginConfig.type,
