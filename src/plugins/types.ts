@@ -10,6 +10,7 @@ import { Cache } from 'cache-manager';
 import { ImageSearch } from './image-search/ImageSearch.js';
 import { WebSearch } from './web-search/WebSearch.js';
 import PQueue from 'p-queue';
+import { ContentResolver } from '../core/io/ContentResolver.js';
 
 // =============================================================================
 // Plugin Packet (shared)
@@ -117,7 +118,8 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     resolveConfig(
         rawConfig: TRawConfig,
         row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        contentResolver: ContentResolver
     ): Promise<TResolvedConfig>;
 
     /**

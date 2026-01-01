@@ -13,6 +13,7 @@ import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js
 import { OutputConfigSchema } from '../../config/common.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
+import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -102,7 +103,8 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
     async resolveConfig(
         rawConfig: StyleScraperRawConfigV2,
         row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        contentResolver: ContentResolver
     ): Promise<StyleScraperResolvedConfigV2> {
         const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
         const url = urlTemplate(row);

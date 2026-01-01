@@ -196,7 +196,8 @@ export class ActionRunner {
                     const resolvedPluginConfig = await plugin.resolveConfig(
                         pluginDef.config,
                         pluginViewContext,
-                        inheritedModel
+                        inheritedModel,
+                        this.globalContext.contentResolver
                     );
 
                     const result = await plugin.execute(resolvedPluginConfig, {

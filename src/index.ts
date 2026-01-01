@@ -9,6 +9,7 @@ import { ServiceCapabilities } from './types.js';
 import { FileAdapter } from './adapters/FileAdapter.js';
 import { PipelineConfigSchema } from './config/schema.js';
 import { FileSystemArtifactHandler } from './cli/handlers/FileSystemArtifactHandler.js';
+import { FileSystemContentResolver } from './cli/io/FileSystemContentResolver.js';
 
 const program = new Command();
 
@@ -48,7 +49,9 @@ generateCmd.action(async (templateFilePaths, options) => {
         }
 
         // Parse Config (Merge File + CLI)
-        const config = await StepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry);
+        // Use FileSystemContentResolver for CLI
+        const contentResolver = new FileSystemContentResolver();
+        const config = await StepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry, contentResolver);
 
         // Initialize Artifact Handler
         // We use the tmpDir from the parsed runtime config

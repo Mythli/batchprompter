@@ -1,11 +1,13 @@
-import fsPromises from 'fs/promises';
 import Handlebars from 'handlebars';
+import { ContentResolver } from '../core/io/ContentResolver.js';
 
 /**
  * Loads JSON schemas from files or parses inline schemas
  */
 export class SchemaLoader {
     private cache = new Map<string, string>();
+
+    constructor(private contentResolver: ContentResolver) {}
 
     async load(source: string, context?: Record<string, any>): Promise<any> {
         let rawContent: string;
@@ -14,19 +16,11 @@ export class SchemaLoader {
             rawContent = this.cache.get(source)!;
         } else {
             try {
-                const stats = await fsPromises.stat(source);
-                if (stats.isFile()) {
-                    rawContent = await fsPromises.readFile(source, 'utf-8');
-                    this.cache.set(source, rawContent);
-                } else {
-                    rawContent = source;
-                }
+                rawContent = await this.contentResolver.readText(source);
+                this.cache.set(source, rawContent);
             } catch (e: any) {
-                if (e.code === 'ENOENT' || e.code === 'ENAMETOOLONG' || e.code === 'EINVAL') {
-                    rawContent = source;
-                } else {
-                    throw e;
-                }
+                // If read fails, assume it's raw JSON content
+                rawContent = source;
             }
         }
 

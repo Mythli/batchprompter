@@ -1,29 +1,32 @@
 import OpenAI from 'openai';
-import Handlebars from 'handlebars';
 import {
     PipelineConfig,
     ResolvedPipelineConfig,
     ResolvedStepConfig,
     ResolvedModelConfig,
-    ResolvedOutputConfig,
     ServiceCapabilities
 } from './types.js';
 import { PipelineConfigSchema } from './schema.js';
 import { PromptLoader } from './PromptLoader.js';
 import { SchemaLoader } from './SchemaLoader.js';
 import { loadData } from '../utils/dataLoader.js';
-import { PluginRegistryV2, Plugin } from '../plugins/types.js';
+import { PluginRegistryV2 } from '../plugins/types.js';
+import { ContentResolver } from '../core/io/ContentResolver.js';
 
 export interface ConfigResolverDependencies {
     capabilities: ServiceCapabilities;
     pluginRegistry: PluginRegistryV2;
+    contentResolver: ContentResolver;
 }
 
 export class ConfigResolver {
-    private promptLoader = new PromptLoader();
-    private schemaLoader = new SchemaLoader();
+    private promptLoader: PromptLoader;
+    private schemaLoader: SchemaLoader;
 
-    constructor(private deps: ConfigResolverDependencies) {}
+    constructor(private deps: ConfigResolverDependencies) {
+        this.promptLoader = new PromptLoader(deps.contentResolver);
+        this.schemaLoader = new SchemaLoader(deps.contentResolver);
+    }
 
     /**
      * Validate and resolve a raw pipeline configuration

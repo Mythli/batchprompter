@@ -2,15 +2,20 @@ import JSZip from 'jszip';
 import { getConfig } from '../../getConfig.js';
 import { StepRegistry } from '../../cli/StepRegistry.js';
 import { MemoryArtifactHandler } from '../../cli/handlers/MemoryArtifactHandler.js';
+import { MemoryContentResolver } from '../../core/io/MemoryContentResolver.js';
 
 export class ExecutionService {
 
     async runConfig(config: any): Promise<{ results: any[], artifacts: any[], zip: string }> {
-        const { actionRunner, pluginRegistry, globalContext } = await getConfig();
+        // Use MemoryContentResolver for API execution
+        const contentResolver = new MemoryContentResolver();
+        
+        // Initialize config with the memory resolver
+        const { actionRunner, pluginRegistry, globalContext } = await getConfig({ contentResolver });
         
         // Parse and validate the config using the registry logic
         // We pass empty options/args as we are running from object
-        const runtimeConfig = await StepRegistry.parseConfig(config, {}, [], pluginRegistry);
+        const runtimeConfig = await StepRegistry.parseConfig(config, {}, [], pluginRegistry, contentResolver);
 
         // Capture artifacts in memory
         const memoryHandler = new MemoryArtifactHandler(globalContext.events);

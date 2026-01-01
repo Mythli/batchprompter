@@ -9,6 +9,7 @@ import { BoundLlmClient } from './core/BoundLlmClient.js';
 import { GlobalsConfig } from './config/types.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
+import { ContentResolver } from './core/io/ContentResolver.js';
 
 // --- Service Capabilities ---
 
@@ -200,6 +201,8 @@ export interface GlobalContext {
 
     capabilities: ServiceCapabilities;
     defaultModel: string;
+    
+    contentResolver: ContentResolver;
 }
 
 export interface StepContext {

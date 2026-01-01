@@ -22,6 +22,8 @@ import { LlmClientFactory } from './core/LlmClientFactory.js';
 import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
 import { createLoggingFetcher } from "./utils/createLoggingFetcher.js";
+import { ContentResolver } from './core/io/ContentResolver.js';
+import { FileSystemContentResolver } from './cli/io/FileSystemContentResolver.js';
 
 dotenv.config();
 
@@ -51,6 +53,7 @@ export const configSchema = z.object({
 
 export type ConfigOverrides = {
     concurrency?: number;
+    contentResolver?: ContentResolver;
 };
 
 // Adapter to make Keyv compatible with cache-manager Cache interface
@@ -180,6 +183,9 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         restartTimeout: config.PUPPETEER_RESTART_TIMEOUT
     });
 
+    // Content Resolver
+    const contentResolver = overrides.contentResolver || new FileSystemContentResolver();
+
     // Build GlobalContext
     const globalContext: GlobalContext = {
         openai,
@@ -194,6 +200,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         webSearch,
         capabilities,
         defaultModel,
+        contentResolver,
         events: new (await import('eventemitter3')).EventEmitter() as any // Hack to avoid importing EventEmitter in types.ts if not needed, but we did import it.
     };
     // Re-assign events properly

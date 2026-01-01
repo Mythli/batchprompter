@@ -1,8 +1,10 @@
 import OpenAI from 'openai';
-import { resolvePromptInput } from './fileUtils.js';
 import Handlebars from 'handlebars';
+import { ContentResolver } from '../core/io/ContentResolver.js';
 
 export class PromptResolver {
+    constructor(private contentResolver: ContentResolver) {}
+
     /**
      * Resolves a prompt input (file path, raw text, or PromptDef object) into ContentParts.
      * 
@@ -10,7 +12,7 @@ export class PromptResolver {
      * @param context Optional data context for Handlebars rendering of the PATH itself.
      * @returns Promise<ChatCompletionContentPart[]>
      */
-    static async resolve(input: string | any | undefined, context?: Record<string, any>): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+    async resolve(input: string | any | undefined, context?: Record<string, any>): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
         if (!input) return [];
 
         // Handle PromptDef object
@@ -31,7 +33,7 @@ export class PromptResolver {
                             results.push({ type: 'image_url', image_url: { url: part.content } });
                         } else {
                             try {
-                                const loaded = await resolvePromptInput(part.content);
+                                const loaded = await this.contentResolver.resolve(part.content);
                                 results.push(...loaded);
                             } catch (e) {
                                 console.warn(`Failed to load image part from ${part.content}`);
@@ -39,7 +41,7 @@ export class PromptResolver {
                         }
                     } else if (part.type === 'audio') {
                          try {
-                             const loaded = await resolvePromptInput(part.content);
+                             const loaded = await this.contentResolver.resolve(part.content);
                              results.push(...loaded);
                          } catch (e) {
                              console.warn(`Failed to load audio part from ${part.content}`);
@@ -57,18 +59,17 @@ export class PromptResolver {
                 // Render the path/content first
                 const delegate = Handlebars.compile(input, { noEscape: true });
                 const renderedInput = delegate(context);
-                return resolvePromptInput(renderedInput);
+                return this.contentResolver.resolve(renderedInput);
             } else {
                 // If no context provided (Pre-load phase), we cannot resolve dynamic paths.
                 // We return a placeholder or empty, but ideally this shouldn't happen 
                 // if the caller checks for dynamic paths before calling resolve without context.
-                // For now, treat as raw text to be safe, or throw? 
-                // Treating as raw text allows "I am {{name}}" to be passed through to the Normalizer later.
+                // For now, treat as raw text to be safe.
                 return [{ type: 'text', text: input }];
             }
         }
 
         // 2. Static Path or Text
-        return resolvePromptInput(input);
+        return this.contentResolver.resolve(input);
     }
 }

@@ -6,6 +6,7 @@ import { PromptResolver } from '../utils/PromptResolver.js';
 import { createConfigSchema } from './ConfigSchema.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { createPreprocessorRegistry } from '../getConfig.js';
+import { ContentResolver } from '../core/io/ContentResolver.js';
 
 export class StepRegistry {
 
@@ -79,7 +80,13 @@ export class StepRegistry {
         preprocessorRegistry.configureCLI(program);
     }
 
-    static async parseConfig(fileConfig: any, options: Record<string, any>, positionalArgs: string[], registry: PluginRegistryV2): Promise<RuntimeConfig> {
+    static async parseConfig(
+        fileConfig: any, 
+        options: Record<string, any>, 
+        positionalArgs: string[], 
+        registry: PluginRegistryV2,
+        contentResolver: ContentResolver
+    ): Promise<RuntimeConfig> {
         // 1.  Normalize via Zod Schema (Merge File + CLI)
         const normalized = createConfigSchema(registry).parse({ 
             fileConfig, 
@@ -92,6 +99,7 @@ export class StepRegistry {
 
         // 3. Resolve Steps (Async Content Loading)
         const steps: StepConfig[] = [];
+        const promptResolver = new PromptResolver(contentResolver);
 
         // Helper to resolve a ModelDefinition to ResolvedModelConfig
         const resolveModel = async (def: ModelDefinition | undefined): Promise<ResolvedModelConfig | undefined> => {
@@ -100,8 +108,8 @@ export class StepRegistry {
                 model: def.model,
                 temperature: def.temperature,
                 thinkingLevel: def.thinkingLevel,
-                systemParts: await PromptResolver.resolve(def.systemSource),
-                promptParts: await PromptResolver.resolve(def.promptSource)
+                systemParts: await promptResolver.resolve(def.systemSource),
+                promptParts: await promptResolver.resolve(def.promptSource)
             };
         };
 
@@ -121,13 +129,6 @@ export class StepRegistry {
 
             // Normalize Preprocessors
             const activePreprocessors: PreprocessorConfigDefinition[] = [];
-            // Note: In the new system, preprocessors are defined in the config file.
-            // We just pass them through.
-            // However, if we want to support CLI flags enabling preprocessors (like --expand-urls),
-            // we might need to check options here or in the merge logic.
-            // For now, we rely on the config file structure.
-            // But wait, `normalized.steps` has `preprocessors` array from the schema.
-            // We should use that.
             for (const ppDef of stepDef.preprocessors) {
                 activePreprocessors.push({
                     name: ppDef.name,

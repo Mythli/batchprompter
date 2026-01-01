@@ -13,6 +13,7 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
+import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================
 // Raw Config Schema (Single source of truth for defaults)
@@ -88,8 +89,6 @@ export interface WebSearchResolvedConfigV2 {
 export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearchResolvedConfigV2> {
     readonly type = 'web-search';
     readonly configSchema = WebSearchConfigSchemaV2;
-
-    private promptLoader = new PromptLoader();
 
     readonly cliOptions: CLIOptionDefinition[] = [
         // Query model options
@@ -183,8 +182,11 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     async resolveConfig(
         rawConfig: WebSearchRawConfigV2,
         row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        contentResolver: ContentResolver
     ): Promise<WebSearchResolvedConfigV2> {
+        const promptLoader = new PromptLoader(contentResolver);
+
         const resolvePrompt = async (
             prompt: any,
             modelOverride?: string,
@@ -192,7 +194,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             thinkingLevelOverride?: 'low' | 'medium' | 'high'
         ): Promise<ResolvedModelConfig | undefined> => {
             if (!prompt) return undefined;
-            const parts = await this.promptLoader.load(prompt);
+            const parts = await promptLoader.load(prompt);
             // Render Handlebars in text parts
             const renderedParts = parts.map(part => {
                 if (part.type === 'text') {

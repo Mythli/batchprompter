@@ -11,6 +11,7 @@ import {
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { SchemaLoader } from '../../config/SchemaLoader.js';
+import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================
 // Config Schema
@@ -47,7 +48,6 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
     readonly configSchema = ValidationConfigSchemaV2;
     public readonly events = new EventEmitter();
 
-    private schemaLoader = new SchemaLoader();
     private ajv: any;
 
     constructor() {
@@ -89,13 +89,15 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
     async resolveConfig(
         rawConfig: ValidationRawConfigV2,
         row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        contentResolver: ContentResolver
     ): Promise<ValidationResolvedConfigV2> {
+        const schemaLoader = new SchemaLoader(contentResolver);
         let schema: any;
         let schemaSource: string;
 
         if (typeof rawConfig.schema === 'string') {
-            schema = await this.schemaLoader.loadWithContext(rawConfig.schema, row);
+            schema = await schemaLoader.loadWithContext(rawConfig.schema, row);
             schemaSource = rawConfig.schema.length > 50
                 ? rawConfig.schema.substring(0, 47) + '...'
                 : rawConfig.schema;

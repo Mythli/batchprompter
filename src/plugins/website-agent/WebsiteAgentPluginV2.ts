@@ -14,6 +14,7 @@ import { SchemaLoader } from '../../config/SchemaLoader.js';
 import { makeSchemaOptional } from '../../utils/schemaUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
+import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -81,9 +82,6 @@ const DEFAULT_MERGE = 'You are a data consolidation expert. Merge the JSON objec
 export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, WebsiteAgentResolvedConfigV2> {
     readonly type = 'website-agent';
     readonly configSchema = WebsiteAgentConfigSchemaV2;
-
-    private promptLoader = new PromptLoader();
-    private schemaLoader = new SchemaLoader();
 
     readonly cliOptions: CLIOptionDefinition[] = [
         // Navigator model options
@@ -163,8 +161,12 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
     async resolveConfig(
         rawConfig: WebsiteAgentRawConfigV2,
         row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        contentResolver: ContentResolver
     ): Promise<WebsiteAgentResolvedConfigV2> {
+        const promptLoader = new PromptLoader(contentResolver);
+        const schemaLoader = new SchemaLoader(contentResolver);
+
         const resolveModelWithPrompt = async (
             prompt: any,
             defaultPrompt: string,
@@ -175,7 +177,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             let parts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 
             if (prompt) {
-                parts = await this.promptLoader.load(prompt);
+                parts = await promptLoader.load(prompt);
                 parts = parts.map(part => {
                     if (part.type === 'text') {
                         const template = Handlebars.compile(part.text, { noEscape: true });
@@ -203,7 +205,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         // Resolve schema
         let schema: any;
         if (typeof rawConfig.schema === 'string') {
-            schema = await this.schemaLoader.loadWithContext(rawConfig.schema, row);
+            schema = await schemaLoader.loadWithContext(rawConfig.schema, row);
         } else if (rawConfig.schema) {
             schema = rawConfig.schema;
         } else {

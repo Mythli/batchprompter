@@ -3,6 +3,7 @@ import { SafePipelineConfigSchema, SafePipelineConfig } from '../config/safeSche
 import { getConfig } from '../getConfig.js';
 import { StepRegistry } from '../cli/StepRegistry.js';
 import { MemoryArtifactHandler } from '../cli/handlers/MemoryArtifactHandler.js';
+import { MemoryContentResolver } from '../core/io/MemoryContentResolver.js';
 
 export class ConfigService {
     
@@ -41,11 +42,12 @@ export class ConfigService {
     }
 
     async runConfig(config: any): Promise<{ results: any[], artifacts: any[], zip: string }> {
-        const { actionRunner, pluginRegistry, globalContext } = await getConfig();
+        const contentResolver = new MemoryContentResolver();
+        const { actionRunner, pluginRegistry, globalContext } = await getConfig({ contentResolver });
         
         // Parse and validate the config using the registry logic
         // We pass empty options/args as we are running from object
-        const runtimeConfig = await StepRegistry.parseConfig(config, {}, [], pluginRegistry);
+        const runtimeConfig = await StepRegistry.parseConfig(config, {}, [], pluginRegistry, contentResolver);
 
         // Capture artifacts in memory
         const memoryHandler = new MemoryArtifactHandler(globalContext.events);

@@ -9,6 +9,7 @@ import {
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
+import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================
 // Config Schema
@@ -78,7 +79,8 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
     async resolveConfig(
         rawConfig: DedupeRawConfigV2,
         row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        contentResolver: ContentResolver
     ): Promise<DedupeResolvedConfigV2> {
         return {
             type: 'dedupe',

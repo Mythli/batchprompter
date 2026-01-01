@@ -14,6 +14,7 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
+import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
@@ -79,8 +80,6 @@ export interface ImageSearchResolvedConfigV2 {
 export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, ImageSearchResolvedConfigV2> {
     readonly type = 'image-search';
     readonly configSchema = ImageSearchConfigSchemaV2;
-
-    private promptLoader = new PromptLoader();
 
     readonly cliOptions: CLIOptionDefinition[] = [
         // Query model options
@@ -167,8 +166,11 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     async resolveConfig(
         rawConfig: ImageSearchRawConfigV2,
         row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        contentResolver: ContentResolver
     ): Promise<ImageSearchResolvedConfigV2> {
+        const promptLoader = new PromptLoader(contentResolver);
+
         const resolvePrompt = async (
             prompt: any,
             modelOverride?: string,
@@ -176,7 +178,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             thinkingLevelOverride?: 'low' | 'medium' | 'high'
         ): Promise<ResolvedModelConfig | undefined> => {
             if (!prompt) return undefined;
-            const parts = await this.promptLoader.load(prompt);
+            const parts = await promptLoader.load(prompt);
             const renderedParts = parts.map(part => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });

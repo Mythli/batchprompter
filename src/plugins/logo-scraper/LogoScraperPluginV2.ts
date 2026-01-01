@@ -15,6 +15,7 @@ import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { EventEmitter } from 'eventemitter3';
+import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================
 // Config Schema
@@ -80,7 +81,6 @@ export interface LogoScraperResolvedConfigV2 {
 export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoScraperResolvedConfigV2> {
     readonly type = 'logo-scraper';
     readonly configSchema = LogoScraperConfigSchemaV2;
-    private promptLoader = new PromptLoader();
 
     readonly cliOptions: CLIOptionDefinition[] = [
         { flags: '--logo-scraper-url <url>', description: 'URL to scrape logos from' },
@@ -149,8 +149,11 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
     async resolveConfig(
         rawConfig: LogoScraperRawConfigV2,
         row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        contentResolver: ContentResolver
     ): Promise<LogoScraperResolvedConfigV2> {
+        const promptLoader = new PromptLoader(contentResolver);
+
         const resolveModel = async (
             prompt: any,
             modelOverride?: string,
@@ -159,7 +162,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         ): Promise<ResolvedModelConfig> => {
             let parts: any[] = [];
             if (prompt) {
-                parts = await this.promptLoader.load(prompt);
+                parts = await promptLoader.load(prompt);
             }
             return {
                 model: modelOverride || inheritedModel.model,
