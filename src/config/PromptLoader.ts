@@ -10,7 +10,11 @@ export class PromptLoader {
 
     constructor(private contentResolver: ContentResolver) {}
 
-    async load(prompt: PromptDef): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+    async load(prompt: PromptDef | undefined | null): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+        if (!prompt) {
+            return [];
+        }
+
         if (typeof prompt === 'string') {
             return this.loadString(prompt);
         }
