@@ -12,7 +12,7 @@ export class ConfigService {
         
         // Create a generator LLM
         const generatorLlm = llmFactory.create({
-            model: process.env.MODEL || 'google/gemini-3-flash-preview',
+            model: process.env.MODEL || 'google/gemini-2.0-pro-exp-02-05',
             temperature: 0.7,
             systemParts: [{ type: 'text', text: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' }],
             promptParts: []
