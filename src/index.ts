@@ -87,7 +87,7 @@ generateCmd.action(async (templateFilePaths, options) => {
             } else {
                 const parser = new Parser({
                     transforms: [
-                        transforms.flatten({ objects: true, arrays: true, separator: '.' })
+                        transforms.flatten({ objects: true, arrays: false, separator: '.' })
                     ]
                 });
                 const csv = parser.parse(results);
@@ -114,7 +114,7 @@ generateCmd.action(async (templateFilePaths, options) => {
 program.command('schema')
     .description('Print the JSON Schema for the configuration file')
     .action(() => {
-        const jsonSchema = z.toJSONSchema(PipelineConfigSchema, { 
+        const jsonSchema = z.toJSONSchema(PipelineConfigSchema, {
             unrepresentable: 'any'
         });
         console.log(JSON.stringify(jsonSchema, null, 2));
