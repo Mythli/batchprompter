@@ -79,17 +79,3 @@ If you wanted to analyze the CSS programmatically later, you could add the **Exp
 
 *   **Effect:** This sets the output mode to `merge`.
 *   **Result:** The computed CSS text and the paths to the screenshots would be added as columns in your `data.csv` (e.g., `styleScraper.css`, `styleScraper.desktop`).
-
-## 🚀 Running the Example
-
-1.  **Set API Keys**:
-    ```bash
-    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
-    # Serper key is not strictly required for this plugin, but good practice
-    ```
-2.  **Run**:
-    ```bash
-    bash examples/04-describe-website-css/run.sh
-    ```
-
-The result is a Markdown file at `out/04-describe-website-css/butlerapp.de/style-analysis.md`.

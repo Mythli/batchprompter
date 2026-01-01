@@ -161,7 +161,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     attachQueueLogger(puppeteerQueue, 'Puppeteer');
 
     // Default Model
-    const defaultModel = config.MODEL || 'gpt-4o-mini';
+    const defaultModel = config.MODEL || 'google/gemini-3-flash-preview';
 
     // Setup Optional Services (based on capabilities)
     let imageSearch: ImageSearch | undefined;

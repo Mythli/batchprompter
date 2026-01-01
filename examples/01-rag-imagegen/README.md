@@ -83,28 +83,3 @@ This example uses `explode: true`. It changes the pipeline flow significantly:
 ```
 
 A shell command that runs after the file is saved. We use `magick` (ImageMagick) to resize the output to 900x600.
-
-## 🚀 Running the Example
-
-1.  **Install ImageMagick** (Required for the final step):
-    *   macOS: `brew install imagemagick`
-    *   Linux: `sudo apt-get install imagemagick`
-2.  **Set API Keys**:
-    ```bash
-    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
-    export BATCHPROMPT_SERPER_API_KEY="..."
-    ```
-3.  **Run**:
-    ```bash
-    bash examples/01-rag-imagegen/run.sh
-    ```
-
-The results will be saved to `out/01-rag-imagegen/Sailing_school/` (folder name is sanitized).
-
-Because we use **Explode** (6 reference images) and **Candidates** (2 variations per reference), you will get multiple files named with the pattern `HeroImage_{refIndex}_{candidateIndex}.jpg`:
-
-*   `HeroImage_0_1.jpg`
-*   `HeroImage_0_2.jpg`
-*   ...
-*   `HeroImage_5_1.jpg`
-*   `HeroImage_5_2.jpg`

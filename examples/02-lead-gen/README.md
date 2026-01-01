@@ -246,19 +246,3 @@ The agent operates in a loop to gather information intelligently:
 | :--- | :--- | :--- |
 | `query` | *"site:linkedin.com/in/..."* | It constructs a targeted Google search using the name found in Step 1. |
 | `selectPrompt` | *"Select the LinkedIn..."* | The AI looks at the search results to pick the correct LinkedIn profile URL, ignoring company pages. |
-
----
-
-## 🚀 Running the Example
-
-1.  **Set API Keys**:
-    ```bash
-    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
-    export BATCHPROMPT_SERPER_API_KEY="..."
-    ```
-2.  **Run**:
-    ```bash
-    bash examples/02-lead-gen/run.sh
-    ```
-
-Check `out/02-lead-gen/companies_enriched.csv` for the results.

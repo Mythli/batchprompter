@@ -156,17 +156,3 @@ The plugin uses a **Map-Reduce** approach to handle large volumes of search resu
   "required": ["type"]
 }
 ```
-
-## 🚀 Running the Example
-
-1.  **Set API Keys**:
-    ```bash
-    export BATCHPROMPT_OPENAI_API_KEY="sk-..."
-    export BATCHPROMPT_SERPER_API_KEY="..."
-    ```
-2.  **Run**:
-    ```bash
-    bash examples/03-seo-rank/run.sh
-    ```
-
-The output `out/03-seo-rank/results.csv` will contain the keywords and the specific URLs where the domain was found ranking.
