@@ -22,8 +22,8 @@ The `config.json` defines the pipeline:
 *   **Data**: A simple CSV with a list of websites.
 *   **Step 1**: Uses the `logo-scraper` plugin.
     *   `url`: The target website URL.
-    *   `logoOutputPath`: Where to save the best logo.
-    *   `faviconOutputPath`: Where to save the best favicon.
+    *   `logoPath`: Where to save the best logo.
+    *   `faviconPath`: Where to save the best favicon.
     *   `analyzeModel`: The vision model used for scoring (e.g., `gpt-4o`).
     *   `extractModel`: A faster model used for finding inline SVGs (e.g., `gpt-4o-mini`).
 
