@@ -28,21 +28,11 @@ function appendFile(filePath: string) {
 
 console.log('Generating Config Documentation...');
 
-// 1. Schema
-console.log('  - Generating JSON Schema...');
-try {
-    const schema = execSync('npx tsx src/index.ts schema', { cwd: rootDir }).toString().trim();
-    content += 'schema.json\n```json\n' + schema + '\n```\n\n';
-} catch (e) {
-    console.error('Failed to generate schema:', e);
-    process.exit(1);
-}
-
-// 2. README
+// 1. README
 console.log('  - Reading README.md...');
 appendFile(path.join(rootDir, 'README.md'));
 
-// 3. Examples (Only README.md and config*.json)
+// 2. Examples (Only README.md and config*.json)
 console.log('  - Reading Examples...');
 const exampleFiles = findFiles(examplesDir).filter(file => {
     const basename = path.basename(file);
