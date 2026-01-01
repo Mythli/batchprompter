@@ -1,4 +1,11 @@
 {
+  "data": {
+    "rows": [
+      {
+        "industry": "Sprachschule"
+      }
+    ]
+  },
   "globals": {
     "model": "google/gemini-3-flash-preview",
     "thinkingLevel": "high",
