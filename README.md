@@ -42,6 +42,7 @@ The best way to learn BatchPrompt is by doing. We have prepared step-by-step tut
 | **[2. B2B Lead Generation](examples/02-lead-gen/README.md)** | 🔴 Advanced | How to build a **Multi-Stage Pipeline** (Find -> Enrich) with **JSON config**. |
 | **[3. SEO Rank Tracker](examples/03-seo-rank/README.md)** | 🟡 Medium | How to use **Web Search** and **AI Selectors** to analyze search results. |
 | **[4. Website Style Analyzer](examples/04-describe-website-css/README.md)** | 🟡 Medium | How to use the **Style Scraper** (Vision + CSS) to reverse-engineer design systems. |
+| **[5. Logo Downloader](examples/05-logo-downloader/README.md)** | 🟡 Medium | How to use the **Logo Scraper** to extract brand assets (logos, favicons, colors). |
 
 ---
 
@@ -85,6 +86,7 @@ BatchPrompt comes with powerful built-in plugins to give your LLM access to the 
 *   **Image Search**: Find and download images for RAG or analysis.
 *   **Website Agent**: Autonomous scraper that navigates websites to extract specific data (JSON).
 *   **Style Scraper**: Captures screenshots (Desktop/Mobile) and computed CSS for design analysis.
+*   **Logo Scraper**: Extracts logos, favicons, and brand colors from websites.
 
 ---
 
