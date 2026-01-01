@@ -30,6 +30,7 @@
     "vitest": "^4.0.15"
   },
   "dependencies": {
+    "@hono/node-server": "^1.19.7",
     "@keyv/redis": "^4.6.0",
     "@keyv/sqlite": "^4.0.6",
     "ajv": "^8.17.1",
@@ -44,8 +45,10 @@
     "dotenv": "^17.2.3",
     "eventemitter3": "^5.0.1",
     "handlebars": "^4.7.8",
+    "hono": "^4.11.3",
     "json-schema-traverse": "^1.0.0",
     "json2csv": "6.0.0-alpha.2",
+    "jszip": "^3.10.1",
     "keyv": "^5.5.4",
     "llm-fns": "^1.0.19",
     "lodash-es": "^4.17.21",
