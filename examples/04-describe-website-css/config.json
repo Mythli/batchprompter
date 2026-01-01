@@ -4,9 +4,7 @@
   },
   "steps": [
     {
-      "prompt": {
-        "file": "examples/04-describe-website-css/describe-styles.md"
-      },
+      "prompt": "# Website Style Analysis\n\nYou are an expert UI/UX Designer. Your task is to analyze the visual style of the website {{website_url}} based on the provided screenshots and computed styles.\n\nPlease output a design system summary in Markdown format covering:\n\n1.  **Color Palette**: Primary, secondary, and accent colors.\n2.  **Typography**: Headings and body fonts (family, weight, style).\n3.  **UI Components**:\n    *   **Buttons**: Shape, color, borders, hover effects.\n    *   **Cards/Containers**: Backgrounds, shadows, border radius.\n4.  **Layout & Spacing**: Density, whitespace usage, alignment.\n5.  **Brand Personality**: The overall mood (e.g., modern, trustworthy, playful).\n\nDo not output CSS code, just a descriptive analysis.",
       "outputPath": "out/04-describe-website-css/{{website_url}}/style-analysis.md",
       "plugins": [
         {
