@@ -16,6 +16,7 @@ import { AiLogoScraper } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { EventEmitter } from 'eventemitter3';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
+import { zHandlebars } from '../../config/validationRules.js';
 
 // =============================================================================
 // Config Schema
@@ -28,16 +29,14 @@ export const LogoScraperConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }),
-    url: z.string(),
+    url: zHandlebars,
     
-    // Analyze model (Vision capable)
     analyzeModel: z.string().optional(),
     analyzeTemperature: z.number().min(0).max(2).optional(),
     analyzeThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     analyzePrompt: PromptDefSchema.optional(),
     analyzeSystem: PromptDefSchema.optional(),
 
-    // Extract model (Cheaper/Faster)
     extractModel: z.string().optional(),
     extractTemperature: z.number().min(0).max(2).optional(),
     extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
@@ -47,12 +46,9 @@ export const LogoScraperConfigSchemaV2 = z.object({
     maxCandidates: z.number().int().positive().default(10),
     minScore: z.number().int().min(1).max(10).default(5),
     
-    // Output path for the best logo
-    logoPath: z.string().optional(),
-    // Output path for the best favicon
-    faviconPath: z.string().optional(),
+    logoPath: zHandlebars.optional(),
+    faviconPath: zHandlebars.optional(),
 
-    // Limits
     logoLimit: z.number().int().positive().default(1),
     faviconLimit: z.number().int().positive().default(1)
 });
@@ -176,7 +172,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
         const url = urlTemplate(row);
 
-        // Sanitize row data for file path usage
         const sanitizedRow: Record<string, any> = {};
         for (const [key, val] of Object.entries(row)) {
              const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
@@ -236,7 +231,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             throw new Error('[LogoScraper] Puppeteer not available');
         }
 
-        // Create LLM clients
         const analyzeLlm = services.createLlm(config.analyzeModel);
         const extractLlm = services.createLlm(config.extractModel);
 
@@ -254,7 +248,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
 
         const result = await scraper.scrape(config.url) as any;
 
-        // Prepare data packet
         const packetData: any = {
             brandColor: result.primaryColor?.hex,
             brandColors: result.brandColors?.map((c: any) => c.hex) || [],
@@ -266,7 +259,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         if (result.logos && result.logos.length > 0) {
             const safeUrl = config.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
 
-            // Emit analysis JSON
             emit('artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
@@ -276,7 +268,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 tags: ['debug', 'logo-scraper', 'analysis']
             });
 
-            // Counters for saving
             let savedLogosCount = 0;
             let savedFaviconsCount = 0;
             const savedLogoPaths: string[] = [];
@@ -285,7 +276,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             for (let i = 0; i < result.logos.length; i++) {
                 const logo = result.logos[i];
                 
-                // 1. Save to temp dir (always)
                 const tempFilename = `logo_scraper/logos/${safeUrl}/logo_${i}.png`;
                 emit('artifact', {
                     row: context.row.index,
@@ -296,10 +286,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                     tags: ['debug', 'logo-scraper', 'logo']
                 });
 
-                // 2. Determine if this is a favicon candidate (Square)
                 const isSquare = Math.abs((logo.width || 0) - (logo.height || 0)) <= 1;
                 
-                // Route to Favicon ONLY if it is square AND we have a specific path for it
                 const isFaviconTarget = isSquare && !!config.faviconPath;
 
                 const limit = isFaviconTarget ? config.faviconLimit : config.logoLimit;
@@ -309,15 +297,12 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 if (pathTemplate && currentCount < limit) {
                     let finalPath = pathTemplate;
                     
-                    // Only append suffix if the user requested multiple
                     if (limit > 1) {
                         const ext = path.extname(pathTemplate);
                         const base = pathTemplate.slice(0, -ext.length);
-                        // 1-based index for suffix
                         finalPath = `${base}_${currentCount + 1}${ext}`;
                     }
 
-                    // Emit final artifact
                     emit('artifact', {
                         row: context.row.index,
                         step: context.stepIndex,
@@ -335,7 +320,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                         savedLogoPaths.push(finalPath);
                     }
 
-                    // Collect metadata for saved items
                     packetData.logoMetadata.push({
                         path: finalPath,
                         score: logo.brandLogoScore,
@@ -347,7 +331,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 }
             }
 
-            // Populate packet data
             packetData.logo = savedLogoPaths.length > 0 ? savedLogoPaths[0] : undefined;
             packetData.favicon = savedFaviconPaths.length > 0 ? savedFaviconPaths[0] : undefined;
             packetData.logos = savedLogoPaths;

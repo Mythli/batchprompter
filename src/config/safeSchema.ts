@@ -2,7 +2,7 @@ import { z } from 'zod';
 import {
     DataConfigSchema,
     GlobalsConfigSchema,
-    StepConfigSchema
+    StepConfigSchema // This is now the Strict version
 } from './schema.js';
 
 // Omit command execution fields for safety

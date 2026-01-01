@@ -1,17 +1,17 @@
 import OpenAI from 'openai';
 import {
-    PipelineConfig,
     ResolvedPipelineConfig,
     ResolvedStepConfig,
     ResolvedModelConfig,
     ServiceCapabilities
 } from './types.js';
-import { PipelineConfigSchema } from './schema.js';
+import { LoosePipelineConfigSchema, PipelineConfigSchema } from './schema.js';
 import { PromptLoader } from './PromptLoader.js';
 import { SchemaLoader } from './SchemaLoader.js';
 import { loadData } from '../utils/dataLoader.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
+import { ConfigNormalizer } from './ConfigNormalizer.js';
 
 export interface ConfigResolverDependencies {
     capabilities: ServiceCapabilities;
@@ -22,29 +22,38 @@ export interface ConfigResolverDependencies {
 export class ConfigResolver {
     private promptLoader: PromptLoader;
     private schemaLoader: SchemaLoader;
+    private normalizer: ConfigNormalizer;
 
     constructor(private deps: ConfigResolverDependencies) {
         this.promptLoader = new PromptLoader(deps.contentResolver);
         this.schemaLoader = new SchemaLoader(deps.contentResolver);
+        this.normalizer = new ConfigNormalizer(deps.contentResolver);
     }
 
     /**
      * Validate and resolve a raw pipeline configuration
      */
     async resolve(rawConfig: unknown): Promise<ResolvedPipelineConfig> {
-        // 1. Validate with Zod (applies defaults)
-        const config = PipelineConfigSchema.parse(rawConfig);
+        // 1. Parse with Loose Schema (allows strings for schemas)
+        // This applies defaults and basic structure validation
+        const looseConfig = LoosePipelineConfigSchema.parse(rawConfig);
 
-        // 2. Validate plugin capabilities
+        // 2. Normalize (Resolve file paths to objects)
+        const normalizedConfig = await this.normalizer.normalize(looseConfig);
+
+        // 3. Validate with Strict Schema (enforces objects and valid schemas)
+        const config = PipelineConfigSchema.parse(normalizedConfig);
+
+        // 4. Validate plugin capabilities
         this.deps.pluginRegistry.validateCapabilities(config.steps, this.deps.capabilities);
 
-        // 3. Load data (from stdin)
+        // 5. Load data (from stdin)
         const allRows = await loadData();
         const offset = config.data.offset ?? 0;
         const limit = config.data.limit;
         const rows = limit ? allRows.slice(offset, offset + limit) : allRows.slice(offset);
 
-        // 4. Resolve steps (without row context - templates remain)
+        // 6. Resolve steps (without row context - templates remain)
         const resolvedSteps: ResolvedStepConfig[] = [];
 
         for (let i = 0; i < config.steps.length; i++) {
@@ -65,8 +74,8 @@ export class ConfigResolver {
     }
 
     private async resolveStep(
-        step: PipelineConfig['steps'][number],
-        globals: PipelineConfig['globals'],
+        step: any, // Using any because Strict schema types are inferred and might be complex
+        globals: any,
         stepIndex: number
     ): Promise<ResolvedStepConfig> {
         const stepModelConfig = step.model ?? {};
@@ -83,8 +92,8 @@ export class ConfigResolver {
         const system = await this.resolvePrompt(step.system);
 
         // Plugins are resolved per-row during execution
-        // Here we just store the raw config
-        const plugins = step.plugins.map((p, idx) => ({
+        // Here we just store the raw config (which is now Normalized/Strict)
+        const plugins = step.plugins.map((p: any, idx: number) => ({
             type: p.type as string,
             id: (p as any).id ?? `${p.type}-${stepIndex}-${idx}`,
             output: p.output,
@@ -107,17 +116,6 @@ export class ConfigResolver {
             };
         }
 
-        // Resolve schema (without context - will be rendered per-row)
-        let schema: any;
-        if (step.schema) {
-            if (typeof step.schema === 'string') {
-                // Keep as path - will be loaded per-row
-                schema = { _path: step.schema };
-            } else {
-                schema = step.schema;
-            }
-        }
-
         return {
             prompt: { parts: prompt },
             system: { parts: system },
@@ -127,7 +125,7 @@ export class ConfigResolver {
             plugins,
             output: step.output,
             outputTemplate: step.outputPath ?? globals.outputPath,
-            schema,
+            schema: step.schema, // Already normalized to object
             candidates: step.candidates,
             skipCandidateCommand: step.skipCandidateCommand,
             judge,

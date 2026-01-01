@@ -7,6 +7,7 @@ import { createConfigSchema } from './ConfigSchema.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { createPreprocessorRegistry } from '../getConfig.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
+import { ConfigNormalizer } from '../config/ConfigNormalizer.js';
 
 export class StepRegistry {
 
@@ -38,11 +39,8 @@ export class StepRegistry {
         program.option('--timeout <seconds>', 'Timeout for each step in seconds (default: 180)');
 
         // --- Limits & Offsets (Hierarchy) ---
-        // 1. Master (Test Mode)
         program.option('--limit <number>', 'Master limit for input rows and explode steps', parseInt);
         program.option('--offset <number>', 'Master offset for input rows and explode steps', parseInt);
-        
-        // 2. Category (Input vs Explode)
         program.option('--input-limit <number>', 'Limit for input rows', parseInt);
         program.option('--input-offset <number>', 'Offset for input rows', parseInt);
         program.option('--explode-limit <number>', 'Default limit for explode steps', parseInt);
@@ -66,16 +64,11 @@ export class StepRegistry {
             program.option(`--aspect-ratio-${i} <ratio>`, `Aspect ratio for step ${i}`);
             program.option(`--explode-${i}`, `Explode results for step ${i}`);
             program.option(`--timeout-${i} <seconds>`, `Timeout for step ${i} in seconds`);
-
-            // Step-Specific Limits
             program.option(`--limit-${i} <number>`, `Limit output items for step ${i}`, parseInt);
             program.option(`--offset-${i} <number>`, `Offset output items for step ${i}`, parseInt);
         }
 
-        // --- Plugins ---
         registry.registerCLI(program);
-
-        // --- Preprocessors ---
         const preprocessorRegistry = createPreprocessorRegistry();
         preprocessorRegistry.configureCLI(program);
     }
@@ -87,21 +80,48 @@ export class StepRegistry {
         registry: PluginRegistryV2,
         contentResolver: ContentResolver
     ): Promise<RuntimeConfig> {
-        // 1.  Normalize via Zod Schema (Merge File + CLI)
+        // 1. Normalize via Zod Schema (Merge File + CLI)
         const normalized = createConfigSchema(registry).parse({ 
             fileConfig, 
             options, 
             args: positionalArgs 
         });
 
-        // 2. Load Data (from stdin)
+        // 2. Normalize Schemas (Resolve paths to objects)
+        for (const step of normalized.steps) {
+            // Step Schema
+            if (step.schemaPath) {
+                try {
+                    const content = await contentResolver.readText(step.schemaPath);
+                    step.jsonSchema = JSON.parse(content);
+                    step.schemaPath = undefined; 
+                } catch (e: any) {
+                    // Ignore dynamic paths
+                }
+            }
+
+            // Plugin Schemas
+            for (const plugin of step.plugins) {
+                if (plugin.name === 'website-agent' || plugin.name === 'validation') {
+                    if (typeof plugin.config.schema === 'string') {
+                        try {
+                            const content = await contentResolver.readText(plugin.config.schema);
+                            plugin.config.schema = JSON.parse(content);
+                        } catch (e) {
+                            // Ignore dynamic paths
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Load Data
         const data = await loadData();
 
-        // 3. Resolve Steps (Async Content Loading)
+        // 4. Resolve Steps
         const steps: StepConfig[] = [];
         const promptResolver = new PromptResolver(contentResolver);
 
-        // Helper to resolve a ModelDefinition to ResolvedModelConfig
         const resolveModel = async (def: ModelDefinition | undefined): Promise<ResolvedModelConfig | undefined> => {
             if (!def) return undefined;
             return {
@@ -113,21 +133,15 @@ export class StepRegistry {
             };
         };
 
-        // Create registry to normalize preprocessors
-        const preprocessorRegistry = createPreprocessorRegistry();
-
         for (const stepDef of normalized.steps) {
-            // Main Model
             const mainResolved = await resolveModel(stepDef.modelConfig);
             if (!mainResolved || !mainResolved.model) {
                 throw new Error(`Step ${stepDef.stepIndex}: Model configuration missing.`);
             }
 
-            // Auxiliary
             const judge = await resolveModel(stepDef.judge);
             const feedback = await resolveModel(stepDef.feedback);
 
-            // Normalize Preprocessors
             const activePreprocessors: PreprocessorConfigDefinition[] = [];
             for (const ppDef of stepDef.preprocessors) {
                 activePreprocessors.push({
@@ -136,37 +150,25 @@ export class StepRegistry {
                 });
             }
 
-            // Construct StepConfig
             steps.push({
                 modelConfig: mainResolved,
                 tmpDir: normalized.global.tmpDir,
-
-                // The promptParts from mainResolved now contain the merged user prompt (flag + positional).
-                // We map this to userPromptParts for the execution engine.
                 userPromptParts: mainResolved.promptParts,
-
                 outputPath: stepDef.outputPath,
                 outputTemplate: stepDef.outputTemplate,
-
                 output: stepDef.output,
-
                 schemaPath: stepDef.schemaPath,
                 jsonSchema: stepDef.jsonSchema,
                 verifyCommand: stepDef.verifyCommand,
                 postProcessCommand: stepDef.postProcessCommand,
-
                 candidates: stepDef.candidates,
                 noCandidateCommand: stepDef.noCandidateCommand,
-
                 judge,
                 feedback,
                 feedbackLoops: stepDef.feedbackLoops,
-
                 aspectRatio: stepDef.aspectRatio,
                 plugins: stepDef.plugins,
                 preprocessors: activePreprocessors,
-
-                // Pass raw options to allow preprocessors to check flags later (Legacy support)
                 options: options,
                 timeout: stepDef.timeout
             });

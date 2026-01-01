@@ -10,13 +10,10 @@ import {
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
-import { SchemaLoader } from '../../config/SchemaLoader.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
+import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 
-// =============================================================================
-// Config Schema
-// =============================================================================
-
+// Strict Schema
 export const ValidationConfigSchemaV2 = z.object({
     type: z.literal('validation'),
     id: z.string().optional(),
@@ -24,11 +21,16 @@ export const ValidationConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }),
-    schema: z.union([z.string(), z.record(z.string(), z.any())]),
-    target: z.string().optional()
+    schema: zJsonSchemaObject,
+    target: zHandlebars.optional()
 });
 
-export type ValidationRawConfigV2 = z.infer<typeof ValidationConfigSchemaV2>;
+// Loose Schema
+export const LooseValidationConfigSchemaV2 = ValidationConfigSchemaV2.extend({
+    schema: z.union([z.string(), zJsonSchemaObject])
+});
+
+export type ValidationRawConfigV2 = z.infer<typeof LooseValidationConfigSchemaV2>;
 
 export interface ValidationResolvedConfigV2 {
     type: 'validation';
@@ -39,13 +41,9 @@ export interface ValidationResolvedConfigV2 {
     schemaSource: string;
 }
 
-// =============================================================================
-// Plugin
-// =============================================================================
-
 export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, ValidationResolvedConfigV2> {
     readonly type = 'validation';
-    readonly configSchema = ValidationConfigSchemaV2;
+    readonly configSchema = LooseValidationConfigSchemaV2;
     public readonly events = new EventEmitter();
 
     private ajv: any;
@@ -92,18 +90,11 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
         contentResolver: ContentResolver
     ): Promise<ValidationResolvedConfigV2> {
-        const schemaLoader = new SchemaLoader(contentResolver);
-        let schema: any;
-        let schemaSource: string;
+        let schema = rawConfig.schema;
+        let schemaSource = '[inline]';
 
-        if (typeof rawConfig.schema === 'string') {
-            schema = await schemaLoader.loadWithContext(rawConfig.schema, row);
-            schemaSource = rawConfig.schema.length > 50
-                ? rawConfig.schema.substring(0, 47) + '...'
-                : rawConfig.schema;
-        } else {
-            schema = rawConfig.schema;
-            schemaSource = '[inline]';
+        if (typeof schema === 'string') {
+             throw new Error("Schema must be an object. Ensure ConfigNormalizer is used.");
         }
 
         return {
@@ -165,7 +156,7 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
                 tags: ['debug', 'validation', 'error']
             });
 
-            return { packets: [] }; // Drop item
+            return { packets: [] };
         }
 
         console.log(`[Validation] ✅ Passed (${config.schemaSource})`);

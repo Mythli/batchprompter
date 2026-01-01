@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import { ModelDefinition, StepDefinition, NormalizedConfig, PluginConfigDefinition, OutputStrategy } from '../types.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
-import { PipelineConfigSchema } from '../config/schema.js';
+import { LoosePipelineConfigSchema } from '../config/schema.js';
+
 /**
  * Merges CLI options into the file configuration.
  * CLI options take precedence.
@@ -115,22 +116,11 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
         }
 
         // --- Plugin Overrides ---
-        // We iterate through all registered plugins and ask them to parse CLI options for this step.
-        // If a plugin returns a config, we add it to the step's plugins list.
-        // Note: This appends new plugin configs. It does NOT merge with existing file-based plugin configs
-        // because matching them by ID or type is ambiguous (a step can have multiple plugins of the same type).
-        // This means CLI flags for plugins generally *add* a plugin instance to the step.
-
         step.plugins = step.plugins || [];
 
         for (const plugin of pluginRegistry.getAll()) {
             const pluginConfig = plugin.parseCLIOptions(options, stepNum);
             if (pluginConfig) {
-                // Check if we should replace an existing plugin config or append?
-                // For simplicity and predictability, CLI flags usually imply "I want to run this plugin".
-                // If the file already has it, we might be duplicating.
-                // However, without a unique ID in CLI flags, we can't target a specific existing plugin instance.
-                // Current behavior in legacy code was to append. We stick to that.
                 step.plugins.push(pluginConfig);
             }
         }
@@ -153,8 +143,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     // 1. Merge CLI overrides into file config
     const mergedConfig = mergeCliOverrides(fileConfig, options, args, pluginRegistry);
 
-    // 2. Validate against strict Zod schema
-    const config = PipelineConfigSchema.parse(mergedConfig);
+    // 2. Validate against Loose Zod schema (allows strings)
+    const config = LoosePipelineConfigSchema.parse(mergedConfig);
 
     // 3. Normalize to internal runtime format
     const steps: StepDefinition[] = [];
@@ -167,13 +157,6 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             model: stepDef.model?.model ?? config.globals.model,
             temperature: stepDef.model?.temperature ?? config.globals.temperature,
             thinkingLevel: stepDef.model?.thinkingLevel ?? config.globals.thinkingLevel,
-            // We pass the raw prompt definition to the resolver.
-            // The resolver handles string vs object vs parts.
-            // We cast to any here because ModelDefinition expects string | undefined for source,
-            // but we are passing the raw Zod output which might be an object.
-            // We need to update ModelDefinition in types.ts to allow the object, OR serialize it here?
-            // Better: Let's update the PromptResolver to accept the PromptDef object.
-            // For now, we'll pass it as 'promptSource' and cast, assuming PromptResolver is updated.
             promptSource: stepDef.prompt as any,
             systemSource: stepDef.system as any
         };
@@ -184,13 +167,12 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             const plugin = pluginRegistry.get(pluginConfig.type);
             if (plugin) {
                 // Normalize immediately using the plugin's schema.
-                // This applies defaults (e.g. queryCount: 3) and validates types.
                 const validatedConfig = plugin.configSchema.parse(pluginConfig);
 
                 plugins.push({
                     name: pluginConfig.type,
                     config: validatedConfig,
-                    output: validatedConfig.output // Use the output from the validated config (defaults applied)
+                    output: validatedConfig.output
                 });
             }
         });
@@ -208,7 +190,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             stepIndex,
             modelConfig,
             outputPath: stepDef.outputPath,
-            outputTemplate: stepDef.outputPath ?? config.globals.outputPath, // Inherit global output path if not set on step
+            outputTemplate: stepDef.outputPath ?? config.globals.outputPath,
 
             output: stepDef.output,
 

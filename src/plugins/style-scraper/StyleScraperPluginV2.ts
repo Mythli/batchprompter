@@ -14,9 +14,10 @@ import { OutputConfigSchema } from '../../config/common.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
+import { zHandlebars } from '../../config/validationRules.js';
 
 // =============================================================================
-// Config Schema (Single source of truth for defaults)
+// Config Schema
 // =============================================================================
 
 export const StyleScraperConfigSchemaV2 = z.object({
@@ -26,7 +27,7 @@ export const StyleScraperConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }),
-    url: z.string(),
+    url: zHandlebars,
     resolution: z.string().default('1920x1080'),
     mobile: z.boolean().default(false),
     interactive: z.boolean().default(false)
@@ -82,7 +83,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         if (outputColumn) outputMode = 'column';
         else if (exportFlag) outputMode = 'merge';
 
-        // Return raw config - Zod will apply defaults
         const partialConfig = {
             type: 'style-scraper',
             url,
@@ -96,7 +96,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
             }
         };
 
-        // Parse through Zod to apply defaults
         return this.configSchema.parse(partialConfig);
     }
 
@@ -159,7 +158,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                     const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
                     const artifacts: Artifact[] = [];
 
-                    // Desktop screenshot
                     const desktopShot = (await ph.takeScreenshots([config.resolution]))[0];
                     if (desktopShot) {
                         contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${config.url}) ---` });
@@ -167,7 +165,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                         artifacts.push({ type: 'desktop', base64: desktopShot.screenshotBase64, extension: '.jpg' });
                     }
 
-                    // Mobile screenshot
                     if (config.mobile) {
                         const mobileRes = { width: 375, height: 812 };
                         const mobileShot = (await ph.takeScreenshots([mobileRes]))[0];
@@ -179,7 +176,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                         await ph.getPage().setViewport(config.resolution);
                     }
 
-                    // Interactive elements
                     if (config.interactive) {
                         console.log(`[StyleScraper] Capturing interactive elements...`);
                         const screenshoter = new InteractiveElementScreenshoter(puppeteerHelper);
@@ -235,7 +231,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                 }
             );
 
-            // Build output data for row/workspace
             const baseName = outputBasename || 'style_scrape';
             const outputData: Record<string, any> = {};
 
@@ -267,7 +262,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                         tags: ['style-scraper', artifact.type]
                     });
 
-                    // Populate output data with relative paths (assuming standard structure)
                     if (artifact.type === 'desktop') outputData.desktop = filename;
                     if (artifact.type === 'mobile') outputData.mobile = filename;
                     if (artifact.type === 'interactive') outputData.interactive = filename;

@@ -10,6 +10,7 @@ import {
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
+import { zHandlebars } from '../../config/validationRules.js';
 
 // =============================================================================
 // Config Schema
@@ -22,7 +23,7 @@ export const DedupeConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }),
-    key: z.string()
+    key: zHandlebars
 });
 
 export type DedupeRawConfigV2 = z.infer<typeof DedupeConfigSchemaV2>;
@@ -63,7 +64,6 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         const key = getOpt('dedupeKey');
         if (!key) return null;
 
-        // Construct partial config and let Zod handle defaults
         const partialConfig = {
             type: 'dedupe',
             key,
@@ -100,11 +100,9 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
     ): Promise<PluginResult> {
         const { row, emit } = context;
 
-        // Render key from template
         const template = Handlebars.compile(config.keyTemplate, { noEscape: true });
         const key = template(row);
 
-        // Get or create set for this plugin instance
         if (!globalSeenKeys.has(config.id)) {
             globalSeenKeys.set(config.id, new Set());
         }
@@ -153,9 +151,6 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         };
     }
 
-    /**
-     * Reset deduplication state (useful for testing)
-     */
     static resetState(): void {
         globalSeenKeys.clear();
     }

@@ -15,11 +15,13 @@ import { makeSchemaOptional } from '../../utils/schemaUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
+import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 
 // =============================================================================
-// Config Schema (Single source of truth for defaults)
+// Config Schema
 // =============================================================================
 
+// Strict Schema (Object only)
 export const WebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent'),
     id: z.string().optional(),
@@ -27,26 +29,23 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }),
-    url: z.string(),
-    schema: z.union([z.string(), z.record(z.string(), z.any())]),
+    url: zHandlebars,
+    schema: zJsonSchemaObject,
     budget: z.number().int().positive().default(10),
     batchSize: z.number().int().positive().default(3),
     
-    // Navigator model config
     navigatorModel: z.string().optional(),
     navigatorTemperature: z.number().min(0).max(2).optional(),
     navigatorThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     navigatorPrompt: PromptDefSchema.optional(),
     navigatorSystem: PromptDefSchema.optional(),
     
-    // Extract model config
     extractModel: z.string().optional(),
     extractTemperature: z.number().min(0).max(2).optional(),
     extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     extractPrompt: PromptDefSchema.optional(),
     extractSystem: PromptDefSchema.optional(),
     
-    // Merge model config
     mergeModel: z.string().optional(),
     mergeTemperature: z.number().min(0).max(2).optional(),
     mergeThinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
@@ -54,7 +53,12 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
     mergeSystem: PromptDefSchema.optional()
 });
 
-export type WebsiteAgentRawConfigV2 = z.infer<typeof WebsiteAgentConfigSchemaV2>;
+// Loose Schema (String or Object)
+export const LooseWebsiteAgentConfigSchemaV2 = WebsiteAgentConfigSchemaV2.extend({
+    schema: z.union([z.string(), zJsonSchemaObject])
+});
+
+export type WebsiteAgentRawConfigV2 = z.infer<typeof LooseWebsiteAgentConfigSchemaV2>;
 
 export interface WebsiteAgentResolvedConfigV2 {
     type: 'website-agent';
@@ -62,7 +66,6 @@ export interface WebsiteAgentResolvedConfigV2 {
     output: ResolvedOutputConfig;
     url: string;
     schema: any;
-    /** Relaxed schema with all fields optional/nullable for page extractions */
     extractionSchema: any;
     budget: number;
     batchSize: number;
@@ -81,21 +84,17 @@ const DEFAULT_MERGE = 'You are a data consolidation expert. Merge the JSON objec
 
 export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, WebsiteAgentResolvedConfigV2> {
     readonly type = 'website-agent';
-    readonly configSchema = WebsiteAgentConfigSchemaV2;
+    // We use the Loose schema for the plugin interface to allow CLI/File inputs
+    readonly configSchema = LooseWebsiteAgentConfigSchemaV2;
 
     readonly cliOptions: CLIOptionDefinition[] = [
-        // Navigator model options
         ...ModelFlags.getOptions('website-navigator', { includePrompt: true }),
-        // Extract model options
         ...ModelFlags.getOptions('website-extract', { includePrompt: true }),
-        // Merge model options
         ...ModelFlags.getOptions('website-merge', { includePrompt: true }),
-        // Agent options
         { flags: '--website-agent-url <url>', description: 'Starting URL to scrape' },
         { flags: '--website-agent-schema <path>', description: 'JSON Schema for extraction' },
         { flags: '--website-agent-budget <number>', description: 'Max pages to visit (default: 10)', parser: parseInt },
         { flags: '--website-agent-batch-size <number>', description: 'Pages per batch (default: 3)', parser: parseInt },
-        // Output options
         { flags: '--website-agent-export', description: 'Merge results into row' },
         { flags: '--website-agent-output <column>', description: 'Save to column' }
     ];
@@ -113,7 +112,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         const url = getOpt('websiteAgentUrl');
         if (!url) return null;
 
-        // Extract model configs using helper
         const navigatorConfig = ModelFlags.extractPluginModel(options, 'websiteNavigator', stepIndex);
         const extractConfig = ModelFlags.extractPluginModel(options, 'websiteExtract', stepIndex);
         const mergeConfig = ModelFlags.extractPluginModel(options, 'websiteMerge', stepIndex);
@@ -125,24 +123,20 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         if (outputColumn) outputMode = 'column';
         else if (exportFlag) outputMode = 'merge';
 
-        // Return raw config - Zod will apply defaults
         const partialConfig = {
             type: 'website-agent',
             url,
             schema: getOpt('websiteAgentSchema'),
             budget: getOpt('websiteAgentBudget'),
             batchSize: getOpt('websiteAgentBatchSize'),
-            // Navigator model
             navigatorPrompt: navigatorConfig.prompt,
             navigatorModel: navigatorConfig.model,
             navigatorTemperature: navigatorConfig.temperature,
             navigatorThinkingLevel: navigatorConfig.thinkingLevel,
-            // Extract model
             extractPrompt: extractConfig.prompt,
             extractModel: extractConfig.model,
             extractTemperature: extractConfig.temperature,
             extractThinkingLevel: extractConfig.thinkingLevel,
-            // Merge model
             mergePrompt: mergeConfig.prompt,
             mergeModel: mergeConfig.model,
             mergeTemperature: mergeConfig.temperature,
@@ -154,7 +148,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             }
         };
 
-        // Parse through Zod to apply defaults
         return this.configSchema.parse(partialConfig);
     }
 
@@ -165,7 +158,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         contentResolver: ContentResolver
     ): Promise<WebsiteAgentResolvedConfigV2> {
         const promptLoader = new PromptLoader(contentResolver);
-        const schemaLoader = new SchemaLoader(contentResolver);
 
         const resolveModelWithPrompt = async (
             prompt: any,
@@ -198,27 +190,14 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             };
         };
 
-        // Resolve URL
         const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
         const url = urlTemplate(row);
 
-        // Resolve schema
-        let schema: any;
-        if (typeof rawConfig.schema === 'string') {
-            schema = await schemaLoader.loadWithContext(rawConfig.schema, row);
-        } else if (rawConfig.schema) {
-            schema = rawConfig.schema;
-        } else {
-            schema = {
-                type: 'object',
-                properties: {
-                    summary: { type: 'string', description: 'Summary of the website content' }
-                },
-                required: ['summary']
-            };
+        let schema = rawConfig.schema;
+        if (typeof schema === 'string') {
+             throw new Error("Schema must be an object. Ensure ConfigNormalizer is used.");
         }
 
-        // Create relaxed schema for page extractions
         const extractionSchema = makeSchemaOptional(schema);
 
         return {
@@ -269,7 +248,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             throw new Error('[WebsiteAgent] Puppeteer not available');
         }
 
-        // Validate URL
         if (!config.url || config.url.trim() === '') {
             throw new Error('[WebsiteAgent] No URL provided');
         }
@@ -279,15 +257,12 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             throw new Error(`[WebsiteAgent] Invalid URL: ${config.url}`);
         }
 
-        // Create LLM clients
         const navLlm = services.createLlm(config.navigatorModel);
         const extLlm = services.createLlm(config.extractModel);
         const mrgLlm = services.createLlm(config.mergeModel);
 
-        // Setup utility
         const agent = new AiWebsiteAgent(navLlm, extLlm, mrgLlm, puppeteerHelper, puppeteerQueue);
 
-        // Wire up events
         agent.events.on('page:scraped', (data) => {
             const safeUrl = data.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
             emit('artifact', {
@@ -334,7 +309,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             });
         });
 
-        // Scrape
         const result = await agent.scrapeIterative(
             config.url,
             config.extractionSchema,
