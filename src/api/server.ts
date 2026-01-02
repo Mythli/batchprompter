@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import generateRoutes from './routes/generate.js';
 import runRoutes from './routes/run.js';
-import uiRoutes from './routes/ui.js';
+import webRoutes from './routes/web.js';
 
 const app = new Hono();
 
@@ -10,11 +10,8 @@ const app = new Hono();
 app.route('/api', generateRoutes);
 app.route('/api', runRoutes);
 
-// UI Routes
-app.route('/ui', uiRoutes);
-
-// Redirect root to UI
-app.get('/', (c) => c.redirect('/ui'));
+// Web UI Routes (Mounted at root)
+app.route('/', webRoutes);
 
 // Export for use or run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
