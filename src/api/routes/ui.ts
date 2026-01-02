@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { html } from 'hono/html';
+import Papa from 'papaparse';
 import { GenerationService } from '../services/GenerationService.js';
 import { ExecutionService } from '../services/ExecutionService.js';
 import { getUniqueRows } from '../../utils/getUniqueRows.js';
@@ -100,21 +101,14 @@ app.post('/generate', async (c) => {
                     throw new Error('Invalid JSON file');
                 }
             } else if (file.name.endsWith('.csv')) {
-                const lines = content.split(/\r?\n/).filter(l => l.trim());
-                if (lines.length > 0) {
-                    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-                    for(let i=1; i<lines.length; i++) {
-                        const values = lines[i].split(',');
-                        const row: any = {};
-                        headers.forEach((h, idx) => {
-                            let val = values[idx]?.trim();
-                            if (val && val.startsWith('"') && val.endsWith('"')) {
-                                val = val.slice(1, -1);
-                            }
-                            row[h] = val;
-                        });
-                        sampleRows.push(row);
-                    }
+                const parsed = Papa.parse(content, {
+                    header: true,
+                    skipEmptyLines: true,
+                    dynamicTyping: true
+                });
+                
+                if (parsed.data && Array.isArray(parsed.data)) {
+                    sampleRows = parsed.data;
                 }
             }
 
