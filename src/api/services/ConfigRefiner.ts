@@ -104,7 +104,23 @@ export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipe
             }
         }
 
-        return await generatorLlm.getRawClient().promptZod(messages, SafePipelineConfigSchema);
+        // Determine schema to use
+        let schema: z.ZodType<any> = SafePipelineConfigSchema;
+        let isDataOmitted = false;
+
+        if (input.sampleRows && input.sampleRows.length > 0) {
+            schema = SafePipelineConfigSchema.omit({ data: true });
+            isDataOmitted = true;
+        }
+
+        const result = await generatorLlm.getRawClient().promptZod(messages, schema);
+
+        if (isDataOmitted) {
+            // Re-hydrate the result with default data config
+            return SafePipelineConfigSchema.parse(result);
+        }
+
+        return result as SafePipelineConfig;
     }
 
     protected async execute(config: SafePipelineConfig, input: ConfigRefinerInput): Promise<ConfigRefinerOutput> {
