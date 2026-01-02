@@ -1,8 +1,39 @@
+import Papa from 'papaparse';
 import { SafePipelineConfigSchema, SafePipelineConfig } from '../../config/safeSchema.js';
 import { getConfig } from '../../getConfig.js';
 import { CONFIG_DOCUMENTATION } from '../../generated/ConfigDocumentation.js';
+import { getUniqueRows } from '../../utils/getUniqueRows.js';
 
 export class GenerationService {
+
+    parseSampleData(content: string, filename: string): any[] {
+        let sampleRows: any[] = [];
+
+        if (filename.endsWith('.json')) {
+            try {
+                const json = JSON.parse(content);
+                sampleRows = Array.isArray(json) ? json : [json];
+            } catch (e) {
+                throw new Error('Invalid JSON file');
+            }
+        } else if (filename.endsWith('.csv')) {
+            const parsed = Papa.parse(content, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true
+            });
+            
+            if (parsed.data && Array.isArray(parsed.data)) {
+                sampleRows = parsed.data;
+            }
+        }
+
+        if (sampleRows.length > 0) {
+            return getUniqueRows(sampleRows, 10);
+        }
+
+        return [];
+    }
 
     async generateConfig(prompt: string, partialConfig?: any, sampleRows?: any[]): Promise<SafePipelineConfig> {
         const { llmFactory } = await getConfig();
