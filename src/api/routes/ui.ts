@@ -48,15 +48,6 @@ app.get('/', (c) => {
                             >
                                 Generate Config
                             </button>
-                            
-                            <button 
-                                hx-post="/ui/generate-and-run" 
-                                hx-target="#results" 
-                                hx-indicator="#loading"
-                                class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors font-medium"
-                            >
-                                Generate & Execute
-                            </button>
                         </div>
                     </form>
                 </div>
@@ -80,12 +71,27 @@ app.post('/generate', async (c) => {
         if (!prompt) throw new Error('Prompt is required');
 
         const config = await generationService.generateConfig(prompt);
+        const configJson = JSON.stringify(config, null, 2);
+        const configValue = JSON.stringify(config);
 
         return c.html(html`
             <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-blue-500">
-                <h2 class="text-xl font-bold text-gray-800 mb-4">Generated Configuration</h2>
+                <div class="flex justify-between items-start mb-4">
+                    <h2 class="text-xl font-bold text-gray-800">Generated Configuration</h2>
+                    <form>
+                        <input type="hidden" name="config" value="${configValue}">
+                        <button 
+                            hx-post="/ui/execute" 
+                            hx-target="#results" 
+                            hx-indicator="#loading"
+                            class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
+                        >
+                            Execute
+                        </button>
+                    </form>
+                </div>
                 <div class="bg-gray-900 rounded-md overflow-hidden">
-                    <pre class="p-4 text-sm text-gray-100 overflow-x-auto"><code>${JSON.stringify(config, null, 2)}</code></pre>
+                    <pre class="p-4 text-sm text-gray-100 overflow-x-auto"><code>${configJson}</code></pre>
                 </div>
             </div>
         `);
@@ -107,18 +113,20 @@ app.post('/generate', async (c) => {
     }
 });
 
-app.post('/generate-and-run', async (c) => {
+app.post('/execute', async (c) => {
     try {
         const body = await c.req.parseBody();
-        const prompt = body.prompt as string;
+        const configStr = body.config as string;
         
-        if (!prompt) throw new Error('Prompt is required');
+        if (!configStr) throw new Error('Config is required');
 
-        const config = await generationService.generateConfig(prompt);
+        const config = JSON.parse(configStr);
         const { results, zip } = await executionService.runConfig(config);
 
         // Helper to render table headers
         const headers = results.length > 0 ? Object.keys(results[0]) : [];
+        const configJson = JSON.stringify(config, null, 2);
+        const configValue = JSON.stringify(config);
 
         return c.html(html`
             <div class="space-y-8">
@@ -158,9 +166,22 @@ app.post('/generate-and-run', async (c) => {
                 </div>
 
                 <div class="bg-white rounded-lg shadow-lg p-6 border-l-4 border-gray-500">
-                    <h2 class="text-xl font-bold text-gray-800 mb-4">Used Configuration</h2>
+                    <div class="flex justify-between items-start mb-4">
+                        <h2 class="text-xl font-bold text-gray-800">Used Configuration</h2>
+                        <form>
+                            <input type="hidden" name="config" value="${configValue}">
+                            <button 
+                                hx-post="/ui/execute" 
+                                hx-target="#results" 
+                                hx-indicator="#loading"
+                                class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors text-sm font-medium"
+                            >
+                                Execute Again
+                            </button>
+                        </form>
+                    </div>
                     <div class="bg-gray-900 rounded-md overflow-hidden">
-                        <pre class="p-4 text-sm text-gray-100 overflow-x-auto"><code>${JSON.stringify(config, null, 2)}</code></pre>
+                        <pre class="p-4 text-sm text-gray-100 overflow-x-auto"><code>${configJson}</code></pre>
                     </div>
                 </div>
             </div>
