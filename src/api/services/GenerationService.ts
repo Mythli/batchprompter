@@ -9,7 +9,8 @@ export class GenerationService {
 
         // Create a generator LLM
         const generatorLlm = llmFactory.create({
-            model: 'google/gemini-3-pro-preview',
+            model: 'google/gemini-3-flash-preview',
+            thinkingLevel: 'high',
             systemParts: [
                 { type: 'text', text: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' },
                 { type: 'text', text: 'Here is the documentation for the configuration format:\n\n' + CONFIG_DOCUMENTATION }
