@@ -24,7 +24,7 @@ export class GenerationService {
         if (sampleRows && sampleRows.length > 0) {
             userContent.push({
                 type: 'text',
-                text: `Sample Data (First ${sampleRows.length} unique rows from uploaded file): \n${JSON.stringify(sampleRows, null, 2)}\nPlease ensure the configuration handles this data structure (e.g. input columns).`
+                text: `Sample Data (First ${sampleRows.length} unique rows from uploaded file): \n${JSON.stringify(sampleRows, null, 2)}\n\nIMPORTANT: Use this data ONLY to infer the input schema (e.g. column names). DO NOT embed these specific rows into the configuration. The configuration should be generic and ready to accept a file input matching this structure.`
             });
         }
 
