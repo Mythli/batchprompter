@@ -159,13 +159,20 @@ export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipe
             promptParts: []
         });
 
-        const prompt = [
+        const prompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
             { type: 'text', text: `User Request: ${input.prompt}` },
             { type: 'text', text: `Generated Configuration:\n${JSON.stringify(config, null, 2)}` },
             { type: 'text', text: `Execution Results (First 5 rows):\n${JSON.stringify(output.results, null, 2)}` },
             { type: 'text', text: `Did this configuration produce the desired output? If yes, set success to true. If no, set success to false and provide specific feedback on what is wrong (e.g. missing columns, wrong data format, empty fields).` }
         ];
 
-        return await judgeLlm.promptZod({ suffix: prompt }, EvaluationSchema);
+        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+        const systemParts = judgeLlm.getSystemParts();
+        if (systemParts.length > 0) {
+            messages.push({ role: 'system', content: systemParts as any });
+        }
+        messages.push({ role: 'user', content: prompt });
+
+        return await judgeLlm.getRawClient().promptZod(messages, EvaluationSchema);
     }
 }
