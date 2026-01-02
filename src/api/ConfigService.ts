@@ -1,13 +1,13 @@
 import JSZip from 'jszip';
 import { SafePipelineConfigSchema, SafePipelineConfig } from '../config/safeSchema.js';
-import { getConfig } from '../getConfig.js';
-import { StepRegistry } from '../cli/StepRegistry.js';
-import { MemoryArtifactHandler } from '../cli/handlers/MemoryArtifactHandler.js';
-import { MemoryContentResolver } from '../core/io/MemoryContentResolver.js';
+import { getConfig } from '../../getConfig.js';
+import { StepRegistry } from '../../cli/StepRegistry.js';
+import { MemoryArtifactHandler } from '../../cli/handlers/MemoryArtifactHandler.js';
+import { MemoryContentResolver } from '../../core/io/MemoryContentResolver.js';
 
 export class ConfigService {
 
-    async generateConfig(prompt: string, partialConfig?: any): Promise<SafePipelineConfig> {
+    async generateConfig(prompt: string, partialConfig?: any, sampleRows?: any[]): Promise<SafePipelineConfig> {
         const { llmFactory } = await getConfig();
 
         // Create a generator LLM
@@ -20,6 +20,13 @@ export class ConfigService {
         const userContent: any[] = [
             { type: 'text', text: `Request: ${prompt}` }
         ];
+
+        if (sampleRows && sampleRows.length > 0) {
+            userContent.push({
+                type: 'text',
+                text: `Sample Data (First ${sampleRows.length} unique rows from uploaded file): \n${JSON.stringify(sampleRows, null, 2)}\nPlease ensure the configuration handles this data structure.`
+            });
+        }
 
         if (partialConfig) {
             userContent.push({

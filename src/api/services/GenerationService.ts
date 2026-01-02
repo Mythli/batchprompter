@@ -4,7 +4,7 @@ import { CONFIG_DOCUMENTATION } from '../../generated/ConfigDocumentation.js';
 
 export class GenerationService {
 
-    async generateConfig(prompt: string, partialConfig?: any): Promise<SafePipelineConfig> {
+    async generateConfig(prompt: string, partialConfig?: any, sampleRows?: any[]): Promise<SafePipelineConfig> {
         const { llmFactory } = await getConfig();
 
         // Create a generator LLM
@@ -20,6 +20,13 @@ export class GenerationService {
         const userContent: any[] = [
             { type: 'text', text: `Request: ${prompt}` }
         ];
+
+        if (sampleRows && sampleRows.length > 0) {
+            userContent.push({
+                type: 'text',
+                text: `Sample Data (First ${sampleRows.length} unique rows from uploaded file): \n${JSON.stringify(sampleRows, null, 2)}\nPlease ensure the configuration handles this data structure (e.g. input columns).`
+            });
+        }
 
         if (partialConfig) {
             userContent.push({

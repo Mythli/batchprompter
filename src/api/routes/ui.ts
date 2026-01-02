@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { html } from 'hono/html';
 import { GenerationService } from '../services/GenerationService.js';
 import { ExecutionService } from '../services/ExecutionService.js';
+import { getUniqueRows } from '../../utils/getUniqueRows.js';
 
 const app = new Hono();
 const generationService = new GenerationService();
@@ -28,7 +29,7 @@ app.get('/', (c) => {
                 <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
                     <h1 class="text-3xl font-bold text-gray-800 mb-6">BatchPrompt</h1>
                     
-                    <form class="space-y-4">
+                    <form class="space-y-4" hx-encoding="multipart/form-data">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">Prompt</label>
                             <textarea 
@@ -37,6 +38,22 @@ app.get('/', (c) => {
                                 placeholder="Describe what you want to scrape or process..."
                                 required
                             ></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Upload Data (CSV/JSON) - Optional</label>
+                            <input 
+                                type="file" 
+                                name="file" 
+                                accept=".csv,.json"
+                                class="block w-full text-sm text-gray-500
+                                    file:mr-4 file:py-2 file:px-4
+                                    file:rounded-md file:border-0
+                                    file:text-sm file:font-semibold
+                                    file:bg-blue-50 file:text-blue-700
+                                    hover:file:bg-blue-100"
+                            />
+                            <p class="mt-1 text-sm text-gray-500">Up to 10 unique rows will be used to inform the generation.</p>
                         </div>
 
                         <div class="flex gap-4">
@@ -67,10 +84,46 @@ app.post('/generate', async (c) => {
     try {
         const body = await c.req.parseBody();
         const prompt = body.prompt as string;
+        const file = body.file as File | undefined;
         
         if (!prompt) throw new Error('Prompt is required');
 
-        const config = await generationService.generateConfig(prompt);
+        let sampleRows: any[] = [];
+
+        if (file && file.size > 0) {
+            const content = await file.text();
+            if (file.name.endsWith('.json')) {
+                try {
+                    const json = JSON.parse(content);
+                    sampleRows = Array.isArray(json) ? json : [json];
+                } catch (e) {
+                    throw new Error('Invalid JSON file');
+                }
+            } else if (file.name.endsWith('.csv')) {
+                const lines = content.split(/\r?\n/).filter(l => l.trim());
+                if (lines.length > 0) {
+                    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+                    for(let i=1; i<lines.length; i++) {
+                        const values = lines[i].split(',');
+                        const row: any = {};
+                        headers.forEach((h, idx) => {
+                            let val = values[idx]?.trim();
+                            if (val && val.startsWith('"') && val.endsWith('"')) {
+                                val = val.slice(1, -1);
+                            }
+                            row[h] = val;
+                        });
+                        sampleRows.push(row);
+                    }
+                }
+            }
+
+            if (sampleRows.length > 0) {
+                sampleRows = getUniqueRows(sampleRows, 10);
+            }
+        }
+
+        const config = await generationService.generateConfig(prompt, undefined, sampleRows);
         const configJson = JSON.stringify(config, null, 2);
         const configValue = JSON.stringify(config);
 
@@ -90,6 +143,14 @@ app.post('/generate', async (c) => {
                         </button>
                     </form>
                 </div>
+                ${sampleRows.length > 0 ? html`
+                    <div class="mb-4 p-3 bg-blue-50 rounded-md border border-blue-100">
+                        <p class="text-sm text-blue-800">
+                            <span class="font-semibold">Info:</span> 
+                            Analyzed uploaded file and used ${sampleRows.length} unique rows to guide the configuration generation.
+                        </p>
+                    </div>
+                ` : ''}
                 <div class="bg-gray-900 rounded-md overflow-hidden">
                     <pre class="p-4 text-sm text-gray-100 overflow-x-auto"><code>${configJson}</code></pre>
                 </div>
