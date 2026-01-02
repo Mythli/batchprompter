@@ -17,6 +17,16 @@ export class GenerationService {
             partialConfig
         });
 
-        return result.config;
+        const config = result.config;
+
+        // Inject sample rows into the config so they are available for execution in the UI
+        if (sampleRows && sampleRows.length > 0) {
+            if (!config.data) {
+                config.data = { rows: [], format: 'json' };
+            }
+            config.data.rows = sampleRows;
+        }
+
+        return config;
     }
 }
