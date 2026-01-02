@@ -22,12 +22,7 @@ app.post('/generate', async (c) => {
         
         if (!prompt) throw new Error('Prompt is required');
 
-        let sampleRows: any[] = [];
-
-        if (file && file.size > 0) {
-            const content = await file.text();
-            sampleRows = generationService.parseSampleData(content, file.name);
-        }
+        const sampleRows = file ? await generationService.parseSampleFile(file) : [];
 
         const config = await generationService.generateConfig(prompt, undefined, sampleRows);
         

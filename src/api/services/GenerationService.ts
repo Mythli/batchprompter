@@ -6,6 +6,12 @@ import { getUniqueRows } from '../../utils/getUniqueRows.js';
 
 export class GenerationService {
 
+    async parseSampleFile(file: File): Promise<any[]> {
+        if (!file || file.size === 0) return [];
+        const content = await file.text();
+        return this.parseSampleData(content, file.name);
+    }
+
     parseSampleData(content: string, filename: string): any[] {
         let sampleRows: any[] = [];
 
