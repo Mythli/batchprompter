@@ -10,16 +10,22 @@ export interface EvaluationResult {
     feedback?: string;
 }
 
+export interface IterationHistory<TConfig> {
+    config?: TConfig;
+    feedback?: string;
+    error?: string;
+}
+
 export abstract class IterativeRefiner<TInput, TConfig, TOutput> {
     constructor(protected options: RefinerOptions) {}
 
-    protected abstract generate(input: TInput, feedback?: string, previousConfig?: TConfig): Promise<TConfig>;
+    protected abstract generate(input: TInput, history: IterationHistory<TConfig>[]): Promise<TConfig>;
     protected abstract execute(config: TConfig, input: TInput): Promise<TOutput>;
     protected abstract evaluate(input: TInput, config: TConfig, output: TOutput): Promise<EvaluationResult>;
 
     async run(input: TInput): Promise<{ config: TConfig; output?: TOutput; iterations: number }> {
+        const history: IterationHistory<TConfig>[] = [];
         let currentConfig: TConfig | undefined;
-        let currentFeedback: string | undefined;
         let lastOutput: TOutput | undefined;
 
         for (let i = 0; i < this.options.maxRetries; i++) {
@@ -27,11 +33,14 @@ export abstract class IterativeRefiner<TInput, TConfig, TOutput> {
             
             // 1. Generate
             try {
-                currentConfig = await this.generate(input, currentFeedback, currentConfig);
+                currentConfig = await this.generate(input, history);
             } catch (e: any) {
                 console.error(`[IterativeRefiner] Generation failed: ${e.message}`);
-                // If generation fails, we might want to retry with a generic error feedback or stop
-                currentFeedback = `Previous generation failed with error: ${e.message}. Please fix the configuration structure.`;
+                // If generation fails, we record it and try again
+                history.push({
+                    error: e.message,
+                    feedback: `Previous generation failed with error: ${e.message}. Please fix the configuration structure.`
+                });
                 continue;
             }
 
@@ -41,12 +50,11 @@ export abstract class IterativeRefiner<TInput, TConfig, TOutput> {
             } catch (e: any) {
                 console.error(`[IterativeRefiner] Execution failed: ${e.message}`);
                 // Execution errors are valid feedback for the LLM
-                currentFeedback = `The configuration caused an execution error: ${e.message}. Please fix the configuration to avoid this error.`;
-                
-                // We still evaluate if we want the LLM to see the error specifically, 
-                // but usually we can just loop back with the error message.
-                // Let's try to evaluate to see if the LLM has specific insight, 
-                // or just loop back. For now, loop back.
+                history.push({
+                    config: currentConfig,
+                    error: e.message,
+                    feedback: `The configuration caused an execution error: ${e.message}. Please fix the configuration to avoid this error.`
+                });
                 continue;
             }
 
@@ -59,7 +67,10 @@ export abstract class IterativeRefiner<TInput, TConfig, TOutput> {
             }
 
             console.log(`[IterativeRefiner] Feedback: ${evaluation.feedback}`);
-            currentFeedback = evaluation.feedback;
+            history.push({
+                config: currentConfig,
+                feedback: evaluation.feedback
+            });
         }
 
         if (!currentConfig) {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IterativeRefiner, EvaluationResult } from '../../core/refinement/IterativeRefiner.js';
+import { IterativeRefiner, EvaluationResult, IterationHistory } from '../../core/refinement/IterativeRefiner.js';
 import { SafePipelineConfig, SafePipelineConfigSchema } from '../../config/safeSchema.js';
 import { ExecutionService } from './ExecutionService.js';
 import { LlmFactory } from '../../core/LlmFactory.js';
@@ -30,7 +30,7 @@ export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipe
         super(options);
     }
 
-    protected async generate(input: ConfigRefinerInput, feedback?: string, previousConfig?: SafePipelineConfig): Promise<SafePipelineConfig> {
+    protected async generate(input: ConfigRefinerInput, history: IterationHistory<SafePipelineConfig>[]): Promise<SafePipelineConfig> {
         const generatorLlm = this.llmFactory.create({
             model: 'google/gemini-3-flash-preview',
             thinkingLevel: 'high',
@@ -59,14 +59,39 @@ export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipe
             });
         }
 
-        if (feedback && previousConfig) {
+        if (history.length > 0) {
             userContent.push({
                 type: 'text',
-                text: `Previous Configuration:\n${JSON.stringify(previousConfig, null, 2)}`
+                text: `History of previous attempts:`
             });
+
+            history.forEach((entry, index) => {
+                const attemptNum = index + 1;
+                let entryText = `Attempt ${attemptNum}:\n`;
+                
+                if (entry.config) {
+                    entryText += `Configuration:\n${JSON.stringify(entry.config, null, 2)}\n`;
+                }
+                
+                if (entry.error) {
+                    entryText += `Error: ${entry.error}\n`;
+                }
+                
+                if (entry.feedback) {
+                    entryText += `Feedback: ${entry.feedback}\n`;
+                }
+                
+                entryText += `-------------------\n`;
+
+                userContent.push({
+                    type: 'text',
+                    text: entryText
+                });
+            });
+
             userContent.push({
                 type: 'text',
-                text: `Feedback from previous attempt (PLEASE FIX THIS): ${feedback}`
+                text: `Please generate a new configuration that addresses the feedback and errors from previous attempts.`
             });
         }
 
