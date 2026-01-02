@@ -6,14 +6,13 @@ import { MemoryArtifactHandler } from '../cli/handlers/MemoryArtifactHandler.js'
 import { MemoryContentResolver } from '../core/io/MemoryContentResolver.js';
 
 export class ConfigService {
-    
+
     async generateConfig(prompt: string, partialConfig?: any): Promise<SafePipelineConfig> {
         const { llmFactory } = await getConfig();
-        
+
         // Create a generator LLM
         const generatorLlm = llmFactory.create({
-            model: process.env.MODEL || 'google/gemini-2.0-pro-exp-02-05',
-            temperature: 0.7,
+            model: 'google/gemini-3-pro-preview',
             systemParts: [{ type: 'text', text: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' }],
             promptParts: []
         });
@@ -37,14 +36,14 @@ export class ConfigService {
     async runConfig(config: any): Promise<{ results: any[], artifacts: any[], zip: string }> {
         const contentResolver = new MemoryContentResolver();
         const { actionRunner, pluginRegistry, globalContext } = await getConfig({ contentResolver });
-        
+
         // Parse and validate the config using the registry logic
         // We pass empty options/args as we are running from object
         const runtimeConfig = await StepRegistry.parseConfig(config, {}, [], pluginRegistry, contentResolver);
 
         // Capture artifacts in memory
         const memoryHandler = new MemoryArtifactHandler(globalContext.events);
-        
+
         // Capture results
         const results: any[] = [];
         const resultHandler = ({ result }: any) => results.push(result);
@@ -58,11 +57,11 @@ export class ConfigService {
 
         // Create Zip of artifacts
         const zip = new JSZip();
-        
+
         // Add config and results
         zip.file('config.json', JSON.stringify(config, null, 2));
         zip.file('results.json', JSON.stringify(results, null, 2));
-        
+
         // Add artifacts
         for (const artifact of memoryHandler.artifacts) {
             // Ensure unique paths or handle directories

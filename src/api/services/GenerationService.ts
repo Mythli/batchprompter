@@ -3,14 +3,13 @@ import { getConfig } from '../../getConfig.js';
 import { CONFIG_DOCUMENTATION } from '../../generated/ConfigDocumentation.js';
 
 export class GenerationService {
-    
+
     async generateConfig(prompt: string, partialConfig?: any): Promise<SafePipelineConfig> {
         const { llmFactory } = await getConfig();
-        
+
         // Create a generator LLM
         const generatorLlm = llmFactory.create({
-            model: process.env.MODEL || 'google/gemini-2.0-pro-exp-02-05',
-            temperature: 0.7,
+            model: 'google/gemini-3-pro-preview',
             systemParts: [
                 { type: 'text', text: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' },
                 { type: 'text', text: 'Here is the documentation for the configuration format:\n\n' + CONFIG_DOCUMENTATION }
