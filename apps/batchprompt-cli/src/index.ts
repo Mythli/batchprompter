@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { Command } from 'commander';
 import 'dotenv/config';
 import { z } from 'zod';

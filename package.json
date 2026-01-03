@@ -1,22 +1,13 @@
 {
-  "name": "batchprompt-cli",
-  "version": "1.0.0",
-  "type": "module",
-  "bin": {
-    "batchprompt": "dist/index.js"
-  },
+  "name": "batchprompt-monorepo",
+  "private": true,
   "scripts": {
-    "build": "tsc"
-  },
-  "dependencies": {
-    "batchprompt": "workspace:*",
-    "commander": "^12.0.0",
-    "dotenv": "^16.4.5",
-    "json2csv": "^6.0.0-alpha.2",
-    "zod": "^3.24.2"
+    "build": "pnpm -r run build",
+    "test": "pnpm -r run test"
   },
   "devDependencies": {
-    "@types/node": "^20.19.25",
-    "typescript": "^5.9.3"
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.24",
+    "tsx": "^4.7.1"
   }
 }
