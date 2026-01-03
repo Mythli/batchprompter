@@ -4,26 +4,26 @@ import KeyvSqlite from '@keyv/sqlite';
 import Keyv from 'keyv';
 import OpenAI from "openai";
 import PQueue from 'p-queue';
-import { ImageSearch } from './src/plugins/image-search/ImageSearch.js';
-import { WebSearch } from './src/plugins/web-search/WebSearch.js';
-import { createPluginRegistry, PluginRegistryV2 } from './src/plugins/index.js';
+import { ImageSearch } from './plugins/image-search/ImageSearch.js';
+import { WebSearch } from './plugins/web-search/WebSearch.js';
+import { createPluginRegistry, PluginRegistryV2 } from './plugins/index.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { PromptPreprocessorRegistry } from './src/preprocessors/PromptPreprocessorRegistry.js';
-import { UrlExpanderPlugin } from './src/preprocessors/UrlExpanderPlugin.js';
-import { UrlHandlerRegistry } from './src/preprocessors/expander/UrlHandlerRegistry.js';
-import { GenericFetchHandler } from './src/preprocessors/expander/GenericFetchHandler.js';
-import { GenericPuppeteerHandler } from './src/preprocessors/expander/GenericPuppeteerHandler.js';
-import { WikipediaHandler } from './src/preprocessors/expander/sites/WikipediaHandler.js';
+import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
+import { UrlExpanderPlugin } from './preprocessors/UrlExpanderPlugin.js';
+import { UrlHandlerRegistry } from './preprocessors/expander/UrlHandlerRegistry.js';
+import { GenericFetchHandler } from './preprocessors/expander/GenericFetchHandler.js';
+import { GenericPuppeteerHandler } from './preprocessors/expander/GenericPuppeteerHandler.js';
+import { WikipediaHandler } from './preprocessors/expander/sites/WikipediaHandler.js';
 import { createCachedFetcher } from "llm-fns";
 import { attachQueueLogger } from './utils/queueUtils.js';
 import { GlobalContext, ServiceCapabilities } from './types.js';
-import { LlmClientFactory } from './src/core/LlmClientFactory.js';
-import { StepResolver } from './src/core/StepResolver.js';
-import { MessageBuilder } from './src/core/MessageBuilder.js';
+import { LlmClientFactory } from './core/LlmClientFactory.js';
+import { StepResolver } from './core/StepResolver.js';
+import { MessageBuilder } from './core/MessageBuilder.js';
 import { createLoggingFetcher } from "./utils/createLoggingFetcher.js";
-import { ContentResolver } from './src/core/io/ContentResolver.js';
-import { FileSystemContentResolver } from './cli/io/FileSystemContentResolver.js';
+import { ContentResolver } from './core/io/ContentResolver.js';
+import { MemoryContentResolver } from './core/io/MemoryContentResolver.js';
 
 dotenv.config();
 
@@ -184,7 +184,8 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     });
 
     // Content Resolver
-    const contentResolver = overrides.contentResolver || new FileSystemContentResolver();
+    // Default to MemoryContentResolver if not provided (e.g. in Web context)
+    const contentResolver = overrides.contentResolver || new MemoryContentResolver();
 
     // Build GlobalContext
     const globalContext: GlobalContext = {

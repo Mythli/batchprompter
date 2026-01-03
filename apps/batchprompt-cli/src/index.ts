@@ -41,8 +41,12 @@ StepRegistry.registerStepArgs(generateCmd, cliRegistry);
 generateCmd.action(async (templateFilePaths, options) => {
     let puppeteerHelperInstance;
     try {
+        // Initialize Content Resolver for CLI (File System access)
+        const contentResolver = new FileSystemContentResolver();
+
         // Get the runner from DI first to get actual capabilities
-        const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry, globalContext } = await getConfig();
+        // Pass the contentResolver to getConfig so Core uses FS instead of Memory
+        const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry, globalContext } = await getConfig({ contentResolver });
         puppeteerHelperInstance = puppeteerHelper;
 
         let fileConfig = {};
@@ -54,8 +58,6 @@ generateCmd.action(async (templateFilePaths, options) => {
         }
 
         // Parse Config (Merge File + CLI)
-        // Use FileSystemContentResolver for CLI
-        const contentResolver = new FileSystemContentResolver();
         const config = await StepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry, contentResolver);
 
         // Initialize Artifact Handler
