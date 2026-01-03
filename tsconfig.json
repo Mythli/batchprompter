@@ -8,7 +8,9 @@
         "esModuleInterop": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "allowJs": true
+        "allowJs": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "hono/jsx"
     },
     "ts-node": {
         "esm": true
