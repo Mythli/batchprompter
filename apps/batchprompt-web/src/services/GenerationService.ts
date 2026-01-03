@@ -1,5 +1,4 @@
-import { SafePipelineConfig } from '../../config/safeSchema.js';
-import { getConfig } from '../../getConfig.js';
+import { SafePipelineConfig, getConfig } from 'batchprompt';
 import { ConfigRefiner } from './ConfigRefiner.js';
 import { ExecutionService } from './ExecutionService.js';
 

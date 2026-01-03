@@ -1,8 +1,5 @@
 import JSZip from 'jszip';
-import { getConfig } from '../../getConfig.js';
-import { StepRegistry } from '../../cli/StepRegistry.js';
-import { MemoryArtifactHandler } from '../../cli/handlers/MemoryArtifactHandler.js';
-import { MemoryContentResolver } from '../../core/io/MemoryContentResolver.js';
+import { getConfig, StepRegistry, MemoryArtifactHandler, MemoryContentResolver } from 'batchprompt';
 
 export class ExecutionService {
 

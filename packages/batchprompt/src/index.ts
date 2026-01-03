@@ -1,128 +1,61 @@
-import { Command } from 'commander';
-import 'dotenv/config';
-import { z } from 'zod';
-import fs from 'fs';
-import path from 'path';
-import { Parser, transforms } from 'json2csv';
-import { StepRegistry } from './cli/StepRegistry.js';
-import { createDefaultRegistry, getConfig } from './getConfig.js';
-import { ServiceCapabilities } from './types.js';
-import { FileAdapter } from './src/adapters/FileAdapter.js';
-import { PipelineConfigSchema } from './src/config/schema.js';
-import { FileSystemArtifactHandler } from './cli/handlers/FileSystemArtifactHandler.js';
-import { FileSystemContentResolver } from './cli/io/FileSystemContentResolver.js';
-import { DebugLogger } from './src/core/DebugLogger.js';
+// Core Exports
+export * from './types.js';
+export * from './getConfig.js';
+export * from './ActionRunner.js';
+export * from './StepExecutor.js';
 
-const program = new Command();
+// Config
+export * from './config/index.js';
+export * from './config/safeSchema.js';
+export * from './config/ConfigNormalizer.js';
 
-program
-    .name('batchprompt')
-    .description('Generate images and text from CSV or JSON data using AI');
+// Core Components
+export * from './core/events.js';
+export * from './core/DebugLogger.js';
+export * from './core/LlmClientFactory.js';
+export * from './core/BoundLlmClient.js';
+export * from './core/MessageBuilder.js';
+export * from './core/StepResolver.js';
+export * from './core/ResultProcessor.js';
+export * from './core/refinement/IterativeRefiner.js';
 
-const generateCmd = program.command('generate')
-    .description('Generate content (text and/or images) from data piped via stdin')
-    .argument('[template-files...]', 'Path to the prompt template files (text, image, audio, or directory)');
+// IO
+export * from './core/io/ContentResolver.js';
+export * from './core/io/MemoryContentResolver.js';
 
-// Create a registry for CLI configuration purposes only
-// At this point we don't know actual capabilities, so we assume all are available
-// Actual validation happens during normalize() when real capabilities are known
-const cliCapabilities: ServiceCapabilities = {
-    hasSerper: true,  // Assume available for CLI registration
-    hasPuppeteer: true
-};
-const cliRegistry = createDefaultRegistry(cliCapabilities);
+// Adapters
+export * from './adapters/FileAdapter.js';
 
-// Register all step arguments
-StepRegistry.registerStepArgs(generateCmd, cliRegistry);
+// Plugins
+export * from './plugins/index.js';
+export * from './plugins/PluginScope.js';
 
-generateCmd.action(async (templateFilePaths, options) => {
-    let puppeteerHelperInstance;
-    try {
-        // Get the runner from DI first to get actual capabilities
-        const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry, globalContext } = await getConfig();
-        puppeteerHelperInstance = puppeteerHelper;
+// Preprocessors
+export * from './preprocessors/types.js';
+export * from './preprocessors/PromptPreprocessorRegistry.js';
+export * from './preprocessors/UrlExpanderPlugin.js';
+export * from './preprocessors/expander/UrlHandlerRegistry.js';
+export * from './preprocessors/expander/GenericFetchHandler.js';
+export * from './preprocessors/expander/GenericPuppeteerHandler.js';
+export * from './preprocessors/expander/sites/WikipediaHandler.js';
 
-        let fileConfig = {};
+// Handlers
+export * from './handlers/MemoryArtifactHandler.js';
 
-        // Check if we're using a config file
-        if (options.config) {
-            const fileAdapter = new FileAdapter();
-            fileConfig = await fileAdapter.load(options.config);
-        }
+// Utils
+export * from './utils/dataLoader.js';
+export * from './utils/fileUtils.js';
+export * from './utils/getUniqueRows.js';
+export * from './utils/queueUtils.js';
+export * from './utils/schemaUtils.js';
+export * from './utils/AiWebsiteAgent.js';
+export * from './utils/AiWebSearch.js';
+export * from './utils/AiImageSearch.js';
+export * from './utils/LlmListSelector.js';
+export * from './utils/SpriteGenerator.js';
+export * from './utils/compressHtml.js';
 
-        // Parse Config (Merge File + CLI)
-        // Use FileSystemContentResolver for CLI
-        const contentResolver = new FileSystemContentResolver();
-        const config = await StepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry, contentResolver);
-
-        // Initialize Artifact Handler
-        // We use the tmpDir from the parsed runtime config
-        new FileSystemArtifactHandler(globalContext.events, config.tmpDir);
-
-        // Initialize Debug Logger
-        new DebugLogger(globalContext.events);
-
-        // Collect results for output
-        const results: any[] = [];
-        globalContext.events.on('row:end', ({ result }) => {
-            results.push(result);
-        });
-
-        // Update the runtime config with the resolved concurrency values if they weren't in CLI args
-        // This ensures ActionRunner uses the correct values (Env > Default) if CLI didn't specify them
-        const finalConfig = {
-            ...config,
-            concurrency: config.concurrency ?? resolvedConfig.GPT_CONCURRENCY,
-            taskConcurrency: config.taskConcurrency ?? resolvedConfig.TASK_CONCURRENCY
-        };
-
-        // Run
-        await actionRunner.run(finalConfig);
-
-        // Write Data Output (CSV/JSON)
-        if (config.dataOutputPath && results.length > 0) {
-            const outDir = path.dirname(config.dataOutputPath);
-            if (!fs.existsSync(outDir)) {
-                fs.mkdirSync(outDir, { recursive: true });
-            }
-
-            if (config.dataOutputPath.endsWith('.json')) {
-                fs.writeFileSync(config.dataOutputPath, JSON.stringify(results, null, 2));
-            } else {
-                const parser = new Parser({
-                    transforms: [
-                        transforms.flatten({ objects: true, arrays: false, separator: '.' })
-                    ]
-                });
-                const csv = parser.parse(results);
-                fs.writeFileSync(config.dataOutputPath, csv);
-            }
-            console.log(`\nData written to ${config.dataOutputPath}`);
-        }
-
-        // Cleanup
-        if (puppeteerHelperInstance) {
-            await puppeteerHelperInstance.close();
-        }
-        process.exit(0);
-    } catch (e: any) {
-        console.error(e);
-        // Cleanup on error
-        if (puppeteerHelperInstance) {
-            await puppeteerHelperInstance.close();
-        }
-        process.exit(1);
-    }
-});
-
-program.command('schema')
-    .description('Print the JSON Schema for the configuration file')
-    .action(() => {
-        const jsonSchema = z.toJSONSchema(PipelineConfigSchema, {
-            unrepresentable: 'any'
-        });
-        console.log(JSON.stringify(jsonSchema, null, 2));
-        process.exit(0);
-    });
-
-program.parse();
+// CLI Shared Logic (Re-exported for convenience, though available via /cli subpath)
+export * from './cli/ModelFlags.js';
+export * from './cli/StepRegistry.js';
+export * from './cli/ConfigSchema.js';

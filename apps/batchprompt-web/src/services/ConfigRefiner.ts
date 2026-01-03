@@ -1,9 +1,14 @@
 import { z } from 'zod';
 import OpenAI from 'openai';
-import { IterativeRefiner, EvaluationResult, IterationHistory } from '../../core/refinement/IterativeRefiner.js';
-import { SafePipelineConfig, SafePipelineConfigSchema } from '../../config/safeSchema.js';
+import { 
+    IterativeRefiner, 
+    EvaluationResult, 
+    IterationHistory, 
+    SafePipelineConfig, 
+    SafePipelineConfigSchema, 
+    LlmClientFactory 
+} from 'batchprompt';
 import { ExecutionService } from './ExecutionService.js';
-import { LlmClientFactory } from '../../core/LlmClientFactory.js';
 import { CONFIG_DOCUMENTATION } from '../../generated/ConfigDocumentation.js';
 
 export interface ConfigRefinerInput {

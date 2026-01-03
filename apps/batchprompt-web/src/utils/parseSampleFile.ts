@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { getUniqueRows } from '../../utils/getUniqueRows.js';
+import { getUniqueRows } from 'batchprompt';
 
 export async function parseSampleFile(file: File): Promise<any[]> {
     if (!file || file.size === 0) return [];

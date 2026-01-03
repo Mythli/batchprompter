@@ -1,7 +1,7 @@
 import fsPromises from 'fs/promises';
 import path from 'path';
 import OpenAI from 'openai';
-import { ContentResolver } from '../../core/io/ContentResolver.js';
+import { ContentResolver } from 'batchprompt';
 
 export class FileSystemContentResolver implements ContentResolver {
     

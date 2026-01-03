@@ -1,7 +1,7 @@
 import path from 'path';
 import fsPromises from 'fs/promises';
 import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from '../../core/events.js';
+import { BatchPromptEvents } from 'batchprompt';
 
 export class FileSystemArtifactHandler {
     constructor(
