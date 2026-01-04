@@ -9,6 +9,10 @@ export * from './config/index.js';
 export * from './config/safeSchema.js';
 export * from './config/ConfigNormalizer.js';
 
+// Generator
+export * from './generator/ConfigRefiner.js';
+export * from './generator/ConfigDocumentation.js';
+
 // Core Components
 export * from './core/events.js';
 export * from './core/DebugLogger.js';

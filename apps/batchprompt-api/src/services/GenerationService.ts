@@ -1,5 +1,4 @@
-import { SafePipelineConfig, getConfig } from 'batchprompt';
-import { ConfigRefiner } from './ConfigRefiner.js';
+import { SafePipelineConfig, getConfig, ConfigRefiner } from 'batchprompt';
 import { ExecutionService } from './ExecutionService.js';
 
 export class GenerationService {
