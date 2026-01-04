@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createIterativeRefiner } from '../src/IterativeRefiner.js';
+import { createIterativeRefiner } from '../src/createIterativeRefiner.js';
 
 describe('createIterativeRefiner', () => {
     it('should succeed on the first try if evaluation passes', async () => {
@@ -50,7 +50,7 @@ describe('createIterativeRefiner', () => {
         expect(result.iterations).toBe(2);
         expect(result.generated).toEqual({ value: 15 });
         expect(result.output).toBe(30);
-        
+
         // History should contain the failed attempt (Assistant) and feedback (User)
         expect(result.history).toHaveLength(2);
         expect(result.history[0]).toEqual({
@@ -63,7 +63,7 @@ describe('createIterativeRefiner', () => {
         });
 
         expect(generate).toHaveBeenCalledTimes(2);
-        
+
         // Check history passed to second generation
         const historyArg = generate.mock.calls[1][1] as any[];
         expect(historyArg).toHaveLength(2);
@@ -75,7 +75,7 @@ describe('createIterativeRefiner', () => {
         const generate = vi.fn()
             .mockResolvedValueOnce({ code: "bad" })
             .mockResolvedValueOnce({ code: "good" });
-        
+
         const execute = vi.fn().mockResolvedValue(null);
         const evaluate = vi.fn()
             .mockResolvedValueOnce({ success: false, feedback: "Syntax Error" })
@@ -134,7 +134,7 @@ describe('createIterativeRefiner', () => {
         expect(result.iterations).toBe(2);
         expect(evaluate).toHaveBeenCalledTimes(2);
         expect(result.generated).toEqual({ value: 10 });
-        
+
         // History: Attempt 1 (Ass+User), Attempt 2 (Ass+User)
         expect(result.history).toHaveLength(4);
         expect(result.history[3].content).toBe("Fail");
