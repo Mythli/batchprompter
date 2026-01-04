@@ -7,7 +7,7 @@ find . -type f \( -name "*.ts" -o -name "*.tsx" \) -not -path "*/node_modules/*"
     base="${file%.*}"
     
     # Remove corresponding compiled files
-    rm -f "$base.js" "$base.js.map" "$base.d.ts"
+    rm -f "$base.js" "$base.js.map" "$base.d.ts" "$base.d.ts.map"
 done
 
 echo "Cleanup complete."
