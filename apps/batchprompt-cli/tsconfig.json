@@ -1,11 +1,11 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "../..",
     "outDir": "dist",
     "paths": {
       "batchprompt": ["../../packages/batchprompt/src/index.ts"]
     }
   },
-  "include": ["src/**/*", "scripts/**/*"]
+  "include": ["src/**/*", "scripts/**/*", "../../packages/batchprompt/src/**/*"]
 }

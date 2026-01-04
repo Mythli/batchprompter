@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "../..",
     "outDir": "dist",
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
@@ -9,5 +9,5 @@
       "batchprompt": ["../../packages/batchprompt/src/index.ts"]
     }
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*", "../../packages/batchprompt/src/**/*"]
 }
