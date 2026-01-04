@@ -6,11 +6,13 @@
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
     "paths": {
-      "batchprompt": ["../../packages/batchprompt/src/index.ts"]
+      "batchprompt": ["../../packages/batchprompt/src/index.ts"],
+      "llm-fns": ["../../packages/llm-fns/src/index.ts"]
     }
   },
   "references": [
-    { "path": "../../packages/batchprompt" }
+    { "path": "../../packages/batchprompt" },
+    { "path": "../../packages/llm-fns" }
   ],
   "include": ["src/**/*"]
 }
