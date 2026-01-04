@@ -6,7 +6,7 @@ export interface EvaluationResult {
     feedback?: string;
 }
 
-export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
+export interface CreateIterativeRefinerParams<TInput, TGenerated> {
     /**
      * Function to generate the artifact.
      * Receives the input and the history of previous attempts (as chat messages).
@@ -15,16 +15,10 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
     generate: (input: TInput, history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => Promise<TGenerated>;
 
     /**
-     * Function to execute the generated artifact.
-     * Receives the generated artifact and the original input.
-     */
-    execute: (generated: TGenerated, input: TInput) => Promise<TOutput>;
-
-    /**
      * Function to evaluate the output.
      * Returns success status and optional feedback.
      */
-    evaluate: (input: TInput, generated: TGenerated, output: TOutput) => Promise<EvaluationResult>;
+    evaluate: (input: TInput, generated: TGenerated) => Promise<EvaluationResult>;
 
     /**
      * Maximum number of retries. Defaults to 3.
@@ -39,12 +33,11 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
     generatedToMessage?: (generated: TGenerated) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
 }
 
-export function createIterativeRefiner<TInput, TGenerated, TOutput>(
-    params: CreateIterativeRefinerParams<TInput, TGenerated, TOutput>
+export function createIterativeRefiner<TInput, TGenerated>(
+    params: CreateIterativeRefinerParams<TInput, TGenerated>
 ) {
     const {
         generate,
-        execute,
         evaluate,
         maxRetries = 3,
         generatedToMessage = (g: any) => {
@@ -60,7 +53,6 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
 
     async function run(input: TInput): Promise<{
         generated: TGenerated;
-        output?: TOutput;
         iterations: number;
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
         evaluations: EvaluationResult[];
@@ -70,25 +62,20 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
         const history: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
         const evaluations: EvaluationResult[] = [];
         let currentGenerated: TGenerated | undefined;
-        let lastOutput: TOutput | undefined;
         let lastEvaluation: EvaluationResult = { feedback: 'No evaluation yet', success: false };
 
         for (let i = 0; i < maxRetries; i++) {
             // 1. Generate
             currentGenerated = await generate(input, history);
 
-            // 2. Execute
-            lastOutput = await execute(currentGenerated, input);
-
-            // 3. Evaluate
-            const evaluation = await evaluate(input, currentGenerated, lastOutput);
+            // 2. Evaluate
+            const evaluation = await evaluate(input, currentGenerated);
             evaluations.push(evaluation);
             lastEvaluation = evaluation;
 
             if (evaluation.success) {
                 return {
                     generated: currentGenerated,
-                    output: lastOutput,
                     iterations: i + 1,
                     history,
                     evaluations,
@@ -102,9 +89,13 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
             }
         }
 
+        if (!currentGenerated) {
+            throw new Error("Failed to generate any valid result after all retries.");
+        }
+
+        console.warn(`[IterativeRefiner] Max retries reached. Returning last result.`);
         return {
             generated: currentGenerated,
-            output: lastOutput,
             iterations: maxRetries,
             history,
             evaluations,

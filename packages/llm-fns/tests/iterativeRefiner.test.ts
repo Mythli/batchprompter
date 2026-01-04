@@ -4,12 +4,10 @@ import { createIterativeRefiner } from '../src/createIterativeRefiner.js';
 describe('createIterativeRefiner', () => {
     it('should succeed on the first try if evaluation passes', async () => {
         const generate = vi.fn().mockResolvedValue({ value: 10 });
-        const execute = vi.fn().mockResolvedValue(20);
         const evaluate = vi.fn().mockResolvedValue({ success: true });
 
         const refiner = createIterativeRefiner({
             generate,
-            execute,
             evaluate,
             maxRetries: 3
         });
@@ -18,13 +16,11 @@ describe('createIterativeRefiner', () => {
 
         expect(result.iterations).toBe(1);
         expect(result.generated).toEqual({ value: 10 });
-        expect(result.output).toBe(20);
         expect(result.history).toEqual([]);
         expect(result.evaluations).toHaveLength(1);
         expect(result.evaluations[0]).toEqual({ success: true });
         expect(result.success).toBe(true);
         expect(generate).toHaveBeenCalledTimes(1);
-        expect(execute).toHaveBeenCalledTimes(1);
         expect(evaluate).toHaveBeenCalledTimes(1);
     });
 
@@ -33,17 +29,12 @@ describe('createIterativeRefiner', () => {
             .mockResolvedValueOnce({ value: 10 }) // First attempt
             .mockResolvedValueOnce({ value: 15 }); // Second attempt
 
-        const execute = vi.fn()
-            .mockResolvedValueOnce(20)
-            .mockResolvedValueOnce(30);
-
         const evaluate = vi.fn()
             .mockResolvedValueOnce({ success: false, feedback: "Too low" })
             .mockResolvedValueOnce({ success: true });
 
         const refiner = createIterativeRefiner({
             generate,
-            execute,
             evaluate,
             maxRetries: 3
         });
@@ -52,7 +43,6 @@ describe('createIterativeRefiner', () => {
 
         expect(result.iterations).toBe(2);
         expect(result.generated).toEqual({ value: 15 });
-        expect(result.output).toBe(30);
         expect(result.success).toBe(true);
 
         // History should contain the failed attempt (Assistant) and feedback (User)
@@ -84,14 +74,12 @@ describe('createIterativeRefiner', () => {
             .mockResolvedValueOnce({ code: "bad" })
             .mockResolvedValueOnce({ code: "good" });
 
-        const execute = vi.fn().mockResolvedValue(null);
         const evaluate = vi.fn()
             .mockResolvedValueOnce({ success: false, feedback: "Syntax Error" })
             .mockResolvedValueOnce({ success: true });
 
         const refiner = createIterativeRefiner({
             generate,
-            execute,
             evaluate,
             maxRetries: 3,
             generatedToMessage: (g) => ({ role: 'assistant', content: `Code: ${g.code}` })
@@ -110,12 +98,10 @@ describe('createIterativeRefiner', () => {
             .mockRejectedValueOnce(new Error("Gen Error"))
             .mockResolvedValueOnce({ value: 10 });
 
-        const execute = vi.fn().mockResolvedValue(20);
         const evaluate = vi.fn().mockResolvedValue({ success: true });
 
         const refiner = createIterativeRefiner({
             generate,
-            execute,
             evaluate,
             maxRetries: 3
         });
@@ -127,12 +113,10 @@ describe('createIterativeRefiner', () => {
 
     it('should return last result when max retries exhausted', async () => {
         const generate = vi.fn().mockResolvedValue({ value: 10 });
-        const execute = vi.fn().mockResolvedValue(20);
         const evaluate = vi.fn().mockResolvedValue({ success: false, feedback: "Fail" });
 
         const refiner = createIterativeRefiner({
             generate,
-            execute,
             evaluate,
             maxRetries: 2
         });
