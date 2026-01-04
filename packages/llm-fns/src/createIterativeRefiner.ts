@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { completionToMessage } from './completionToAssistantMessage.js';
+import { completionToMessage } from './completionToUserMessage.js';
 
 export interface EvaluationResult {
     success: boolean;
@@ -33,15 +33,10 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
 
     /**
      * Converts the generated artifact into a chat message for history.
-     * Defaults to using completionToMessage for objects, or wrapping strings.
+     * Defaults to using completionToMessage for ChatCompletion objects, 
+     * wrapping strings directly, or JSON stringifying other objects.
      */
     generatedToMessage?: (generated: TGenerated) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
-
-    /**
-     * Converts the feedback/error into a chat message for history.
-     * Defaults to creating a user message with the feedback text.
-     */
-    feedbackToMessage?: (feedback: string) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
 }
 
 export function createIterativeRefiner<TInput, TGenerated, TOutput>(
@@ -56,12 +51,11 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
             if (typeof g === 'string') {
                 return { role: 'assistant', content: g };
             }
-            return completionToMessage(g);
-        },
-        feedbackToMessage = (f: string) => ({
-            role: 'user',
-            content: f
-        }) as OpenAI.Chat.Completions.ChatCompletionMessageParam
+            if (g && typeof g === 'object' && 'choices' in g && Array.isArray(g.choices)) {
+                return completionToMessage(g);
+            }
+            return { role: 'assistant', content: JSON.stringify(g) };
+        }
     } = params;
 
     async function run(input: TInput): Promise<{
@@ -90,7 +84,7 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
 
             history.push(generatedToMessage(currentGenerated));
             if (evaluation.feedback) {
-                history.push(feedbackToMessage(evaluation.feedback));
+                history.push({ role: 'user', content: evaluation.feedback });
             }
         }
 

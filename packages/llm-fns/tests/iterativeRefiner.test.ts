@@ -86,15 +86,14 @@ describe('createIterativeRefiner', () => {
             execute,
             evaluate,
             maxRetries: 3,
-            generatedToMessage: (g) => ({ role: 'assistant', content: `Code: ${g.code}` }),
-            feedbackToMessage: (f) => ({ role: 'user', content: `Fix: ${f}` })
+            generatedToMessage: (g) => ({ role: 'assistant', content: `Code: ${g.code}` })
         });
 
         const result = await refiner.run("input");
 
         expect(result.history).toHaveLength(2);
         expect(result.history[0].content).toBe("Code: bad");
-        expect(result.history[1].content).toBe("Fix: Syntax Error");
+        expect(result.history[1].content).toBe("Syntax Error");
     });
 
     it('should handle generation errors and retry', async () => {
