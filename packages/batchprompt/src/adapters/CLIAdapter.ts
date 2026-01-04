@@ -142,7 +142,8 @@ export class CLIAdapter {
             data: {
                 format: 'auto',
                 offset: options.inputOffset ?? options.offset,
-                limit: options.inputLimit ?? options.limit
+                limit: options.inputLimit ?? options.limit,
+                rows: []
             },
             globals,
             steps

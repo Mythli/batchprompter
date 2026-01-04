@@ -243,7 +243,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             verifyCommand: stepDef.verifyCommand,
             postProcessCommand: stepDef.command,
             candidates: stepDef.candidates,
-            noCandidateCommand: stepDef.noCandidateCommand,
+            noCandidateCommand: stepDef.skipCandidateCommand,
             judge: stepDef.judge ? {
                 model: stepDef.judge.model,
                 promptSource: stepDef.judge.prompt as any,
