@@ -44,12 +44,9 @@ export const StepConfigSchema = z.object({
     outputPath: zHandlebars.optional().describe("Template for saving the result to a file (e.g., 'out/{{id}}.md')."),
     schema: zJsonSchemaObject.optional().describe("JSON Schema to enforce structured output from the model."), // Strict: Object only
     candidates: z.number().int().positive().default(1).describe("Number of candidate responses to generate."),
-    skipCandidateCommand: z.boolean().default(false).describe("If true, skips running the post-process command on candidates."),
     judge: ModelConfigSchema.optional().describe("Configuration for a judge model to select the best candidate."),
     feedback: FeedbackConfigSchema.optional().describe("Configuration for a feedback loop to improve the result."),
     aspectRatio: z.string().optional().describe("Aspect ratio for image generation (e.g., '16:9')."),
-    command: zHandlebars.optional().describe("Shell command to run after generation (e.g., for image processing)."),
-    verifyCommand: zHandlebars.optional().describe("Shell command to verify the result."),
     timeout: z.number().int().positive().optional().describe("Timeout in seconds for this step.")
 }).describe("Configuration for a single step in the pipeline.");
 

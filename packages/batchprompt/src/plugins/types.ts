@@ -1,4 +1,3 @@
-import { Command } from 'commander';
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { ServiceCapabilities, ResolvedModelConfig } from '../config/types.js';
@@ -11,6 +10,29 @@ import { ImageSearch } from './image-search/ImageSearch.js';
 import { WebSearch } from './web-search/WebSearch.js';
 import PQueue from 'p-queue';
 import { ContentResolver } from '../core/io/ContentResolver.js';
+
+// =============================================================================
+// Execution Contexts
+// =============================================================================
+
+export interface StepExecutionContext {
+    row: Record<string, any>;
+    workspace: Record<string, any>;
+    stepIndex: number;
+    rowIndex: number;
+    history: any[];
+}
+
+export interface StepHandlers {
+    /** Runs before step execution. Can modify context. */
+    prepare?: (context: StepExecutionContext) => Promise<void>;
+
+    /** Runs to verify content. Returns validity and feedback. */
+    verify?: (content: any, context: StepExecutionContext) => Promise<{ isValid: boolean; feedback?: string }>;
+
+    /** Runs after step execution. Can save artifacts, modify result, etc. */
+    process?: (context: StepExecutionContext, result: any) => Promise<void>;
+}
 
 // =============================================================================
 // Plugin Packet (shared)
@@ -58,19 +80,7 @@ export interface PluginExecutionContext {
     outputExtension?: string;
 
     // Event emitter for artifacts and logs
-    // We use 'any' for args here to avoid strict type checking issues with bind() in ActionRunner
-    // The implementation in ActionRunner ensures the correct events are emitted.
     emit: (event: keyof BatchPromptEvents, ...args: any[]) => void;
-}
-
-/**
- * CLI option definition for plugin registration
- */
-export interface CLIOptionDefinition {
-    flags: string;
-    description: string;
-    defaultValue?: any;
-    parser?: (value: string) => any;
 }
 
 // =============================================================================
@@ -92,24 +102,10 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     readonly configSchema: z.ZodType<TRawConfig>;
 
     /**
-     * CLI option definitions - plugin owns its own flags
-     */
-    readonly cliOptions: CLIOptionDefinition[];
-
-    /**
      * Check if this plugin requires specific capabilities
      * @returns Array of required capability keys
      */
     getRequiredCapabilities(): (keyof ServiceCapabilities)[];
-
-    /**
-     * Parse CLI options into raw plugin config
-     * Called by CLIAdapter to extract plugin config from parsed CLI options
-     */
-    parseCLIOptions(
-        options: Record<string, any>,
-        stepIndex: number
-    ): TRawConfig | null;
 
     /**
      * Optional: Normalize configuration during the loading phase.
@@ -133,12 +129,24 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     ): Promise<TResolvedConfig>;
 
     /**
-     * Execute the plugin
+     * Execute the plugin to gather data/content.
      */
     execute(
         config: TResolvedConfig,
         context: PluginExecutionContext
     ): Promise<PluginResult>;
+
+    /**
+     * Optional: Return lifecycle handlers for this step.
+     * This allows plugins to inject logic into the execution flow (prepare, verify, process).
+     * 
+     * @param config The resolved configuration for this plugin instance.
+     * @param context The execution context (services, row data, etc.).
+     */
+    getHandlers?(
+        config: TResolvedConfig,
+        context: PluginExecutionContext
+    ): Partial<StepHandlers> | Promise<Partial<StepHandlers>>;
 }
 
 // =============================================================================
@@ -167,36 +175,6 @@ export class PluginRegistryV2 {
     }
 
     /**
-     * Register CLI options from all plugins with Commander
-     */
-    registerCLI(program: Command): void {
-        for (const plugin of this.getAll()) {
-            // Global options
-            for (const opt of plugin.cliOptions) {
-                if (opt.parser) {
-                    program.option(opt.flags, opt.description, opt.parser, opt.defaultValue);
-                } else if (opt.defaultValue !== undefined) {
-                    program.option(opt.flags, opt.description, opt.defaultValue);
-                } else {
-                    program.option(opt.flags, opt.description);
-                }
-            }
-
-            // Step-specific options (1-10)
-            for (let i = 1; i <= 10; i++) {
-                for (const opt of plugin.cliOptions) {
-                    const stepFlags = this.makeStepFlags(opt.flags, i);
-                    if (opt.parser) {
-                        program.option(stepFlags, `${opt.description} for step ${i}`, opt.parser);
-                    } else {
-                        program.option(stepFlags, `${opt.description} for step ${i}`);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
      * Validate that required capabilities are available for all plugins in config
      */
     validateCapabilities(
@@ -221,10 +199,5 @@ export class PluginRegistryV2 {
                 }
             }
         }
-    }
-
-    private makeStepFlags(flags: string, stepIndex: number): string {
-        // Convert "--web-search-query <text>" to "--web-search-query-1 <text>"
-        return flags.replace(/^(--[\w-]+)/, `$1-${stepIndex}`);
     }
 }

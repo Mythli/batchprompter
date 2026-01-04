@@ -4,14 +4,12 @@ import OpenAI from 'openai';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginResult,
-    CLIOptionDefinition
+    PluginResult
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { makeSchemaOptional } from '../../utils/schemaUtils.js';
-import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
@@ -90,68 +88,8 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
     // We use the Loose schema for the plugin interface to allow CLI/File inputs
     readonly configSchema = LooseWebsiteAgentConfigSchemaV2;
 
-    readonly cliOptions: CLIOptionDefinition[] = [
-        ...ModelFlags.getOptions('website-navigator', { includePrompt: true }),
-        ...ModelFlags.getOptions('website-extract', { includePrompt: true }),
-        ...ModelFlags.getOptions('website-merge', { includePrompt: true }),
-        { flags: '--website-agent-url <url>', description: 'Starting URL to scrape' },
-        { flags: '--website-agent-schema <path>', description: 'JSON Schema for extraction' },
-        { flags: '--website-agent-budget <number>', description: 'Max pages to visit (default: 10)', parser: parseInt },
-        { flags: '--website-agent-batch-size <number>', description: 'Pages per batch (default: 3)', parser: parseInt },
-        { flags: '--website-agent-export', description: 'Merge results into row' },
-        { flags: '--website-agent-output <column>', description: 'Save to column' }
-    ];
-
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasPuppeteer'];
-    }
-
-    parseCLIOptions(options: Record<string, any>, stepIndex: number): WebsiteAgentRawConfigV2 | null {
-        const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
-            return options[stepKey] ?? options[key];
-        };
-
-        const url = getOpt('websiteAgentUrl');
-        if (!url) return null;
-
-        const navigatorConfig = ModelFlags.extractPluginModel(options, 'websiteNavigator', stepIndex);
-        const extractConfig = ModelFlags.extractPluginModel(options, 'websiteExtract', stepIndex);
-        const mergeConfig = ModelFlags.extractPluginModel(options, 'websiteMerge', stepIndex);
-
-        const exportFlag = getOpt('websiteAgentExport');
-        const outputColumn = getOpt('websiteAgentOutput');
-
-        let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) outputMode = 'column';
-        else if (exportFlag) outputMode = 'merge';
-
-        const partialConfig = {
-            type: 'website-agent',
-            url,
-            schema: getOpt('websiteAgentSchema'),
-            budget: getOpt('websiteAgentBudget'),
-            batchSize: getOpt('websiteAgentBatchSize'),
-            navigatorPrompt: navigatorConfig.prompt,
-            navigatorModel: navigatorConfig.model,
-            navigatorTemperature: navigatorConfig.temperature,
-            navigatorThinkingLevel: navigatorConfig.thinkingLevel,
-            extractPrompt: extractConfig.prompt,
-            extractModel: extractConfig.model,
-            extractTemperature: extractConfig.temperature,
-            extractThinkingLevel: extractConfig.thinkingLevel,
-            mergePrompt: mergeConfig.prompt,
-            mergeModel: mergeConfig.model,
-            mergeTemperature: mergeConfig.temperature,
-            mergeThinkingLevel: mergeConfig.thinkingLevel,
-            output: {
-                mode: outputMode,
-                column: outputColumn,
-                explode: false
-            }
-        };
-
-        return this.configSchema.parse(partialConfig);
     }
 
     async normalizeConfig(

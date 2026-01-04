@@ -4,15 +4,15 @@ import {
     StepDefinition, 
     NormalizedConfig, 
     PluginConfigDefinition,
-    PluginRegistryV2,
     LoosePipelineConfigSchema
 } from 'batchprompt';
+import { CliPluginAdapter } from './interfaces/CliPluginAdapter.js';
 
 /**
  * Merges CLI options into the file configuration.
  * CLI options take precedence.
  */
-function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: string[], pluginRegistry: PluginRegistryV2): any {
+function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: string[], adapters: CliPluginAdapter[]): any {
     const config = JSON.parse(JSON.stringify(fileConfig || {})); // Deep clone
 
     // Ensure basic structure exists
@@ -38,13 +38,10 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
     if (options.offset !== undefined) config.globals.offset = parseInt(String(options.offset), 10);
 
     // --- Step Overrides ---
-    // Determine how many steps we need based on args and options
     let maxStepIndex = config.steps.length;
 
-    // Check args (positional prompts)
     if (args.length > maxStepIndex) maxStepIndex = args.length;
 
-    // Check options for step-specific flags (e.g. --model-2)
     Object.keys(options).forEach(key => {
         const match = key.match(/(\d+)(?:[A-Z]|$)/);
         if (match) {
@@ -53,7 +50,6 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
         }
     });
 
-    // Ensure steps array is populated
     for (let i = 0; i < maxStepIndex; i++) {
         if (!config.steps[i]) {
             config.steps[i] = {};
@@ -64,9 +60,7 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
         const stepNum = i + 1;
         const step = config.steps[i];
 
-        // Positional Prompt (args[0] is step 1)
         if (args[i]) {
-            // Override existing prompt with CLI argument
             step.prompt = args[i];
         }
 
@@ -76,11 +70,11 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
         if (options[`temperature${stepNum}`] !== undefined) step.model.temperature = parseFloat(String(options[`temperature${stepNum}`]));
         if (options[`thinkingLevel${stepNum}`]) step.model.thinkingLevel = options[`thinkingLevel${stepNum}`];
         if (options[`system${stepNum}`]) step.system = options[`system${stepNum}`];
-        if (options[`prompt${stepNum}`]) step.prompt = options[`prompt${stepNum}`]; // Override prompt flag
+        if (options[`prompt${stepNum}`]) step.prompt = options[`prompt${stepNum}`];
 
         // Output Config
         step.output = step.output || {};
-        if (options[`output${stepNum}`]) step.outputPath = options[`output${stepNum}`]; // This is actually top-level in StepConfig, not inside output object
+        if (options[`output${stepNum}`]) step.outputPath = options[`output${stepNum}`];
         if (options[`outputColumn${stepNum}`]) {
             step.output.mode = 'column';
             step.output.column = options[`outputColumn${stepNum}`];
@@ -88,7 +82,6 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
         if (options[`export${stepNum}`]) step.output.mode = 'merge';
         if (options[`explode${stepNum}`]) step.output.explode = true;
 
-        // Step-Specific Limits
         if (options[`limit${stepNum}`] !== undefined) {
             step.output.limit = parseInt(String(options[`limit${stepNum}`]), 10);
         }
@@ -98,10 +91,7 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
 
         // Other Step Settings
         if (options[`candidates${stepNum}`] !== undefined) step.candidates = parseInt(String(options[`candidates${stepNum}`]), 10);
-        if (options[`skipCandidateCommand${stepNum}`]) step.skipCandidateCommand = true;
         if (options[`aspectRatio${stepNum}`]) step.aspectRatio = options[`aspectRatio${stepNum}`];
-        if (options[`command${stepNum}`]) step.command = options[`command${stepNum}`];
-        if (options[`verifyCommand${stepNum}`]) step.verifyCommand = options[`verifyCommand${stepNum}`];
         if (options[`timeout${stepNum}`] !== undefined) step.timeout = parseInt(String(options[`timeout${stepNum}`]), 10);
         if (options[`jsonSchema${stepNum}`]) step.schema = options[`jsonSchema${stepNum}`];
 
@@ -124,13 +114,16 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
             step.feedback.loops = parseInt(String(options[`feedbackLoops${stepNum}`]), 10);
         }
 
-        // --- Plugin Overrides ---
+        // --- Plugin Overrides via Adapters ---
         step.plugins = step.plugins || [];
 
-        for (const plugin of pluginRegistry.getAll()) {
-            const pluginConfig = plugin.parseCLIOptions(options, stepNum);
+        for (const adapter of adapters) {
+            const pluginConfig = adapter.parseOptions(options, stepNum);
             if (pluginConfig) {
-                step.plugins.push(pluginConfig);
+                step.plugins.push({
+                    type: adapter.plugin.type,
+                    ...pluginConfig
+                });
             }
         }
     }
@@ -142,7 +135,7 @@ function mergeCliOverrides(fileConfig: any, options: Record<string, any>, args: 
 // Main Schema Logic
 // =============================================================================
 
-export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object({
+export const createConfigSchema = (adapters: CliPluginAdapter[]) => z.object({
     fileConfig: z.any(),
     options: z.record(z.string(), z.any()),
     args: z.array(z.string())
@@ -150,12 +143,7 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
     const { fileConfig, options, args } = input;
 
     // 1. Merge CLI overrides into file config
-    const mergedConfig = mergeCliOverrides(fileConfig, options, args, pluginRegistry);
-
-    if (options.limit !== undefined) {
-        console.log(`[ConfigSchema] Global limit from CLI: ${options.limit}`);
-        console.log(`[ConfigSchema] Merged global limit: ${mergedConfig.globals.limit}`);
-    }
+    const mergedConfig = mergeCliOverrides(fileConfig, options, args, adapters);
 
     // 2. Validate against Loose Zod schema (allows strings)
     let config;
@@ -195,16 +183,16 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
         // Resolve Plugins
         const plugins: PluginConfigDefinition[] = [];
         stepDef.plugins.forEach((pluginConfig, pIdx) => {
-            const plugin = pluginRegistry.get(pluginConfig.type);
-            if (plugin) {
-                // Normalize immediately using the plugin's schema.
+            // Find the adapter for this plugin type to get the schema
+            const adapter = adapters.find(a => a.plugin.type === pluginConfig.type);
+            
+            if (adapter) {
                 try {
-                    const validatedConfig = plugin.configSchema.parse(pluginConfig);
+                    const validatedConfig = adapter.plugin.configSchema.parse(pluginConfig);
 
                     // Apply Global Limits to Plugin Output
                     if (validatedConfig.output.explode) {
                         if (validatedConfig.output.limit === undefined && config.globals.limit !== undefined) {
-                            console.log(`[ConfigSchema] Applying global limit ${config.globals.limit} to plugin ${pluginConfig.type}`);
                             validatedConfig.output.limit = config.globals.limit;
                         }
                         if (validatedConfig.output.offset === undefined && config.globals.offset !== undefined) {
@@ -222,6 +210,18 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
                     console.error(JSON.stringify(pluginConfig, null, 2));
                     throw e;
                 }
+            } else {
+                // If no adapter found (e.g. core plugin without CLI adapter?), try to find in registry if we had access
+                // But here we rely on adapters list.
+                // If it's a valid plugin in config but no adapter, we might skip validation here?
+                // Or we should have passed registry.
+                // For now, assume all plugins have adapters or we skip validation.
+                // Actually, we should probably just push it if it's in the config file.
+                plugins.push({
+                    name: pluginConfig.type,
+                    config: pluginConfig,
+                    output: pluginConfig.output
+                });
             }
         });
 
@@ -245,10 +245,8 @@ export const createConfigSchema = (pluginRegistry: PluginRegistryV2) => z.object
             schemaPath: typeof stepDef.schema === 'string' ? stepDef.schema : undefined,
             jsonSchema: typeof stepDef.schema === 'object' ? stepDef.schema : undefined,
 
-            verifyCommand: stepDef.verifyCommand,
-            postProcessCommand: stepDef.command,
             candidates: stepDef.candidates,
-            noCandidateCommand: stepDef.skipCandidateCommand,
+            noCandidateCommand: false, // Removed
             judge: stepDef.judge ? {
                 model: stepDef.judge.model,
                 promptSource: stepDef.judge.prompt as any,

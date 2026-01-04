@@ -1,13 +1,11 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
-import path from 'path';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginResult,
-    CLIOptionDefinition
+    PluginResult
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
@@ -54,51 +52,8 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
     readonly configSchema = StyleScraperConfigSchemaV2;
     public readonly events = new EventEmitter();
 
-    readonly cliOptions: CLIOptionDefinition[] = [
-        { flags: '--style-scrape-url <url>', description: 'URL to scrape styles from' },
-        { flags: '--style-scrape-resolution <res>', description: 'Viewport resolution (default: 1920x1080)' },
-        { flags: '--style-scrape-mobile', description: 'Capture mobile screenshot' },
-        { flags: '--style-scrape-interactive', description: 'Capture interactive elements' },
-        { flags: '--style-scraper-export', description: 'Merge results into row' },
-        { flags: '--style-scraper-output <column>', description: 'Save to column' }
-    ];
-
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasPuppeteer'];
-    }
-
-    parseCLIOptions(options: Record<string, any>, stepIndex: number): StyleScraperRawConfigV2 | null {
-        const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
-            return options[stepKey] ?? options[key];
-        };
-
-        const url = getOpt('styleScrapeUrl');
-        if (!url) return null;
-
-        const exportFlag = getOpt('styleScraperExport');
-        const outputColumn = getOpt('styleScraperOutput');
-
-        let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) outputMode = 'column';
-        else if (exportFlag) outputMode = 'merge';
-
-        // Return raw config - Zod will apply defaults
-        const partialConfig = {
-            type: 'style-scraper',
-            url,
-            resolution: getOpt('styleScrapeResolution'),
-            mobile: getOpt('styleScrapeMobile'),
-            interactive: getOpt('styleScrapeInteractive'),
-            output: {
-                mode: outputMode,
-                column: outputColumn,
-                explode: false
-            }
-        };
-
-        // Parse through Zod to apply defaults
-        return this.configSchema.parse(partialConfig);
     }
 
     async resolveConfig(

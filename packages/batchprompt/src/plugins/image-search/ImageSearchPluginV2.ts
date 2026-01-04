@@ -1,17 +1,14 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import OpenAI from 'openai';
-import path from 'path';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginResult,
-    CLIOptionDefinition
+    PluginResult
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
@@ -81,86 +78,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     readonly type = 'image-search';
     readonly configSchema = ImageSearchConfigSchemaV2;
 
-    readonly cliOptions: CLIOptionDefinition[] = [
-        // Query model options
-        ...ModelFlags.getOptions('image-query', { includePrompt: true }),
-        // Select model options
-        ...ModelFlags.getOptions('image-select', { includePrompt: true }),
-        // Search options
-        { flags: '--image-search-query <text>', description: 'Static image search query' },
-        { flags: '--image-search-limit <number>', description: 'Images per query (default: 12)', parser: parseInt },
-        { flags: '--image-search-select <number>', description: 'Images to select (default: 1)', parser: parseInt },
-        { flags: '--image-search-query-count <number>', description: 'Queries to generate (default: 3)', parser: parseInt },
-        { flags: '--image-search-sprite-size <number>', description: 'Images per sprite (default: 4)', parser: parseInt },
-        { flags: '--image-search-max-pages <number>', description: 'Max pages per query (default: 1)', parser: parseInt },
-        { flags: '--image-search-dedupe-strategy <strategy>', description: 'Deduplication (default: url)' },
-        { flags: '--image-search-gl <country>', description: 'Country code' },
-        { flags: '--image-search-hl <lang>', description: 'Language code' },
-        // Output options
-        { flags: '--image-search-export', description: 'Merge results into row' },
-        { flags: '--image-search-explode', description: 'Explode results' },
-        { flags: '--image-search-output <column>', description: 'Save to column' }
-    ];
-
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasSerper'];
-    }
-
-    parseCLIOptions(options: Record<string, any>, stepIndex: number): ImageSearchRawConfigV2 | null {
-        const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
-            return options[stepKey] ?? options[key];
-        };
-
-        const query = getOpt('imageSearchQuery');
-        const queryConfig = ModelFlags.extractPluginModel(options, 'imageQuery', stepIndex);
-        const selectConfig = ModelFlags.extractPluginModel(options, 'imageSelect', stepIndex);
-
-        // Only activate if query or queryPrompt or selectPrompt is provided
-        if (!query && !queryConfig.prompt && !selectConfig.prompt) {
-            return null;
-        }
-
-        const exportFlag = getOpt('imageSearchExport');
-        const explodeFlag = getOpt('imageSearchExplode');
-        const outputColumn = getOpt('imageSearchOutput');
-
-        let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) outputMode = 'column';
-        else if (exportFlag) outputMode = 'merge';
-
-        // Return raw config - Zod will apply defaults
-        const partialConfig = {
-            type: 'image-search',
-            query,
-            // Query model
-            queryPrompt: queryConfig.prompt,
-            queryModel: queryConfig.model,
-            queryTemperature: queryConfig.temperature,
-            queryThinkingLevel: queryConfig.thinkingLevel,
-            // Select model
-            selectPrompt: selectConfig.prompt,
-            selectModel: selectConfig.model,
-            selectTemperature: selectConfig.temperature,
-            selectThinkingLevel: selectConfig.thinkingLevel,
-            // Search options
-            limit: getOpt('imageSearchLimit'),
-            select: getOpt('imageSearchSelect'),
-            queryCount: getOpt('imageSearchQueryCount'),
-            spriteSize: getOpt('imageSearchSpriteSize'),
-            maxPages: getOpt('imageSearchMaxPages'),
-            dedupeStrategy: getOpt('imageSearchDedupeStrategy'),
-            gl: getOpt('imageSearchGl'),
-            hl: getOpt('imageSearchHl'),
-            output: {
-                mode: outputMode,
-                column: outputColumn,
-                explode: explodeFlag
-            }
-        };
-
-        // Parse through Zod to apply defaults
-        return this.configSchema.parse(partialConfig);
     }
 
     async resolveConfig(

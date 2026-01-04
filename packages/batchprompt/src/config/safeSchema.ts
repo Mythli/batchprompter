@@ -5,12 +5,8 @@ import {
     StepConfigSchema // This is now the Strict version
 } from './schema.js';
 
-// Omit command execution fields for safety
-export const SafeStepConfigSchema = StepConfigSchema.omit({
-    command: true,
-    verifyCommand: true,
-    skipCandidateCommand: true
-});
+// SafeStepConfigSchema is now identical to StepConfigSchema as command fields were removed
+export const SafeStepConfigSchema = StepConfigSchema;
 
 export const SafePipelineConfigSchema = z.object({
     data: DataConfigSchema.optional().default(DataConfigSchema.parse({})),

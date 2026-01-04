@@ -4,17 +4,14 @@ import path from 'path';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginResult,
-    CLIOptionDefinition
+    PluginResult
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { ModelFlags } from '../../cli/ModelFlags.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
-import { EventEmitter } from 'eventemitter3';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
 
@@ -80,68 +77,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
     readonly type = 'logo-scraper';
     readonly configSchema = LogoScraperConfigSchemaV2;
 
-    readonly cliOptions: CLIOptionDefinition[] = [
-        { flags: '--logo-scraper-url <url>', description: 'URL to scrape logos from' },
-        ...ModelFlags.getOptions('logo-analyze', { includePrompt: true }),
-        ...ModelFlags.getOptions('logo-extract', { includePrompt: true }),
-        { flags: '--logo-scraper-max-candidates <number>', description: 'Max logo candidates to download', parser: parseInt },
-        { flags: '--logo-scraper-min-score <number>', description: 'Min score (1-10) to keep a logo', parser: parseInt },
-        { flags: '--logo-scraper-logo-path <path>', description: 'Path to save the best logo (supports templates)' },
-        { flags: '--logo-scraper-favicon-path <path>', description: 'Path to save the best favicon (supports templates)' },
-        { flags: '--logo-scraper-logo-limit <number>', description: 'Max logos to save (default: 1)', parser: parseInt },
-        { flags: '--logo-scraper-favicon-limit <number>', description: 'Max favicons to save (default: 1)', parser: parseInt },
-        { flags: '--logo-scraper-export', description: 'Merge results into row' },
-        { flags: '--logo-scraper-output <column>', description: 'Save to column' }
-    ];
-
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasPuppeteer'];
-    }
-
-    parseCLIOptions(options: Record<string, any>, stepIndex: number): LogoScraperRawConfigV2 | null {
-        const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
-            return options[stepKey] ?? options[key];
-        };
-
-        const url = getOpt('logoScraperUrl');
-        if (!url) return null;
-
-        const analyzeConfig = ModelFlags.extractPluginModel(options, 'logoAnalyze', stepIndex);
-        const extractConfig = ModelFlags.extractPluginModel(options, 'logoExtract', stepIndex);
-
-        const exportFlag = getOpt('logoScraperExport');
-        const outputColumn = getOpt('logoScraperOutput');
-
-        let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) outputMode = 'column';
-        else if (exportFlag) outputMode = 'merge';
-
-        const partialConfig = {
-            type: 'logo-scraper',
-            url,
-            analyzeModel: analyzeConfig.model,
-            analyzeTemperature: analyzeConfig.temperature,
-            analyzeThinkingLevel: analyzeConfig.thinkingLevel,
-            analyzePrompt: analyzeConfig.prompt,
-            extractModel: extractConfig.model,
-            extractTemperature: extractConfig.temperature,
-            extractThinkingLevel: extractConfig.thinkingLevel,
-            extractPrompt: extractConfig.prompt,
-            maxCandidates: getOpt('logoScraperMaxCandidates'),
-            minScore: getOpt('logoScraperMinScore'),
-            logoPath: getOpt('logoScraperLogoPath'),
-            faviconPath: getOpt('logoScraperFaviconPath'),
-            logoLimit: getOpt('logoScraperLogoLimit'),
-            faviconLimit: getOpt('logoScraperFaviconLimit'),
-            output: {
-                mode: outputMode,
-                column: outputColumn,
-                explode: false
-            }
-        };
-
-        return this.configSchema.parse(partialConfig);
     }
 
     async resolveConfig(

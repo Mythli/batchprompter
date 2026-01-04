@@ -13,14 +13,30 @@ import {
     ConfigRefiner,
     InMemoryConfigExecutor,
     getUniqueRows,
-    SchemaLoader,
-    PromptLoader
+    WebSearchPluginV2,
+    ImageSearchPluginV2,
+    WebsiteAgentPluginV2,
+    StyleScraperPluginV2,
+    ValidationPluginV2,
+    DedupePluginV2,
+    LogoScraperPluginV2
 } from 'batchprompt';
 import { getConfig } from './getConfig.js';
 import { StepRegistry } from './StepRegistry.js';
 import { FileSystemArtifactHandler } from './handlers/FileSystemArtifactHandler.js';
 import { FileAdapter } from './io/FileAdapter.js';
 import Papa from 'papaparse';
+
+// Adapters
+import { WebSearchAdapter } from './adapters/WebSearchAdapter.js';
+import { ImageSearchAdapter } from './adapters/ImageSearchAdapter.js';
+import { WebsiteAgentAdapter } from './adapters/WebsiteAgentAdapter.js';
+import { StyleScraperAdapter } from './adapters/StyleScraperAdapter.js';
+import { ValidationAdapter } from './adapters/ValidationAdapter.js';
+import { DedupeAdapter } from './adapters/DedupeAdapter.js';
+import { LogoScraperAdapter } from './adapters/LogoScraperAdapter.js';
+import { ShellAdapter } from './adapters/ShellAdapter.js';
+import { ShellPlugin } from './plugins/ShellPlugin.js';
 
 const program = new Command();
 
@@ -33,22 +49,32 @@ const generateCmd = program.command('generate')
     .argument('[template-files...]', 'Path to the prompt template files (text, image, audio, or directory)');
 
 // Create a registry for CLI configuration purposes only
-// At this point we don't know actual capabilities, so we assume all are available
-// Actual validation happens during normalize() when real capabilities are known
 const cliCapabilities: ServiceCapabilities = {
-    hasSerper: true,  // Assume available for CLI registration
+    hasSerper: true,
     hasPuppeteer: true
 };
 const cliRegistry = createDefaultRegistry(cliCapabilities);
 
+// Initialize Plugins and Adapters
+const shellPlugin = new ShellPlugin();
+const adapters = [
+    new WebSearchAdapter(new WebSearchPluginV2()),
+    new ImageSearchAdapter(new ImageSearchPluginV2()),
+    new WebsiteAgentAdapter(new WebsiteAgentPluginV2()),
+    new StyleScraperAdapter(new StyleScraperPluginV2()),
+    new ValidationAdapter(new ValidationPluginV2()),
+    new DedupeAdapter(new DedupePluginV2()),
+    new LogoScraperAdapter(new LogoScraperPluginV2()),
+    new ShellAdapter(shellPlugin)
+];
+
 // Register all step arguments
-StepRegistry.registerStepArgs(generateCmd, cliRegistry);
+const stepRegistry = new StepRegistry(adapters);
+stepRegistry.registerStepArgs(generateCmd, cliRegistry);
 
 generateCmd.action(async (templateFilePaths, options) => {
     let puppeteerHelperInstance;
     try {
-        // Get the runner from DI first to get actual capabilities
-        // getConfig now injects FileSystemContentResolver internally
         const { 
             actionRunner, 
             puppeteerHelper, 
@@ -59,45 +85,36 @@ generateCmd.action(async (templateFilePaths, options) => {
             promptLoader
         } = await getConfig();
         
+        // Register ShellPlugin in the runtime registry
+        pluginRegistry.register(shellPlugin);
+        
         puppeteerHelperInstance = puppeteerHelper;
-        const contentResolver = globalContext.contentResolver;
 
         let fileConfig = {};
 
-        // Check if we're using a config file
         if (options.config) {
             const fileAdapter = new FileAdapter();
             fileConfig = await fileAdapter.load(options.config);
         }
 
-        // Parse Config (Merge File + CLI)
-        const config = await StepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry, schemaLoader, promptLoader);
+        const config = await stepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry, schemaLoader, promptLoader);
 
-        // Initialize Artifact Handler
-        // We use the tmpDir from the parsed runtime config
         new FileSystemArtifactHandler(globalContext.events, config.tmpDir);
-
-        // Initialize Debug Logger
         new DebugLogger(globalContext.events);
 
-        // Collect results for output
         const results: any[] = [];
         globalContext.events.on('row:end', ({ result }) => {
             results.push(result);
         });
 
-        // Update the runtime config with the resolved concurrency values if they weren't in CLI args
-        // This ensures ActionRunner uses the correct values (Env > Default) if CLI didn't specify them
         const finalConfig = {
             ...config,
             concurrency: config.concurrency ?? resolvedConfig.GPT_CONCURRENCY,
             taskConcurrency: config.taskConcurrency ?? resolvedConfig.TASK_CONCURRENCY
         };
 
-        // Run
         await actionRunner.run(finalConfig);
 
-        // Write Data Output (CSV/JSON)
         if (config.dataOutputPath && results.length > 0) {
             const outDir = path.dirname(config.dataOutputPath);
             if (!fs.existsSync(outDir)) {
@@ -118,14 +135,12 @@ generateCmd.action(async (templateFilePaths, options) => {
             console.log(`\nData written to ${config.dataOutputPath}`);
         }
 
-        // Cleanup
         if (puppeteerHelperInstance) {
             await puppeteerHelperInstance.close();
         }
         process.exit(0);
     } catch (e: any) {
         console.error(e);
-        // Cleanup on error
         if (puppeteerHelperInstance) {
             await puppeteerHelperInstance.close();
         }
@@ -142,14 +157,12 @@ program.command('init')
     .action(async (promptArg, options) => {
         let puppeteerHelperInstance;
         try {
-            // 1. Prompt for description if not provided
             let prompt = promptArg;
             if (!prompt) {
                 console.error('Error: Please provide a prompt description.');
                 process.exit(1);
             }
 
-            // 2. Load Sample Data
             let sampleRows: any[] = [];
             if (options.data) {
                 const dataPath = path.resolve(options.data);
@@ -173,17 +186,14 @@ program.command('init')
                     }
                 }
 
-                // Limit to 10 unique rows for the LLM context
                 sampleRows = getUniqueRows(sampleRows, 5);
                 console.log(`Loaded ${sampleRows.length} sample rows from ${options.data}`);
             }
 
-            // 3. Initialize Core
             const { actionRunner, llmFactory, pluginRegistry, globalContext, puppeteerHelper } = await getConfig();
             puppeteerHelperInstance = puppeteerHelper;
             const contentResolver = globalContext.contentResolver;
 
-            // 4. Setup Executor
             const executor = new InMemoryConfigExecutor(
                 actionRunner,
                 pluginRegistry,
@@ -191,7 +201,6 @@ program.command('init')
                 contentResolver
             );
 
-            // 5. Setup LLMs
             const generatorLlm = llmFactory.create({
                 model: options.model,
                 thinkingLevel: 'high',
@@ -206,7 +215,6 @@ program.command('init')
                 promptParts: []
             }).getRawClient();
 
-            // 6. Run Refiner
             console.error('Generating configuration... (this may take a minute)');
             const refiner = new ConfigRefiner(generatorLlm, judgeLlm, executor, { maxRetries: 3 });
 
@@ -221,7 +229,6 @@ program.command('init')
                 process.exit(1);
             }
 
-            // 7. Save Result
             const config = result.generated;
 
             if (options.output) {
@@ -231,7 +238,6 @@ program.command('init')
                 console.log(JSON.stringify(config, null, 2));
             }
 
-            // Cleanup
             if (puppeteerHelperInstance) {
                 await puppeteerHelperInstance.close();
             }

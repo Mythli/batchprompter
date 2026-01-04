@@ -7,6 +7,7 @@ import {
     OutputConfigSchema,
     PromptDefSchema,
 } from './schema.js';
+import { StepHandlers } from '../plugins/types.js';
 
 // =============================================================================
 // Inferred Types from Zod Schemas (Raw Config)
@@ -64,17 +65,17 @@ export interface ResolvedStepConfig {
     outputTemplate?: string;
     schema?: any;
     candidates: number;
-    skipCandidateCommand: boolean;
     judge?: ResolvedModelConfig;
     feedback?: ResolvedModelConfig & { loops: number };
     aspectRatio?: string;
-    command?: string;
-    verifyCommand?: string;
     tmpDir: string;
     outputDir?: string;
     outputBasename?: string;
     outputExtension?: string;
     timeout: number;
+    
+    // Handlers for logic injection
+    handlers?: StepHandlers;
 }
 
 export interface ResolvedPipelineConfig {

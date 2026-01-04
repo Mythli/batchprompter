@@ -4,13 +4,11 @@ import {
     Plugin,
     PluginExecutionContext,
     PluginResult,
-    CLIOptionDefinition,
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { ModelFlags } from '../../cli/ModelFlags.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
@@ -90,93 +88,8 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     readonly type = 'web-search';
     readonly configSchema = WebSearchConfigSchemaV2;
 
-    readonly cliOptions: CLIOptionDefinition[] = [
-        // Query model options
-        ...ModelFlags.getOptions('web-query', { includePrompt: true }),
-        // Select model options
-        ...ModelFlags.getOptions('web-select', { includePrompt: true }),
-        // Compress model options
-        ...ModelFlags.getOptions('web-compress', { includePrompt: true }),
-        // Search options
-        { flags: '--web-search-query <text>', description: 'Static search query' },
-        { flags: '--web-search-limit <number>', description: 'Max total results (default: 5)', parser: parseInt },
-        { flags: '--web-search-mode <mode>', description: 'Content mode: none/markdown/html (default: none)' },
-        { flags: '--web-search-query-count <number>', description: 'Queries to generate (default: 3)', parser: parseInt },
-        { flags: '--web-search-max-pages <number>', description: 'Max pages per query (default: 1)', parser: parseInt },
-        { flags: '--web-search-dedupe-strategy <strategy>', description: 'Deduplication: none/domain/url (default: none)' },
-        { flags: '--web-search-gl <country>', description: 'Country code for search' },
-        { flags: '--web-search-hl <lang>', description: 'Language code for search' },
-        // Output options
-        { flags: '--web-search-export', description: 'Merge results into row' },
-        { flags: '--web-search-explode', description: 'Explode results into multiple rows' },
-        { flags: '--web-search-output <column>', description: 'Save results to column' }
-    ];
-
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasSerper'];
-    }
-
-    parseCLIOptions(options: Record<string, any>, stepIndex: number): WebSearchRawConfigV2 | null {
-        const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
-            return options[stepKey] ?? options[key];
-        };
-
-        const query = getOpt('webSearchQuery');
-        const queryConfig = ModelFlags.extractPluginModel(options, 'webQuery', stepIndex);
-        const selectConfig = ModelFlags.extractPluginModel(options, 'webSelect', stepIndex);
-        const compressConfig = ModelFlags.extractPluginModel(options, 'webCompress', stepIndex);
-
-        // Only activate if query or queryPrompt is provided
-        if (!query && !queryConfig.prompt) {
-            return null;
-        }
-
-        // Parse output config
-        const exportFlag = getOpt('webSearchExport');
-        const explodeFlag = getOpt('webSearchExplode');
-        const outputColumn = getOpt('webSearchOutput');
-
-        let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) outputMode = 'column';
-        else if (exportFlag) outputMode = 'merge';
-
-        // Return raw config - Zod will apply defaults
-        const partialConfig = {
-            type: 'web-search',
-            query,
-            // Query model
-            queryPrompt: queryConfig.prompt,
-            queryModel: queryConfig.model,
-            queryTemperature: queryConfig.temperature,
-            queryThinkingLevel: queryConfig.thinkingLevel,
-            // Select model
-            selectPrompt: selectConfig.prompt,
-            selectModel: selectConfig.model,
-            selectTemperature: selectConfig.temperature,
-            selectThinkingLevel: selectConfig.thinkingLevel,
-            // Compress model
-            compressPrompt: compressConfig.prompt,
-            compressModel: compressConfig.model,
-            compressTemperature: compressConfig.temperature,
-            compressThinkingLevel: compressConfig.thinkingLevel,
-            // Search options
-            limit: getOpt('webSearchLimit'),
-            mode: getOpt('webSearchMode'),
-            queryCount: getOpt('webSearchQueryCount'),
-            maxPages: getOpt('webSearchMaxPages'),
-            dedupeStrategy: getOpt('webSearchDedupeStrategy'),
-            gl: getOpt('webSearchGl'),
-            hl: getOpt('webSearchHl'),
-            output: {
-                mode: outputMode,
-                column: outputColumn,
-                explode: explodeFlag
-            }
-        };
-
-        // Parse through Zod to apply defaults
-        return this.configSchema.parse(partialConfig);
     }
 
     async resolveConfig(

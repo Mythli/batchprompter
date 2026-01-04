@@ -5,8 +5,7 @@ import { EventEmitter } from 'eventemitter3';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginResult,
-    CLIOptionDefinition
+    PluginResult
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/resolvedTypes.js';
 import { OutputConfigSchema } from '../../config/common.js';
@@ -54,35 +53,8 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         this.ajv = new Ajv.default ? new Ajv.default() : new Ajv();
     }
 
-    readonly cliOptions: CLIOptionDefinition[] = [
-        { flags: `--validate-schema <path>`, description: 'JSON Schema for validation' },
-        { flags: `--validate-target <template>`, description: 'Data to validate (Handlebars template)' }
-    ];
-
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return [];
-    }
-
-    parseCLIOptions(options: Record<string, any>, stepIndex: number): ValidationRawConfigV2 | null {
-        const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
-            return options[stepKey] ?? options[key];
-        };
-
-        const schema = getOpt('validateSchema');
-        if (!schema) return null;
-
-        const partialConfig = {
-            type: 'validation',
-            schema,
-            target: getOpt('validateTarget'),
-            output: {
-                mode: 'ignore',
-                explode: false
-            }
-        };
-
-        return this.configSchema.parse(partialConfig);
     }
 
     async normalizeConfig(

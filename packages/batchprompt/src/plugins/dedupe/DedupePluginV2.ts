@@ -4,8 +4,7 @@ import { EventEmitter } from 'eventemitter3';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginResult,
-    CLIOptionDefinition
+    PluginResult
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
@@ -48,33 +47,8 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
     readonly configSchema = DedupeConfigSchemaV2;
     public readonly events = new EventEmitter();
 
-    readonly cliOptions: CLIOptionDefinition[] = [
-        { flags: '--dedupe-key <template>', description: 'Deduplication key (Handlebars template)' }
-    ];
-
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return [];
-    }
-
-    parseCLIOptions(options: Record<string, any>, stepIndex: number): DedupeRawConfigV2 | null {
-        const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
-            return options[stepKey] ?? options[key];
-        };
-
-        const key = getOpt('dedupeKey');
-        if (!key) return null;
-
-        const partialConfig = {
-            type: 'dedupe',
-            key,
-            output: {
-                mode: 'ignore',
-                explode: false
-            }
-        };
-
-        return this.configSchema.parse(partialConfig);
     }
 
     async resolveConfig(
