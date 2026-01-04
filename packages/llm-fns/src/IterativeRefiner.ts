@@ -1,20 +1,16 @@
+import OpenAI from 'openai';
+
 export interface EvaluationResult {
     success: boolean;
     feedback?: string;
 }
 
-export interface IterationHistory<TGenerated> {
-    generated?: TGenerated;
-    feedback?: string;
-    error?: string;
-}
-
 export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
     /**
      * Function to generate the artifact.
-     * Receives the input and the history of previous attempts.
+     * Receives the input and the history of previous attempts (as chat messages).
      */
-    generate: (input: TInput, history: IterationHistory<TGenerated>[]) => Promise<TGenerated>;
+    generate: (input: TInput, history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => Promise<TGenerated>;
 
     /**
      * Function to execute the generated artifact.
@@ -32,15 +28,45 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
      * Maximum number of retries. Defaults to 3.
      */
     maxRetries?: number;
+
+    /**
+     * Converts the generated artifact into a chat message for history.
+     * Defaults to creating an assistant message with JSON.stringify(generated).
+     */
+    generatedToMessage?: (generated: TGenerated) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
+
+    /**
+     * Converts the feedback/error into a chat message for history.
+     * Defaults to creating a user message with the feedback text.
+     */
+    feedbackToMessage?: (feedback: string) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
 }
 
 export function createIterativeRefiner<TInput, TGenerated, TOutput>(
     params: CreateIterativeRefinerParams<TInput, TGenerated, TOutput>
 ) {
-    const { generate, execute, evaluate, maxRetries = 3 } = params;
+    const { 
+        generate, 
+        execute, 
+        evaluate, 
+        maxRetries = 3,
+        generatedToMessage = (g: any) => ({ 
+            role: 'assistant', 
+            content: typeof g === 'string' ? g : JSON.stringify(g) 
+        }) as OpenAI.Chat.Completions.ChatCompletionMessageParam,
+        feedbackToMessage = (f: string) => ({ 
+            role: 'user', 
+            content: f 
+        }) as OpenAI.Chat.Completions.ChatCompletionMessageParam
+    } = params;
 
-    async function run(input: TInput): Promise<{ generated: TGenerated; output?: TOutput; iterations: number; history: IterationHistory<TGenerated>[] }> {
-        const history: IterationHistory<TGenerated>[] = [];
+    async function run(input: TInput): Promise<{ 
+        generated: TGenerated; 
+        output?: TOutput; 
+        iterations: number; 
+        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[] 
+    }> {
+        const history: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
         let currentGenerated: TGenerated | undefined;
         let lastOutput: TOutput | undefined;
 
@@ -58,10 +84,10 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
                 return { generated: currentGenerated, output: lastOutput, iterations: i + 1, history };
             }
 
-            history.push({
-                generated: currentGenerated,
-                feedback: evaluation.feedback
-            });
+            history.push(generatedToMessage(currentGenerated));
+            if (evaluation.feedback) {
+                history.push(feedbackToMessage(evaluation.feedback));
+            }
         }
 
         if (!currentGenerated) {
