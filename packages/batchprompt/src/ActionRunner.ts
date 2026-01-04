@@ -3,7 +3,6 @@ import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext, OutputStrategy,
 import { StepExecutor } from './StepExecutor.js';
 import { PluginRegistryV2, PluginPacket, PluginServices } from './plugins/types.js';
 import { ResultProcessor } from './core/ResultProcessor.js';
-import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
 import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
 
@@ -16,7 +15,6 @@ export class ActionRunner {
     constructor(
         private globalContext: GlobalContext,
         private pluginRegistry: PluginRegistryV2,
-        private preprocessorRegistry: PromptPreprocessorRegistry,
         private stepResolver: StepResolver,
         private messageBuilder: MessageBuilder
     ) {}
@@ -99,7 +97,7 @@ export class ActionRunner {
                 });
 
                 const executionPromise = (async () => {
-                    // A. Plugins
+                    // A. Plugins (Execute Phase)
                     activeItems = await this.executePlugins(
                         activeItems,
                         resolvedStep,
@@ -114,7 +112,9 @@ export class ActionRunner {
                         resolvedStep,
                         stepContext,
                         stepNum,
-                        executor
+                        executor,
+                        pluginServices,
+                        resolvedStep.resolvedTempDir || config.tmpDir
                     );
                 })();
 
@@ -252,8 +252,16 @@ export class ActionRunner {
         resolvedStep: StepConfig,
         stepContext: StepContext,
         stepNum: number,
-        executor: StepExecutor
+        executor: StepExecutor,
+        services: PluginServices,
+        tempDir: string
     ): Promise<PipelineItem[]> {
+
+        const inheritedModel = {
+            model: resolvedStep.modelConfig.model || this.globalContext.defaultModel,
+            temperature: resolvedStep.modelConfig.temperature,
+            thinkingLevel: resolvedStep.modelConfig.thinkingLevel
+        };
 
         return this.processBatch(
             items,
@@ -267,17 +275,30 @@ export class ActionRunner {
 
                 let effectiveParts = [...currentItem.accumulatedContent, ...resolvedStep.userPromptParts];
 
-                for (const ppDef of resolvedStep.preprocessors) {
-                    const preprocessor = this.preprocessorRegistry.get(ppDef.name);
-                    if (preprocessor) {
-                        effectiveParts = await preprocessor.process(effectiveParts, {
+                // Run Plugin Transforms (Preprocessors)
+                for (let pluginIdx = 0; pluginIdx < resolvedStep.plugins.length; pluginIdx++) {
+                    const pluginDef = resolvedStep.plugins[pluginIdx];
+                    const plugin = this.pluginRegistry.get(pluginDef.name);
+
+                    if (plugin && plugin.transform) {
+                        const resolvedPluginConfig = await plugin.resolveConfig(
+                            pluginDef.config,
+                            modelViewContext,
+                            inheritedModel,
+                            this.globalContext.contentResolver
+                        );
+
+                        effectiveParts = await plugin.transform(effectiveParts, resolvedPluginConfig, {
                             row: modelViewContext,
-                            services: {
-                                puppeteerHelper: this.globalContext.puppeteerHelper,
-                                fetcher: this.globalContext.fetcher,
-                                puppeteerQueue: this.globalContext.puppeteerQueue
+                            stepIndex: stepNum,
+                            pluginIndex: pluginIdx,
+                            services: services,
+                            tempDirectory: tempDir,
+                            emit: (event, ...args) => {
+                                // Simplified emit for transform phase
+                                this.globalContext.events.emit(event, ...args);
                             }
-                        }, ppDef.config);
+                        });
                     }
                 }
 

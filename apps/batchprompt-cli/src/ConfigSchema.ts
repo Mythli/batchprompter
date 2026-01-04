@@ -225,15 +225,6 @@ export const createConfigSchema = (adapters: CliPluginAdapter[]) => z.object({
             }
         });
 
-        // Resolve Preprocessors
-        const preprocessors: any[] = [];
-        stepDef.preprocessors.forEach(ppConfig => {
-             preprocessors.push({
-                 name: ppConfig.type,
-                 config: ppConfig
-             });
-        });
-
         steps.push({
             stepIndex,
             modelConfig,
@@ -260,7 +251,6 @@ export const createConfigSchema = (adapters: CliPluginAdapter[]) => z.object({
             feedbackLoops: stepDef.feedback?.loops || 0,
             aspectRatio: stepDef.aspectRatio,
             plugins,
-            preprocessors,
             timeout: stepDef.timeout || config.globals.timeout
         });
     });

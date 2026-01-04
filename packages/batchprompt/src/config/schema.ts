@@ -16,16 +16,6 @@ export { PromptDefSchema, ModelConfigSchema, OutputConfigSchema };
 // Core Schemas
 // =============================================================================
 
-export const UrlExpanderSchema = z.object({
-    type: z.literal('url-expander').describe("Identifies this as a URL expander preprocessor."),
-    mode: z.enum(['fetch', 'puppeteer']).default('puppeteer').describe("Method used to fetch the URL content."),
-    maxChars: z.number().int().positive().default(30000).describe("Maximum number of characters to include from the expanded content.")
-}).describe("Configuration for expanding URLs found in prompts into their page content.");
-
-export const PreprocessorSchema = z.discriminatedUnion('type', [
-    UrlExpanderSchema
-]);
-
 export const FeedbackConfigSchema = ModelConfigSchema.extend({
     loops: z.number().int().min(0).default(0).describe("Number of feedback iterations to run.")
 }).describe("Configuration for the feedback loop (self-correction).");
@@ -36,7 +26,6 @@ export const StepConfigSchema = z.object({
     system: PromptDefSchema.optional().describe("System instruction for this step."),
     model: ModelConfigSchema.optional().describe("Model configuration for this step."),
     plugins: z.array(PluginUnionSchema).default([]).describe("List of plugins to execute before the model."),
-    preprocessors: z.array(PreprocessorSchema).default([]).describe("List of preprocessors to run on the prompt."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
         explode: false

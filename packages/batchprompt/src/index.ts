@@ -36,15 +36,6 @@ export * from './adapters/FileAdapter.js';
 export * from './plugins/index.js';
 export * from './plugins/PluginScope.js';
 
-// Preprocessors
-export * from './preprocessors/types.js';
-export * from './preprocessors/PromptPreprocessorRegistry.js';
-export * from './preprocessors/UrlExpanderPlugin.js';
-export * from './preprocessors/expander/UrlHandlerRegistry.js';
-export * from './preprocessors/expander/GenericFetchHandler.js';
-export * from './preprocessors/expander/GenericPuppeteerHandler.js';
-export * from './preprocessors/expander/sites/WikipediaHandler.js';
-
 // Handlers
 export * from './handlers/MemoryArtifactHandler.js';
 

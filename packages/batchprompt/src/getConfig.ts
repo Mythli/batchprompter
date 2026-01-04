@@ -9,12 +9,6 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import { createPluginRegistry, PluginRegistryV2 } from './plugins/index.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
-import { UrlExpanderPlugin } from './preprocessors/UrlExpanderPlugin.js';
-import { UrlHandlerRegistry } from './preprocessors/expander/UrlHandlerRegistry.js';
-import { GenericFetchHandler } from './preprocessors/expander/GenericFetchHandler.js';
-import { GenericPuppeteerHandler } from './preprocessors/expander/GenericPuppeteerHandler.js';
-import { WikipediaHandler } from './preprocessors/expander/sites/WikipediaHandler.js';
 import { createCachedFetcher } from "llm-fns";
 import { attachQueueLogger } from './utils/queueUtils.js';
 import { GlobalContext } from './types.js';
@@ -90,18 +84,6 @@ class KeyvCacheAdapter {
 
 export const createDefaultRegistry = (capabilities: ServiceCapabilities): PluginRegistryV2 => {
     return createPluginRegistry();
-};
-
-export const createPreprocessorRegistry = () => {
-    const registry = new PromptPreprocessorRegistry();
-
-    const fetchHandler = new GenericFetchHandler();
-    const puppeteerHandler = new GenericPuppeteerHandler();
-    const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, puppeteerHandler);
-    urlHandlerRegistry.registerSpecific(new WikipediaHandler());
-    registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
-
-    return registry;
 };
 
 export const initConfig = async (overrides: ConfigOverrides = {}) => {
@@ -232,13 +214,11 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     // Initialize Registries (with capabilities for validation)
     const pluginRegistry = createDefaultRegistry(capabilities);
-    const preprocessorRegistry = createPreprocessorRegistry();
 
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         globalContext,
         pluginRegistry,
-        preprocessorRegistry,
         stepResolver,
         messageBuilder
     );
@@ -247,7 +227,6 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         config,
         globalContext,
         pluginRegistry,
-        preprocessorRegistry,
         actionRunner,
         puppeteerHelper,
         capabilities,

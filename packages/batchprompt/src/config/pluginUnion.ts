@@ -6,6 +6,7 @@ import { StyleScraperConfigSchemaV2 } from '../plugins/style-scraper/StyleScrape
 import { ValidationConfigSchemaV2, LooseValidationConfigSchemaV2 } from '../plugins/validation/ValidationPluginV2.js';
 import { DedupeConfigSchemaV2 } from '../plugins/dedupe/DedupePluginV2.js';
 import { LogoScraperConfigSchemaV2 } from '../plugins/logo-scraper/LogoScraperPluginV2.js';
+import { UrlExpanderConfigSchema } from '../plugins/url-expander/UrlExpanderPlugin.js';
 
 /**
  * Strict Union (Runtime / Generation)
@@ -17,7 +18,8 @@ export const PluginUnionSchema = z.discriminatedUnion('type', [
     StyleScraperConfigSchemaV2,
     ValidationConfigSchemaV2,
     DedupeConfigSchemaV2,
-    LogoScraperConfigSchemaV2
+    LogoScraperConfigSchemaV2,
+    UrlExpanderConfigSchema
 ]);
 
 /**
@@ -30,7 +32,8 @@ export const LoosePluginUnionSchema = z.discriminatedUnion('type', [
     StyleScraperConfigSchemaV2,
     LooseValidationConfigSchemaV2,
     DedupeConfigSchemaV2,
-    LogoScraperConfigSchemaV2
+    LogoScraperConfigSchemaV2,
+    UrlExpanderConfigSchema
 ]);
 
 export type PluginConfig = z.infer<typeof PluginUnionSchema>;

@@ -4,16 +4,16 @@ import {
     RuntimeConfig, 
     StepConfig, 
     ModelDefinition, 
-    PreprocessorConfigDefinition,
     ResolvedModelConfig,
     loadData,
     PromptLoader,
     PluginRegistryV2,
-    createPreprocessorRegistry,
-    SchemaLoader
+    SchemaLoader,
+    UrlExpanderPlugin
 } from 'batchprompt';
 import { createConfigSchema } from './ConfigSchema.js';
 import { CliPluginAdapter } from './interfaces/CliPluginAdapter.js';
+import { UrlExpanderAdapter } from './adapters/UrlExpanderAdapter.js';
 
 export class StepRegistry {
     private adapters: CliPluginAdapter[] = [];
@@ -79,8 +79,21 @@ export class StepRegistry {
             }
         }
 
-        const preprocessorRegistry = createPreprocessorRegistry();
-        preprocessorRegistry.configureCLI(program);
+        // Register UrlExpander Adapter explicitly if not already in adapters list
+        // Check if UrlExpander is already handled
+        const hasUrlExpander = this.adapters.some(a => a.plugin.type === 'url-expander');
+        if (!hasUrlExpander) {
+            const urlExpanderPlugin = registry.get('url-expander');
+            if (urlExpanderPlugin) {
+                const adapter = new UrlExpanderAdapter(urlExpanderPlugin as UrlExpanderPlugin);
+                adapter.registerOptions(program);
+                for (let i = 1; i <= 10; i++) {
+                    adapter.registerOptionsForStep(program, i);
+                }
+                // Add to adapters list for parsing later
+                this.adapters.push(adapter);
+            }
+        }
     }
 
     async parseConfig(
@@ -167,14 +180,6 @@ export class StepRegistry {
             const judge = await resolveModel(stepDef.judge);
             const feedback = await resolveModel(stepDef.feedback);
 
-            const activePreprocessors: PreprocessorConfigDefinition[] = [];
-            for (const ppDef of stepDef.preprocessors) {
-                activePreprocessors.push({
-                    name: ppDef.name,
-                    config: ppDef.config
-                });
-            }
-
             steps.push({
                 modelConfig: mainResolved,
                 tmpDir: normalized.global.tmpDir,
@@ -190,7 +195,6 @@ export class StepRegistry {
                 feedbackLoops: stepDef.feedbackLoops,
                 aspectRatio: stepDef.aspectRatio,
                 plugins: stepDef.plugins,
-                preprocessors: activePreprocessors,
                 options: options,
                 timeout: stepDef.timeout,
                 // Command fields are gone from StepConfig, handled by ShellPlugin
