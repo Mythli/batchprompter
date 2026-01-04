@@ -424,7 +424,7 @@ const poem = await llm.promptTextRetry({
 
 For complex tasks where an LLM needs to "try, check, and fix" its own output (like code generation or complex configuration), use the `IterativeRefiner`.
 
-It implements a loop of: **Generate** -> **Execute** -> **Evaluate** -> **Refine**.
+It implements a loop of: **Generate** -> **Evaluate** -> **Refine**.
 
 ```typescript
 import { createIterativeRefiner } from './src';
@@ -440,27 +440,22 @@ const refiner = createIterativeRefiner({
         ];
         
         // Append history to help the LLM learn from mistakes
-        for (const attempt of history) {
-            messages.push({ 
-                role: 'user', 
-                content: `Previous attempt generated: ${JSON.stringify(attempt.generated)}\nFeedback: ${attempt.feedback || attempt.error}` 
-            });
-        }
-
-        return await llm.promptZod(messages, SqlSchema);
+        // Note: The refiner manages history automatically, but you must include it in your prompt
+        return await llm.promptZod([...messages, ...history], SqlSchema);
     },
 
-    // 2. Execute the configuration (e.g. run code, query DB)
-    execute: async (generated, input) => {
-        return await db.query(generated.sql);
-    },
-
-    // 3. Evaluate the result
-    evaluate: async (input, generated, output) => {
-        if (output.length === 0) {
-            return { success: false, feedback: "Query returned no results. Try relaxing constraints." };
+    // 2. Evaluate the result (and optionally execute it)
+    evaluate: async (input, generated) => {
+        try {
+            // Example: Execute the query to see if it works
+            const results = await db.query(generated.sql);
+            if (results.length === 0) {
+                return { success: false, feedback: "Query returned no results. Try relaxing constraints." };
+            }
+            return { success: true };
+        } catch (err) {
+            return { success: false, feedback: `SQL Error: ${err.message}` };
         }
-        return { success: true };
     },
     
     maxRetries: 5
@@ -468,15 +463,17 @@ const refiner = createIterativeRefiner({
 
 const result = await refiner.run("Find active users in New York");
 
-if (result.output) {
-    console.log("Success:", result.output);
+if (result.success) {
+    console.log("Success:", result.generated);
 } else {
     console.log("Failed after max retries");
+    console.log("Last Feedback:", result.feedback);
 }
 
 // Inspect the journey
 console.log(`Iterations: ${result.iterations}`);
 console.log(result.history); 
+console.log(result.evaluations); // Array of all evaluation results
 ```
 
 ---
@@ -670,6 +667,31 @@ const smartClient = createZodLlmClient({
 
 // Usage acts exactly like the standard client
 await smartClient.promptZod(MySchema);
+```
+
+---
+
+# Utilities: Message Conversion
+
+## `completionToMessage`
+
+Converts a raw OpenAI `ChatCompletion` object into a valid `ChatCompletionMessageParam` (specifically an assistant message) that can be fed back into the conversation history.
+
+It handles:
+- Standard text content
+- Custom image attachments (OpenRouter/Custom providers)
+- Custom audio attachments
+
+```typescript
+import { completionToMessage } from './src';
+
+const response = await llm.prompt("Hello"); // Returns ChatCompletion object
+
+const message = completionToMessage(response);
+// { role: 'assistant', content: '...' }
+
+// Add to history
+history.push(message);
 ```
 
 ---
