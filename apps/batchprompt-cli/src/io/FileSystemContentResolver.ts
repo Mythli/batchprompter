@@ -1,5 +1,5 @@
-import fsPromises from 'fs/promises';
-import path from 'path';
+import * as fsPromises from 'fs/promises';
+import * as path from 'path';
 import OpenAI from 'openai';
 import { ContentResolver } from 'batchprompt';
 
