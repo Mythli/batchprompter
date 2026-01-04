@@ -11,6 +11,10 @@ import OpenAI from 'openai';
 export function completionToMessage(
     completion: OpenAI.Chat.Completions.ChatCompletion
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+    if (!completion.choices || completion.choices.length === 0) {
+        throw new Error("Invalid completion object: No choices found.");
+    }
+
     const message = completion.choices[0].message;
 
     // Base message structure
@@ -34,12 +38,23 @@ export function completionToMessage(
         contentParts.push({ type: 'text', text: message.content });
     }
 
-    // 2. Custom Images (Non-standard / Custom Provider extension)
-    // Checks for 'images' array on the message object
+    // 2. Custom Images (OpenRouter / Custom Provider extension)
+    // The user snippet shows: message.images[].image_url.url
     if ((message as any).images && Array.isArray((message as any).images)) {
         for (const img of (message as any).images) {
-            if (img.url) {
-                contentParts.push({ type: 'image_url', image_url: { url: img.url } });
+            // Handle OpenRouter format: { image_url: { url: "..." } }
+            if (img.image_url && img.image_url.url) {
+                contentParts.push({ 
+                    type: 'image_url', 
+                    image_url: { url: img.image_url.url } 
+                });
+            } 
+            // Handle potential flat format (legacy or other providers): { url: "..." }
+            else if (img.url) {
+                contentParts.push({ 
+                    type: 'image_url', 
+                    image_url: { url: img.url } 
+                });
             }
         }
     }
