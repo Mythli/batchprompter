@@ -5,12 +5,12 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Parser, transforms } from 'json2csv';
-import { 
-    createDefaultRegistry, 
-    getConfig, 
-    ServiceCapabilities, 
-    FileAdapter, 
-    PipelineConfigSchema, 
+import {
+    createDefaultRegistry,
+    getConfig,
+    ServiceCapabilities,
+    FileAdapter,
+    PipelineConfigSchema,
     DebugLogger,
     StepRegistry,
     ConfigRefiner,
@@ -164,10 +164,10 @@ program.command('init')
                         sampleRows = parsed.data;
                     }
                 }
-                
+
                 // Limit to 10 unique rows for the LLM context
-                sampleRows = getUniqueRows(sampleRows, 10);
-                console.error(`Loaded ${sampleRows.length} sample rows from ${options.data}`);
+                sampleRows = getUniqueRows(sampleRows, 5);
+                console.log(`Loaded ${sampleRows.length} sample rows from ${options.data}`);
             }
 
             // 3. Initialize Core
@@ -215,14 +215,14 @@ program.command('init')
 
             // 7. Save Result
             const config = result.generated;
-            
+
             if (options.output) {
                 fs.writeFileSync(options.output, JSON.stringify(config, null, 2));
                 console.error(`\nConfiguration saved to ${options.output}`);
             } else {
                 console.log(JSON.stringify(config, null, 2));
             }
-            
+
             // Cleanup
             if (puppeteerHelperInstance) {
                 await puppeteerHelperInstance.close();
