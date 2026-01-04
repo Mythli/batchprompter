@@ -11,6 +11,7 @@ export * from './config/ConfigNormalizer.js';
 
 // Generator
 export * from './generator/ConfigRefiner.js';
+export * from './generator/InMemoryConfigExecutor.js';
 export * from './generated/ConfigDocumentation.js';
 
 // Core Components

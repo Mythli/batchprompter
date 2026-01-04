@@ -12,10 +12,14 @@ import {
     FileAdapter, 
     PipelineConfigSchema, 
     DebugLogger,
-    StepRegistry
+    StepRegistry,
+    ConfigRefiner,
+    InMemoryConfigExecutor,
+    getUniqueRows
 } from 'batchprompt';
 import { FileSystemArtifactHandler } from './handlers/FileSystemArtifactHandler.js';
 import { FileSystemContentResolver } from './io/FileSystemContentResolver.js';
+import Papa from 'papaparse';
 
 const program = new Command();
 
@@ -120,6 +124,120 @@ generateCmd.action(async (templateFilePaths, options) => {
         process.exit(1);
     }
 });
+
+program.command('init')
+    .description('Initialize a new configuration file using AI')
+    .argument('[prompt]', 'Description of what you want to do')
+    .option('-d, --data <file>', 'Path to sample data file (CSV/JSON) to infer schema')
+    .option('-o, --output <file>', 'Output file path', 'batchprompt.json')
+    .option('--model <model>', 'Model to use for generation', 'google/gemini-3-flash-preview')
+    .action(async (promptArg, options) => {
+        let puppeteerHelperInstance;
+        try {
+            // 1. Prompt for description if not provided
+            let prompt = promptArg;
+            if (!prompt) {
+                console.error('Error: Please provide a prompt description.');
+                process.exit(1);
+            }
+
+            // 2. Load Sample Data
+            let sampleRows: any[] = [];
+            if (options.data) {
+                const dataPath = path.resolve(options.data);
+                if (!fs.existsSync(dataPath)) {
+                    console.error(`Error: Data file not found at ${dataPath}`);
+                    process.exit(1);
+                }
+
+                const content = fs.readFileSync(dataPath, 'utf-8');
+                if (dataPath.endsWith('.json')) {
+                    const json = JSON.parse(content);
+                    sampleRows = Array.isArray(json) ? json : [json];
+                } else if (dataPath.endsWith('.csv')) {
+                    const parsed = Papa.parse(content, {
+                        header: true,
+                        skipEmptyLines: true,
+                        dynamicTyping: true
+                    });
+                    if (parsed.data && Array.isArray(parsed.data)) {
+                        sampleRows = parsed.data;
+                    }
+                }
+                
+                // Limit to 10 unique rows for the LLM context
+                sampleRows = getUniqueRows(sampleRows, 10);
+                console.log(`Loaded ${sampleRows.length} sample rows from ${options.data}`);
+            }
+
+            // 3. Initialize Core
+            const contentResolver = new FileSystemContentResolver();
+            const { actionRunner, llmFactory, pluginRegistry, globalContext, puppeteerHelper } = await getConfig({ contentResolver });
+            puppeteerHelperInstance = puppeteerHelper;
+
+            // 4. Setup Executor
+            const executor = new InMemoryConfigExecutor(
+                actionRunner,
+                pluginRegistry,
+                globalContext.events,
+                contentResolver
+            );
+
+            // 5. Setup LLMs
+            const generatorLlm = llmFactory.create({
+                model: options.model,
+                thinkingLevel: 'high',
+                systemParts: [],
+                promptParts: []
+            }).getRawClient();
+
+            const judgeLlm = llmFactory.create({
+                model: options.model,
+                thinkingLevel: 'high',
+                systemParts: [],
+                promptParts: []
+            }).getRawClient();
+
+            // 6. Run Refiner
+            console.log('Generating configuration... (this may take a minute)');
+            const refiner = new ConfigRefiner(generatorLlm, judgeLlm, executor, { maxRetries: 3 });
+
+            const result = await refiner.run({
+                prompt,
+                sampleRows,
+                partialConfig: {}
+            });
+
+            if (!result.success || !result.generated) {
+                console.error('Failed to generate configuration:', result.feedback);
+                process.exit(1);
+            }
+
+            // 7. Save Result
+            const config = result.generated;
+            
+            // If sample data was used, we might want to reference the file in the config
+            // instead of embedding the rows, but for now, let's respect the generated output.
+            // If the user provided a data file, the LLM might have configured the input to read from it
+            // if we told it the filename. Currently we just pass the rows content.
+            
+            fs.writeFileSync(options.output, JSON.stringify(config, null, 2));
+            console.log(`\nConfiguration saved to ${options.output}`);
+            
+            // Cleanup
+            if (puppeteerHelperInstance) {
+                await puppeteerHelperInstance.close();
+            }
+            process.exit(0);
+
+        } catch (e: any) {
+            console.error(e);
+            if (puppeteerHelperInstance) {
+                await puppeteerHelperInstance.close();
+            }
+            process.exit(1);
+        }
+    });
 
 program.command('schema')
     .description('Print the JSON Schema for the configuration file')
