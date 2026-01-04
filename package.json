@@ -13,34 +13,8 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@keyv/sqlite": "^3.6.7",
-    "ajv": "^8.17.1",
-    "cache-manager": "^5.7.6",
-    "cheerio": "^1.1.2",
-    "commander": "^12.1.0",
-    "css-tree": "^2.3.1",
-    "csv-parser": "^3.2.0",
-    "dotenv": "^16.6.1",
-    "eventemitter3": "^5.0.1",
-    "handlebars": "^4.7.8",
-    "json-schema-traverse": "^1.0.0",
-    "keyv": "^4.5.4",
-    "llm-fns": "^1.0.23",
-    "openai": "^4.104.0",
-    "p-queue": "^8.1.1",
-    "puppeteer": "^22.15.0",
-    "sharp": "^0.33.5",
-    "sharp-ico": "^0.1.5",
-    "turndown": "^7.2.2",
-    "yaml": "^2.8.2",
-    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/cache-manager": "^4.0.6",
-    "@types/css-tree": "^2.3.11",
-    "@types/node": "^20.19.27",
-    "@types/turndown": "^5.0.6",
-    "typescript": "^5.9.3",
-    "vitest": "^1.6.1"
+    "typescript": "^5.9.3"
   }
 }

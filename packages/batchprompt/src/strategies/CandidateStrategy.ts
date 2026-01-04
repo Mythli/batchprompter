@@ -4,7 +4,7 @@ import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
 import { StepConfig, StepContext } from '../types.js';
 import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from '../src/core/events.js';
+import { BatchPromptEvents } from '../core/events.js';
 
 export class CandidateStrategy implements GenerationStrategy {
     constructor(

@@ -4,9 +4,9 @@ import { StepConfig, StepContext } from './types.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
-import { MessageBuilder } from './src/core/MessageBuilder.js';
+import { MessageBuilder } from './core/MessageBuilder.js';
 import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from './src/core/events.js';
+import { BatchPromptEvents } from './core/events.js';
 
 export interface StepExecutionResult {
     historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;

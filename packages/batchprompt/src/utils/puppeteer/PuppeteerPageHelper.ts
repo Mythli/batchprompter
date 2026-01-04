@@ -1,6 +1,5 @@
-import {Page, CDPSession, Viewport, HTTPResponse, ElementHandle, Protocol, HTTPRequest} from 'puppeteer';
+import {Page, CDPSession, Viewport, ElementHandle, HTTPRequest} from 'puppeteer';
 import { Cache } from 'cache-manager';
-import browserScriptFunction from './drawPuppeteerGrid.js';
 import {CachedResponse, Fetcher} from "llm-fns";
 import TurndownService from 'turndown';
 import { compressHtml } from '../compressHtml.js';
@@ -351,13 +350,13 @@ export class PuppeteerPageHelper {
     async getProcessedContent(): Promise<ScrapedPageContent> {
         const html = await this.getFinalHtml();
         const links = await this.extractLinksWithText();
-        
+
         // Compression and Markdown conversion
         const compressed = compressHtml(html);
         const turndownService = new TurndownService();
         turndownService.remove(['script', 'style', 'noscript', 'iframe']);
         const markdown = turndownService.turndown(compressed);
-        
+
         return { html, markdown, links };
     }
 
@@ -421,19 +420,19 @@ export class PuppeteerPageHelper {
             // 1. Try the standard Puppeteer method with a timeout
             return await Promise.race([
                 this.page.content(),
-                new Promise<string>((_, reject) => 
+                new Promise<string>((_, reject) =>
                     setTimeout(() => reject(new Error(`Timeout of ${timeoutMs}ms exceeded`)), timeoutMs)
                 )
             ]);
         } catch (e: any) {
             console.warn(`[PuppeteerPageHelper] page.content() failed or timed out: ${e.message}. Trying fallback JS evaluation.`);
-            
+
             try {
                 // 2. Fallback: Try to get HTML via JS evaluation.
                 // This is often faster/lighter and might work if the CDP protocol is stuck.
                 const html = await Promise.race([
                     this.page.evaluate(() => document.documentElement.outerHTML),
-                    new Promise<string>((_, reject) => 
+                    new Promise<string>((_, reject) =>
                         setTimeout(() => reject(new Error('Fallback JS evaluation timed out')), 5000)
                     )
                 ]);
@@ -495,36 +494,6 @@ export class PuppeteerPageHelper {
         }
         return screenshots;
     }
-
-    public async drawGridOverlay(
-    options: {
-        gridSize?: number;
-        minorGridSize?: number;
-        color?: string;
-    } = {}
-): Promise<void> {
-    const {
-        gridSize = 50,
-        minorGridSize = 25,
-        color: majorLineColor = 'rgba(255, 0, 0, 0.5)',
-    } = options;
-
-    const minorLineColor = majorLineColor.replace(/, ?\d?\.?\d+\)$/, ', 0.15)');
-
-    console.log(`Drawing grid overlay with major lines every ${gridSize}px and minor lines every ${minorGridSize}px.`);
-
-    // 1. Get the string representation of the imported function.
-    // This is the key step that avoids all serialization issues.
-    const browserScriptAsString = browserScriptFunction.toString();
-
-    // 2. Evaluate the script string in the browser, passing arguments.
-    await this.page.evaluate(browserScriptFunction,
-        gridSize,
-        minorGridSize,
-        majorLineColor,
-        minorLineColor
-    );
-}
 
     private async _fetchAndEvaluateResource(url: string): Promise<PageFetchResult> {
         try {

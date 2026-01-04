@@ -1,11 +1,11 @@
 import path from 'path';
 import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext, OutputStrategy, StepContext, StepExecutionContext } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
-import { PluginRegistryV2, PluginPacket, PluginServices } from './src/plugins/types.js';
-import { ResultProcessor } from './src/core/ResultProcessor.js';
-import { PromptPreprocessorRegistry } from './src/preprocessors/PromptPreprocessorRegistry.js';
-import { StepResolver } from './src/core/StepResolver.js';
-import { MessageBuilder } from './src/core/MessageBuilder.js';
+import { PluginRegistryV2, PluginPacket, PluginServices } from './plugins/types.js';
+import { ResultProcessor } from './core/ResultProcessor.js';
+import { PromptPreprocessorRegistry } from './preprocessors/PromptPreprocessorRegistry.js';
+import { StepResolver } from './core/StepResolver.js';
+import { MessageBuilder } from './core/MessageBuilder.js';
 
 interface TaskPayload {
     item: PipelineItem;

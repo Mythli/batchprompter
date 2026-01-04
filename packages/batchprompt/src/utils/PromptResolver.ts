@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
-import { ContentResolver } from '../src/core/io/ContentResolver.js';
+import { ContentResolver } from '../core/io/ContentResolver.js';
 
 export class PromptResolver {
     constructor(private contentResolver: ContentResolver) {}

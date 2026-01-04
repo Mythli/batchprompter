@@ -7,89 +7,10 @@ settings:
 importers:
 
   .:
-    dependencies:
-      '@keyv/sqlite':
-        specifier: ^3.6.7
-        version: 3.6.7
-      ajv:
-        specifier: ^8.17.1
-        version: 8.17.1
-      cache-manager:
-        specifier: ^5.7.6
-        version: 5.7.6
-      cheerio:
-        specifier: ^1.1.2
-        version: 1.1.2
-      commander:
-        specifier: ^12.1.0
-        version: 12.1.0
-      css-tree:
-        specifier: ^2.3.1
-        version: 2.3.1
-      csv-parser:
-        specifier: ^3.2.0
-        version: 3.2.0
-      dotenv:
-        specifier: ^16.6.1
-        version: 16.6.1
-      eventemitter3:
-        specifier: ^5.0.1
-        version: 5.0.1
-      handlebars:
-        specifier: ^4.7.8
-        version: 4.7.8
-      json-schema-traverse:
-        specifier: ^1.0.0
-        version: 1.0.0
-      keyv:
-        specifier: ^4.5.4
-        version: 4.5.4
-      llm-fns:
-        specifier: ^1.0.23
-        version: 1.0.23(ws@8.18.3)
-      openai:
-        specifier: ^4.104.0
-        version: 4.104.0(encoding@0.1.13)(ws@8.18.3)(zod@3.25.76)
-      p-queue:
-        specifier: ^8.1.1
-        version: 8.1.1
-      puppeteer:
-        specifier: ^22.15.0
-        version: 22.15.0(typescript@5.9.3)
-      sharp:
-        specifier: ^0.33.5
-        version: 0.33.5
-      sharp-ico:
-        specifier: ^0.1.5
-        version: 0.1.5
-      turndown:
-        specifier: ^7.2.2
-        version: 7.2.2
-      yaml:
-        specifier: ^2.8.2
-        version: 2.8.2
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
     devDependencies:
-      '@types/cache-manager':
-        specifier: ^4.0.6
-        version: 4.0.6
-      '@types/css-tree':
-        specifier: ^2.3.11
-        version: 2.3.11
-      '@types/node':
-        specifier: ^20.19.27
-        version: 20.19.27
-      '@types/turndown':
-        specifier: ^5.0.6
-        version: 5.0.6
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-      vitest:
-        specifier: ^1.6.1
-        version: 1.6.1(@types/node@20.19.27)
 
   apps/batchprompt-cli:
     dependencies:
@@ -106,11 +27,11 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1
       json2csv:
-        specifier: ^6.0.0-alpha.2
+        specifier: 6.0.0-alpha.2
         version: 6.0.0-alpha.2
       zod:
-        specifier: ^3.22.4
-        version: 3.25.76
+        specifier: ^4.3.5
+        version: 4.3.5
     devDependencies:
       '@types/json2csv':
         specifier: ^5.0.7
@@ -118,6 +39,9 @@ importers:
       '@types/node':
         specifier: ^20.11.24
         version: 20.19.27
+      openai:
+        specifier: ^4.104.0
+        version: 4.104.0(encoding@0.1.13)(ws@8.18.3)(zod@4.3.5)
       tsx:
         specifier: ^4.7.1
         version: 4.21.0
@@ -162,22 +86,25 @@ importers:
         specifier: ^3.6.7
         version: 3.6.7
       ajv:
-        specifier: ^8.12.0
+        specifier: ^8.17.1
         version: 8.17.1
+      cache-manager:
+        specifier: ^5.7.6
+        version: 5.7.6
       cheerio:
-        specifier: ^1.0.0-rc.12
+        specifier: ^1.1.2
         version: 1.1.2
       commander:
-        specifier: ^12.0.0
+        specifier: ^12.1.0
         version: 12.1.0
       css-tree:
         specifier: ^2.3.1
         version: 2.3.1
       csv-parser:
-        specifier: ^3.0.0
+        specifier: ^3.2.0
         version: 3.2.0
       dotenv:
-        specifier: ^16.4.5
+        specifier: ^16.6.1
         version: 16.6.1
       eventemitter3:
         specifier: ^5.0.1
@@ -195,41 +122,47 @@ importers:
         specifier: ^1.0.23
         version: 1.0.23(ws@8.18.3)
       openai:
-        specifier: ^4.28.4
-        version: 4.104.0(encoding@0.1.13)(ws@8.18.3)(zod@3.25.76)
+        specifier: ^4.104.0
+        version: 4.104.0(encoding@0.1.13)(ws@8.18.3)(zod@4.3.5)
       p-queue:
-        specifier: ^8.0.1
+        specifier: ^8.1.1
         version: 8.1.1
       puppeteer:
-        specifier: ^22.4.1
+        specifier: ^22.15.0
         version: 22.15.0(typescript@5.9.3)
       sharp:
-        specifier: ^0.33.2
+        specifier: ^0.33.5
         version: 0.33.5
       sharp-ico:
         specifier: ^0.1.5
         version: 0.1.5
       turndown:
-        specifier: ^7.1.3
+        specifier: ^7.2.2
         version: 7.2.2
       yaml:
-        specifier: ^2.4.1
+        specifier: ^2.8.2
         version: 2.8.2
       zod:
-        specifier: ^3.22.4
-        version: 3.25.76
+        specifier: ^4.3.5
+        version: 4.3.5
     devDependencies:
+      '@types/cache-manager':
+        specifier: ^4.0.6
+        version: 4.0.6
+      '@types/css-tree':
+        specifier: ^2.3.11
+        version: 2.3.11
       '@types/node':
-        specifier: ^20.11.24
+        specifier: ^20.19.27
         version: 20.19.27
       '@types/turndown':
-        specifier: ^5.0.4
+        specifier: ^5.0.6
         version: 5.0.6
       typescript:
-        specifier: ^5.3.3
+        specifier: ^5.9.3
         version: 5.9.3
       vitest:
-        specifier: ^1.3.1
+        specifier: ^1.6.1
         version: 1.6.1(@types/node@20.19.27)
 
 packages:
@@ -2290,9 +2223,6 @@ packages:
   zod@3.23.8:
     resolution: {integrity: sha512-XBx9AXhXktjUqnepgTiE5flcKIYWi/rme0Eaj+5Y0lftuGBq+jyRu/md4WnuxqgP1ubdpNCsYEYPxrzVHD8d6g==}
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
   zod@4.3.5:
     resolution: {integrity: sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g==}
 
@@ -3725,7 +3655,7 @@ snapshots:
     dependencies:
       mimic-fn: 4.0.0
 
-  openai@4.104.0(encoding@0.1.13)(ws@8.18.3)(zod@3.25.76):
+  openai@4.104.0(encoding@0.1.13)(ws@8.18.3)(zod@4.3.5):
     dependencies:
       '@types/node': 18.19.130
       '@types/node-fetch': 2.6.13
@@ -3736,7 +3666,7 @@ snapshots:
       node-fetch: 2.7.0(encoding@0.1.13)
     optionalDependencies:
       ws: 8.18.3
-      zod: 3.25.76
+      zod: 4.3.5
     transitivePeerDependencies:
       - encoding
 
@@ -4387,7 +4317,5 @@ snapshots:
   yocto-queue@1.2.2: {}
 
   zod@3.23.8: {}
-
-  zod@3.25.76: {}
 
   zod@4.3.5: {}

@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { EventEmitter } from 'eventemitter3';
-import { BoundLlmClient } from '../src/core/BoundLlmClient.js';
-import { ImageSearch, ImageSearchResult } from '../src/plugins/image-search/ImageSearch.js';
+import { BoundLlmClient } from '../core/BoundLlmClient.js';
+import { ImageSearch, ImageSearchResult } from '../plugins/image-search/ImageSearch.js';
 import { SpriteGenerator } from './SpriteGenerator.js';
 import { LlmListSelector } from './LlmListSelector.js';
 

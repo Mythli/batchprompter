@@ -1,0 +1,40 @@
+{
+  "name": "llm-fns",
+  "version": "1.0.23",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "release": "scripts/release.sh",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.6.5",
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "openai": "^6.9.1",
+    "undici": "^7.16.0",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@keyv/sqlite": "^4.0.6",
+    "@types/node": "^20.11.0",
+    "cache-manager": "^7.2.5",
+    "dotenv": "^16.6.1",
+    "keyv": "^5.5.5",
+    "p-queue": "^9.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^1.2.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sqlite3"
+    ]
+  }
+}

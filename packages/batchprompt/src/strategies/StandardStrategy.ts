@@ -3,10 +3,10 @@ import { z } from 'zod';
 import path from 'path';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StepConfig } from '../types.js';
-import { MessageBuilder } from '../src/core/MessageBuilder.js';
-import { BoundLlmClient } from '../src/core/BoundLlmClient.js';
+import { MessageBuilder } from '../core/MessageBuilder.js';
+import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from '../src/core/events.js';
+import { BatchPromptEvents } from '../core/events.js';
 
 const responseSchema = z.object({
     choices: z.array(z.object({

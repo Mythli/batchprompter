@@ -1,0 +1,7 @@
+.aider*
+node_modules
+.idea
+.env
+.env.test
+test-cache.sqlite
+dist
