@@ -1,14 +1,14 @@
 import OpenAI from 'openai';
 
 /**
- * Converts a completion result (string, object, or OpenAI ChatCompletion) into a chat message parameter.
+ * Converts a completion result (string, object, or OpenAI ChatCompletion) into an assistant message parameter.
  * 
  * @param content The generated content (string, object, or ChatCompletion).
- * @param role The role to assign to the message. Defaults to 'assistant'.
+ * @returns An OpenAI ChatCompletionMessageParam with role 'assistant'.
+ * @throws Error if the content cannot be converted to a valid assistant message.
  */
 export function completionToMessage(
-    content: string | OpenAI.Chat.Completions.ChatCompletion | any,
-    role: 'assistant' | 'user' | 'system' = 'assistant'
+    content: string | OpenAI.Chat.Completions.ChatCompletion | any
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
     // Handle OpenAI ChatCompletion object
     if (
@@ -21,30 +21,33 @@ export function completionToMessage(
     ) {
         const message = content.choices[0].message;
         
-        // If we are just extracting the message, we usually want to keep the tool calls/etc.
-        // But if we are forcing a role (e.g. turning an assistant output into a user example),
-        // we might just want the content.
-        // For the purpose of IterativeRefiner history, we want the full fidelity of the assistant's response.
+        // We only care about content (text/image/audio) for the history.
+        // We explicitly strip tool_calls/function_call as requested.
         
         return {
-            role, // Allow overriding role, but usually 'assistant'
+            role: 'assistant',
             content: message.content,
-            tool_calls: message.tool_calls,
-            function_call: message.function_call,
+            audio: message.audio,
             refusal: message.refusal
         } as OpenAI.Chat.Completions.ChatCompletionMessageParam;
     }
 
     // Handle String
     if (typeof content === 'string') {
-        return { role, content };
+        return { role: 'assistant', content };
     }
 
-    // Handle null/undefined
+    // Handle null/undefined - technically valid for assistant messages if they have tool calls, 
+    // but since we are stripping tool calls, a null content is invalid unless it has audio/refusal (which we can't guess here).
+    // However, if the input was a raw string/object that is null, we can't make a message out of it.
     if (content === null || content === undefined) {
-        return { role, content: null };
+        throw new Error("Cannot convert null or undefined content to an assistant message.");
     }
 
     // Handle other objects (serialize)
-    return { role, content: JSON.stringify(content) };
+    try {
+        return { role: 'assistant', content: JSON.stringify(content) };
+    } catch (e) {
+        throw new Error("Failed to serialize object content to JSON string for assistant message.");
+    }
 }
