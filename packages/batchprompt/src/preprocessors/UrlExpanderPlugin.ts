@@ -3,7 +3,7 @@ import TurndownService from 'turndown';
 import { z } from 'zod';
 import { PromptPreprocessorPlugin, PreprocessorContext } from './types.js';
 import { UrlHandlerRegistry } from './expander/UrlHandlerRegistry.js';
-import { PreprocessorConfigDefinition } from '../../types.js';
+import { PreprocessorConfigDefinition } from '../types.js';
 
 // =============================================================================
 // Config Schema (Single source of truth for defaults)
