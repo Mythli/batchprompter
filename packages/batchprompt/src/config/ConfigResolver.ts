@@ -17,6 +17,8 @@ export interface ConfigResolverDependencies {
     capabilities: ServiceCapabilities;
     pluginRegistry: PluginRegistryV2;
     contentResolver: ContentResolver;
+    promptLoader: PromptLoader;
+    schemaLoader: SchemaLoader;
 }
 
 export class ConfigResolver {
@@ -25,8 +27,8 @@ export class ConfigResolver {
     private normalizer: ConfigNormalizer;
 
     constructor(private deps: ConfigResolverDependencies) {
-        this.promptLoader = new PromptLoader(deps.contentResolver);
-        this.schemaLoader = new SchemaLoader(deps.contentResolver);
+        this.promptLoader = deps.promptLoader;
+        this.schemaLoader = deps.schemaLoader;
         this.normalizer = new ConfigNormalizer(
             this.schemaLoader, 
             deps.contentResolver, 

@@ -15,14 +15,11 @@ export interface ResolvedStepContext {
 }
 
 export class StepResolver {
-    private schemaLoader: SchemaLoader;
-
     constructor(
         private llmFactory: LlmClientFactory,
-        private globalContext: GlobalContext
-    ) {
-        this.schemaLoader = new SchemaLoader(globalContext.contentResolver);
-    }
+        private globalContext: GlobalContext,
+        private schemaLoader: SchemaLoader
+    ) {}
 
     async resolve(
         item: PipelineItem,

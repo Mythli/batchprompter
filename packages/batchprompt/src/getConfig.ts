@@ -57,6 +57,8 @@ export const configSchema = z.object({
 export type ConfigOverrides = {
     concurrency?: number;
     contentResolver?: ContentResolver;
+    promptLoader?: PromptLoader;
+    schemaLoader?: SchemaLoader;
 };
 
 // Adapter to make Keyv compatible with cache-manager Cache interface
@@ -190,9 +192,16 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Default to MemoryContentResolver if not provided (e.g. in Web context)
     const contentResolver = overrides.contentResolver || new MemoryContentResolver();
 
-    // Loaders
-    const promptLoader = new PromptLoader(contentResolver);
-    const schemaLoader = new SchemaLoader(contentResolver);
+    // Loaders - Must be provided via overrides if running in CLI/Node environment
+    // If not provided, we can't load files, but we can still run if everything is in-memory.
+    // However, StepResolver needs them.
+    if (!overrides.promptLoader || !overrides.schemaLoader) {
+        // For now, we throw if they are missing, as Core relies on them.
+        // In a future refactor, we could provide in-memory fallbacks here if needed.
+        throw new Error("PromptLoader and SchemaLoader must be provided in config overrides.");
+    }
+    const promptLoader = overrides.promptLoader;
+    const schemaLoader = overrides.schemaLoader;
 
     // Build GlobalContext
     const globalContext: GlobalContext = {
@@ -218,7 +227,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     // Create Factories
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel);
-    const stepResolver = new StepResolver(llmFactory, globalContext);
+    const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
     const messageBuilder = new MessageBuilder();
 
     // Initialize Registries (with capabilities for validation)
