@@ -25,6 +25,8 @@ import { MessageBuilder } from './core/MessageBuilder.js';
 import { createLoggingFetcher } from "./utils/createLoggingFetcher.js";
 import { ContentResolver } from './core/io/ContentResolver.js';
 import { MemoryContentResolver } from './core/io/MemoryContentResolver.js';
+import { PromptLoader } from './config/PromptLoader.js';
+import { SchemaLoader } from './config/SchemaLoader.js';
 
 dotenv.config();
 
@@ -188,6 +190,10 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Default to MemoryContentResolver if not provided (e.g. in Web context)
     const contentResolver = overrides.contentResolver || new MemoryContentResolver();
 
+    // Loaders
+    const promptLoader = new PromptLoader(contentResolver);
+    const schemaLoader = new SchemaLoader(contentResolver);
+
     // Build GlobalContext
     const globalContext: GlobalContext = {
         openai,
@@ -238,7 +244,9 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         capabilities,
         llmFactory,
         stepResolver,
-        messageBuilder
+        messageBuilder,
+        promptLoader,
+        schemaLoader
     };
 }
 

@@ -49,11 +49,18 @@ generateCmd.action(async (templateFilePaths, options) => {
     try {
         // Get the runner from DI first to get actual capabilities
         // getConfig now injects FileSystemContentResolver internally
-        const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry, globalContext } = await getConfig();
+        const { 
+            actionRunner, 
+            puppeteerHelper, 
+            config: resolvedConfig, 
+            pluginRegistry, 
+            globalContext,
+            schemaLoader,
+            promptLoader
+        } = await getConfig();
+        
         puppeteerHelperInstance = puppeteerHelper;
         const contentResolver = globalContext.contentResolver;
-        const schemaLoader = new SchemaLoader(contentResolver);
-        const promptLoader = new PromptLoader(contentResolver);
 
         let fileConfig = {};
 
