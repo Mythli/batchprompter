@@ -9,8 +9,5 @@
       "batchprompt": ["../../packages/batchprompt/src/index.ts"]
     }
   },
-  "include": ["src/**/*"],
-  "references": [
-    { "path": "../../packages/batchprompt" }
-  ]
+  "include": ["src/**/*"]
 }
