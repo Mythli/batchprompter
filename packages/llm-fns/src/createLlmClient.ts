@@ -29,6 +29,10 @@ export function countChars(message: OpenAI.Chat.Completions.ChatCompletionMessag
             if (part.type === 'image_url') {
                 return sum + 2500;
             }
+            if (part.type === 'input_audio') {
+                // Use base64 length as a proxy for size/cost
+                return sum + (part.input_audio.data.length || 0);
+            }
             return sum;
         }, 0);
     }
@@ -64,15 +68,30 @@ export function truncateSingleMessage(message: OpenAI.Chat.Completions.ChatCompl
     if (Array.isArray(messageCopy.content)) {
         const textParts = messageCopy.content.filter((p: any) => p.type === 'text');
         const imageParts = messageCopy.content.filter((p: any) => p.type === 'image_url');
+        const audioParts = messageCopy.content.filter((p: any) => p.type === 'input_audio');
+        
         let combinedText = textParts.map((p: any) => p.text).join('\n');
         let keptImages = [...imageParts];
+        let keptAudio = [...audioParts];
 
-        while (combinedText.length + (keptImages.length * 2500) > charLimit && keptImages.length > 0) {
-            keptImages.pop();
+        const calculateSize = () => 
+            combinedText.length + 
+            (keptImages.length * 2500) + 
+            keptAudio.reduce((s, a: any) => s + (a.input_audio?.data?.length || 0), 0);
+
+        while (calculateSize() > charLimit) {
+            // Drop heavy media first. Audio is likely largest, then images.
+            if (keptAudio.length > 0) {
+                keptAudio.pop();
+            } else if (keptImages.length > 0) {
+                keptImages.pop();
+            } else {
+                break; // Only text left
+            }
         }
 
-        const imageChars = keptImages.length * 2500;
-        const textCharLimit = charLimit - imageChars;
+        const currentSize = calculateSize();
+        const textCharLimit = charLimit - (currentSize - combinedText.length);
 
         if (combinedText.length > textCharLimit) {
             if (textCharLimit > TRUNCATION_SUFFIX.length) {
@@ -89,6 +108,7 @@ export function truncateSingleMessage(message: OpenAI.Chat.Completions.ChatCompl
             newContent.push({ type: 'text', text: combinedText });
         }
         newContent.push(...keptImages);
+        newContent.push(...keptAudio);
         messageCopy.content = newContent;
     }
 
@@ -147,6 +167,8 @@ function concatMessageText(messages: OpenAI.Chat.Completions.ChatCompletionMessa
                         textParts.push(part.text);
                     } else if (part.type === 'image_url') {
                         textParts.push('[IMAGE]');
+                    } else if (part.type === 'input_audio') {
+                        textParts.push('[AUDIO]');
                     }
                 }
             }
@@ -234,6 +256,7 @@ export interface LlmCommonOptions {
     /** @deprecated Use `reasoning` object instead. */
     response_format?: OpenRouterResponseFormat;
     modalities?: string[];
+    audio?: OpenAI.Chat.Completions.ChatCompletionAudioParam;
     image_config?: {
         aspect_ratio?: string;
     };
@@ -442,9 +465,27 @@ export function createLlmClient(params: CreateLlmClientParams) {
         throw new Error("LLM returned no image content.");
     }
 
-    return { prompt, promptText, promptImage };
+    async function promptAudio(content: string, options?: LlmCommonOptions): Promise<Buffer>;
+    async function promptAudio(options: LlmPromptOptions): Promise<Buffer>;
+    async function promptAudio(arg1: string | LlmPromptOptions, arg2?: LlmCommonOptions): Promise<Buffer> {
+        const promptParams = normalizeOptions(arg1, arg2);
+        
+        // Ensure modalities includes audio if not explicitly set, though user should ideally provide it.
+        // We won't force it here to avoid overriding user intent, but promptAudio implies audio output.
+        
+        const response = await prompt(promptParams);
+        const message = response.choices[0]?.message;
+
+        if (message.audio && message.audio.data) {
+            return Buffer.from(message.audio.data, 'base64');
+        }
+        throw new Error("LLM returned no audio content.");
+    }
+
+    return { prompt, promptText, promptImage, promptAudio };
 }
 
 export type PromptFunction = ReturnType<typeof createLlmClient>['prompt'];
 export type PromptTextFunction = ReturnType<typeof createLlmClient>['promptText'];
 export type PromptImageFunction = ReturnType<typeof createLlmClient>['promptImage'];
+export type PromptAudioFunction = ReturnType<typeof createLlmClient>['promptAudio'];

@@ -115,7 +115,7 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
 
     async function runPromptLoop<T>(
         retryParams: LlmRetryParams<T>,
-        responseType: 'raw' | 'text' | 'image'
+        responseType: 'raw' | 'text' | 'image' | 'audio'
     ): Promise<T> {
         const { maxRetries = 3, validate, messages: initialMessages, ...restOptions } = retryParams;
 
@@ -171,6 +171,13 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
                         }
                     } else {
                         throw new LlmRetryError("LLM returned no image.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+                    }
+                } else if (responseType === 'audio') {
+                    const messageAny = assistantMessage as any;
+                    if (messageAny.audio && messageAny.audio.data) {
+                        dataToProcess = Buffer.from(messageAny.audio.data, 'base64');
+                    } else {
+                        throw new LlmRetryError("LLM returned no audio.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
                     }
                 }
 
@@ -284,7 +291,22 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
         return runPromptLoop(retryParams, 'image');
     }
 
-    return { promptRetry, promptTextRetry, promptImageRetry };
+    async function promptAudioRetry<T = Buffer>(
+        content: string,
+        options?: LlmRetryOptions<T>
+    ): Promise<T>;
+    async function promptAudioRetry<T = Buffer>(
+        options: LlmPromptOptions & LlmRetryOptions<T>
+    ): Promise<T>;
+    async function promptAudioRetry<T = Buffer>(
+        arg1: string | (LlmPromptOptions & LlmRetryOptions<T>),
+        arg2?: LlmRetryOptions<T>
+    ): Promise<T> {
+        const retryParams = normalizeRetryOptions<T>(arg1, arg2);
+        return runPromptLoop(retryParams, 'audio');
+    }
+
+    return { promptRetry, promptTextRetry, promptImageRetry, promptAudioRetry };
 }
 
 export type LlmRetryClient = ReturnType<typeof createLlmRetryClient>;
