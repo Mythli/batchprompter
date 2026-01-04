@@ -129,7 +129,7 @@ program.command('init')
     .description('Initialize a new configuration file using AI')
     .argument('[prompt]', 'Description of what you want to do')
     .option('-d, --data <file>', 'Path to sample data file (CSV/JSON) to infer schema')
-    .option('-o, --output <file>', 'Output file path', 'batchprompt.json')
+    .option('-o, --output <file>', 'Output file path')
     .option('--model <model>', 'Model to use for generation', 'google/gemini-3-flash-preview')
     .action(async (promptArg, options) => {
         let puppeteerHelperInstance;
@@ -167,7 +167,7 @@ program.command('init')
                 
                 // Limit to 10 unique rows for the LLM context
                 sampleRows = getUniqueRows(sampleRows, 10);
-                console.log(`Loaded ${sampleRows.length} sample rows from ${options.data}`);
+                console.error(`Loaded ${sampleRows.length} sample rows from ${options.data}`);
             }
 
             // 3. Initialize Core
@@ -199,7 +199,7 @@ program.command('init')
             }).getRawClient();
 
             // 6. Run Refiner
-            console.log('Generating configuration... (this may take a minute)');
+            console.error('Generating configuration... (this may take a minute)');
             const refiner = new ConfigRefiner(generatorLlm, judgeLlm, executor, { maxRetries: 3 });
 
             const result = await refiner.run({
@@ -216,13 +216,12 @@ program.command('init')
             // 7. Save Result
             const config = result.generated;
             
-            // If sample data was used, we might want to reference the file in the config
-            // instead of embedding the rows, but for now, let's respect the generated output.
-            // If the user provided a data file, the LLM might have configured the input to read from it
-            // if we told it the filename. Currently we just pass the rows content.
-            
-            fs.writeFileSync(options.output, JSON.stringify(config, null, 2));
-            console.log(`\nConfiguration saved to ${options.output}`);
+            if (options.output) {
+                fs.writeFileSync(options.output, JSON.stringify(config, null, 2));
+                console.error(`\nConfiguration saved to ${options.output}`);
+            } else {
+                console.log(JSON.stringify(config, null, 2));
+            }
             
             // Cleanup
             if (puppeteerHelperInstance) {
