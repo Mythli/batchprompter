@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import OpenAI from 'openai';
 import { 
-    IterativeRefiner, 
+    createIterativeRefiner, 
     EvaluationResult, 
     IterationHistory, 
     SafePipelineConfig, 
@@ -17,26 +17,29 @@ export interface ConfigRefinerInput {
     partialConfig?: any;
 }
 
-export interface ConfigRefinerOutput {
-    results: any[];
-    error?: string;
-}
-
 const EvaluationSchema = z.object({
     success: z.boolean().describe("Whether the configuration output satisfies the user request."),
     feedback: z.string().optional().describe("If success is false, provide specific instructions on what to fix in the configuration."),
 });
 
-export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipelineConfig, ConfigRefinerOutput> {
+export class ConfigRefiner {
     constructor(
         private llmFactory: LlmClientFactory,
         private executionService: ExecutionService,
-        options: { maxRetries: number }
-    ) {
-        super(options);
+        private options: { maxRetries: number }
+    ) {}
+
+    async run(input: ConfigRefinerInput) {
+        const refiner = createIterativeRefiner({
+            maxRetries: this.options.maxRetries,
+            generate: (input, history) => this.generate(input, history),
+            evaluate: (input, generated) => this.evaluate(input, generated)
+        });
+
+        return refiner.run(input);
     }
 
-    protected async generate(input: ConfigRefinerInput, history: IterationHistory<SafePipelineConfig>[]): Promise<SafePipelineConfig> {
+    private async generate(input: ConfigRefinerInput, history: IterationHistory<SafePipelineConfig>[]): Promise<SafePipelineConfig> {
         const generatorLlm = this.llmFactory.create({
             model: 'google/gemini-3-flash-preview',
             thinkingLevel: 'high',
@@ -78,18 +81,18 @@ export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipe
 
         // 3. History (Conversation Turns)
         for (const entry of history) {
-            if (entry.config) {
+            // Support both 'generated' (new) and 'config' (legacy/compat)
+            const config = (entry as any).generated || (entry as any).config;
+            
+            if (config) {
                 // Assistant Turn (The Config)
                 messages.push({
                     role: 'assistant',
-                    content: JSON.stringify(entry.config, null, 2)
+                    content: JSON.stringify(config, null, 2)
                 });
 
                 // User Turn (Feedback/Error)
                 let feedbackText = "";
-                if (entry.error) {
-                    feedbackText += `Execution Error: ${entry.error}\n`;
-                }
                 if (entry.feedback) {
                     feedbackText += `Feedback: ${entry.feedback}\n`;
                 }
@@ -98,13 +101,6 @@ export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipe
                 messages.push({
                     role: 'user',
                     content: feedbackText
-                });
-            } else {
-                // Generation failed previously (no config produced)
-                // We inform the model about the failure in a user message
-                messages.push({
-                    role: 'user',
-                    content: `Previous attempt to generate configuration failed with error: ${entry.error || 'Unknown error'}. ${entry.feedback || ''}. Please try again and ensure valid JSON structure matching the schema.`
                 });
             }
         }
@@ -128,7 +124,11 @@ export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipe
         return result as SafePipelineConfig;
     }
 
-    protected async execute(config: SafePipelineConfig, input: ConfigRefinerInput): Promise<ConfigRefinerOutput> {
+    private async evaluate(input: ConfigRefinerInput, config: SafePipelineConfig): Promise<EvaluationResult> {
+        // 1. Execute
+        let executionResults: any[] = [];
+        let executionError: string | undefined;
+        
         // Create a modified config for testing
         const testConfig = JSON.parse(JSON.stringify(config));
 
@@ -141,17 +141,16 @@ export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipe
         try {
             // We need to pass the sample rows to the execution service if we want to test with them.
             const result = await this.executionService.runConfig(testConfig, input.sampleRows);
-            return { results: result.results };
+            executionResults = result.results;
         } catch (e: any) {
-            return { results: [], error: e.message };
+            executionError = e.message;
         }
-    }
 
-    protected async evaluate(input: ConfigRefinerInput, config: SafePipelineConfig, output: ConfigRefinerOutput): Promise<EvaluationResult> {
-        if (output.error) {
+        // 2. Evaluate/Judge
+        if (executionError) {
             return {
                 success: false,
-                feedback: `Execution Error: ${output.error}. Please fix the configuration to avoid this error.`
+                feedback: `Execution Error: ${executionError}. Please fix the configuration to avoid this error.`
             };
         }
 
@@ -167,7 +166,7 @@ export class ConfigRefiner extends IterativeRefiner<ConfigRefinerInput, SafePipe
         const prompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
             { type: 'text', text: `User Request: ${input.prompt}` },
             { type: 'text', text: `Generated Configuration:\n${JSON.stringify(config, null, 2)}` },
-            { type: 'text', text: `Execution Results (First 5 rows):\n${JSON.stringify(output.results, null, 2)}` },
+            { type: 'text', text: `Execution Results (First 5 rows):\n${JSON.stringify(executionResults, null, 2)}` },
             { type: 'text', text: `Did this configuration produce the desired output? If yes, set success to true. If no, set success to false and provide specific feedback on what is wrong (e.g. missing columns, wrong data format, empty fields).` }
         ];
 

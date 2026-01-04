@@ -16,7 +16,11 @@ export class GenerationService {
             partialConfig
         });
 
-        const config = result.config;
+        if (!result.success || !result.generated) {
+            throw new Error(`Failed to generate configuration: ${result.feedback || 'Unknown error'}`);
+        }
+
+        const config = result.generated;
 
         // Inject sample rows into the config so they are available for execution in the UI
         if (sampleRows && sampleRows.length > 0) {
