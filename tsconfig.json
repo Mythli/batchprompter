@@ -2,6 +2,7 @@
   "files": [],
   "references": [
     { "path": "./packages/batchprompt" },
+    { "path": "./packages/llm-fns" },
     { "path": "./apps/batchprompt-cli" },
     { "path": "./apps/batchprompt-web" }
   ]
