@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import OpenAI from 'openai';
-import { PreprocessorConfigDefinition, PreprocessorServices } from '../../types.js';
+import { PreprocessorConfigDefinition, PreprocessorServices } from '../types.js';
 
 export interface PreprocessorContext {
     row: Record<string, any>;

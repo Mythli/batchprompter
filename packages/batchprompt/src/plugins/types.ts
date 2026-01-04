@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { ServiceCapabilities, ResolvedModelConfig } from '../config/types.js';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { BatchPromptEvents } from '../core/events.js';
-import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
+import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
 import { Fetcher } from 'llm-fns';
 import { Cache } from 'cache-manager';
 import { ImageSearch } from './image-search/ImageSearch.js';

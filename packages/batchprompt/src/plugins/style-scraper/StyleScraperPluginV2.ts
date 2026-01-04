@@ -11,8 +11,8 @@ import {
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
-import { InteractiveElementScreenshoter } from '../../../utils/puppeteer/InteractiveElementScreenshoter.js';
-import { PuppeteerPageHelper } from '../../../utils/puppeteer/PuppeteerPageHelper.js';
+import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
+import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
 

@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
-import { ResolvedModelConfig } from '../../types.js';
+import { ResolvedModelConfig } from '../types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 
 export class LlmClientFactory {

@@ -10,9 +10,9 @@ import {
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { makeSchemaOptional } from '../../../utils/schemaUtils.js';
+import { makeSchemaOptional } from '../../utils/schemaUtils.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
-import { AiWebsiteAgent } from '../../../utils/AiWebsiteAgent.js';
+import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';

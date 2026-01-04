@@ -1,10 +1,10 @@
 import path from 'path';
 import Handlebars from 'handlebars';
 import { LlmClientFactory } from './LlmClientFactory.js';
-import { GlobalContext, StepConfig, StepContext, ResolvedModelConfig, PipelineItem } from '../../types.js';
+import { GlobalContext, StepConfig, StepContext, ResolvedModelConfig, PipelineItem } from '../types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
-import { aggressiveSanitize, ensureDir } from '../../utils/fileUtils.js';
-import { SchemaHelper } from '../../utils/SchemaHelper.js';
+import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
+import { SchemaHelper } from '../utils/SchemaHelper.js';
 
 export interface ResolvedStepContext {
     resolvedStep: StepConfig;

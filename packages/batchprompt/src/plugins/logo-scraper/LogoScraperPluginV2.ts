@@ -11,7 +11,7 @@ import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
-import { aggressiveSanitize } from '../../../utils/fileUtils.js';
+import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { EventEmitter } from 'eventemitter3';

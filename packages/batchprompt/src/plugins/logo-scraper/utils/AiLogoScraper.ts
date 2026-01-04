@@ -2,9 +2,9 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { EventEmitter } from 'eventemitter3';
 import { BoundLlmClient } from '../../../core/BoundLlmClient.js';
-import { PuppeteerHelper } from '../../../../utils/puppeteer/PuppeteerHelper.js';
-import { PuppeteerPageHelper, Resolution } from '../../../../utils/puppeteer/PuppeteerPageHelper.js';
-import { compressHtml } from '../../../../utils/compressHtml.js';
+import { PuppeteerHelper } from '../../../utils/puppeteer/PuppeteerHelper.js';
+import { PuppeteerPageHelper, Resolution } from '../../../utils/puppeteer/PuppeteerPageHelper.js';
+import { compressHtml } from '../../../utils/compressHtml.js';
 import { CssParser } from './CssParser.js';
 import { ImageDownloader, ImageConversionResult } from './ImageDownloader.js';
 

@@ -12,8 +12,8 @@ import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { ModelFlags } from '../../cli/ModelFlags.js';
-import { AiImageSearch } from '../../../utils/AiImageSearch.js';
-import { LlmListSelector } from '../../../utils/LlmListSelector.js';
+import { AiImageSearch } from '../../utils/AiImageSearch.js';
+import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================

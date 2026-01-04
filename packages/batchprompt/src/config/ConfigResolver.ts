@@ -8,7 +8,7 @@ import {
 import { LoosePipelineConfigSchema, PipelineConfigSchema } from './schema.js';
 import { PromptLoader } from './PromptLoader.js';
 import { SchemaLoader } from './SchemaLoader.js';
-import { loadData } from '../../utils/dataLoader.js';
+import { loadData } from '../utils/dataLoader.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
 import { ConfigNormalizer } from './ConfigNormalizer.js';

@@ -1,7 +1,7 @@
 import { GenericHandler } from './types.js';
-import { PreprocessorServices } from '../../../types.js';
-import { compressHtml } from '../../../utils/compressHtml.js';
-import { PuppeteerPageHelper } from '../../../utils/puppeteer/PuppeteerPageHelper.js';
+import { PreprocessorServices } from '../../types.js';
+import { compressHtml } from '../../utils/compressHtml.js';
+import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 
 export class GenericPuppeteerHandler implements GenericHandler {
     name = 'generic-puppeteer';

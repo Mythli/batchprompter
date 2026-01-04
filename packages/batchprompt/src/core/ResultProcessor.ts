@@ -1,4 +1,4 @@
-import { OutputStrategy, PipelineItem } from '../../types.js';
+import { OutputStrategy, PipelineItem } from '../types.js';
 import { PluginPacket } from '../plugins/types.js';
 
 export class ResultProcessor {
