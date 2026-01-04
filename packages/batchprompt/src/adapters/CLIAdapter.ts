@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { PipelineConfig, StepConfig, OutputConfig } from '../config/types.js';
+import { PipelineConfig, RawStepConfig, OutputConfig } from '../config/types.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 
 /**
@@ -131,7 +131,7 @@ export class CLIAdapter {
         };
 
         // Build steps
-        const steps: StepConfig[] = [];
+        const steps: RawStepConfig[] = [];
 
         for (let i = 1; i <= maxStep; i++) {
             const step = this.parseStep(options, args, i);
@@ -150,7 +150,7 @@ export class CLIAdapter {
         };
     }
 
-    private parseStep(options: Record<string, any>, args: string[], stepIndex: number): StepConfig {
+    private parseStep(options: Record<string, any>, args: string[], stepIndex: number): RawStepConfig {
         const getOpt = (key: string) => {
             // Try step-specific first, then global
             const stepKey = this.toStepKey(key, stepIndex);

@@ -6,17 +6,14 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import PQueue from 'p-queue';
 import { Cache } from 'cache-manager';
 import { BoundLlmClient } from './core/BoundLlmClient.js';
-import { GlobalsConfig } from './config/types.js';
+import { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities } from './config/types.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
 
 // --- Service Capabilities ---
 
-export interface ServiceCapabilities {
-    hasSerper: boolean;
-    hasPuppeteer: boolean;
-}
+// Imported from config/types.js
 
 // --- Definitions ---
 
@@ -88,14 +85,7 @@ export interface NormalizedConfig {
 
 // --- Resolved Configuration ---
 
-export interface ResolvedModelConfig {
-    model?: string;
-    temperature?: number;
-    thinkingLevel?: 'low' | 'medium' | 'high';
-
-    systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-    promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-}
+// Imported from config/types.js
 
 export interface StepExecutionContext {
     row: Record<string, any>;

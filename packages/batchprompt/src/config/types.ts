@@ -15,7 +15,7 @@ import {
 export type PromptDef = z.infer<typeof PromptDefSchema>;
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
 export type GlobalsConfig = z.infer<typeof GlobalsConfigSchema>;
-export type StepConfig = z.infer<typeof StepConfigSchema>;
+export type RawStepConfig = z.infer<typeof StepConfigSchema>;
 export type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
 
 // =============================================================================
