@@ -3,28 +3,16 @@ import OpenAI from 'openai';
 /**
  * Converts an OpenAI ChatCompletion object into an assistant message parameter.
  * Handles text, audio, tool calls, and custom image attachments.
- * 
+ *
  * @param completion The ChatCompletion object.
  * @returns An OpenAI ChatCompletionMessageParam with role 'assistant'.
  * @throws Error if the input is not a valid ChatCompletion object.
  */
 export function completionToMessage(
-    completion: OpenAI.Chat.Completions.ChatCompletion | any
+    completion: OpenAI.Chat.Completions.ChatCompletion
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-    // Strict check for ChatCompletion structure
-    if (
-        !completion || 
-        typeof completion !== 'object' || 
-        !('choices' in completion) || 
-        !Array.isArray(completion.choices) ||
-        completion.choices.length === 0 ||
-        !completion.choices[0].message
-    ) {
-        throw new Error("Invalid input passed to completionToMessage. Expected a valid OpenAI ChatCompletion object.");
-    }
-
     const message = completion.choices[0].message;
-    
+
     // Base message structure
     const messageParam: any = {
         role: 'assistant',
