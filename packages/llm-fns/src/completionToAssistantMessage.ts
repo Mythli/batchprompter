@@ -31,7 +31,7 @@ export function completionToMessage(
             contentParts.push({ type: 'text', text: message.content });
         } else if (Array.isArray(message.content)) {
             // Handle potential array content in completion
-            contentParts.push(...message.content);
+            contentParts.push(...(message.content as any));
         }
     }
 
