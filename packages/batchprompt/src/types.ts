@@ -1,15 +1,15 @@
 import OpenAI from 'openai';
 import { Fetcher } from 'llm-fns';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { ImageSearch } from './src/plugins/image-search/ImageSearch.js';
-import { WebSearch } from './src/plugins/web-search/WebSearch.js';
+import { ImageSearch } from './plugins/image-search/ImageSearch.js';
+import { WebSearch } from './plugins/web-search/WebSearch.js';
 import PQueue from 'p-queue';
 import { Cache } from 'cache-manager';
-import { BoundLlmClient } from './src/core/BoundLlmClient.js';
-import { GlobalsConfig } from './src/config/types.js';
+import { BoundLlmClient } from './core/BoundLlmClient.js';
+import { GlobalsConfig } from './config/types.js';
 import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from './src/core/events.js';
-import { ContentResolver } from './src/core/io/ContentResolver.js';
+import { BatchPromptEvents } from './core/events.js';
+import { ContentResolver } from './core/io/ContentResolver.js';
 
 // --- Service Capabilities ---
 
