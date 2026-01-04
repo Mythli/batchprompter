@@ -33,7 +33,7 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
 
     /**
      * Converts the generated artifact into a chat message for history.
-     * Defaults to using completionToMessage for ChatCompletion objects, 
+     * Defaults to using completionToMessage for ChatCompletion objects,
      * wrapping strings directly, or JSON stringifying other objects.
      */
     generatedToMessage?: (generated: TGenerated) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
@@ -71,7 +71,7 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
         const evaluations: EvaluationResult[] = [];
         let currentGenerated: TGenerated | undefined;
         let lastOutput: TOutput | undefined;
-        let lastEvaluation: EvaluationResult | undefined;
+        let lastEvaluation: EvaluationResult = { feedback: 'No evaluation yet', success: false };
 
         for (let i = 0; i < maxRetries; i++) {
             // 1. Generate
@@ -86,14 +86,13 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
             lastEvaluation = evaluation;
 
             if (evaluation.success) {
-                return { 
-                    generated: currentGenerated, 
-                    output: lastOutput, 
-                    iterations: i + 1, 
+                return {
+                    generated: currentGenerated,
+                    output: lastOutput,
+                    iterations: i + 1,
                     history,
                     evaluations,
-                    success: true,
-                    feedback: evaluation.feedback
+                    ...evaluation,
                 };
             }
 
@@ -103,19 +102,13 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
             }
         }
 
-        if (!currentGenerated) {
-            throw new Error("Failed to generate any valid result after all retries.");
-        }
-
-        console.warn(`[IterativeRefiner] Max retries reached. Returning last result.`);
-        return { 
-            generated: currentGenerated, 
-            output: lastOutput, 
-            iterations: maxRetries, 
+        return {
+            generated: currentGenerated,
+            output: lastOutput,
+            iterations: maxRetries,
             history,
             evaluations,
-            success: lastEvaluation?.success ?? false,
-            feedback: lastEvaluation?.feedback
+            ...lastEvaluation
         };
     }
 
