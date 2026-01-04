@@ -39,7 +39,7 @@ export function createIterativeRefiner<TInput, TConfig, TOutput>(
 ) {
     const { generate, execute, evaluate, maxRetries = 3 } = params;
 
-    async function run(input: TInput): Promise<{ config: TConfig; output?: TOutput; iterations: number }> {
+    async function run(input: TInput): Promise<{ config: TConfig; output?: TOutput; iterations: number; history: IterationHistory<TConfig>[] }> {
         const history: IterationHistory<TConfig>[] = [];
         let currentConfig: TConfig | undefined;
         let lastOutput: TOutput | undefined;
@@ -66,8 +66,7 @@ export function createIterativeRefiner<TInput, TConfig, TOutput>(
                 // Execution errors are valid feedback for the LLM
                 history.push({
                     config: currentConfig,
-                    error: e.message,
-                    feedback: `The configuration caused an execution error: ${e.message}. Please fix the configuration to avoid this error.`
+                    error: e.message
                 });
                 continue;
             }
@@ -76,7 +75,7 @@ export function createIterativeRefiner<TInput, TConfig, TOutput>(
             const evaluation = await evaluate(input, currentConfig, lastOutput);
 
             if (evaluation.success) {
-                return { config: currentConfig, output: lastOutput, iterations: i + 1 };
+                return { config: currentConfig, output: lastOutput, iterations: i + 1, history };
             }
 
             history.push({
@@ -90,7 +89,7 @@ export function createIterativeRefiner<TInput, TConfig, TOutput>(
         }
 
         console.warn(`[IterativeRefiner] Max retries reached. Returning last result.`);
-        return { config: currentConfig, output: lastOutput, iterations: maxRetries };
+        return { config: currentConfig, output: lastOutput, iterations: maxRetries, history };
     }
 
     return { run };
