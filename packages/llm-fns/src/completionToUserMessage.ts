@@ -34,8 +34,13 @@ export function completionToMessage(
     const contentParts: any[] = [];
 
     // 1. Existing Text Content
-    if (message.content && typeof message.content === 'string') {
-        contentParts.push({ type: 'text', text: message.content });
+    if (message.content) {
+        if (typeof message.content === 'string') {
+            contentParts.push({ type: 'text', text: message.content });
+        } else if (Array.isArray(message.content)) {
+            // Handle potential array content in completion
+            contentParts.push(...message.content);
+        }
     }
 
     // 2. Custom Images (OpenRouter / Custom Provider extension)
@@ -54,6 +59,23 @@ export function completionToMessage(
                 contentParts.push({ 
                     type: 'image_url', 
                     image_url: { url: img.url } 
+                });
+            }
+        }
+    }
+
+    // 3. Custom Audio (Extension for providers returning audio in a list or custom format)
+    // We map this to 'input_audio' content parts to preserve the data in the history
+    // in a way that compatible clients (and our countChars) can understand.
+    if ((message as any).audio && Array.isArray((message as any).audio)) {
+        for (const aud of (message as any).audio) {
+            if (aud.data) {
+                contentParts.push({
+                    type: 'input_audio',
+                    input_audio: {
+                        data: aud.data,
+                        format: aud.format || 'wav'
+                    }
                 });
             }
         }
