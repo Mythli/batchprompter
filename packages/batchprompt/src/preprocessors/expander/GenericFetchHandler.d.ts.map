@@ -1,1 +1,0 @@
-{"version":3,"file":"GenericFetchHandler.d.ts","sourceRoot":"","sources":["GenericFetchHandler.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,cAAc,EAAE,MAAM,YAAY,CAAC;AAC5C,OAAO,EAAE,oBAAoB,EAAE,MAAM,mBAAmB,CAAC;AAEzD,qBAAa,mBAAoB,YAAW,cAAc;IACtD,IAAI,SAAmB;IAEjB,MAAM,CAAC,GAAG,EAAE,MAAM,EAAE,QAAQ,EAAE,oBAAoB,GAAG,OAAO,CAAC,MAAM,GAAG,IAAI,CAAC;CAOpF"}
