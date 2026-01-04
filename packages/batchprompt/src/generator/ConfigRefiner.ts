@@ -3,7 +3,7 @@ import type OpenAI from 'openai';
 import { createIterativeRefiner, EvaluationResult } from 'llm-fns';
 import { SafePipelineConfig, SafePipelineConfigSchema } from '../config/safeSchema.js';
 import { LlmClientFactory } from '../core/LlmClientFactory.js';
-import { CONFIG_DOCUMENTATION } from './ConfigDocumentation.js';
+import { CONFIG_DOCUMENTATION } from '../generated/ConfigDocumentation.js';
 
 export interface ConfigRefinerInput {
     prompt: string;

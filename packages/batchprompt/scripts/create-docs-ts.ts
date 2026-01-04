@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-const outputFile = path.join(rootDir, 'src', 'generator', 'ConfigDocumentation.ts');
+const outputFile = path.join(rootDir, 'src', 'generated', 'ConfigDocumentation.ts');
 const examplesDir = path.join(rootDir, '../../apps/batchprompt-cli/examples');
 
 // Ensure output directory exists
