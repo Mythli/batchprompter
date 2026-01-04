@@ -8,6 +8,8 @@ export * from './StepExecutor.js';
 export * from './config/index.js';
 export * from './config/safeSchema.js';
 export * from './config/ConfigNormalizer.js';
+export * from './config/PromptLoader.js';
+export * from './config/schema.js';
 
 // Generator
 export * from './generator/ConfigRefiner.js';
@@ -58,8 +60,3 @@ export * from './utils/AiImageSearch.js';
 export * from './utils/LlmListSelector.js';
 export * from './utils/SpriteGenerator.js';
 export * from './utils/compressHtml.js';
-
-// CLI Shared Logic (Re-exported for convenience, though available via /cli subpath)
-export * from './cli/ModelFlags.js';
-export * from './cli/StepRegistry.js';
-export * from './cli/ConfigSchema.js';

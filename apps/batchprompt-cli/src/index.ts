@@ -12,11 +12,11 @@ import {
     FileAdapter,
     PipelineConfigSchema,
     DebugLogger,
-    StepRegistry,
     ConfigRefiner,
     InMemoryConfigExecutor,
     getUniqueRows
 } from 'batchprompt';
+import { StepRegistry } from './StepRegistry.js';
 import { FileSystemArtifactHandler } from './handlers/FileSystemArtifactHandler.js';
 import { FileSystemContentResolver } from './io/FileSystemContentResolver.js';
 import Papa from 'papaparse';
