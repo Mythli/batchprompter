@@ -1,25 +1,8 @@
 {
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "lib": ["ES2022", "DOM"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "composite": true,
-    "incremental": true
-  },
   "files": [],
   "references": [
     { "path": "./packages/batchprompt" },
     { "path": "./apps/batchprompt-cli" },
     { "path": "./apps/batchprompt-web" }
-  ],
-  "exclude": ["node_modules", "dist", "**/dist", "**/node_modules"]
+  ]
 }
