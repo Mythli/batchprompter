@@ -1,4 +1,4 @@
-import { SafePipelineConfig, getConfig, ConfigRefiner } from 'batchprompt';
+import { SafePipelineConfig, getConfig, ConfigRefiner, CONFIG_DOCUMENTATION } from 'batchprompt';
 import { ExecutionService } from './ExecutionService.js';
 
 export class GenerationService {
@@ -7,7 +7,26 @@ export class GenerationService {
         const { llmFactory } = await getConfig();
         const executionService = new ExecutionService();
 
-        const refiner = new ConfigRefiner(llmFactory, executionService, { maxRetries: 3 });
+        const generatorLlm = llmFactory.create({
+            model: 'google/gemini-3-flash-preview',
+            thinkingLevel: 'high',
+            systemParts: [
+                { type: 'text', text: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' },
+                { type: 'text', text: 'Here is the documentation for the configuration format:\n\n' + CONFIG_DOCUMENTATION }
+            ],
+            promptParts: []
+        });
+
+        const judgeLlm = llmFactory.create({
+            model: 'google/gemini-3-flash-preview',
+            thinkingLevel: 'high',
+            systemParts: [
+                { type: 'text', text: 'You are a judge for a batch processing pipeline configuration. Your job is to determine if the execution results satisfy the user\'s request.' }
+            ],
+            promptParts: []
+        });
+
+        const refiner = new ConfigRefiner(generatorLlm, judgeLlm, executionService, { maxRetries: 3 });
 
         const result = await refiner.run({
             prompt,
