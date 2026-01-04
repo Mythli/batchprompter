@@ -1,8 +1,10 @@
-import { ContentResolver } from '../core/io/ContentResolver.js';
+import { SchemaLoader } from './SchemaLoader.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
+import { ContentResolver } from '../core/io/ContentResolver.js';
 
 export class ConfigNormalizer {
     constructor(
+        private schemaLoader: SchemaLoader,
         private contentResolver: ContentResolver,
         private pluginRegistry: PluginRegistryV2
     ) {}
@@ -15,7 +17,12 @@ export class ConfigNormalizer {
             for (const step of normalized.steps) {
                 // Normalize Step Schema
                 if (step.schema && typeof step.schema === 'string') {
-                    step.schema = await this.loadSchema(step.schema);
+                    try {
+                        step.schema = await this.schemaLoader.load(step.schema);
+                    } catch (e) {
+                        // If loading fails (e.g. dynamic path), leave it as string
+                        // It will be resolved at runtime by StepResolver
+                    }
                 }
 
                 // Normalize Plugin Schemas
@@ -33,14 +40,5 @@ export class ConfigNormalizer {
         }
 
         return normalized;
-    }
-
-    private async loadSchema(path: string): Promise<any> {
-        try {
-            const content = await this.contentResolver.readText(path);
-            return JSON.parse(content);
-        } catch (e: any) {
-            throw new Error(`Failed to load schema from '${path}': ${e.message}`);
-        }
     }
 }

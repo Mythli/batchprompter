@@ -27,7 +27,11 @@ export class ConfigResolver {
     constructor(private deps: ConfigResolverDependencies) {
         this.promptLoader = new PromptLoader(deps.contentResolver);
         this.schemaLoader = new SchemaLoader(deps.contentResolver);
-        this.normalizer = new ConfigNormalizer(deps.contentResolver, deps.pluginRegistry);
+        this.normalizer = new ConfigNormalizer(
+            this.schemaLoader, 
+            deps.contentResolver, 
+            deps.pluginRegistry
+        );
     }
 
     /**

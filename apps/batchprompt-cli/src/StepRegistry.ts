@@ -10,7 +10,8 @@ import {
     PromptLoader,
     PluginRegistryV2,
     createPreprocessorRegistry,
-    ContentResolver
+    ContentResolver,
+    SchemaLoader
 } from 'batchprompt';
 import { createConfigSchema } from './ConfigSchema.js';
 
@@ -105,12 +106,13 @@ export class StepRegistry {
         });
 
         // 4. Normalize Schemas (Resolve paths to objects)
+        const schemaLoader = new SchemaLoader(contentResolver);
+
         for (const step of normalized.steps) {
             // Step Schema
             if (step.schemaPath) {
                 try {
-                    const content = await contentResolver.readText(step.schemaPath);
-                    step.jsonSchema = JSON.parse(content);
+                    step.jsonSchema = await schemaLoader.load(step.schemaPath);
                     step.schemaPath = undefined; 
                 } catch (e: any) {
                     // Ignore dynamic paths
@@ -122,8 +124,7 @@ export class StepRegistry {
                 if (plugin.name === 'website-agent' || plugin.name === 'validation') {
                     if (typeof plugin.config.schema === 'string') {
                         try {
-                            const content = await contentResolver.readText(plugin.config.schema);
-                            plugin.config.schema = JSON.parse(content);
+                            plugin.config.schema = await schemaLoader.load(plugin.config.schema);
                         } catch (e) {
                             // Ignore dynamic paths
                         }
