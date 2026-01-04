@@ -1,0 +1,314 @@
+import path from 'path';
+import { StepExecutor } from './StepExecutor.js';
+import { ResultProcessor } from './src/core/ResultProcessor.js';
+export class ActionRunner {
+    globalContext;
+    pluginRegistry;
+    preprocessorRegistry;
+    stepResolver;
+    messageBuilder;
+    constructor(globalContext, pluginRegistry, preprocessorRegistry, stepResolver, messageBuilder) {
+        this.globalContext = globalContext;
+        this.pluginRegistry = pluginRegistry;
+        this.preprocessorRegistry = preprocessorRegistry;
+        this.stepResolver = stepResolver;
+        this.messageBuilder = messageBuilder;
+    }
+    async run(config) {
+        const { concurrency, taskConcurrency, data, steps, offset = 0, limit } = config;
+        const events = this.globalContext.events;
+        events.emit('run:start', config);
+        // Using step:progress with row -1 for global logs
+        events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)` });
+        this.globalContext.taskQueue.concurrency = taskConcurrency;
+        this.globalContext.gptQueue.concurrency = concurrency;
+        const endIndex = limit ? offset + limit : undefined;
+        const dataToProcess = data.slice(offset, endIndex);
+        events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Processing ${dataToProcess.length} rows.` });
+        const queue = this.globalContext.taskQueue;
+        const executor = new StepExecutor(this.globalContext.events, this.messageBuilder);
+        const pluginServices = {
+            puppeteerHelper: this.globalContext.puppeteerHelper,
+            puppeteerQueue: this.globalContext.puppeteerQueue,
+            fetcher: this.globalContext.fetcher,
+            cache: this.globalContext.cache,
+            imageSearch: this.globalContext.imageSearch,
+            webSearch: this.globalContext.webSearch,
+            createLlm: (config) => this.stepResolver.createLlm(config)
+        };
+        const enqueueNext = (items, nextStepIndex) => {
+            if (nextStepIndex >= steps.length) {
+                for (const item of items) {
+                    events.emit('row:end', { index: item.originalIndex, result: item.row });
+                }
+            }
+            else {
+                for (const item of items) {
+                    queue.add(() => processTask({ item, stepIndex: nextStepIndex }));
+                }
+            }
+        };
+        const processTask = async (payload) => {
+            const { item, stepIndex } = payload;
+            const stepConfig = steps[stepIndex];
+            const stepNum = stepIndex + 1;
+            const timeoutMs = stepConfig.timeout * 1000;
+            events.emit('step:start', { row: item.originalIndex, step: stepNum });
+            try {
+                const { resolvedStep, stepContext } = await this.stepResolver.resolve(item, stepConfig, stepIndex, config.tmpDir);
+                // 1. Prepare Handler
+                if (resolvedStep.handlers?.prepare) {
+                    const execContext = {
+                        row: item.row,
+                        workspace: item.workspace,
+                        stepIndex: stepIndex,
+                        rowIndex: item.originalIndex,
+                        history: item.history
+                    };
+                    await resolvedStep.handlers.prepare(execContext);
+                }
+                // 2. Execute with Timeout
+                let activeItems = [item];
+                let timer;
+                const timeoutPromise = new Promise((_, reject) => {
+                    timer = setTimeout(() => reject(new Error(`Step timed out after ${stepConfig.timeout}s`)), timeoutMs);
+                });
+                const executionPromise = (async () => {
+                    // A. Plugins
+                    activeItems = await this.executePlugins(activeItems, resolvedStep, stepNum, pluginServices, resolvedStep.resolvedTempDir || config.tmpDir);
+                    // B. Model
+                    return await this.executeModel(activeItems, resolvedStep, stepContext, stepNum, executor);
+                })();
+                const nextItems = await Promise.race([executionPromise, timeoutPromise]);
+                clearTimeout(timer);
+                // 3. Process Handler (Post-processing)
+                if (resolvedStep.handlers?.process) {
+                    for (const nextItem of nextItems) {
+                        // We assume the last entry in stepHistory is the result of this step
+                        const result = nextItem.stepHistory[nextItem.stepHistory.length - 1];
+                        const execContext = {
+                            row: nextItem.row,
+                            workspace: nextItem.workspace,
+                            stepIndex: stepIndex,
+                            rowIndex: nextItem.originalIndex,
+                            history: nextItem.history
+                        };
+                        await resolvedStep.handlers.process(execContext, result);
+                    }
+                }
+                events.emit('step:finish', { row: item.originalIndex, step: stepNum, result: nextItems.length });
+                enqueueNext(nextItems, stepIndex + 1);
+            }
+            catch (err) {
+                events.emit('row:error', { index: item.originalIndex, error: err });
+                events.emit('step:progress', {
+                    row: item.originalIndex,
+                    step: stepNum,
+                    type: 'error',
+                    message: `Step ${stepNum} Error: ${err.message}`,
+                    data: err
+                });
+            }
+        };
+        for (let i = 0; i < dataToProcess.length; i++) {
+            const originalIndex = offset + i;
+            const initialItem = {
+                row: dataToProcess[i],
+                workspace: {},
+                stepHistory: [],
+                history: [],
+                originalIndex: originalIndex,
+                accumulatedContent: []
+            };
+            events.emit('row:start', { index: originalIndex, row: initialItem.row });
+            queue.add(() => processTask({ item: initialItem, stepIndex: 0 }));
+        }
+        await queue.onIdle();
+        events.emit('run:end');
+    }
+    async executePlugins(items, resolvedStep, stepNum, services, tempDir) {
+        let activeItems = items;
+        const inheritedModel = {
+            model: resolvedStep.modelConfig.model || this.globalContext.defaultModel,
+            temperature: resolvedStep.modelConfig.temperature,
+            thinkingLevel: resolvedStep.modelConfig.thinkingLevel
+        };
+        for (let pluginIdx = 0; pluginIdx < resolvedStep.plugins.length; pluginIdx++) {
+            const pluginDef = resolvedStep.plugins[pluginIdx];
+            const plugin = this.pluginRegistry.get(pluginDef.name);
+            if (!plugin)
+                continue;
+            activeItems = await this.processBatch(activeItems, async (currentItem) => {
+                const pluginViewContext = {
+                    ...currentItem.row,
+                    ...currentItem.workspace,
+                    steps: currentItem.stepHistory,
+                    index: currentItem.originalIndex
+                };
+                const resolvedPluginConfig = await plugin.resolveConfig(pluginDef.config, pluginViewContext, inheritedModel, this.globalContext.contentResolver);
+                const result = await plugin.execute(resolvedPluginConfig, {
+                    row: pluginViewContext,
+                    stepIndex: stepNum,
+                    pluginIndex: pluginIdx,
+                    services: services,
+                    tempDirectory: tempDir,
+                    // Pass emitter to plugin context
+                    emit: (event, ...args) => {
+                        if (event === 'plugin:artifact') {
+                            const payload = args[0];
+                            if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
+                                payload.filename = path.join(tempDir, payload.filename);
+                            }
+                            this.globalContext.events.emit('plugin:artifact', payload);
+                        }
+                        else if (event === 'step:progress') {
+                            const payload = args[0];
+                            // Ensure row/step context is correct if not provided
+                            this.globalContext.events.emit('step:progress', {
+                                row: currentItem.originalIndex,
+                                step: stepNum,
+                                ...payload
+                            });
+                        }
+                        else {
+                            // @ts-ignore - we know event is not 'log' anymore
+                            this.globalContext.events.emit(event, ...args);
+                        }
+                    }
+                });
+                return result.packets;
+            }, pluginDef.output, toCamel(pluginDef.name), stepNum);
+        }
+        return activeItems;
+    }
+    async executeModel(items, resolvedStep, stepContext, stepNum, executor) {
+        return this.processBatch(items, async (currentItem) => {
+            const modelViewContext = {
+                ...currentItem.row,
+                ...currentItem.workspace,
+                steps: currentItem.stepHistory,
+                index: currentItem.originalIndex
+            };
+            let effectiveParts = [...currentItem.accumulatedContent, ...resolvedStep.userPromptParts];
+            for (const ppDef of resolvedStep.preprocessors) {
+                const preprocessor = this.preprocessorRegistry.get(ppDef.name);
+                if (preprocessor) {
+                    effectiveParts = await preprocessor.process(effectiveParts, {
+                        row: modelViewContext,
+                        services: {
+                            puppeteerHelper: this.globalContext.puppeteerHelper,
+                            fetcher: this.globalContext.fetcher,
+                            puppeteerQueue: this.globalContext.puppeteerQueue
+                        }
+                    }, ppDef.config);
+                }
+            }
+            const result = await executor.executeModel(stepContext, modelViewContext, currentItem.originalIndex, stepNum, resolvedStep, currentItem.history, effectiveParts, currentItem.variationIndex);
+            // Check if we need to unwrap an array result into multiple packets for explosion
+            if (resolvedStep.output.explode && Array.isArray(result.modelResult)) {
+                return result.modelResult.map((item) => ({
+                    data: item,
+                    contentParts: [],
+                    _historyUpdate: {
+                        userPromptParts: resolvedStep.userPromptParts,
+                        historyMessage: result.historyMessage
+                    }
+                }));
+            }
+            return [{
+                    data: result.modelResult,
+                    contentParts: [],
+                    _historyUpdate: {
+                        userPromptParts: resolvedStep.userPromptParts,
+                        historyMessage: result.historyMessage
+                    }
+                }];
+        }, resolvedStep.output, 'modelOutput', stepNum, (newItem, packet) => {
+            const update = packet._historyUpdate;
+            if (!update)
+                return;
+            const newHistory = [...newItem.history];
+            const hasUserPrompt = update.userPromptParts.length > 0 && update.userPromptParts.some((p) => {
+                if (p.type === 'text')
+                    return p.text.trim().length > 0;
+                return true;
+            });
+            const assistantContent = update.historyMessage.content;
+            const hasAssistantResponse = assistantContent !== null &&
+                assistantContent !== undefined &&
+                assistantContent !== '' &&
+                !(Array.isArray(assistantContent) && assistantContent.length === 0);
+            if (hasUserPrompt) {
+                newHistory.push({ role: 'user', content: update.userPromptParts });
+                if (hasAssistantResponse) {
+                    newHistory.push(update.historyMessage);
+                }
+            }
+            newItem.history = newHistory;
+            newItem.stepHistory = [...newItem.stepHistory, packet.data];
+            delete packet._historyUpdate;
+        });
+    }
+    async processBatch(items, operation, outputStrategy, namespace, stepNum, postProcess) {
+        const results = await Promise.all(items.map(async (item) => {
+            try {
+                const packets = await operation(item);
+                return { item, packets };
+            }
+            catch (e) {
+                this.globalContext.events.emit('step:progress', {
+                    row: item.originalIndex,
+                    step: stepNum,
+                    type: 'error',
+                    message: `Step ${stepNum} ${namespace} Failed: ${e.message}`,
+                    data: e
+                });
+                return null;
+            }
+        }));
+        const validResults = results.filter(r => r !== null);
+        const nextItems = [];
+        for (const res of validResults) {
+            const processed = ResultProcessor.process([res.item], res.packets, outputStrategy, namespace);
+            // Emit explode event if applicable
+            if (outputStrategy.explode) {
+                const totalAvailable = res.packets.length;
+                const finalCount = processed.length;
+                // Only log if something interesting happened (expansion or reduction via limit)
+                if (totalAvailable > 1 || finalCount !== totalAvailable) {
+                    this.globalContext.events.emit('step:progress', {
+                        row: res.item.originalIndex,
+                        step: stepNum,
+                        type: 'explode',
+                        message: '', // Constructed by DebugLogger
+                        data: {
+                            count: finalCount,
+                            source: namespace,
+                            total: totalAvailable,
+                            limit: outputStrategy.limit,
+                            offset: outputStrategy.offset
+                        }
+                    });
+                }
+            }
+            if (postProcess) {
+                if (outputStrategy.explode) {
+                    processed.forEach((newItem, idx) => {
+                        postProcess(newItem, res.packets[idx]);
+                    });
+                }
+                else {
+                    if (processed.length > 0 && res.packets.length > 0) {
+                        postProcess(processed[0], res.packets[0]);
+                    }
+                }
+            }
+            nextItems.push(...processed);
+        }
+        return nextItems;
+    }
+}
+const toCamel = (s) => {
+    return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
+};
+//# sourceMappingURL=ActionRunner.js.map

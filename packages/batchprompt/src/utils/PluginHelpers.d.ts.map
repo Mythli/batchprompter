@@ -1,0 +1,1 @@
+{"version":3,"file":"PluginHelpers.d.ts","sourceRoot":"","sources":["PluginHelpers.ts"],"names":[],"mappings":"AAGA,OAAO,EAAE,eAAe,EAAE,mBAAmB,EAAE,MAAM,aAAa,CAAC;AACnE,OAAO,EAAE,eAAe,EAAE,MAAM,mCAAmC,CAAC;AAEpE,qBAAa,aAAa;IAEtB;;;OAGG;WACU,kBAAkB,CAC3B,GAAG,EAAE,eAAe,EACpB,GAAG,EAAE,MAAM,CAAC,MAAM,EAAE,GAAG,CAAC,EACxB,eAAe,EAAE,eAAe,GACjC,OAAO,CAAC,mBAAmB,CAAC;CA+BlC"}

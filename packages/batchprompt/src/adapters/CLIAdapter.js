@@ -1,0 +1,225 @@
+/**
+ * Adapts CLI arguments to the canonical PipelineConfig format.
+ * Plugins register their own flags - this adapter just coordinates.
+ */
+export class CLIAdapter {
+    pluginRegistry;
+    constructor(pluginRegistry) {
+        this.pluginRegistry = pluginRegistry;
+    }
+    /**
+     * Register all CLI options with Commander
+     */
+    register(program) {
+        // Core options (not owned by any plugin)
+        this.registerCoreOptions(program);
+        // Let plugins register their own options
+        this.pluginRegistry.registerCLI(program);
+    }
+    registerCoreOptions(program) {
+        // Data options
+        program.option('--config <file>', 'Path to YAML/JSON config file');
+        program.option('--offset <number>', 'Master offset (sets both input and output offsets)', parseInt);
+        program.option('--limit <number>', 'Master limit (sets both input and output limits)', parseInt);
+        program.option('--input-limit <number>', 'Limit for input rows', parseInt);
+        program.option('--input-offset <number>', 'Offset for input rows', parseInt);
+        // Global model options
+        program.option('--model <model>', 'Default model');
+        program.option('--temperature <number>', 'Default temperature', parseFloat);
+        program.option('--thinking-level <level>', 'Reasoning effort (low/medium/high)');
+        program.option('--system <file>', 'System prompt file or text');
+        program.option('-S, --schema <file>', 'JSON Schema for structured output');
+        // Execution options
+        program.option('-c, --concurrency <number>', 'LLM concurrency', parseInt);
+        program.option('--task-concurrency <number>', 'Task concurrency', parseInt);
+        program.option('--tmp-dir <path>', 'Temporary directory');
+        program.option('--data-output <path>', 'Output data file path');
+        program.option('--timeout <seconds>', 'Global timeout in seconds', parseInt);
+        // Step output options
+        program.option('-o, --output <path>', 'Output file path template');
+        program.option('--output-column <column>', 'Column to write output to');
+        program.option('--export', 'Merge result into row');
+        program.option('--explode', 'Explode array results');
+        // Post-processing
+        program.option('--command <cmd>', 'Post-process command');
+        program.option('--verify-command <cmd>', 'Verification command');
+        // Candidates
+        program.option('--candidates <number>', 'Number of candidates', parseInt);
+        program.option('--skip-candidate-command', 'Skip commands for candidates');
+        // Judge
+        program.option('--judge-prompt <text>', 'Judge prompt');
+        program.option('--judge-model <model>', 'Judge model');
+        program.option('--judge-temperature <number>', 'Judge temperature', parseFloat);
+        // Feedback
+        program.option('--feedback-prompt <text>', 'Feedback prompt');
+        program.option('--feedback-model <model>', 'Feedback model');
+        program.option('--feedback-loops <number>', 'Feedback loop count', parseInt);
+        // Image generation
+        program.option('--aspect-ratio <ratio>', 'Image aspect ratio');
+        // Step-specific core options (1-10)
+        for (let i = 1; i <= 10; i++) {
+            program.option(`--model-${i} <model>`, `Model for step ${i}`);
+            program.option(`--temperature-${i} <number>`, `Temperature for step ${i}`, parseFloat);
+            program.option(`--thinking-level-${i} <level>`, `Thinking level for step ${i}`);
+            program.option(`--prompt-${i} <text>`, `Prompt for step ${i}`);
+            program.option(`--system-${i} <file>`, `System prompt for step ${i}`);
+            program.option(`--output-${i} <path>`, `Output path for step ${i}`);
+            program.option(`--output-column-${i} <column>`, `Output column for step ${i}`);
+            program.option(`--export-${i}`, `Export for step ${i}`);
+            program.option(`--explode-${i}`, `Explode for step ${i}`);
+            program.option(`--json-schema-${i} <file>`, `Schema for step ${i}`);
+            program.option(`--command-${i} <cmd>`, `Command for step ${i}`);
+            program.option(`--verify-command-${i} <cmd>`, `Verify command for step ${i}`);
+            program.option(`--candidates-${i} <number>`, `Candidates for step ${i}`, parseInt);
+            program.option(`--skip-candidate-command-${i}`, `Skip candidate command for step ${i}`);
+            program.option(`--aspect-ratio-${i} <ratio>`, `Aspect ratio for step ${i}`);
+            program.option(`--judge-${i}-prompt <text>`, `Judge prompt for step ${i}`);
+            program.option(`--judge-${i}-model <model>`, `Judge model for step ${i}`);
+            program.option(`--feedback-${i}-prompt <text>`, `Feedback prompt for step ${i}`);
+            program.option(`--feedback-${i}-model <model>`, `Feedback model for step ${i}`);
+            program.option(`--feedback-loops-${i} <number>`, `Feedback loops for step ${i}`, parseInt);
+            program.option(`--timeout-${i} <seconds>`, `Timeout for step ${i}`, parseInt);
+            program.option(`--limit-${i} <number>`, `Limit output items for step ${i}`, parseInt);
+            program.option(`--offset-${i} <number>`, `Offset output items for step ${i}`, parseInt);
+        }
+    }
+    /**
+     * Parse CLI options and positional arguments into PipelineConfig
+     */
+    parse(options, args) {
+        // args contains only prompt templates now.
+        // args[0] is prompt for step 1.
+        // Determine max step from args and options
+        let maxStep = Math.max(1, args.length);
+        Object.keys(options).forEach(key => {
+            const match = key.match(/(\d+)(?:[A-Z]|$)/);
+            if (match) {
+                const stepNum = parseInt(match[1], 10);
+                if (stepNum > maxStep)
+                    maxStep = stepNum;
+            }
+        });
+        // Build globals
+        const globals = {
+            model: options.model,
+            temperature: options.temperature,
+            thinkingLevel: options.thinkingLevel,
+            concurrency: options.concurrency,
+            taskConcurrency: options.taskConcurrency,
+            tmpDir: options.tmpDir || '.tmp',
+            dataOutputPath: options.dataOutput,
+            timeout: options.timeout,
+            limit: options.limit,
+            offset: options.offset,
+            inputLimit: options.inputLimit,
+            inputOffset: options.inputOffset
+        };
+        // Build steps
+        const steps = [];
+        for (let i = 1; i <= maxStep; i++) {
+            const step = this.parseStep(options, args, i);
+            steps.push(step);
+        }
+        return {
+            data: {
+                format: 'auto',
+                offset: options.inputOffset ?? options.offset,
+                limit: options.inputLimit ?? options.limit
+            },
+            globals,
+            steps
+        };
+    }
+    parseStep(options, args, stepIndex) {
+        const getOpt = (key) => {
+            // Try step-specific first, then global
+            const stepKey = this.toStepKey(key, stepIndex);
+            return options[stepKey] ?? options[key];
+        };
+        // Get prompt from positional arg or flag
+        // args[0] corresponds to step 1
+        const positionalPrompt = args[stepIndex - 1];
+        const flagPrompt = getOpt('prompt');
+        let prompt;
+        if (positionalPrompt && flagPrompt) {
+            prompt = `${flagPrompt}\n\n${positionalPrompt}`;
+        }
+        else {
+            prompt = positionalPrompt || flagPrompt;
+        }
+        // Parse output config
+        const outputColumn = getOpt('outputColumn');
+        const exportFlag = getOpt('export');
+        const explodeFlag = getOpt('explode');
+        const limit = options[`limit${stepIndex}`];
+        const offset = options[`offset${stepIndex}`];
+        let outputMode = 'ignore';
+        if (outputColumn)
+            outputMode = 'column';
+        else if (exportFlag)
+            outputMode = 'merge';
+        const output = {
+            mode: outputMode,
+            column: outputColumn,
+            explode: explodeFlag ?? false,
+            limit,
+            offset
+        };
+        // Parse plugins from CLI options
+        const plugins = [];
+        for (const plugin of this.pluginRegistry.getAll()) {
+            const pluginConfig = plugin.parseCLIOptions(options, stepIndex);
+            if (pluginConfig) {
+                plugins.push(pluginConfig);
+            }
+        }
+        // Parse judge
+        let judge;
+        const judgePrompt = options[`judge${stepIndex}Prompt`] ?? options.judgePrompt;
+        const judgeModel = options[`judge${stepIndex}Model`] ?? options.judgeModel;
+        if (judgePrompt) {
+            judge = {
+                prompt: judgePrompt,
+                model: judgeModel
+            };
+        }
+        // Parse feedback
+        let feedback;
+        const feedbackPrompt = options[`feedback${stepIndex}Prompt`] ?? options.feedbackPrompt;
+        const feedbackModel = options[`feedback${stepIndex}Model`] ?? options.feedbackModel;
+        const feedbackLoops = getOpt('feedbackLoops');
+        if (feedbackPrompt || feedbackLoops) {
+            feedback = {
+                prompt: feedbackPrompt,
+                model: feedbackModel,
+                loops: feedbackLoops ?? 0
+            };
+        }
+        return {
+            prompt,
+            system: getOpt('system'),
+            model: {
+                model: getOpt('model'),
+                temperature: getOpt('temperature'),
+                thinkingLevel: getOpt('thinkingLevel')
+            },
+            plugins,
+            preprocessors: [],
+            output,
+            schema: getOpt('jsonSchema') || getOpt('schema'),
+            candidates: getOpt('candidates') ?? 1,
+            skipCandidateCommand: getOpt('skipCandidateCommand') ?? false,
+            judge,
+            feedback,
+            aspectRatio: getOpt('aspectRatio'),
+            command: getOpt('command'),
+            verifyCommand: getOpt('verifyCommand'),
+            timeout: getOpt('timeout')
+        };
+    }
+    toStepKey(key, stepIndex) {
+        // Convert 'outputColumn' to 'outputColumn1', etc.
+        return `${key}${stepIndex}`;
+    }
+}
+//# sourceMappingURL=CLIAdapter.js.map

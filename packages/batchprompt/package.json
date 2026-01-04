@@ -28,7 +28,7 @@
     "handlebars": "^4.7.8",
     "json-schema-traverse": "^1.0.0",
     "keyv": "^4.5.4",
-    "llm-fns": "^1.2.0",
+    "llm-fns": "^1.0.23",
     "openai": "^4.28.4",
     "p-queue": "^8.0.1",
     "puppeteer": "^22.4.1",

@@ -1,0 +1,32 @@
+import { compressHtml } from '../../../utils/compressHtml.js';
+export class GenericPuppeteerHandler {
+    name = 'generic-puppeteer';
+    async handle(url, services) {
+        if (!services.puppeteerHelper) {
+            throw new Error("[GenericPuppeteerHandler] PuppeteerHelper not available.");
+        }
+        const task = async () => {
+            const pageHelper = await services.puppeteerHelper.getPageHelper();
+            try {
+                // We use navigateAndCache to leverage existing caching logic if available
+                const html = await pageHelper.navigateAndCache(url, async (ph) => {
+                    const rawHtml = await ph.getFinalHtml();
+                    return compressHtml(rawHtml);
+                }, {
+                    dismissCookies: false, // No need to dismiss cookies in HTML-only mode
+                    htmlOnly: true, // Enforce HTML-only mode for performance
+                    ttl: 24 * 60 * 60 * 1000 // 24 hours
+                });
+                return html;
+            }
+            finally {
+                await pageHelper.close();
+            }
+        };
+        if (services.puppeteerQueue) {
+            return services.puppeteerQueue.add(task);
+        }
+        return task();
+    }
+}
+//# sourceMappingURL=GenericPuppeteerHandler.js.map

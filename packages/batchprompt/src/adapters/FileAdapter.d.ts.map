@@ -1,0 +1,1 @@
+{"version":3,"file":"FileAdapter.d.ts","sourceRoot":"","sources":["FileAdapter.ts"],"names":[],"mappings":"AAGA,OAAO,EAAE,cAAc,EAAE,MAAM,oBAAoB,CAAC;AAEpD;;GAEG;AACH,qBAAa,WAAW;IACpB;;OAEG;IACG,IAAI,CAAC,iBAAiB,EAAE,MAAM,GAAG,OAAO,CAAC,cAAc,CAAC;IA8B9D;;OAEG;IACH,YAAY,CAAC,QAAQ,EAAE,MAAM,GAAG,OAAO;CAI1C"}
