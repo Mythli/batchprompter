@@ -6,7 +6,7 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import PQueue from 'p-queue';
 import { Cache } from 'cache-manager';
 import { BoundLlmClient } from './core/BoundLlmClient.js';
-import { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities } from './config/types.js';
+import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities } from './config/types.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
@@ -14,7 +14,7 @@ import { ContentResolver } from './core/io/ContentResolver.js';
 // --- Service Capabilities ---
 
 // Re-export types from config so they are available to consumers of this module
-export { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities };
+export type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities };
 
 // --- Definitions ---
 
