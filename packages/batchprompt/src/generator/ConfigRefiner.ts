@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import type OpenAI from 'openai';
-import { createIterativeRefiner, EvaluationResult } from 'llm-fns';
+import { createIterativeRefiner, EvaluationResult, LlmClient } from 'llm-fns';
 import { SafePipelineConfig, SafePipelineConfigSchema } from '../config/safeSchema.js';
-import { BoundLlmClient } from '../core/BoundLlmClient.js';
+import { CONFIG_DOCUMENTATION } from '../generated/ConfigDocumentation.js';
 
 export interface ConfigRefinerInput {
     prompt: string;
@@ -21,8 +21,8 @@ const EvaluationSchema = z.object({
 
 export class ConfigRefiner {
     constructor(
-        private generatorLlm: BoundLlmClient,
-        private judgeLlm: BoundLlmClient,
+        private generatorLlm: LlmClient,
+        private judgeLlm: LlmClient,
         private executionService: ConfigExecutor,
         private options: { maxRetries: number }
     ) {}
@@ -45,10 +45,14 @@ export class ConfigRefiner {
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
         // 1. System Message
-        const systemParts = this.generatorLlm.getSystemParts();
-        if (systemParts.length > 0) {
-            messages.push({ role: 'system', content: systemParts as any });
-        }
+        messages.push({ 
+            role: 'system', 
+            content: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' 
+        });
+        messages.push({ 
+            role: 'system', 
+            content: 'Here is the documentation for the configuration format:\n\n' + CONFIG_DOCUMENTATION 
+        });
 
         // 2. Initial User Message
         const initialUserContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
@@ -84,7 +88,7 @@ export class ConfigRefiner {
             isDataOmitted = true;
         }
 
-        const result = await this.generatorLlm.getRawClient().promptZod(messages, schema);
+        const result = await this.generatorLlm.promptZod(messages, schema);
 
         if (isDataOmitted) {
             // Re-hydrate the result with default data config
@@ -132,12 +136,14 @@ export class ConfigRefiner {
         ];
 
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-        const systemParts = this.judgeLlm.getSystemParts();
-        if (systemParts.length > 0) {
-            messages.push({ role: 'system', content: systemParts as any });
-        }
+        
+        messages.push({ 
+            role: 'system', 
+            content: 'You are a judge for a batch processing pipeline configuration. Your job is to determine if the execution results satisfy the user\'s request.' 
+        });
+        
         messages.push({ role: 'user', content: prompt });
 
-        return await this.judgeLlm.getRawClient().promptZod(messages, EvaluationSchema);
+        return await this.judgeLlm.promptZod(messages, EvaluationSchema);
     }
 }
