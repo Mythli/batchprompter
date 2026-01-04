@@ -3,7 +3,6 @@ import OpenAI from 'openai';
 import { 
     createIterativeRefiner, 
     EvaluationResult, 
-    IterationHistory, 
     SafePipelineConfig, 
     SafePipelineConfigSchema, 
     LlmClientFactory 
@@ -32,14 +31,18 @@ export class ConfigRefiner {
     async run(input: ConfigRefinerInput) {
         const refiner = createIterativeRefiner({
             maxRetries: this.options.maxRetries,
-            generate: (input: ConfigRefinerInput, history: IterationHistory<SafePipelineConfig>[]) => this.generate(input, history),
-            evaluate: (input: ConfigRefinerInput, generated: SafePipelineConfig) => this.evaluate(input, generated)
+            generate: (input: ConfigRefinerInput, history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => this.generate(input, history),
+            evaluate: (input: ConfigRefinerInput, generated: SafePipelineConfig) => this.evaluate(input, generated),
+            generatedToMessage: (config: SafePipelineConfig) => ({
+                role: 'assistant',
+                content: JSON.stringify(config, null, 2)
+            })
         });
 
         return refiner.run(input);
     }
 
-    private async generate(input: ConfigRefinerInput, history: IterationHistory<SafePipelineConfig>[]): Promise<SafePipelineConfig> {
+    private async generate(input: ConfigRefinerInput, history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): Promise<SafePipelineConfig> {
         const generatorLlm = this.llmFactory.create({
             model: 'google/gemini-3-flash-preview',
             thinkingLevel: 'high',
@@ -80,30 +83,8 @@ export class ConfigRefiner {
         messages.push({ role: 'user', content: initialUserContent });
 
         // 3. History (Conversation Turns)
-        for (const entry of history) {
-            // Support both 'generated' (new) and 'config' (legacy/compat)
-            const config = (entry as any).generated || (entry as any).config;
-            
-            if (config) {
-                // Assistant Turn (The Config)
-                messages.push({
-                    role: 'assistant',
-                    content: JSON.stringify(config, null, 2)
-                });
-
-                // User Turn (Feedback/Error)
-                let feedbackText = "";
-                if (entry.feedback) {
-                    feedbackText += `Feedback: ${entry.feedback}\n`;
-                }
-                feedbackText += `Please fix the configuration based on this feedback.`;
-
-                messages.push({
-                    role: 'user',
-                    content: feedbackText
-                });
-            }
-        }
+        // The history provided by createIterativeRefiner contains the previous attempts (assistant) and feedback (user)
+        messages.push(...history);
 
         // Determine schema to use
         let schema: z.ZodType<any> = SafePipelineConfigSchema;
