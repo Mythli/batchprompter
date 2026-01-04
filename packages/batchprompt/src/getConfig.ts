@@ -17,7 +17,8 @@ import { GenericPuppeteerHandler } from './preprocessors/expander/GenericPuppete
 import { WikipediaHandler } from './preprocessors/expander/sites/WikipediaHandler.js';
 import { createCachedFetcher } from "llm-fns";
 import { attachQueueLogger } from './utils/queueUtils.js';
-import { GlobalContext, ServiceCapabilities } from './types.js';
+import { GlobalContext } from './types.js';
+import { ServiceCapabilities } from './config/types.js';
 import { LlmClientFactory } from './core/LlmClientFactory.js';
 import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';

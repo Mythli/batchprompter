@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
-import { ResolvedModelConfig } from '../types.js';
+import { ResolvedModelConfig } from '../config/types.js';
 
 export class MessageBuilder {
     /**

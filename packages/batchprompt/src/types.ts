@@ -11,11 +11,6 @@ import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
 
-// --- Service Capabilities ---
-
-// Re-export types from config so they are available to consumers of this module
-export type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities };
-
 // --- Definitions ---
 
 export interface ModelDefinition {

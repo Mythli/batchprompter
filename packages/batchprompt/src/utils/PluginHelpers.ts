@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import { PromptLoader } from '../config/PromptLoader.js';
-import { ModelDefinition, ResolvedModelConfig } from '../types.js';
+import { ModelDefinition } from '../types.js';
+import { ResolvedModelConfig } from '../config/types.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
 
 export class PluginHelpers {

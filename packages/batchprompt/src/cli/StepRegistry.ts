@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { ModelFlags } from './ModelFlags.js';
-import { RuntimeConfig, StepConfig, ModelDefinition, ResolvedModelConfig, PreprocessorConfigDefinition } from '../types.js';
+import { RuntimeConfig, StepConfig, ModelDefinition, PreprocessorConfigDefinition } from '../types.js';
+import { ResolvedModelConfig } from '../config/types.js';
 import { loadData } from '../utils/dataLoader.js';
 import { PromptLoader } from '../config/PromptLoader.js';
 import { createConfigSchema } from './ConfigSchema.js';
