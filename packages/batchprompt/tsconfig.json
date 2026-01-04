@@ -1,9 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "src",
     "outDir": "dist",
-    "composite": true
+    "composite": true,
+    "paths": {
+      "llm-fns": ["../llm-fns/src/index.ts"]
+    }
   },
+  "references": [
+    { "path": "../llm-fns" }
+  ],
   "include": ["src/**/*"]
 }
