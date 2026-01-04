@@ -33,7 +33,7 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
 
     /**
      * Converts the generated artifact into a chat message for history.
-     * Defaults to using completionToMessage for ChatCompletion objects, 
+     * Defaults to using completionToMessage for ChatCompletion objects,
      * wrapping strings directly, or JSON stringifying other objects.
      */
     generatedToMessage?: (generated: TGenerated) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
@@ -92,7 +92,6 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
             throw new Error("Failed to generate any valid result after all retries.");
         }
 
-        console.warn(`[IterativeRefiner] Max retries reached. Returning last result.`);
         return { generated: currentGenerated, output: lastOutput, iterations: maxRetries, history };
     }
 
