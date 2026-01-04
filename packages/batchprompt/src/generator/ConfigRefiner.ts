@@ -45,13 +45,13 @@ export class ConfigRefiner {
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
         // 1. System Message
-        messages.push({ 
-            role: 'system', 
-            content: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.' 
+        messages.push({
+            role: 'system',
+            content: 'You are an expert configuration generator for a batch processing pipeline. Generate a valid JSON configuration based on the user request.'
         });
-        messages.push({ 
-            role: 'system', 
-            content: 'Here is the documentation for the configuration format:\n\n' + CONFIG_DOCUMENTATION 
+        messages.push({
+            role: 'system',
+            content: 'Here is the documentation for the configuration format:\n\n' + CONFIG_DOCUMENTATION
         });
 
         // 2. Initial User Message
@@ -136,14 +136,16 @@ export class ConfigRefiner {
         ];
 
         const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-        
-        messages.push({ 
-            role: 'system', 
-            content: 'You are a judge for a batch processing pipeline configuration. Your job is to determine if the execution results satisfy the user\'s request.' 
+
+        messages.push({
+            role: 'system',
+            content: 'You are a judge for a batch processing pipeline configuration. Your job is to determine if the execution results satisfy the user\'s request.'
         });
-        
+
         messages.push({ role: 'user', content: prompt });
 
-        return await this.judgeLlm.promptZod(messages, EvaluationSchema);
+        const evalResult = await this.judgeLlm.promptZod(messages, EvaluationSchema);
+
+        return evalResult;
     }
 }

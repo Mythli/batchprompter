@@ -10,12 +10,13 @@
   },
   "scripts": {
     "build": "tsc -b",
+    "compile-samples": "tsx scripts/create-docs-ts.ts",
     "test": "vitest"
   },
   "dependencies": {
-    "@keyv/sqlite": "^3.6.7",
+    "@keyv/sqlite": "^4.0.6",
     "ajv": "^8.17.1",
-    "cache-manager": "^5.7.6",
+    "cache-manager": "^7.2.5",
     "cheerio": "^1.1.2",
     "commander": "^12.1.0",
     "css-tree": "^2.3.1",
@@ -24,10 +25,10 @@
     "eventemitter3": "^5.0.1",
     "handlebars": "^4.7.8",
     "json-schema-traverse": "^1.0.0",
-    "keyv": "^4.5.4",
-    "llm-fns": "workspace:*",
-    "openai": "^4.104.0",
-    "p-queue": "^8.1.1",
+    "keyv": "^5.5.5",
+    "llm-fns": "1.0.23",
+    "openai": "^6.15.0",
+    "p-queue": "^9.0.1",
     "puppeteer": "^22.15.0",
     "sharp": "^0.33.5",
     "sharp-ico": "^0.1.5",
@@ -40,6 +41,7 @@
     "@types/css-tree": "^2.3.11",
     "@types/node": "^20.19.27",
     "@types/turndown": "^5.0.6",
+    "tsx": "^4.7.1",
     "typescript": "^5.9.3",
     "vitest": "^1.6.1"
   }

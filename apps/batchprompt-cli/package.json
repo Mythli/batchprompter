@@ -8,22 +8,24 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "start": "tsx src/index.ts",
+    "debug-init": "tsx src/index.ts init 'tell me at what ranking the website butlerapp is for the keyword kursverwaltung'",
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "batchprompt": "workspace:*",
-    "commander": "^12.0.0",
-    "dotenv": "^16.4.5",
+    "batchprompt": "0.0.1",
+    "commander": "^12.1.0",
+    "dotenv": "^16.6.1",
     "eventemitter3": "^5.0.1",
     "json2csv": "6.0.0-alpha.2",
+    "papaparse": "^5.4.1",
     "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/json2csv": "^5.0.7",
-    "@types/node": "^20.11.24",
-    "openai": "^4.104.0",
+    "@types/node": "^20.19.27",
+    "@types/papaparse": "^5.3.14",
+    "openai": "^6.15.0",
     "tsx": "^4.7.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.9.3"
   }
 }

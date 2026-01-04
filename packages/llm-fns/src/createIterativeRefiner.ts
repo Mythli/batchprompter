@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { completionToMessage } from './completionToUserMessage.js';
+import { completionToMessage } from './completionToAssistantMessage.js';
 
 export interface EvaluationResult {
     success: boolean;

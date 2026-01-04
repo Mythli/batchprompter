@@ -12,9 +12,8 @@
     "build": "tsc",
     "test": "vitest"
   },
-  "dependencies": {
-  },
   "devDependencies": {
+    "syncpack": "^13.0.4",
     "typescript": "^5.9.3"
   }
 }

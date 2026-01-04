@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { createIterativeRefiner, EvaluationResult } from 'llm-fns';
-import { 
-    SafePipelineConfig, 
-    SafePipelineConfigSchema, 
-    LlmClientFactory 
+import {
+    SafePipelineConfig,
+    SafePipelineConfigSchema,
+    LlmClientFactory
 } from 'batchprompt';
 import { ExecutionService } from './ExecutionService.js';
 import { CONFIG_DOCUMENTATION } from '../../generated/ConfigDocumentation.js';
@@ -108,7 +108,7 @@ export class ConfigRefiner {
         // 1. Execute
         let executionResults: any[] = [];
         let executionError: string | undefined;
-        
+
         // Create a modified config for testing
         const testConfig = JSON.parse(JSON.stringify(config));
 

@@ -4,6 +4,6 @@
     { "path": "./packages/batchprompt" },
     { "path": "./packages/llm-fns" },
     { "path": "./apps/batchprompt-cli" },
-    { "path": "./apps/batchprompt-web" }
+    { "path": "./apps/batchprompt-api" }
   ]
 }
