@@ -4,7 +4,10 @@
     "rootDir": ".",
     "outDir": "dist",
     "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx"
+    "jsxImportSource": "hono/jsx",
+    "paths": {
+      "batchprompt": ["../../packages/batchprompt/src/index.ts"]
+    }
   },
   "include": ["src/**/*"],
   "references": [

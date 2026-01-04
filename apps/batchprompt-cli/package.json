@@ -7,7 +7,7 @@
     "batchprompt": "./dist/src/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -b",
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts"
   },
