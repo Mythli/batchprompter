@@ -6,7 +6,7 @@
   "types": "src/index.ts",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./index.ts"
   },
   "scripts": {
     "build": "tsc",
@@ -33,7 +33,7 @@
     "sharp-ico": "^0.1.5",
     "turndown": "^7.2.2",
     "yaml": "^2.8.2",
-    "zod": "^3.25.76"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/cache-manager": "^4.0.6",
