@@ -1,0 +1,24 @@
+{
+  "name": "batchprompt-web",
+  "version": "0.1.0",
+  "description": "Web interface for BatchPrompt",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/src/server.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.8.2",
+    "batchprompt": "workspace:*",
+    "hono": "^4.0.8",
+    "jszip": "^3.10.1",
+    "papaparse": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "@types/papaparse": "^5.3.14",
+    "tsx": "^4.7.1",
+    "typescript": "^5.3.3"
+  }
+}
