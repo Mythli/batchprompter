@@ -7,7 +7,6 @@ import * as path from 'path';
 import { Parser, transforms } from 'json2csv';
 import {
     createDefaultRegistry,
-    getConfig,
     ServiceCapabilities,
     PipelineConfigSchema,
     DebugLogger,
@@ -15,9 +14,9 @@ import {
     InMemoryConfigExecutor,
     getUniqueRows
 } from 'batchprompt';
+import { getConfig } from './getConfig.js';
 import { StepRegistry } from './StepRegistry.js';
 import { FileSystemArtifactHandler } from './handlers/FileSystemArtifactHandler.js';
-import { FileSystemContentResolver } from './io/FileSystemContentResolver.js';
 import { FileAdapter } from './io/FileAdapter.js';
 import Papa from 'papaparse';
 
@@ -46,13 +45,11 @@ StepRegistry.registerStepArgs(generateCmd, cliRegistry);
 generateCmd.action(async (templateFilePaths, options) => {
     let puppeteerHelperInstance;
     try {
-        // Initialize Content Resolver for CLI (File System access)
-        const contentResolver = new FileSystemContentResolver();
-
         // Get the runner from DI first to get actual capabilities
-        // Pass the contentResolver to getConfig so Core uses FS instead of Memory
-        const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry, globalContext } = await getConfig({ contentResolver });
+        // getConfig now injects FileSystemContentResolver internally
+        const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry, globalContext } = await getConfig();
         puppeteerHelperInstance = puppeteerHelper;
+        const contentResolver = globalContext.contentResolver;
 
         let fileConfig = {};
 
@@ -171,9 +168,9 @@ program.command('init')
             }
 
             // 3. Initialize Core
-            const contentResolver = new FileSystemContentResolver();
-            const { actionRunner, llmFactory, pluginRegistry, globalContext, puppeteerHelper } = await getConfig({ contentResolver });
+            const { actionRunner, llmFactory, pluginRegistry, globalContext, puppeteerHelper } = await getConfig();
             puppeteerHelperInstance = puppeteerHelper;
+            const contentResolver = globalContext.contentResolver;
 
             // 4. Setup Executor
             const executor = new InMemoryConfigExecutor(
