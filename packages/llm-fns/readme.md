@@ -420,6 +420,67 @@ const poem = await llm.promptTextRetry({
 
 ---
 
+# Use Case 5: Iterative Refinement (`createIterativeRefiner`)
+
+For complex tasks where an LLM needs to "try, check, and fix" its own output (like code generation or complex configuration), use the `IterativeRefiner`.
+
+It implements a loop of: **Generate** -> **Execute** -> **Evaluate** -> **Refine**.
+
+```typescript
+import { createIterativeRefiner } from './src';
+
+const refiner = createIterativeRefiner({
+    // 1. Generate a configuration based on input and history
+    generate: async (input, history) => {
+        // history contains previous attempts and feedback
+        // You can construct a prompt that includes this history
+        const messages = [
+            { role: 'system', content: 'Generate a valid SQL query.' },
+            { role: 'user', content: input }
+        ];
+        
+        // Append history to help the LLM learn from mistakes
+        for (const attempt of history) {
+            messages.push({ 
+                role: 'user', 
+                content: `Previous attempt config: ${JSON.stringify(attempt.config)}\nFeedback: ${attempt.feedback || attempt.error}` 
+            });
+        }
+
+        return await llm.promptZod(messages, SqlSchema);
+    },
+
+    // 2. Execute the configuration (e.g. run code, query DB)
+    execute: async (config, input) => {
+        return await db.query(config.sql);
+    },
+
+    // 3. Evaluate the result
+    evaluate: async (input, config, output) => {
+        if (output.length === 0) {
+            return { success: false, feedback: "Query returned no results. Try relaxing constraints." };
+        }
+        return { success: true };
+    },
+    
+    maxRetries: 5
+});
+
+const result = await refiner.run("Find active users in New York");
+
+if (result.output) {
+    console.log("Success:", result.output);
+} else {
+    console.log("Failed after max retries");
+}
+
+// Inspect the journey
+console.log(`Iterations: ${result.iterations}`);
+console.log(result.history); 
+```
+
+---
+
 # Error Handling
 
 The library provides a structured error hierarchy that preserves the full context of failures, whether they happen during a retry loop or cause an immediate crash.
@@ -557,7 +618,7 @@ function getAllResponses(error: LlmRetryExhaustedError): string[] {
 
 ---
 
-# Use Case 5: Architecture & Composition
+# Use Case 6: Architecture & Composition
 
 How to build the client manually to enable **Fallback Chains** and **Smart Routing**.
 
