@@ -9,7 +9,6 @@ import {
     createDefaultRegistry,
     getConfig,
     ServiceCapabilities,
-    FileAdapter,
     PipelineConfigSchema,
     DebugLogger,
     ConfigRefiner,
@@ -19,6 +18,7 @@ import {
 import { StepRegistry } from './StepRegistry.js';
 import { FileSystemArtifactHandler } from './handlers/FileSystemArtifactHandler.js';
 import { FileSystemContentResolver } from './io/FileSystemContentResolver.js';
+import { FileAdapter } from './io/FileAdapter.js';
 import Papa from 'papaparse';
 
 const program = new Command();

@@ -5,7 +5,7 @@ import { GlobalContext, StepConfig, StepContext, PipelineItem } from '../types.j
 import { ResolvedModelConfig } from '../config/types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
-import { SchemaHelper } from '../utils/SchemaHelper.js';
+import { SchemaLoader } from '../config/SchemaLoader.js';
 
 export interface ResolvedStepContext {
     resolvedStep: StepConfig;
@@ -15,10 +15,14 @@ export interface ResolvedStepContext {
 }
 
 export class StepResolver {
+    private schemaLoader: SchemaLoader;
+
     constructor(
         private llmFactory: LlmClientFactory,
         private globalContext: GlobalContext
-    ) {}
+    ) {
+        this.schemaLoader = new SchemaLoader(globalContext.contentResolver);
+    }
 
     async resolve(
         item: PipelineItem,
@@ -84,7 +88,12 @@ export class StepResolver {
         // Schema
         if (stepConfig.schemaPath) {
             try {
-                resolvedStep.jsonSchema = await SchemaHelper.loadAndRenderSchema(stepConfig.schemaPath, sanitizedRow);
+                // Resolve the path first (it might be dynamic)
+                const pathTemplate = Handlebars.compile(stepConfig.schemaPath, { noEscape: true });
+                const resolvedPath = pathTemplate(sanitizedRow);
+                
+                // Load the schema using the abstract loader (no direct fs usage)
+                resolvedStep.jsonSchema = await this.schemaLoader.load(resolvedPath, sanitizedRow);
             } catch (e) {
                 console.warn(`[Row ${item.originalIndex}] Failed to load/parse schema from '${stepConfig.schemaPath}':`, e);
             }
