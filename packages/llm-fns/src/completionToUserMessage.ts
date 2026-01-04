@@ -1,49 +1,74 @@
 import OpenAI from 'openai';
 
 /**
- * Converts a completion result (string, object, or OpenAI ChatCompletion) into an assistant message parameter.
- *
- * @param content The generated content (string, object, or ChatCompletion).
+ * Converts an OpenAI ChatCompletion object into an assistant message parameter.
+ * Handles text, audio, tool calls, and custom image attachments.
+ * 
+ * @param completion The ChatCompletion object.
  * @returns An OpenAI ChatCompletionMessageParam with role 'assistant'.
- * @throws Error if the content cannot be converted to a valid assistant message.
+ * @throws Error if the input is not a valid ChatCompletion object.
  */
 export function completionToMessage(
-    content: string | OpenAI.Chat.Completions.ChatCompletion | any
+    completion: OpenAI.Chat.Completions.ChatCompletion | any
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-    // Handle OpenAI ChatCompletion object
+    // Strict check for ChatCompletion structure
     if (
-        content &&
-        typeof content === 'object' &&
-        'choices' in content &&
-        Array.isArray(content.choices) &&
-        content.choices.length > 0 &&
-        content.choices[0].message
+        !completion || 
+        typeof completion !== 'object' || 
+        !('choices' in completion) || 
+        !Array.isArray(completion.choices) ||
+        completion.choices.length === 0 ||
+        !completion.choices[0].message
     ) {
-        const message = content.choices[0].message;
-
-        // We only care about content (text/image/audio) for the history.
-        // We explicitly strip tool_calls/function_call as requested.
-
-        return {
-            role: 'assistant',
-            content: message.content,
-            audio: message.audio,
-            refusal: message.refusal
-        } as OpenAI.Chat.Completions.ChatCompletionMessageParam;
+        throw new Error("Invalid input passed to completionToMessage. Expected a valid OpenAI ChatCompletion object.");
     }
 
-    // Handle String
-    if (typeof content === 'string') {
-        return { role: 'assistant', content };
+    const message = completion.choices[0].message;
+    
+    // Base message structure
+    const messageParam: any = {
+        role: 'assistant',
+        refusal: message.refusal,
+        tool_calls: message.tool_calls,
+        function_call: message.function_call,
+    };
+
+    // Handle Audio (Standard OpenAI)
+    if (message.audio) {
+        messageParam.audio = message.audio;
     }
 
-    // Handle null/undefined - technically valid for assistant messages if they have tool calls,
-    // but since we are stripping tool calls, a null content is invalid unless it has audio/refusal (which we can't guess here).
-    // However, if the input was a raw string/object that is null, we can't make a message out of it.
-    if (content === null || content === undefined) {
-        throw new Error("Cannot convert null or undefined content to an assistant message.");
+    // Handle Content & Images (Parts)
+    const contentParts: any[] = [];
+
+    // 1. Existing Text Content
+    if (message.content && typeof message.content === 'string') {
+        contentParts.push({ type: 'text', text: message.content });
     }
 
-    // Handle other objects (serialize)
-    return { role: 'assistant', content: JSON.stringify(content) };
+    // 2. Custom Images (Non-standard / Custom Provider extension)
+    // Checks for 'images' array on the message object
+    if ((message as any).images && Array.isArray((message as any).images)) {
+        for (const img of (message as any).images) {
+            if (img.url) {
+                contentParts.push({ type: 'image_url', image_url: { url: img.url } });
+            }
+        }
+    }
+
+    // Assign content
+    if (contentParts.length > 0) {
+        // If we have mixed content or images, use array format.
+        // If we only have text, we could use string, but array is safer if we want to be uniform.
+        // However, standard OpenAI assistant messages prefer string for simple text.
+        if (contentParts.length === 1 && contentParts[0].type === 'text') {
+            messageParam.content = contentParts[0].text;
+        } else {
+            messageParam.content = contentParts;
+        }
+    } else {
+        messageParam.content = null;
+    }
+
+    return messageParam as OpenAI.Chat.Completions.ChatCompletionMessageParam;
 }

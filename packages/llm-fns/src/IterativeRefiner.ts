@@ -33,7 +33,7 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
 
     /**
      * Converts the generated artifact into a chat message for history.
-     * Defaults to using completionToMessage with 'assistant' role.
+     * Defaults to using completionToMessage for objects, or wrapping strings.
      */
     generatedToMessage?: (generated: TGenerated) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
@@ -52,7 +52,12 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
         execute, 
         evaluate, 
         maxRetries = 3,
-        generatedToMessage = (g: any) => completionToMessage(g, 'assistant'),
+        generatedToMessage = (g: any) => {
+            if (typeof g === 'string') {
+                return { role: 'assistant', content: g };
+            }
+            return completionToMessage(g);
+        },
         feedbackToMessage = (f: string) => ({ 
             role: 'user', 
             content: f 
