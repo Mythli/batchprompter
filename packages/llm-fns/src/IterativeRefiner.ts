@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { completionToMessage } from './completionToUserMessage.js';
 
 export interface EvaluationResult {
     success: boolean;
@@ -9,6 +10,7 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
     /**
      * Function to generate the artifact.
      * Receives the input and the history of previous attempts (as chat messages).
+     * Must return a ChatCompletion, a string, or an object convertible to a string.
      */
     generate: (input: TInput, history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => Promise<TGenerated>;
 
@@ -31,7 +33,7 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
 
     /**
      * Converts the generated artifact into a chat message for history.
-     * Defaults to creating an assistant message with JSON.stringify(generated).
+     * Defaults to using completionToMessage with 'assistant' role.
      */
     generatedToMessage?: (generated: TGenerated) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
@@ -50,10 +52,7 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
         execute, 
         evaluate, 
         maxRetries = 3,
-        generatedToMessage = (g: any) => ({ 
-            role: 'assistant', 
-            content: typeof g === 'string' ? g : JSON.stringify(g) 
-        }) as OpenAI.Chat.Completions.ChatCompletionMessageParam,
+        generatedToMessage = (g: any) => completionToMessage(g, 'assistant'),
         feedbackToMessage = (f: string) => ({ 
             role: 'user', 
             content: f 
