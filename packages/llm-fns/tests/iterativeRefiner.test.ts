@@ -20,6 +20,9 @@ describe('createIterativeRefiner', () => {
         expect(result.generated).toEqual({ value: 10 });
         expect(result.output).toBe(20);
         expect(result.history).toEqual([]);
+        expect(result.evaluations).toHaveLength(1);
+        expect(result.evaluations[0]).toEqual({ success: true });
+        expect(result.success).toBe(true);
         expect(generate).toHaveBeenCalledTimes(1);
         expect(execute).toHaveBeenCalledTimes(1);
         expect(evaluate).toHaveBeenCalledTimes(1);
@@ -50,6 +53,7 @@ describe('createIterativeRefiner', () => {
         expect(result.iterations).toBe(2);
         expect(result.generated).toEqual({ value: 15 });
         expect(result.output).toBe(30);
+        expect(result.success).toBe(true);
 
         // History should contain the failed attempt (Assistant) and feedback (User)
         expect(result.history).toHaveLength(2);
@@ -61,6 +65,10 @@ describe('createIterativeRefiner', () => {
             role: 'user',
             content: "Too low"
         });
+
+        expect(result.evaluations).toHaveLength(2);
+        expect(result.evaluations[0]).toEqual({ success: false, feedback: "Too low" });
+        expect(result.evaluations[1]).toEqual({ success: true });
 
         expect(generate).toHaveBeenCalledTimes(2);
 
@@ -94,6 +102,7 @@ describe('createIterativeRefiner', () => {
         expect(result.history).toHaveLength(2);
         expect(result.history[0].content).toBe("Code: bad");
         expect(result.history[1].content).toBe("Syntax Error");
+        expect(result.success).toBe(true);
     });
 
     it('should handle generation errors and retry', async () => {
@@ -133,9 +142,14 @@ describe('createIterativeRefiner', () => {
         expect(result.iterations).toBe(2);
         expect(evaluate).toHaveBeenCalledTimes(2);
         expect(result.generated).toEqual({ value: 10 });
+        expect(result.success).toBe(false);
+        expect(result.feedback).toBe("Fail");
 
         // History: Attempt 1 (Ass+User), Attempt 2 (Ass+User)
         expect(result.history).toHaveLength(4);
         expect(result.history[3].content).toBe("Fail");
+        
+        expect(result.evaluations).toHaveLength(2);
+        expect(result.evaluations[1]).toEqual({ success: false, feedback: "Fail" });
     });
 });

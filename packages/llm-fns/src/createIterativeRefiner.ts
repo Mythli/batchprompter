@@ -33,7 +33,7 @@ export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
 
     /**
      * Converts the generated artifact into a chat message for history.
-     * Defaults to using completionToMessage for ChatCompletion objects,
+     * Defaults to using completionToMessage for ChatCompletion objects, 
      * wrapping strings directly, or JSON stringifying other objects.
      */
     generatedToMessage?: (generated: TGenerated) => OpenAI.Chat.Completions.ChatCompletionMessageParam;
@@ -62,11 +62,16 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
         generated: TGenerated;
         output?: TOutput;
         iterations: number;
-        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+        evaluations: EvaluationResult[];
+        success: boolean;
+        feedback?: string;
     }> {
         const history: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+        const evaluations: EvaluationResult[] = [];
         let currentGenerated: TGenerated | undefined;
         let lastOutput: TOutput | undefined;
+        let lastEvaluation: EvaluationResult | undefined;
 
         for (let i = 0; i < maxRetries; i++) {
             // 1. Generate
@@ -77,9 +82,19 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
 
             // 3. Evaluate
             const evaluation = await evaluate(input, currentGenerated, lastOutput);
+            evaluations.push(evaluation);
+            lastEvaluation = evaluation;
 
             if (evaluation.success) {
-                return { generated: currentGenerated, output: lastOutput, iterations: i + 1, history };
+                return { 
+                    generated: currentGenerated, 
+                    output: lastOutput, 
+                    iterations: i + 1, 
+                    history,
+                    evaluations,
+                    success: true,
+                    feedback: evaluation.feedback
+                };
             }
 
             history.push(generatedToMessage(currentGenerated));
@@ -92,7 +107,16 @@ export function createIterativeRefiner<TInput, TGenerated, TOutput>(
             throw new Error("Failed to generate any valid result after all retries.");
         }
 
-        return { generated: currentGenerated, output: lastOutput, iterations: maxRetries, history };
+        console.warn(`[IterativeRefiner] Max retries reached. Returning last result.`);
+        return { 
+            generated: currentGenerated, 
+            output: lastOutput, 
+            iterations: maxRetries, 
+            history,
+            evaluations,
+            success: lastEvaluation?.success ?? false,
+            feedback: lastEvaluation?.feedback
+        };
     }
 
     return { run };
