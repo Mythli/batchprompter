@@ -32,8 +32,8 @@ export class ConfigRefiner {
     async run(input: ConfigRefinerInput) {
         const refiner = createIterativeRefiner({
             maxRetries: this.options.maxRetries,
-            generate: (input, history) => this.generate(input, history),
-            evaluate: (input, generated) => this.evaluate(input, generated)
+            generate: (input: ConfigRefinerInput, history: IterationHistory<SafePipelineConfig>[]) => this.generate(input, history),
+            evaluate: (input: ConfigRefinerInput, generated: SafePipelineConfig) => this.evaluate(input, generated)
         });
 
         return refiner.run(input);
