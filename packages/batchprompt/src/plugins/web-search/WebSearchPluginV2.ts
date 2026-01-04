@@ -280,9 +280,10 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
 
         // Wire up events to context.emit
         aiWebSearch.events.on('query:generated', (data) => {
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/queries/queries_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -292,9 +293,10 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
 
         aiWebSearch.events.on('search:result', (data) => {
             const safeQuery = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -303,9 +305,10 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         });
 
         aiWebSearch.events.on('selection:reduce', (data) => {
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/reduce/reduce_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -315,9 +318,10 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
 
         aiWebSearch.events.on('content:enrich', (data) => {
             const safeUrl = data.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/enrich/enrich_${safeUrl}_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -326,9 +330,10 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         });
 
         aiWebSearch.events.on('result:selected', (data) => {
-            emit('artifact', {
+            emit('plugin:artifact', {
                 row: context.row.index,
                 step: context.stepIndex,
+                plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/selected/selected_${Date.now()}.json`,
                 content: JSON.stringify(data.results, null, 2),

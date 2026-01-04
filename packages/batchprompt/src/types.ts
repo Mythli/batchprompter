@@ -13,7 +13,8 @@ import { ContentResolver } from './core/io/ContentResolver.js';
 
 // --- Service Capabilities ---
 
-// Imported from config/types.js
+// Re-export types from config so they are available to consumers of this module
+export { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities };
 
 // --- Definitions ---
 
@@ -84,8 +85,6 @@ export interface NormalizedConfig {
 }
 
 // --- Resolved Configuration ---
-
-// Imported from config/types.js
 
 export interface StepExecutionContext {
     row: Record<string, any>;

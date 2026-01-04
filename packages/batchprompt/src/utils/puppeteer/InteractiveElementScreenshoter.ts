@@ -194,7 +194,9 @@ export class InteractiveElementScreenshoter {
                 const elementStyles = window.getComputedStyle(el);
                 const styleEntries = [];
 
-                for (const propName of elementStyles) {
+                // Fix TS2488: Iterate over length or use Array.from if available in browser context (it is in modern browsers)
+                for (let i = 0; i < elementStyles.length; i++) {
+                    const propName = elementStyles[i];
                     const value = elementStyles.getPropertyValue(propName);
                     const defaultValue = defaultStyles.getPropertyValue(propName);
 
@@ -299,7 +301,8 @@ export class InteractiveElementScreenshoter {
                     const hasOnlySpanDescendants = await handle.evaluate(node => {
                         // Select all descendant elements.
                         const allDescendants = node.querySelectorAll('*');
-                        for (const descendant of allDescendants) {
+                        for (let i = 0; i < allDescendants.length; i++) {
+                            const descendant = allDescendants[i];
                             // If any descendant is not a SPAN, this element is considered complex.
                             if (descendant.tagName.toLowerCase() !== 'span') {
                                 return false;
