@@ -46,30 +46,8 @@ export function createIterativeRefiner<TInput, TConfig, TOutput>(
 
         for (let i = 0; i < maxRetries; i++) {
             // 1. Generate
-            try {
-                currentConfig = await generate(input, history);
-            } catch (e: any) {
-                console.error(`[IterativeRefiner] Generation failed: ${e.message}`);
-                // If generation fails, we record it and try again
-                history.push({
-                    error: e.message,
-                    feedback: `Previous generation failed with error: ${e.message}. Please fix the configuration structure.`
-                });
-                continue;
-            }
-
-            // 2. Execute
-            try {
-                lastOutput = await execute(currentConfig, input);
-            } catch (e: any) {
-                console.error(`[IterativeRefiner] Execution failed: ${e.message}`);
-                // Execution errors are valid feedback for the LLM
-                history.push({
-                    config: currentConfig,
-                    error: e.message
-                });
-                continue;
-            }
+            currentConfig = await generate(input, history);
+            lastOutput = await execute(currentConfig, input);
 
             // 3. Evaluate
             const evaluation = await evaluate(input, currentConfig, lastOutput);
