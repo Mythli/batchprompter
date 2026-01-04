@@ -10,7 +10,6 @@ import {
     PromptLoader,
     PluginRegistryV2,
     createPreprocessorRegistry,
-    ContentResolver,
     SchemaLoader
 } from 'batchprompt';
 import { createConfigSchema } from './ConfigSchema.js';
@@ -82,7 +81,8 @@ export class StepRegistry {
         options: Record<string, any>, 
         positionalArgs: string[], 
         registry: PluginRegistryV2,
-        contentResolver: ContentResolver
+        schemaLoader: SchemaLoader,
+        promptLoader: PromptLoader
     ): Promise<RuntimeConfig> {
         // 1. Load Data from Pipe
         const pipedData = await loadData();
@@ -106,8 +106,6 @@ export class StepRegistry {
         });
 
         // 4. Normalize Schemas (Resolve paths to objects)
-        const schemaLoader = new SchemaLoader(contentResolver);
-
         for (const step of normalized.steps) {
             // Step Schema
             if (step.schemaPath) {
@@ -135,7 +133,6 @@ export class StepRegistry {
 
         // 5. Resolve Steps
         const steps: StepConfig[] = [];
-        const promptLoader = new PromptLoader(contentResolver);
 
         const resolveModel = async (def: ModelDefinition | undefined): Promise<ResolvedModelConfig | undefined> => {
             if (!def) return undefined;

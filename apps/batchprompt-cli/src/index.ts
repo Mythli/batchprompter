@@ -12,7 +12,9 @@ import {
     DebugLogger,
     ConfigRefiner,
     InMemoryConfigExecutor,
-    getUniqueRows
+    getUniqueRows,
+    SchemaLoader,
+    PromptLoader
 } from 'batchprompt';
 import { getConfig } from './getConfig.js';
 import { StepRegistry } from './StepRegistry.js';
@@ -50,6 +52,8 @@ generateCmd.action(async (templateFilePaths, options) => {
         const { actionRunner, puppeteerHelper, config: resolvedConfig, pluginRegistry, globalContext } = await getConfig();
         puppeteerHelperInstance = puppeteerHelper;
         const contentResolver = globalContext.contentResolver;
+        const schemaLoader = new SchemaLoader(contentResolver);
+        const promptLoader = new PromptLoader(contentResolver);
 
         let fileConfig = {};
 
@@ -60,7 +64,7 @@ generateCmd.action(async (templateFilePaths, options) => {
         }
 
         // Parse Config (Merge File + CLI)
-        const config = await StepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry, contentResolver);
+        const config = await StepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry, schemaLoader, promptLoader);
 
         // Initialize Artifact Handler
         // We use the tmpDir from the parsed runtime config
