@@ -443,7 +443,7 @@ const refiner = createIterativeRefiner({
         for (const attempt of history) {
             messages.push({ 
                 role: 'user', 
-                content: `Previous attempt config: ${JSON.stringify(attempt.config)}\nFeedback: ${attempt.feedback || attempt.error}` 
+                content: `Previous attempt generated: ${JSON.stringify(attempt.generated)}\nFeedback: ${attempt.feedback || attempt.error}` 
             });
         }
 
@@ -451,12 +451,12 @@ const refiner = createIterativeRefiner({
     },
 
     // 2. Execute the configuration (e.g. run code, query DB)
-    execute: async (config, input) => {
-        return await db.query(config.sql);
+    execute: async (generated, input) => {
+        return await db.query(generated.sql);
     },
 
     // 3. Evaluate the result
-    evaluate: async (input, config, output) => {
+    evaluate: async (input, generated, output) => {
         if (output.length === 0) {
             return { success: false, feedback: "Query returned no results. Try relaxing constraints." };
         }

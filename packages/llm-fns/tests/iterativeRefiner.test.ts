@@ -17,7 +17,7 @@ describe('createIterativeRefiner', () => {
         const result = await refiner.run("input");
 
         expect(result.iterations).toBe(1);
-        expect(result.config).toEqual({ value: 10 });
+        expect(result.generated).toEqual({ value: 10 });
         expect(result.output).toBe(20);
         expect(result.history).toEqual([]);
         expect(generate).toHaveBeenCalledTimes(1);
@@ -48,11 +48,11 @@ describe('createIterativeRefiner', () => {
         const result = await refiner.run("input");
 
         expect(result.iterations).toBe(2);
-        expect(result.config).toEqual({ value: 15 });
+        expect(result.generated).toEqual({ value: 15 });
         expect(result.output).toBe(30);
         expect(result.history).toHaveLength(1);
         expect(result.history[0]).toEqual({
-            config: { value: 10 },
+            generated: { value: 10 },
             feedback: "Too low"
         });
 
@@ -61,7 +61,7 @@ describe('createIterativeRefiner', () => {
         const historyArg = generate.mock.calls[1][1] as IterationHistory<any>[];
         expect(historyArg).toHaveLength(1);
         expect(historyArg[0].feedback).toBe("Too low");
-        expect(historyArg[0].config).toEqual({ value: 10 });
+        expect(historyArg[0].generated).toEqual({ value: 10 });
     });
 
     it('should handle generation errors and retry', async () => {
@@ -79,42 +79,9 @@ describe('createIterativeRefiner', () => {
             maxRetries: 3
         });
 
-        const result = await refiner.run("input");
-
-        expect(result.iterations).toBe(2); // 1 failed gen + 1 success
-        expect(result.history).toHaveLength(1);
-        expect(result.history[0].error).toBe("Gen Error");
-
-        expect(generate).toHaveBeenCalledTimes(2);
-        
-        const historyArg = generate.mock.calls[1][1] as IterationHistory<any>[];
-        expect(historyArg[0].error).toBe("Gen Error");
-    });
-
-    it('should handle execution errors and retry without feedback', async () => {
-        const generate = vi.fn().mockResolvedValue({ value: 10 });
-        
-        const execute = vi.fn()
-            .mockRejectedValueOnce(new Error("Exec Error"))
-            .mockResolvedValueOnce(20);
-
-        const evaluate = vi.fn().mockResolvedValue({ success: true });
-
-        const refiner = createIterativeRefiner({
-            generate,
-            execute,
-            evaluate,
-            maxRetries: 3
-        });
-
-        const result = await refiner.run("input");
-
-        expect(result.iterations).toBe(2);
-        expect(execute).toHaveBeenCalledTimes(2);
-        
-        const historyArg = generate.mock.calls[1][1] as IterationHistory<any>[];
-        expect(historyArg[0].error).toBe("Exec Error");
-        expect(historyArg[0].feedback).toBeUndefined();
+        // Note: Since try/catches were removed from the implementation as requested,
+        // this test expects the error to bubble up immediately rather than retry.
+        await expect(refiner.run("input")).rejects.toThrow("Gen Error");
     });
 
     it('should return last result when max retries exhausted', async () => {
@@ -133,7 +100,7 @@ describe('createIterativeRefiner', () => {
 
         expect(result.iterations).toBe(2);
         expect(evaluate).toHaveBeenCalledTimes(2);
-        expect(result.config).toEqual({ value: 10 });
+        expect(result.generated).toEqual({ value: 10 });
         expect(result.history).toHaveLength(2);
         expect(result.history[1].feedback).toBe("Fail");
     });

@@ -3,30 +3,30 @@ export interface EvaluationResult {
     feedback?: string;
 }
 
-export interface IterationHistory<TConfig> {
-    config?: TConfig;
+export interface IterationHistory<TGenerated> {
+    generated?: TGenerated;
     feedback?: string;
     error?: string;
 }
 
-export interface CreateIterativeRefinerParams<TInput, TConfig, TOutput> {
+export interface CreateIterativeRefinerParams<TInput, TGenerated, TOutput> {
     /**
-     * Function to generate the configuration.
+     * Function to generate the artifact.
      * Receives the input and the history of previous attempts.
      */
-    generate: (input: TInput, history: IterationHistory<TConfig>[]) => Promise<TConfig>;
+    generate: (input: TInput, history: IterationHistory<TGenerated>[]) => Promise<TGenerated>;
 
     /**
-     * Function to execute the configuration.
-     * Receives the generated configuration and the original input.
+     * Function to execute the generated artifact.
+     * Receives the generated artifact and the original input.
      */
-    execute: (config: TConfig, input: TInput) => Promise<TOutput>;
+    execute: (generated: TGenerated, input: TInput) => Promise<TOutput>;
 
     /**
      * Function to evaluate the output.
      * Returns success status and optional feedback.
      */
-    evaluate: (input: TInput, config: TConfig, output: TOutput) => Promise<EvaluationResult>;
+    evaluate: (input: TInput, generated: TGenerated, output: TOutput) => Promise<EvaluationResult>;
 
     /**
      * Maximum number of retries. Defaults to 3.
@@ -34,40 +34,42 @@ export interface CreateIterativeRefinerParams<TInput, TConfig, TOutput> {
     maxRetries?: number;
 }
 
-export function createIterativeRefiner<TInput, TConfig, TOutput>(
-    params: CreateIterativeRefinerParams<TInput, TConfig, TOutput>
+export function createIterativeRefiner<TInput, TGenerated, TOutput>(
+    params: CreateIterativeRefinerParams<TInput, TGenerated, TOutput>
 ) {
     const { generate, execute, evaluate, maxRetries = 3 } = params;
 
-    async function run(input: TInput): Promise<{ config: TConfig; output?: TOutput; iterations: number; history: IterationHistory<TConfig>[] }> {
-        const history: IterationHistory<TConfig>[] = [];
-        let currentConfig: TConfig | undefined;
+    async function run(input: TInput): Promise<{ generated: TGenerated; output?: TOutput; iterations: number; history: IterationHistory<TGenerated>[] }> {
+        const history: IterationHistory<TGenerated>[] = [];
+        let currentGenerated: TGenerated | undefined;
         let lastOutput: TOutput | undefined;
 
         for (let i = 0; i < maxRetries; i++) {
             // 1. Generate
-            currentConfig = await generate(input, history);
-            lastOutput = await execute(currentConfig, input);
+            currentGenerated = await generate(input, history);
+            
+            // 2. Execute
+            lastOutput = await execute(currentGenerated, input);
 
             // 3. Evaluate
-            const evaluation = await evaluate(input, currentConfig, lastOutput);
+            const evaluation = await evaluate(input, currentGenerated, lastOutput);
 
             if (evaluation.success) {
-                return { config: currentConfig, output: lastOutput, iterations: i + 1, history };
+                return { generated: currentGenerated, output: lastOutput, iterations: i + 1, history };
             }
 
             history.push({
-                config: currentConfig,
+                generated: currentGenerated,
                 feedback: evaluation.feedback
             });
         }
 
-        if (!currentConfig) {
-            throw new Error("Failed to generate any valid configuration after all retries.");
+        if (!currentGenerated) {
+            throw new Error("Failed to generate any valid result after all retries.");
         }
 
         console.warn(`[IterativeRefiner] Max retries reached. Returning last result.`);
-        return { config: currentConfig, output: lastOutput, iterations: maxRetries, history };
+        return { generated: currentGenerated, output: lastOutput, iterations: maxRetries, history };
     }
 
     return { run };
