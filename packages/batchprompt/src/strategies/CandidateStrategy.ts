@@ -63,8 +63,7 @@ export class CandidateStrategy implements GenerationStrategy {
             }
         });
 
-        const baseSalt = `${cacheSalt || ''}_var_${variationIndex ?? 'x'}`;
-        const selection = await selector.run(undefined, baseSalt);
+        const selection = await selector.run(undefined, cacheSalt);
 
         if (this.stepContext.judge) {
             if (!selection.skippedJudge) {

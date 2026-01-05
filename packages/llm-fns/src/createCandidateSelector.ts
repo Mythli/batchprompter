@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 export interface SelectionResult {
     bestCandidateIndex: number;
     reason: string;
@@ -40,7 +42,7 @@ export function createCandidateSelector<TInput, TCandidate>(
 ) {
     const { candidateCount, generate, judge, onCandidateError } = params;
 
-    async function run(input: TInput, baseSalt: string | number = 'candidate') {
+    async function run(input: TInput, baseSalt: string | number = crypto.randomUUID()) {
         // 1. Generate Candidates in Parallel
         const promises: Promise<CandidateResult<TCandidate> | null>[] = [];
 
