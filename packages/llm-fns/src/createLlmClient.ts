@@ -6,7 +6,7 @@ import { truncateMessages, getPromptSummary } from './util.js';
 
 export class LlmFatalError extends Error {
     constructor(
-        message: string, 
+        message: string,
         public readonly cause?: any,
         public readonly messages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         public readonly rawResponse?: string | null
@@ -126,7 +126,7 @@ export interface CreateLlmClientParams {
  * Handles string shorthand and messages-as-string.
  */
 export function normalizeOptions(
-    arg1: string | LlmPromptOptions, 
+    arg1: string | LlmPromptOptions,
     arg2?: LlmCommonOptions
 ): LlmPromptParams {
     if (typeof arg1 === 'string') {
@@ -151,25 +151,25 @@ export function normalizeOptions(
  * @returns An async function `prompt` ready to make OpenAI calls.
  */
 export function createLlmClient(params: CreateLlmClientParams) {
-    const { 
-        openai, 
-        defaultModel: factoryDefaultModel, 
-        maxConversationChars, 
-        queue, 
-        defaultRequestOptions 
+    const {
+        openai,
+        defaultModel: factoryDefaultModel,
+        maxConversationChars,
+        queue,
+        defaultRequestOptions
     } = params;
 
     const getCompletionParams = (promptParams: LlmPromptParams) => {
-        const { 
-            model: callSpecificModel, 
-            messages, 
-            retries, 
+        const {
+            model: callSpecificModel,
+            messages,
+            retries,
             requestOptions,
-            ...restApiOptions 
+            ...restApiOptions
         } = promptParams;
 
-        const finalMessages = maxConversationChars 
-            ? truncateMessages(messages, maxConversationChars) 
+        const finalMessages = maxConversationChars
+            ? truncateMessages(messages, maxConversationChars)
             : messages;
 
         const baseConfig = typeof factoryDefaultModel === 'object' && factoryDefaultModel !== null
@@ -224,10 +224,12 @@ export function createLlmClient(params: CreateLlmClientParams) {
                     }
                 },
                 async (completion) => {
+                    if(!completion) {
+                        throw new Error('Completion is undefined, something is fishy.');
+                    }
+
                     if((completion as any).error) {
-                        return {
-                            isValid: false,
-                        }
+                      throw new Error(`LLM Provider Error: ${(completion as any).error.message}`);
                     }
 
                     return { isValid: true, data: completion };
@@ -289,10 +291,10 @@ export function createLlmClient(params: CreateLlmClientParams) {
     async function promptAudio(options: LlmPromptOptions): Promise<Buffer>;
     async function promptAudio(arg1: string | LlmPromptOptions, arg2?: LlmCommonOptions): Promise<Buffer> {
         const promptParams = normalizeOptions(arg1, arg2);
-        
+
         // Ensure modalities includes audio if not explicitly set, though user should ideally provide it.
         // We won't force it here to avoid overriding user intent, but promptAudio implies audio output.
-        
+
         const response = await prompt(promptParams);
         const message = response.choices[0]?.message;
 
