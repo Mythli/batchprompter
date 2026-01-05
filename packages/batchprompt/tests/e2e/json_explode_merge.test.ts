@@ -79,19 +79,7 @@ describe('E2E JSON Explode and Merge', () => {
                 },
                 {
                     // Step 2: Generate Details -> Merge
-                    // Uses Validation Plugin to check Step 1 output (name exists)
-                    plugins: [
-                        {
-                            type: "validation",
-                            schema: {
-                                type: "object",
-                                properties: {
-                                    name: { type: "string", minLength: 1 }
-                                },
-                                required: ["name"]
-                            }
-                        }
-                    ],
+                    // Uses schema directly on the step, no validation plugin
                     prompt: "Details for {{name}}",
                     // Static path to dynamic content
                     schemaPath: "schema_dynamic.json", 
