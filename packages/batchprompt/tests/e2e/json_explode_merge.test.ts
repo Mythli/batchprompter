@@ -61,7 +61,8 @@ describe('E2E JSON Explode and Merge', () => {
                         required: ["age", "city"]
                     }),
                     output: {
-                        mode: "merge"
+                        mode: "merge",
+                        explode: false
                     }
                 }
             ]
