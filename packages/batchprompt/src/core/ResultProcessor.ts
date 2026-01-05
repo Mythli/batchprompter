@@ -90,23 +90,23 @@ export class ResultProcessor {
     }
 
     private static updateRow(item: PipelineItem, data: any, strategy: OutputStrategy, namespace: string) {
+        // Unwrap single-element arrays for both column and merge operations
+        // This handles the common case of a single-packet result (e.g. model output)
+        let dataToMerge = data;
+        if (Array.isArray(data) && data.length === 1) {
+            dataToMerge = data[0];
+        }
+
+        // Also unwrap if the packet data itself is a single-element array
+        // This handles plugins that return a list of results (like WebSearch)
+        // when that list happens to contain exactly one item.
+        if (Array.isArray(dataToMerge) && dataToMerge.length === 1) {
+            dataToMerge = dataToMerge[0];
+        }
+
         if (strategy.mode === 'column' && strategy.column) {
-            item.row[strategy.column] = data;
+            item.row[strategy.column] = dataToMerge;
         } else if (strategy.mode === 'merge') {
-            // Unwrap single-element arrays for merge operations
-            // This handles the common case of a single-packet plugin result
-            let dataToMerge = data;
-            if (Array.isArray(data) && data.length === 1) {
-                dataToMerge = data[0];
-            }
-
-            // Also unwrap if the packet data itself is a single-element array
-            // This handles plugins that return a list of results (like WebSearch)
-            // when that list happens to contain exactly one item.
-            if (Array.isArray(dataToMerge) && dataToMerge.length === 1) {
-                dataToMerge = dataToMerge[0];
-            }
-
             // Special handling for model output: Merge at root if it's an object
             // This ensures model results like { location: "Berlin" } become row.location
             // instead of row.modelOutput.location
