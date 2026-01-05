@@ -11,6 +11,7 @@ import { PluginRegistryV2, Plugin } from '../../src/plugins/types.js';
 import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
 import { DebugLogger } from '../../src/core/DebugLogger.js';
+import { ValidationPluginV2 } from '../../src/plugins/validation/ValidationPluginV2.js';
 
 export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
 
@@ -97,8 +98,14 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     const messageBuilder = new MessageBuilder();
     const pluginRegistry = new PluginRegistryV2();
 
+    // Always register ValidationPluginV2 as it's a core plugin often used in tests
+    pluginRegistry.register(new ValidationPluginV2());
+
     for (const plugin of plugins) {
-        pluginRegistry.register(plugin);
+        // Avoid double registration if passed in options
+        if (!pluginRegistry.get(plugin.type)) {
+            pluginRegistry.register(plugin);
+        }
     }
 
     const actionRunner = new ActionRunner(
