@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import Ajv from 'ajv';
+import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import {
     Plugin,
-    PluginExecutionContext,
-    PluginResult
+    PluginExecutionContext
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
@@ -111,18 +111,27 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         };
     }
 
-    async execute(
+    async postProcessMessages(
+        response: any,
+        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: ValidationResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<PluginResult> {
+    ): Promise<any> {
         const { row } = context;
         const scope = new PluginScope(context, this.type);
 
-        let dataToValidate: any = row;
+        let dataToValidate: any = response;
 
+        // If target is specified, we validate that specific data instead of the response
+        // However, usually validation plugin validates the LLM output (response).
+        // If target is used, it might be validating something from the row context.
+        // But postProcessMessages is designed to validate/transform the response.
+        
         if (config.target) {
             const template = Handlebars.compile(config.target, { noEscape: true });
-            const jsonString = template(row);
+            // We merge response into row for template context so we can validate response fields
+            const templateContext = { ...row, response };
+            const jsonString = template(templateContext);
 
             try {
                 if (jsonString.trim().startsWith('{') || jsonString.trim().startsWith('[')) {
@@ -132,6 +141,16 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
                 }
             } catch {
                 dataToValidate = jsonString;
+            }
+        } else {
+            // Default behavior: Validate the response object directly
+            // If response is a string (e.g. raw text), try to parse it if schema expects object/array
+            if (typeof response === 'string') {
+                try {
+                    dataToValidate = JSON.parse(response);
+                } catch (e) {
+                    // Keep as string if parsing fails
+                }
             }
         }
 
@@ -155,7 +174,8 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
                 tags: ['debug', 'validation', 'error']
             });
 
-            return { packets: [] };
+            // Throw error to trigger retry in StandardStrategy
+            throw new Error(`Validation failed: ${errors}`);
         }
 
         scope.emit('validation:passed', { source: config.schemaSource });
@@ -172,11 +192,8 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             tags: ['debug', 'validation', 'success']
         });
 
-        return {
-            packets: [{
-                data: {},
-                contentParts: []
-            }]
-        };
+        // Return the original response (or validated data if we want to enforce transformation)
+        // Usually we pass through the response.
+        return response;
     }
 }
