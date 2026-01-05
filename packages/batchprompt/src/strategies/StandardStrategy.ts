@@ -89,7 +89,7 @@ export class StandardStrategy implements GenerationStrategy {
         row: Record<string, any>,
         index: number,
         stepIndex: number
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
+    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[][]> {
         let messageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [baseMessages];
 
         for (let i = 0; i < this.plugins.length; i++) {
@@ -110,12 +110,8 @@ export class StandardStrategy implements GenerationStrategy {
                 messageSets = nextMessageSets;
             }
         }
-
-        if (messageSets.length > 1) {
-            this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Plugin returned multiple message sets (explode), but StandardStrategy only supports one. Using the first set.` });
-        }
         
-        return messageSets[0];
+        return messageSets;
     }
 
     private async runPostProcessingPhase(
@@ -168,7 +164,7 @@ export class StandardStrategy implements GenerationStrategy {
         baseMessages.push(...userMsgs);
 
         // 2. Run Plugin Preparation Phase
-        const finalMessages = await this.runPreparationPhase(baseMessages, row, index, stepIndex);
+        const messageSets = await this.runPreparationPhase(baseMessages, row, index, stepIndex);
 
         // 3. Generation Loop
         const requestOptions = cacheSalt ? {
@@ -182,120 +178,137 @@ export class StandardStrategy implements GenerationStrategy {
 
         const rawClient = this.llm.getRawClient();
         
-        let finalResult: any;
-        let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
-        let columnValue: string | null;
-        let finalExtension = 'txt';
-        let finalType = 'text';
-        let finalContentPayload: string | Buffer = '';
+        const results: any[] = [];
+        let lastHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
 
-        if (config.jsonSchema) {
-            // --- Branch A: JSON Schema ---
-            // Use promptJson which handles schema injection, response_format, and auto-fixing
+        // Iterate over all message sets (usually 1, but >1 if exploded)
+        for (let i = 0; i < messageSets.length; i++) {
+            const finalMessages = messageSets[i];
             
-            const validator = async (data: any) => {
-                // 1. Validate Schema
-                const valid = this.ajv.validate(config.jsonSchema, data);
-                if (!valid) {
-                    const errors = this.ajv.errorsText();
-                    // Throw SchemaValidationError to trigger promptJson's fixer
-                    throw new SchemaValidationError(`Schema Mismatch: ${errors}`);
-                }
+            // Calculate a sub-variation index if we are exploding here
+            const currentVariationIndex = messageSets.length > 1 ? i : variationIndex;
 
-                // 2. Run Plugin Post-Processing Phase
-                // Construct synthetic history for plugins so they see the assistant's response
-                const syntheticHistory = [
-                    ...finalMessages, 
-                    { role: 'assistant', content: JSON.stringify(data) } as OpenAI.Chat.Completions.ChatCompletionMessageParam
-                ];
+            let finalResult: any;
+            let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
+            let columnValue: string | null;
+            let finalExtension = 'txt';
+            let finalType = 'text';
+            let finalContentPayload: string | Buffer = '';
+
+            if (config.jsonSchema) {
+                // --- Branch A: JSON Schema ---
                 
-                return await this.runPostProcessingPhase(data, syntheticHistory, row, index, stepIndex);
-            };
+                const validator = async (data: any) => {
+                    // 1. Validate Schema
+                    const valid = this.ajv.validate(config.jsonSchema, data);
+                    if (!valid) {
+                        const errors = this.ajv.errorsText();
+                        throw new SchemaValidationError(`Schema Mismatch: ${errors}`);
+                    }
 
-            finalResult = await rawClient.promptJson(finalMessages, config.jsonSchema, {
-                requestOptions,
-                maxRetries: 3 + (config.feedbackLoops || 0),
-                validator,
-                ...additionalParams
-            });
+                    // 2. Run Plugin Post-Processing Phase
+                    const syntheticHistory = [
+                        ...finalMessages, 
+                        { role: 'assistant', content: JSON.stringify(data) } as OpenAI.Chat.Completions.ChatCompletionMessageParam
+                    ];
+                    
+                    return await this.runPostProcessingPhase(data, syntheticHistory, row, index, stepIndex);
+                };
 
-            finalHistoryMessage = {
-                role: 'assistant',
-                content: JSON.stringify(finalResult, null, 2)
-            };
-            columnValue = JSON.stringify(finalResult, null, 2);
-            finalExtension = 'json';
-            finalType = 'json';
-            finalContentPayload = columnValue;
+                finalResult = await rawClient.promptJson(finalMessages, config.jsonSchema, {
+                    requestOptions,
+                    maxRetries: 3 + (config.feedbackLoops || 0),
+                    validator,
+                    ...additionalParams
+                });
 
-        } else {
-            // --- Branch B: Standard / Retry ---
-            // Use promptRetry for text, image, audio, or unstructured output
+                finalHistoryMessage = {
+                    role: 'assistant',
+                    content: JSON.stringify(finalResult, null, 2)
+                };
+                columnValue = JSON.stringify(finalResult, null, 2);
+                finalExtension = 'json';
+                finalType = 'json';
+                finalContentPayload = columnValue;
 
-            // Variables to capture state from inside the callback
-            let capturedContent: ExtractedContent | null = null;
-            let capturedHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
-
-            const validateCallback = async (response: any, info: LlmRetryResponseInfo) => {
-                // 1. Normalize & Extract
-                capturedHistoryMessage = completionToMessage(response);
-                capturedContent = this.extractContent(capturedHistoryMessage);
-                let data = capturedContent.data;
-
-                // 2. Run Plugin Post-Processing Phase
-                return await this.runPostProcessingPhase(data, info.conversation, row, index, stepIndex);
-            };
-
-            finalResult = await rawClient.promptRetry({
-                messages: finalMessages,
-                requestOptions,
-                maxRetries: 3 + (config.feedbackLoops || 0),
-                validate: validateCallback,
-                ...additionalParams
-            });
-
-            if (!capturedContent || !capturedHistoryMessage) throw new Error("Generation failed.");
-
-            const content: ExtractedContent = capturedContent;
-            finalHistoryMessage = capturedHistoryMessage;
-            columnValue = content.data;
-            finalExtension = content.extension;
-            finalType = content.type;
-            
-            if (finalType === 'audio') {
-                finalContentPayload = Buffer.from(content.data, 'base64');
             } else {
-                finalContentPayload = content.data;
+                // --- Branch B: Standard / Retry ---
+
+                let capturedContent: ExtractedContent | null = null;
+                let capturedHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
+
+                const validateCallback = async (response: any, info: LlmRetryResponseInfo) => {
+                    capturedHistoryMessage = completionToMessage(response);
+                    capturedContent = this.extractContent(capturedHistoryMessage);
+                    let data = capturedContent.data;
+
+                    return await this.runPostProcessingPhase(data, info.conversation, row, index, stepIndex);
+                };
+
+                finalResult = await rawClient.promptRetry({
+                    messages: finalMessages,
+                    requestOptions,
+                    maxRetries: 3 + (config.feedbackLoops || 0),
+                    validate: validateCallback,
+                    ...additionalParams
+                });
+
+                if (!capturedContent || !capturedHistoryMessage) throw new Error("Generation failed.");
+
+                const content: ExtractedContent = capturedContent;
+                finalHistoryMessage = capturedHistoryMessage;
+                columnValue = content.data;
+                finalExtension = content.extension;
+                finalType = content.type;
+                
+                if (finalType === 'audio') {
+                    finalContentPayload = Buffer.from(content.data, 'base64');
+                } else {
+                    finalContentPayload = content.data;
+                }
             }
+
+            // Emit Artifact
+            const effectiveBasename = config.outputBasename || 'output';
+            let filename = `${effectiveBasename}.${finalExtension}`;
+
+            if (currentVariationIndex !== undefined) {
+                filename = `${effectiveBasename}_${currentVariationIndex}.${finalExtension}`;
+            }
+
+            const targetDir = config.resolvedOutputDir || config.resolvedTempDir;
+            if (targetDir) {
+                filename = path.join(targetDir, filename);
+            }
+
+            this.events.emit('plugin:artifact', {
+                row: index,
+                step: stepIndex,
+                plugin: 'model',
+                type: finalType,
+                filename: filename,
+                content: finalContentPayload,
+                tags: ['final']
+            });
+
+            results.push(finalResult);
+            lastHistoryMessage = finalHistoryMessage;
         }
 
-        // Emit Artifact
-        const effectiveBasename = config.outputBasename || 'output';
-        let filename = `${effectiveBasename}.${finalExtension}`;
-
-        if (variationIndex !== undefined) {
-            filename = `${effectiveBasename}_${variationIndex}.${finalExtension}`;
+        // Return results
+        if (results.length === 1) {
+            return {
+                historyMessage: lastHistoryMessage!,
+                columnValue: typeof results[0] === 'string' ? results[0] : null,
+                raw: results[0]
+            };
+        } else {
+            // Exploded results
+            return {
+                historyMessage: lastHistoryMessage!,
+                columnValue: null,
+                raw: results
+            };
         }
-
-        const targetDir = config.resolvedOutputDir || config.resolvedTempDir;
-        if (targetDir) {
-            filename = path.join(targetDir, filename);
-        }
-
-        this.events.emit('plugin:artifact', {
-            row: index,
-            step: stepIndex,
-            plugin: 'model',
-            type: finalType,
-            filename: filename,
-            content: finalContentPayload,
-            tags: ['final']
-        });
-
-        return {
-            historyMessage: finalHistoryMessage,
-            columnValue: columnValue,
-            raw: finalResult
-        };
     }
 }
