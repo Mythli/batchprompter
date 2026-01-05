@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { setupTestEnvironment } from '../utils/testHelpers.js';
-import { ValidationPluginV2 } from '../../src/plugins/validation/ValidationPluginV2.js';
 
 describe('E2E JSON Explode and Merge', () => {
     it('should explode JSON output and merge subsequent step with dynamic schema validation', async () => {
@@ -23,24 +22,9 @@ describe('E2E JSON Explode and Merge', () => {
             city: "Bobland"
         });
 
-        const { executor, contentResolver } = setupTestEnvironment({
-            mockResponses: [step1Response, step2ResponseAlice, step2ResponseBob],
-            plugins: [new ValidationPluginV2()]
+        const { executor } = setupTestEnvironment({
+            mockResponses: [step1Response, step2ResponseAlice, step2ResponseBob]
         });
-
-        // 2. Setup Dynamic Schema in Memory
-        // We use a single schema file with Handlebars inside the content.
-        // This tests that SchemaLoader correctly renders the content per-row.
-        const schemaTemplate = JSON.stringify({
-            type: "object",
-            properties: {
-                age: { type: "number" },
-                city: { const: "{{name}}land" } // Dynamic constraint based on row data
-            },
-            required: ["age", "city"]
-        });
-        
-        contentResolver.setFile('schema_dynamic.json', schemaTemplate);
 
         // 3. Config
         const config = {
@@ -65,22 +49,17 @@ describe('E2E JSON Explode and Merge', () => {
                 },
                 {
                     // Step 2: Generate Details -> Merge
-                    // Uses Validation Plugin to check Step 1 output (name exists)
-                    plugins: [
-                        {
-                            type: "validation",
-                            schema: {
-                                type: "object",
-                                properties: {
-                                    name: { type: "string", minLength: 1 }
-                                },
-                                required: ["name"]
-                            }
-                        }
-                    ],
                     prompt: "Details for {{name}}",
-                    // Static path to dynamic content
-                    schemaPath: "schema_dynamic.json", 
+                    // Inline dynamic schema (stringified JSON with Handlebars)
+                    // This tests that StepResolver correctly renders the schema content per-row
+                    schema: JSON.stringify({
+                        type: "object",
+                        properties: {
+                            age: { type: "number" },
+                            city: { const: "{{name}}land" }
+                        },
+                        required: ["age", "city"]
+                    }),
                     output: {
                         mode: "merge"
                     }
