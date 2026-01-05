@@ -289,55 +289,92 @@ export class ActionRunner {
         const nextItems: PipelineItem[] = [];
 
         for (const res of validResults) {
-            // If we have multiple packets (implicit explosion), we force explode behavior in ResultProcessor
-            // by temporarily overriding the strategy if it wasn't already set to explode.
-            // However, ResultProcessor.process handles explode=false by merging all packets into one item.
-            // We want multiple items if packets > 1.
-            
-            let effectiveStrategy = outputStrategy;
-            if (res.packets.length > 1 && !outputStrategy.explode) {
-                // Force explode if we have multiple packets (e.g. from plugin explosion)
-                effectiveStrategy = { ...outputStrategy, explode: true };
-            }
-
             const processed = ResultProcessor.process(
                 [res.item],
                 res.packets,
-                effectiveStrategy,
+                outputStrategy,
                 namespace
             );
 
-            if (effectiveStrategy.explode) {
-                const totalAvailable = res.packets.length;
-                const finalCount = processed.length;
+            const totalAvailable = res.packets.length;
+            const finalCount = processed.length;
 
-                if (totalAvailable > 1 || finalCount !== totalAvailable) {
-                    this.globalContext.events.emit('step:progress', {
-                        row: res.item.originalIndex,
-                        step: stepNum,
-                        type: 'explode',
-                        message: '',
-                        data: {
-                            count: finalCount,
-                            source: namespace,
-                            total: totalAvailable,
-                            limit: effectiveStrategy.limit,
-                            offset: effectiveStrategy.offset
-                        }
-                    });
-                }
+            if (finalCount > 1 || (totalAvailable > 1 && finalCount !== 1)) {
+                this.globalContext.events.emit('step:progress', {
+                    row: res.item.originalIndex,
+                    step: stepNum,
+                    type: 'explode',
+                    message: '',
+                    data: {
+                        count: finalCount,
+                        source: namespace,
+                        total: totalAvailable,
+                        limit: outputStrategy.limit,
+                        offset: outputStrategy.offset
+                    }
+                });
             }
 
             if (postProcess) {
-                if (effectiveStrategy.explode) {
-                    processed.forEach((newItem, idx) => {
-                        postProcess(newItem, res.packets[idx]);
-                    });
-                } else {
-                    if (processed.length > 0 && res.packets.length > 0) {
-                        postProcess(processed[0], res.packets[0]);
+                // If we have multiple items, we assume they map to packets or expanded data.
+                // ResultProcessor handles the mapping.
+                // We need to call postProcess for each new item.
+                // However, postProcess needs the source packet to extract history updates.
+                // ResultProcessor doesn't attach the source packet to the newItem directly in a public way,
+                // but it does copy data.
+                // The `postProcess` callback in `executeModel` uses `packet.data` which is now in `newItem.stepHistory`?
+                // No, `postProcess` takes `(newItem, sourcePacket)`.
+                
+                // We need to know which packet generated which item to pass the correct history update.
+                // ResultProcessor logic is complex.
+                // Let's rely on the fact that ResultProcessor applies the packet data to the item.
+                // But `_historyUpdate` is on the packet, not the item yet.
+                
+                // We need to change how postProcess is called.
+                // ResultProcessor should probably handle the history update or we need to map back.
+                
+                // Actually, ResultProcessor.process returns items that have the data applied.
+                // But `_historyUpdate` is hidden in the packet.
+                
+                // In the new ResultProcessor logic, we iterate packets.
+                // We can't easily map back from `processed` items to `packets` without index tracking.
+                
+                // Let's assume `processed` items are in order corresponding to packets (and their data expansion).
+                // But if data expansion happens, one packet -> multiple items.
+                
+                // We can iterate `processed` and try to match? No.
+                
+                // Better approach: Move the `postProcess` logic INTO ResultProcessor or make ResultProcessor return the mapping.
+                // Or, since `postProcess` is mainly for history updates, maybe we can attach `_historyUpdate` to the item temporarily?
+                
+                // Let's modify `executeModel` to attach `_historyUpdate` to the data object itself? No, data might be primitive.
+                
+                // Let's look at `executeModel` again.
+                // It returns `PluginPacket[]`.
+                // `PluginPacket` has `data` and `contentParts`.
+                // `executeModel` adds `_historyUpdate` to the packet object (casted as any).
+                
+                // If ResultProcessor copies `packet` properties to `newItem`, we are good.
+                // But ResultProcessor only copies `data` to workspace/row and `contentParts` to accumulatedContent.
+                
+                // We need to pass `_historyUpdate` through.
+                // Let's modify ResultProcessor to accept a callback or return metadata.
+                
+                // Alternatively, we can iterate `processed` items.
+                // If we assume ResultProcessor preserves order...
+                
+                // Let's modify ResultProcessor to attach the source packet to the returned item temporarily?
+                // `newItem._sourcePacket = packet`
+                
+                // Yes, let's do that in ResultProcessor.
+                
+                processed.forEach((newItem) => {
+                    const sourcePacket = (newItem as any)._sourcePacket;
+                    if (sourcePacket) {
+                        postProcess(newItem, sourcePacket);
+                        delete (newItem as any)._sourcePacket;
                     }
-                }
+                });
             }
 
             nextItems.push(...processed);

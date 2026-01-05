@@ -24,54 +24,60 @@ export class ResultProcessor {
         }
 
         for (const item of currentItems) {
-            if (strategy.explode) {
-                // EXPLODE: Create one new item per packet
+            let variationCounter = 0;
 
-                // Apply Offset & Limit logic for explosion
-                let packetsToProcess = packets;
+            // Iterate over packets (Topology Expansion)
+            // Each packet represents a distinct result from the previous step/plugin execution
+            packets.forEach((packet) => {
+                
+                // Check for Data Expansion (strategy.explode = true AND data is array)
+                if (strategy.explode && Array.isArray(packet.data)) {
+                    // Data Explosion
+                    let dataArray = packet.data;
+                    
+                    // Apply limit/offset to the data array
+                    if (strategy.offset !== undefined && strategy.offset > 0) {
+                        dataArray = dataArray.slice(strategy.offset);
+                    }
+                    if (strategy.limit !== undefined && strategy.limit > 0) {
+                        dataArray = dataArray.slice(0, strategy.limit);
+                    }
 
-                if (strategy.offset !== undefined && strategy.offset > 0) {
-                    packetsToProcess = packetsToProcess.slice(strategy.offset);
-                }
+                    dataArray.forEach((dataItem: any) => {
+                        const newItem = ResultProcessor.cloneItem(item);
+                        newItem.variationIndex = variationCounter++;
+                        
+                        // Apply Data
+                        newItem.workspace[namespace] = dataItem;
+                        
+                        // Apply Content
+                        newItem.accumulatedContent.push(...packet.contentParts);
+                        
+                        // Update Row
+                        ResultProcessor.updateRow(newItem, dataItem, strategy, namespace);
+                        
+                        // Attach source packet for post-processing (history updates)
+                        (newItem as any)._sourcePacket = packet;
 
-                if (strategy.limit !== undefined && strategy.limit > 0) {
-                    packetsToProcess = packetsToProcess.slice(0, strategy.limit);
-                }
+                        nextItems.push(newItem);
+                    });
 
-                packetsToProcess.forEach((packet, index) => {
+                } else {
+                    // No Data Explosion (1 Packet -> 1 Row)
                     const newItem = ResultProcessor.cloneItem(item);
+                    newItem.variationIndex = variationCounter++;
 
-                    // Set variation index (0-based)
-                    newItem.variationIndex = index;
-
-                    // Apply Data (Single Object)
                     newItem.workspace[namespace] = packet.data;
-
-                    // Apply Content (Specific Content)
                     newItem.accumulatedContent.push(...packet.contentParts);
-
-                    // Apply Row Update
+                    
                     ResultProcessor.updateRow(newItem, packet.data, strategy, namespace);
+                    
+                    // Attach source packet for post-processing (history updates)
+                    (newItem as any)._sourcePacket = packet;
 
                     nextItems.push(newItem);
-                });
-            } else {
-                // MERGE: Keep one item, merge all packets
-                const newItem = ResultProcessor.cloneItem(item);
-
-                // Data: Array of objects
-                const mergedData = packets.map(p => p.data);
-                newItem.workspace[namespace] = mergedData;
-
-                // Content: All content parts concatenated
-                const allContent = packets.flatMap(p => p.contentParts);
-                newItem.accumulatedContent.push(...allContent);
-
-                // Row Update
-                ResultProcessor.updateRow(newItem, mergedData, strategy, namespace);
-
-                nextItems.push(newItem);
-            }
+                }
+            });
         }
 
         return nextItems;
