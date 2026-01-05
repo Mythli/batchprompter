@@ -7,11 +7,11 @@ import { MemoryContentResolver } from '../../src/core/io/MemoryContentResolver.j
 import { LlmClientFactory } from '../../src/core/LlmClientFactory.js';
 import { StepResolver } from '../../src/core/StepResolver.js';
 import { MessageBuilder } from '../../src/core/MessageBuilder.js';
-import { PluginRegistryV2, Plugin } from '../../src/plugins/types.js';
+import { PluginRegistryV2, Plugin, createPluginRegistry } from '../../src/plugins/index.js';
 import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
 import { DebugLogger } from '../../src/core/DebugLogger.js';
-import { ValidationPluginV2 } from '../../src/plugins/validation/ValidationPluginV2.js';
+import { PromptLoader } from '../../src/config/PromptLoader.js';
 
 export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
 
@@ -26,7 +26,10 @@ export function createMockOpenAI(responses: (string | any)[] | MockResponseResol
                     if (typeof responses === 'function') {
                         response = responses(params.messages);
                     } else {
-                        response = responses[callCount] || responses[responses.length - 1] || "";
+                        if (callCount >= responses.length) {
+                            throw new Error(`Mock OpenAI: No more responses configured (requested call #${callCount + 1})`);
+                        }
+                        response = responses[callCount];
                         callCount++;
                     }
 
@@ -54,7 +57,14 @@ export function createMockOpenAI(responses: (string | any)[] | MockResponseResol
     } as unknown as OpenAI;
 }
 
-export function createTestContext(responses: (string | any)[] | MockResponseResolver = []) {
+export interface TestContextOptions {
+    responses?: (string | any)[] | MockResponseResolver;
+    webSearch?: any;
+    imageSearch?: any;
+}
+
+export function createTestContext(options: TestContextOptions = {}) {
+    const { responses = [], webSearch, imageSearch } = options;
     const openai = createMockOpenAI(responses);
     const events = new EventEmitter();
     const contentResolver = new MemoryContentResolver();
@@ -71,9 +81,14 @@ export function createTestContext(responses: (string | any)[] | MockResponseReso
             close: vi.fn()
         } as any,
         fetcher: vi.fn() as any,
-        capabilities: { hasSerper: false, hasPuppeteer: false },
+        capabilities: { 
+            hasSerper: !!webSearch || !!imageSearch, 
+            hasPuppeteer: true 
+        },
         defaultModel: 'gpt-mock',
-        contentResolver
+        contentResolver,
+        webSearch,
+        imageSearch
     };
 
     return { globalContext, openai, events, contentResolver };
@@ -83,12 +98,24 @@ export interface TestEnvOptions {
     mockResponses?: (string | any)[] | MockResponseResolver;
     plugins?: Plugin[];
     schemaLoader?: any;
+    webSearch?: any;
+    imageSearch?: any;
 }
 
 export function setupTestEnvironment(options: TestEnvOptions = {}) {
-    const { mockResponses = [], plugins = [], schemaLoader = { load: async () => ({}) } } = options;
+    const { 
+        mockResponses = [], 
+        plugins = [], 
+        schemaLoader = { load: async () => ({}) },
+        webSearch,
+        imageSearch
+    } = options;
 
-    const { globalContext, openai, events, contentResolver } = createTestContext(mockResponses);
+    const { globalContext, openai, events, contentResolver } = createTestContext({
+        responses: mockResponses,
+        webSearch,
+        imageSearch
+    });
 
     // Add DebugLogger to see events in test output
     new DebugLogger(events as any);
@@ -96,15 +123,15 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock');
     const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
     const messageBuilder = new MessageBuilder();
-    const pluginRegistry = new PluginRegistryV2();
-
-    // Always register ValidationPluginV2 as it's a core plugin often used in tests
-    pluginRegistry.register(new ValidationPluginV2());
+    
+    const promptLoader = new PromptLoader(contentResolver);
+    const pluginRegistry = createPluginRegistry(promptLoader);
 
     for (const plugin of plugins) {
-        // Avoid double registration if passed in options
-        if (!pluginRegistry.get(plugin.type)) {
+        try {
             pluginRegistry.register(plugin);
+        } catch (e) {
+            // If already registered (built-in), we ignore.
         }
     }
 

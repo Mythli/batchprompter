@@ -1,7 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import OpenAI from 'openai';
-import { initConfig } from '../../src/getConfig.js';
-import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
+import { describe, it, expect } from 'vitest';
+import { setupTestEnvironment } from '../utils/testHelpers.js';
 import { WebSearch } from '../../src/plugins/web-search/WebSearch.js';
 import { ImageSearch } from '../../src/plugins/image-search/ImageSearch.js';
 
@@ -67,36 +65,14 @@ class MockImageSearch extends ImageSearch {
 }
 
 async function setupSearchTest(mockResponses: any[]) {
-    const openai = {
-        chat: {
-            completions: {
-                create: vi.fn()
-            }
-        }
-    } as unknown as OpenAI;
-
-    // Setup sequential mock responses
-    mockResponses.forEach(resp => {
-        (openai.chat.completions.create as any).mockResolvedValueOnce({
-            choices: [{ message: { content: typeof resp === 'string' ? resp : JSON.stringify(resp) } }]
-        });
-    });
-
     const mockWebSearch = new MockWebSearch();
     const mockImageSearch = new MockImageSearch();
 
-    const deps = await initConfig({
-        openai, 
+    const { executor, openai } = setupTestEnvironment({
+        mockResponses,
         webSearch: mockWebSearch,
         imageSearch: mockImageSearch
     });
-
-    const executor = new InMemoryConfigExecutor(
-        deps.actionRunner,
-        deps.pluginRegistry,
-        deps.globalContext.events,
-        deps.globalContext.contentResolver
-    );
 
     return { executor, openai, mockWebSearch, mockImageSearch };
 }
