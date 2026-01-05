@@ -29,14 +29,17 @@ describe('E2E JSON Explode and Merge', () => {
         let step1CallCount = 0;
         const mockResolver = (messages: any[]) => {
             const lastMsg = messages[messages.length - 1];
-            const content = Array.isArray(lastMsg.content)
+            const content = (Array.isArray(lastMsg.content)
                 ? lastMsg.content.map((c: any) => c.text).join('')
-                : lastMsg.content;
+                : lastMsg.content) || "";
 
             if (content.includes("Generate users" )) {
                 step1CallCount++;
-                // Return failure on first attempt, success on second
-                return step1CallCount === 1 ? step1ResponseFail : step1ResponseSuccess;
+                return step1ResponseFail;
+            }
+            if (content.includes("must be array")) {
+                step1CallCount++;
+                return step1ResponseSuccess;
             }
             if (content.includes("Details for Alice")) {
                 return step2ResponseAlice;
