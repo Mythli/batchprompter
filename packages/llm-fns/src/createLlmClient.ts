@@ -73,6 +73,7 @@ export function mergeRequestOptions(
 export interface LlmCommonOptions {
     model?: ModelConfig;
     retries?: number;
+    retryBaseDelay?: number;
     /** @deprecated Use `reasoning` object instead. */
     response_format?: OpenRouterResponseFormat;
     modalities?: string[];
@@ -119,6 +120,7 @@ export interface CreateLlmClientParams {
     maxConversationChars?: number;
     queue?: PQueue;
     defaultRequestOptions?: LlmRequestOptions;
+    retryBaseDelay?: number;
 }
 
 /**
@@ -156,7 +158,8 @@ export function createLlmClient(params: CreateLlmClientParams) {
         defaultModel: factoryDefaultModel,
         maxConversationChars,
         queue,
-        defaultRequestOptions
+        defaultRequestOptions,
+        retryBaseDelay: factoryRetryBaseDelay = 1000
     } = params;
 
     const getCompletionParams = (promptParams: LlmPromptParams) => {
@@ -164,6 +167,7 @@ export function createLlmClient(params: CreateLlmClientParams) {
             model: callSpecificModel,
             messages,
             retries,
+            retryBaseDelay: callSpecificRetryBaseDelay,
             requestOptions,
             ...restApiOptions
         } = promptParams;
@@ -197,14 +201,21 @@ export function createLlmClient(params: CreateLlmClientParams) {
 
         const mergedRequestOptions = mergeRequestOptions(defaultRequestOptions, requestOptions);
 
-        return { completionParams, modelToUse, finalMessages, retries, requestOptions: mergedRequestOptions };
+        return { 
+            completionParams, 
+            modelToUse, 
+            finalMessages, 
+            retries, 
+            requestOptions: mergedRequestOptions,
+            retryBaseDelay: callSpecificRetryBaseDelay ?? factoryRetryBaseDelay
+        };
     };
 
     async function prompt(content: string, options?: LlmCommonOptions): Promise<OpenAI.Chat.Completions.ChatCompletion>;
     async function prompt(options: LlmPromptOptions): Promise<OpenAI.Chat.Completions.ChatCompletion>;
     async function prompt(arg1: string | LlmPromptOptions, arg2?: LlmCommonOptions): Promise<OpenAI.Chat.Completions.ChatCompletion> {
         const promptParams = normalizeOptions(arg1, arg2);
-        const { completionParams, finalMessages, retries, requestOptions } = getCompletionParams(promptParams);
+        const { completionParams, finalMessages, retries, requestOptions, retryBaseDelay: baseDelay } = getCompletionParams(promptParams);
 
         const promptSummary = getPromptSummary(finalMessages);
 
@@ -242,7 +253,8 @@ export function createLlmClient(params: CreateLlmClientParams) {
                         return false;
                     }
                     return true;
-                }
+                },
+                baseDelay
             );
 
             const response = (await (queue ? queue.add(task, { id: promptSummary, messages: finalMessages } as any) : task())) as OpenAI.Chat.Completions.ChatCompletion;

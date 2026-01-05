@@ -20,6 +20,7 @@ export interface RetryValidationResult<ValidatedDataType, FeedbackType = any> {
  * @param maxRetries - The maximum number of retries after the initial attempt (e.g., 2 means 3 total attempts).
  * @param initialFeedbackForOperation - Optional initial feedback to pass to the very first call of the operation.
  * @param shouldRetryError - Optional function to determine if a specific error should trigger a retry. Returns true to retry, false to throw immediately.
+ * @param baseDelay - The base delay for exponential backoff in milliseconds. Defaults to 1000ms.
  * @returns A Promise that resolves with the validated data if successful.
  * @throws An error if all attempts fail or a critical failure occurs.
  */
@@ -31,19 +32,22 @@ export async function executeWithRetry<OperationReturnType, ValidatedDataType, F
     ) => Promise<RetryValidationResult<ValidatedDataType, FeedbackType>>,
     maxRetries: number,
     initialFeedbackForOperation?: FeedbackType,
-    shouldRetryError?: (error: any) => boolean
+    shouldRetryError?: (error: any) => boolean,
+    baseDelay: number = 1000
 ): Promise<ValidatedDataType> {
     let currentFeedbackForOperation: FeedbackType | undefined = initialFeedbackForOperation;
 
     for (let attemptNumber = 0; attemptNumber <= maxRetries; attemptNumber++) {
         if (attemptNumber > 0) {
             // Exponential backoff with jitter.
-            const baseDelay = 1000; // 1 second
             const backoffTime = baseDelay * Math.pow(2, attemptNumber - 1);
             const jitter = backoffTime * (Math.random() * 0.2); // Add up to 20% jitter
             const totalDelay = backoffTime + jitter;
-            console.log(`Retrying operation... Attempt ${attemptNumber + 1} of ${maxRetries + 1}. Waiting for ${Math.round(totalDelay)}ms.`);
-            await new Promise(resolve => setTimeout(resolve, totalDelay));
+            
+            if (totalDelay > 0) {
+                console.log(`Retrying operation... Attempt ${attemptNumber + 1} of ${maxRetries + 1}. Waiting for ${Math.round(totalDelay)}ms.`);
+                await new Promise(resolve => setTimeout(resolve, totalDelay));
+            }
         }
         let rawResult: OperationReturnType;
         try {

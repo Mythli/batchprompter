@@ -8,7 +8,8 @@ export class LlmClientFactory {
     constructor(
         private openai: OpenAI,
         private queue: PQueue,
-        private defaultModel: string
+        private defaultModel: string,
+        private retryBaseDelay?: number
     ) {}
 
     /**
@@ -32,7 +33,7 @@ export class LlmClientFactory {
             openai: this.openai as any,
             defaultModel: modelConfig,
             queue: this.queue,
-
+            retryBaseDelay: this.retryBaseDelay
         });
 
         return new BoundLlmClient(

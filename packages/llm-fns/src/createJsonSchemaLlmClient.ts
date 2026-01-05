@@ -46,11 +46,12 @@ export interface CreateJsonSchemaLlmClientParams {
     prompt: PromptFunction;
     fallbackPrompt?: PromptFunction;
     disableJsonFixer?: boolean;
+    retryBaseDelay?: number;
 }
 
 export function createJsonSchemaLlmClient(params: CreateJsonSchemaLlmClientParams) {
-    const { prompt, fallbackPrompt, disableJsonFixer = false } = params;
-    const llmRetryClient = createLlmRetryClient({ prompt, fallbackPrompt });
+    const { prompt, fallbackPrompt, disableJsonFixer = false, retryBaseDelay } = params;
+    const llmRetryClient = createLlmRetryClient({ prompt, fallbackPrompt, retryBaseDelay });
     const ajv = new Ajv({ strict: false });
 
     async function _tryToFixJson(

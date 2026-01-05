@@ -120,7 +120,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     // Add DebugLogger to see events in test output
     new DebugLogger(events as any);
 
-    const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock');
+    const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock', 0);
     const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
     const messageBuilder = new MessageBuilder();
     

@@ -11,11 +11,13 @@ export function createLlm(params: CreateLlmFactoryParams) {
     const baseClient = createLlmClient(params);
     
     const retryClient = createLlmRetryClient({
-        prompt: baseClient.prompt
+        prompt: baseClient.prompt,
+        retryBaseDelay: params.retryBaseDelay
     });
 
     const jsonSchemaClient = createJsonSchemaLlmClient({
-        prompt: baseClient.prompt
+        prompt: baseClient.prompt,
+        retryBaseDelay: params.retryBaseDelay
     });
 
     const zodClient = createZodLlmClient({

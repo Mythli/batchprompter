@@ -71,6 +71,7 @@ interface LlmRetryParams<T = any> extends LlmRetryOptions<T> {
 export interface CreateLlmRetryClientParams {
     prompt: PromptFunction;
     fallbackPrompt?: PromptFunction;
+    retryBaseDelay?: number;
 }
 
 function normalizeRetryOptions<T>(
@@ -112,17 +113,24 @@ function constructLlmMessages(
 }
 
 export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
-    const { prompt, fallbackPrompt } = params;
+    const { prompt, fallbackPrompt, retryBaseDelay: factoryRetryBaseDelay = 0 } = params;
 
     async function runPromptLoop<T>(
         retryParams: LlmRetryParams<T>,
         responseType: 'raw' | 'text' | 'image' | 'audio'
     ): Promise<T> {
-        const { maxRetries = 3, validate, messages: initialMessages, ...restOptions } = retryParams;
+        const { maxRetries = 3, validate, messages: initialMessages, retryBaseDelay = factoryRetryBaseDelay, ...restOptions } = retryParams;
 
         let lastError: LlmRetryAttemptError | undefined;
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            if (attempt > 0 && retryBaseDelay > 0) {
+                const backoffTime = retryBaseDelay * Math.pow(2, attempt - 1);
+                const jitter = backoffTime * (Math.random() * 0.2);
+                const totalDelay = backoffTime + jitter;
+                await new Promise(resolve => setTimeout(resolve, totalDelay));
+            }
+
             const useFallback = !!fallbackPrompt && attempt > 0;
             const currentPrompt = useFallback ? fallbackPrompt! : prompt;
             const mode = useFallback ? 'fallback' : 'main';

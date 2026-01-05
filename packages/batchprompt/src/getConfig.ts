@@ -56,6 +56,7 @@ export type ConfigOverrides = {
     imageSearch?: ImageSearch;
     webSearch?: WebSearch;
     openai?: OpenAI;
+    retryBaseDelay?: number;
 };
 
 // Adapter to make Keyv compatible with cache-manager Cache interface
@@ -225,7 +226,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
 
     // Create Factories
-    const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel);
+    const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
     const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
     const messageBuilder = new MessageBuilder();
 
