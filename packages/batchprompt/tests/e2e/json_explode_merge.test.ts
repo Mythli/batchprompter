@@ -2,9 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { setupTestEnvironment } from '../utils/testHelpers.js';
 
 describe('E2E JSON Explode and Merge', () => {
-    it('should explode JSON output and merge subsequent step with dynamic schema validation', async () => {
+    it('should retry when the first response fails schema validation (object instead of array) and succeed on the second', async () => {
         // 1. Mock Responses
-        const step1Response = JSON.stringify([
+        // The first response is a single object, which will fail the 'array' type schema validation in StandardStrategy.
+        const step1ResponseFail = JSON.stringify({ 
+            name: "Invalid Single Object",
+            reason: "This should trigger a retry because the schema expects an array"
+        });
+
+        const step1ResponseSuccess = JSON.stringify([
             { name: "Alice" },
             { name: "Bob" }
         ]);
@@ -19,7 +25,8 @@ describe('E2E JSON Explode and Merge', () => {
             city: "Bobland"
         });
 
-        // Use a resolver function to return the correct response based on the prompt content
+        // Use a resolver function to return the correct response based on the prompt content and attempt count
+        let step1CallCount = 0;
         const mockResolver = (messages: any[]) => {
             const lastMsg = messages[messages.length - 1];
             const content = Array.isArray(lastMsg.content) 
@@ -27,7 +34,9 @@ describe('E2E JSON Explode and Merge', () => {
                 : lastMsg.content;
 
             if (content.includes("Generate users")) {
-                return step1Response;
+                step1CallCount++;
+                // Return failure on first attempt, success on second
+                return step1CallCount === 1 ? step1ResponseFail : step1ResponseSuccess;
             }
             if (content.includes("Details for Alice")) {
                 return step2ResponseAlice;
@@ -65,10 +74,7 @@ describe('E2E JSON Explode and Merge', () => {
                 },
                 {
                     // Step 2: Generate Details -> Merge
-                    // Uses schema directly on the step, no validation plugin
                     prompt: "Details for {{name}}",
-                    // Inline dynamic schema (stringified JSON with Handlebars)
-                    // This tests that StepResolver correctly renders the schema content per-row
                     schema: {
                         type: "object",
                         properties: {
@@ -88,7 +94,9 @@ describe('E2E JSON Explode and Merge', () => {
         const { results } = await executor.runConfig(config, [{}]);
 
         // 5. Assertions
+        // We expect 2 results because the successful retry of Step 1 returned 2 items.
         expect(results).toHaveLength(2);
+        expect(step1CallCount).toBe(2); // Verify that Step 1 was indeed called twice (initial + retry)
 
         const alice = results.find(r => r.name === "Alice");
         expect(alice).toBeDefined();
