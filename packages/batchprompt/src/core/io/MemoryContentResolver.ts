@@ -2,8 +2,17 @@ import OpenAI from 'openai';
 import { ContentResolver } from './ContentResolver.js';
 
 export class MemoryContentResolver implements ContentResolver {
+    private virtualFiles = new Map<string, string>();
+
+    setFile(path: string, content: string) {
+        this.virtualFiles.set(path, content);
+    }
     
     async readText(path: string): Promise<string> {
+        if (this.virtualFiles.has(path)) {
+            return this.virtualFiles.get(path)!;
+        }
+        
         // In memory mode, we assume the "path" is actually the content if it's passed here,
         // or we throw because we can't read files.
         // However, for compatibility, if the input looks like a path, we might want to fail.
@@ -16,6 +25,9 @@ export class MemoryContentResolver implements ContentResolver {
     }
 
     async resolve(input: string): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
+        if (this.virtualFiles.has(input)) {
+            return [{ type: 'text', text: this.virtualFiles.get(input)! }];
+        }
         // In memory mode, we treat all input as raw text.
         return [{ type: 'text', text: input }];
     }

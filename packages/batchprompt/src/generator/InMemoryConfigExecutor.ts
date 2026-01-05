@@ -3,7 +3,7 @@ import { ActionRunner } from '../ActionRunner.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
 import { BatchPromptEvents } from '../core/events.js';
-import { MemoryArtifactHandler } from '../handlers/MemoryArtifactHandler.js';
+import { MemoryArtifactHandler, Artifact } from '../handlers/MemoryArtifactHandler.js';
 import { ConfigExecutor } from './ConfigRefiner.js';
 import { ConfigResolver } from '../config/ConfigResolver.js';
 import { PromptLoader } from '../config/PromptLoader.js';
@@ -18,7 +18,7 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
         private contentResolver: ContentResolver
     ) {}
 
-    async runConfig(config: any, initialRows?: any[]): Promise<{ results: any[] }> {
+    async runConfig(config: any, initialRows?: any[]): Promise<{ results: any[], artifacts: Artifact[] }> {
         // Create dependencies for ConfigResolver
         const promptLoader = new PromptLoader(this.contentResolver);
         
@@ -124,6 +124,6 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
             // Ideally, it should have a dispose method. For now, we rely on it being short-lived.
         }
 
-        return { results };
+        return { results, artifacts: memoryHandler.artifacts };
     }
 }
