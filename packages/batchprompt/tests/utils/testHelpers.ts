@@ -12,6 +12,7 @@ import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
 import { DebugLogger } from '../../src/core/DebugLogger.js';
 import { PromptLoader } from '../../src/config/PromptLoader.js';
+import { getPromptSummary } from 'llm-fns';
 
 export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
 
@@ -22,12 +23,30 @@ export function createMockOpenAI(responses: (string | any)[] | MockResponseResol
             completions: {
                 create: vi.fn(async (params) => {
                     let response: string | any;
+                    const currentCall = callCount + 1;
 
                     if (typeof responses === 'function') {
                         response = responses(params.messages);
+                        if (response === undefined || response === null) {
+                            const summary = getPromptSummary(params.messages);
+                            throw new Error(
+                                `[Mock OpenAI] Resolver function returned null/undefined.\n` +
+                                `Requested Call: #${currentCall}\n` +
+                                `Prompt Summary: ${summary}\n\n` +
+                                `Check your mock resolver logic to ensure it returns a valid response for this prompt.`
+                            );
+                        }
+                        callCount++;
                     } else {
                         if (callCount >= responses.length) {
-                            throw new Error(`Mock OpenAI: No more responses configured (requested call #${callCount + 1})`);
+                            const summary = getPromptSummary(params.messages);
+                            throw new Error(
+                                `[Mock OpenAI] No more responses configured.\n` +
+                                `Requested Call: #${currentCall}\n` +
+                                `Configured Responses: ${responses.length}\n` +
+                                `Prompt Summary: ${summary}\n\n` +
+                                `Please add more responses to your mock configuration array.`
+                            );
                         }
                         response = responses[callCount];
                         callCount++;
