@@ -5,7 +5,7 @@ describe('E2E JSON Explode and Merge', () => {
     it('should retry when the first response fails schema validation (object instead of array) and succeed on the second', async () => {
         // 1. Mock Responses
         // The first response is a single object, which will fail the 'array' type schema validation in StandardStrategy.
-        const step1ResponseFail = JSON.stringify({ 
+        const step1ResponseFail = JSON.stringify({
             name: "Invalid Single Object",
             reason: "This should trigger a retry because the schema expects an array"
         });
@@ -29,11 +29,11 @@ describe('E2E JSON Explode and Merge', () => {
         let step1CallCount = 0;
         const mockResolver = (messages: any[]) => {
             const lastMsg = messages[messages.length - 1];
-            const content = Array.isArray(lastMsg.content) 
-                ? lastMsg.content.map((c: any) => c.text).join('') 
+            const content = Array.isArray(lastMsg.content)
+                ? lastMsg.content.map((c: any) => c.text).join('')
                 : lastMsg.content;
 
-            if (content.includes("Generate users")) {
+            if (content.includes("Generate users" )) {
                 step1CallCount++;
                 // Return failure on first attempt, success on second
                 return step1CallCount === 1 ? step1ResponseFail : step1ResponseSuccess;
