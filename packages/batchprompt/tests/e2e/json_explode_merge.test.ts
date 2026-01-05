@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { setupTestEnvironment } from '../utils/testHelpers.js';
+import { setupTestEnvironment } from '../utils/testUtils.js';
 
 describe('E2E JSON Explode and Merge', () => {
     it('should retry when the first response fails schema validation (object instead of array) and succeed on the second', async () => {

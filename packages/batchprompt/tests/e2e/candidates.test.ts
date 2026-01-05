@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { setupTestEnvironment } from '../utils/testHelpers.js';
+import { setupTestEnvironment } from '../utils/testUtils.js';
 
 describe('E2E Candidates with Judge', () => {
     it('should generate 3 candidates and use a judge to select the best one', async () => {

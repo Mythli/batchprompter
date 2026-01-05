@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { setupTestEnvironment } from '../utils/testHelpers.js';
+import { setupTestEnvironment } from '../utils/testUtils.js';
 import path from 'path';
 
 describe('E2E Image Generation', () => {

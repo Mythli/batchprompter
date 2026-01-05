@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { setupTestEnvironment } from '../utils/testHelpers.js';
+import { setupTestEnvironment } from '../utils/testUtils.js';
 import { UrlExpanderPlugin } from '../../src/plugins/url-expander/UrlExpanderPlugin.js';
 import { UrlHandlerRegistry } from '../../src/plugins/url-expander/utils/UrlHandlerRegistry.js';
 import { GenericHandler } from '../../src/plugins/url-expander/utils/types.js';

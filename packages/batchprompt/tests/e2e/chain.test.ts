@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { setupTestEnvironment } from '../utils/testHelpers.js';
+import { setupTestEnvironment } from '../utils/testUtils.js';
 
 describe('E2E Chain', () => {
     it('should execute a 2-step chain passing data', async () => {
