@@ -12,14 +12,22 @@ import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
 import { DebugLogger } from '../../src/core/DebugLogger.js';
 
-export function createMockOpenAI(responses: (string | any)[]) {
+export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
+
+export function createMockOpenAI(responses: (string | any)[] | MockResponseResolver) {
     let callCount = 0;
     return {
         chat: {
             completions: {
                 create: vi.fn(async (params) => {
-                    const response = responses[callCount] || responses[responses.length - 1] || "";
-                    callCount++;
+                    let response: string | any;
+
+                    if (typeof responses === 'function') {
+                        response = responses(params.messages);
+                    } else {
+                        response = responses[callCount] || responses[responses.length - 1] || "";
+                        callCount++;
+                    }
 
                     // If response is a string, wrap it in a standard text message
                     if (typeof response === 'string') {
@@ -45,7 +53,7 @@ export function createMockOpenAI(responses: (string | any)[]) {
     } as unknown as OpenAI;
 }
 
-export function createTestContext(responses: (string | any)[] = []) {
+export function createTestContext(responses: (string | any)[] | MockResponseResolver = []) {
     const openai = createMockOpenAI(responses);
     const events = new EventEmitter();
     const contentResolver = new MemoryContentResolver();
@@ -71,7 +79,7 @@ export function createTestContext(responses: (string | any)[] = []) {
 }
 
 export interface TestEnvOptions {
-    mockResponses?: (string | any)[];
+    mockResponses?: (string | any)[] | MockResponseResolver;
     plugins?: Plugin[];
     schemaLoader?: any;
 }
