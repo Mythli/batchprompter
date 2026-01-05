@@ -53,6 +53,9 @@ export type ConfigOverrides = {
     contentResolver?: ContentResolver;
     promptLoader?: PromptLoader;
     schemaLoader?: SchemaLoader;
+    imageSearch?: ImageSearch;
+    webSearch?: WebSearch;
+    openai?: OpenAI;
 };
 
 // Adapter to make Keyv compatible with cache-manager Cache interface
@@ -105,7 +108,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 
     // Compute Service Capabilities
     const capabilities: ServiceCapabilities = {
-        hasSerper: !!config.SERPER_API_KEY,
+        hasSerper: !!config.SERPER_API_KEY || !!overrides.imageSearch || !!overrides.webSearch,
         hasPuppeteer: true // Puppeteer is always available (bundled)
     };
 
@@ -131,7 +134,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     });
 
     // Setup OpenAI Client
-    const openai = new OpenAI({
+    const openai = overrides.openai || new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
         fetch: fetcher as any
@@ -154,12 +157,16 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const defaultModel = config.MODEL || 'google/gemini-3-flash-preview';
 
     // Setup Optional Services (based on capabilities)
-    let imageSearch: ImageSearch | undefined;
-    let webSearch: WebSearch | undefined;
+    let imageSearch: ImageSearch | undefined = overrides.imageSearch;
+    let webSearch: WebSearch | undefined = overrides.webSearch;
 
     if (capabilities.hasSerper) {
-        imageSearch = new ImageSearch(config.SERPER_API_KEY!, fetcher, serperQueue);
-        webSearch = new WebSearch(config.SERPER_API_KEY!, fetcher, serperQueue);
+        if (!imageSearch && config.SERPER_API_KEY) {
+            imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher, serperQueue);
+        }
+        if (!webSearch && config.SERPER_API_KEY) {
+            webSearch = new WebSearch(config.SERPER_API_KEY, fetcher, serperQueue);
+        }
     }
 
     // Initialize PuppeteerHelper
