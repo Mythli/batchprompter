@@ -124,7 +124,7 @@ export class StandardStrategy implements GenerationStrategy {
                 this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `🔄 Feedback Loop ${loop}/${config.feedbackLoops}` });
             }
 
-            const result = await this.generateWithRetry(
+            const result = await this.generate(
                 currentHistory,
                 config,
                 row,
@@ -186,7 +186,7 @@ export class StandardStrategy implements GenerationStrategy {
         };
     }
 
-    private async generateWithRetry(
+    private async generate(
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: StepConfig,
         row: Record<string, any>,
@@ -196,10 +196,6 @@ export class StandardStrategy implements GenerationStrategy {
         userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         cacheSalt?: string | number
     ): Promise<{ extracted: ExtractedContent, historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam }> {
-        const maxRetries = 3;
-        let currentHistory = [...history];
-        let lastError: any;
-
         const requestOptions = cacheSalt ? {
             headers: { 'X-Cache-Salt': String(cacheSalt) }
         } : undefined;
@@ -209,70 +205,54 @@ export class StandardStrategy implements GenerationStrategy {
              additionalParams.image_config = { aspect_ratio: config.aspectRatio };
         }
 
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            try {
-                let extracted: ExtractedContent;
-                let historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
+        let extracted: ExtractedContent;
+        let historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
-                const messages = this.messageBuilder.build(config.modelConfig, row, userPromptParts);
+        const messages = this.messageBuilder.build(config.modelConfig, row, userPromptParts);
 
-                const finalMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-                const systemMsg = messages.find(m => m.role === 'system');
-                if (systemMsg) {
-                    finalMessages.push(systemMsg);
-                }
-                finalMessages.push(...currentHistory);
-                const userMsgs = messages.filter(m => m.role !== 'system');
-                finalMessages.push(...userMsgs);
-
-                if (config.jsonSchema) {
-                    const rawClient = this.llm.getRawClient();
-                    const jsonResult = await rawClient.promptJson(
-                        finalMessages,
-                        config.jsonSchema,
-                        requestOptions ? { requestOptions, ...additionalParams } : (Object.keys(additionalParams).length > 0 ? additionalParams : undefined)
-                    );
-
-                    extracted = {
-                        type: 'text',
-                        data: JSON.stringify(jsonResult, null, 2),
-                        extension: 'json',
-                        raw: jsonResult
-                    };
-                    
-                    // For JSON, we construct a text message
-                    historyMessage = { role: 'assistant', content: extracted.data };
-
-                } else {
-                    const response = await this.llm.prompt({
-                        messages: finalMessages,
-                        requestOptions,
-                        ...additionalParams
-                    });
-
-                    // Normalize the response to a message
-                    historyMessage = completionToMessage(response);
-                    
-                    // Extract content for validation and saving
-                    extracted = this.extractContent(historyMessage);
-                }
-
-                const validated = await this.validateContent(extracted, config, row, index, stepIndex);
-
-                return { extracted: validated, historyMessage };
-
-            } catch (error: any) {
-                lastError = error;
-                this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Attempt ${attempt+1}/${maxRetries+1} failed: ${error.message}` });
-
-                if (attempt < maxRetries) {
-                    currentHistory.push({
-                        role: 'user',
-                        content: `The previous generation failed with the following error:\n${error.message}\n\nPlease try again and fix the issue.`
-                    });
-                }
-            }
+        const finalMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+        const systemMsg = messages.find(m => m.role === 'system');
+        if (systemMsg) {
+            finalMessages.push(systemMsg);
         }
-        throw new Error(`Generation failed after ${maxRetries + 1} attempts. Last error: ${lastError?.message}`);
+        finalMessages.push(...history);
+        const userMsgs = messages.filter(m => m.role !== 'system');
+        finalMessages.push(...userMsgs);
+
+        if (config.jsonSchema) {
+            const rawClient = this.llm.getRawClient();
+            const jsonResult = await rawClient.promptJson(
+                finalMessages,
+                config.jsonSchema,
+                requestOptions ? { requestOptions, ...additionalParams } : (Object.keys(additionalParams).length > 0 ? additionalParams : undefined)
+            );
+
+            extracted = {
+                type: 'text',
+                data: JSON.stringify(jsonResult, null, 2),
+                extension: 'json',
+                raw: jsonResult
+            };
+            
+            // For JSON, we construct a text message
+            historyMessage = { role: 'assistant', content: extracted.data };
+
+        } else {
+            const response = await this.llm.prompt({
+                messages: finalMessages,
+                requestOptions,
+                ...additionalParams
+            });
+
+            // Normalize the response to a message
+            historyMessage = completionToMessage(response);
+            
+            // Extract content for validation and saving
+            extracted = this.extractContent(historyMessage);
+        }
+
+        const validated = await this.validateContent(extracted, config, row, index, stepIndex);
+
+        return { extracted: validated, historyMessage };
     }
 }
