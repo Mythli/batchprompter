@@ -186,9 +186,18 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
             
             // Reconstruct message with expanded content
             if (newContent.length === 1 && newContent[0].type === 'text') {
-                newMessages.push({ ...message, content: newContent[0].text });
+                newMessages.push({ ...message, content: newContent[0].text } as any);
             } else {
-                newMessages.push({ ...message, content: newContent });
+                if (message.role === 'system') {
+                    // Flatten for system message - only keep text parts
+                    const text = newContent
+                        .filter((p): p is OpenAI.Chat.Completions.ChatCompletionContentPartText => p.type === 'text')
+                        .map(p => p.text)
+                        .join('\n');
+                    newMessages.push({ ...message, content: text } as any);
+                } else {
+                    newMessages.push({ ...message, content: newContent } as any);
+                }
             }
         }
 

@@ -259,15 +259,16 @@ export class StandardStrategy implements GenerationStrategy {
 
             if (!capturedContent || !capturedHistoryMessage) throw new Error("Generation failed.");
 
+            const content: ExtractedContent = capturedContent;
             finalHistoryMessage = capturedHistoryMessage;
-            columnValue = capturedContent.data;
-            finalExtension = capturedContent.extension;
-            finalType = capturedContent.type;
+            columnValue = content.data;
+            finalExtension = content.extension;
+            finalType = content.type;
             
             if (finalType === 'audio') {
-                finalContentPayload = Buffer.from(capturedContent.data, 'base64');
+                finalContentPayload = Buffer.from(content.data, 'base64');
             } else {
-                finalContentPayload = capturedContent.data;
+                finalContentPayload = content.data;
             }
         }
 

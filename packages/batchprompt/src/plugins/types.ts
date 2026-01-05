@@ -57,6 +57,14 @@ export interface PluginExecutionContext {
     emit: (event: keyof BatchPromptEvents, ...args: any[]) => void;
 }
 
+/**
+ * Standard output packet from a plugin
+ */
+export interface PluginPacket {
+    data: any;
+    contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+}
+
 // =============================================================================
 // Plugin Interface
 // =============================================================================
