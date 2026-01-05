@@ -51,7 +51,7 @@ describe('E2E JSON Explode and Merge', () => {
                 {
                     // Step 1: Generate Array -> Explode
                     prompt: "Generate users",
-                    jsonSchema: {
+                    schema: {
                         type: "array",
                         items: {
                             type: "object",
