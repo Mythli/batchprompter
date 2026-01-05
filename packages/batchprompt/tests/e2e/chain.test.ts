@@ -1,11 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
-import { ActionRunner } from '../../src/ActionRunner.js';
-import { PluginRegistryV2 } from '../../src/plugins/types.js';
-import { LlmClientFactory } from '../../src/core/LlmClientFactory.js';
-import { StepResolver } from '../../src/core/StepResolver.js';
-import { MessageBuilder } from '../../src/core/MessageBuilder.js';
-import { createTestContext } from '../utils/testHelpers.js';
+import { describe, it, expect } from 'vitest';
+import { setupTestEnvironment } from '../utils/testHelpers.js';
 
 describe('E2E Chain', () => {
     it('should execute a 2-step chain passing data', async () => {
@@ -14,33 +8,10 @@ describe('E2E Chain', () => {
             "CyberPunk 2077", // Step 1 response
             "Wake the f*** up, Samurai" // Step 2 response
         ];
-        const { globalContext, openai, events, contentResolver } = createTestContext(mockResponses);
-
-        // 2. Setup Core Components
-        const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock');
         
-        // Mock SchemaLoader for StepResolver
-        const schemaLoader = {
-            load: async () => ({})
-        };
-
-        const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
-        const messageBuilder = new MessageBuilder();
-        const pluginRegistry = new PluginRegistryV2(); // Empty registry
-
-        const actionRunner = new ActionRunner(
-            globalContext,
-            pluginRegistry,
-            stepResolver,
-            messageBuilder
-        );
-
-        const executor = new InMemoryConfigExecutor(
-            actionRunner,
-            pluginRegistry,
-            events,
-            contentResolver
-        );
+        const { executor, openai } = setupTestEnvironment({
+            mockResponses
+        });
 
         // 3. Define Config
         const config = {

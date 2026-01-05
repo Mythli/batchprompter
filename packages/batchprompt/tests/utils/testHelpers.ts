@@ -4,6 +4,12 @@ import PQueue from 'p-queue';
 import { EventEmitter } from 'eventemitter3';
 import { GlobalContext } from '../../src/types.js';
 import { MemoryContentResolver } from '../../src/core/io/MemoryContentResolver.js';
+import { LlmClientFactory } from '../../src/core/LlmClientFactory.js';
+import { StepResolver } from '../../src/core/StepResolver.js';
+import { MessageBuilder } from '../../src/core/MessageBuilder.js';
+import { PluginRegistryV2, Plugin } from '../../src/plugins/types.js';
+import { ActionRunner } from '../../src/ActionRunner.js';
+import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
 
 export function createMockOpenAI(responses: (string | any)[]) {
     let callCount = 0;
@@ -61,4 +67,48 @@ export function createTestContext(responses: (string | any)[] = []) {
     };
 
     return { globalContext, openai, events, contentResolver };
+}
+
+export interface TestEnvOptions {
+    mockResponses?: (string | any)[];
+    plugins?: Plugin[];
+    schemaLoader?: any;
+}
+
+export function setupTestEnvironment(options: TestEnvOptions = {}) {
+    const { mockResponses = [], plugins = [], schemaLoader = { load: async () => ({}) } } = options;
+
+    const { globalContext, openai, events, contentResolver } = createTestContext(mockResponses);
+
+    const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock');
+    const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
+    const messageBuilder = new MessageBuilder();
+    const pluginRegistry = new PluginRegistryV2();
+
+    for (const plugin of plugins) {
+        pluginRegistry.register(plugin);
+    }
+
+    const actionRunner = new ActionRunner(
+        globalContext,
+        pluginRegistry,
+        stepResolver,
+        messageBuilder
+    );
+
+    const executor = new InMemoryConfigExecutor(
+        actionRunner,
+        pluginRegistry,
+        events,
+        contentResolver
+    );
+
+    return {
+        executor,
+        openai,
+        events,
+        registry: pluginRegistry,
+        globalContext,
+        contentResolver
+    };
 }

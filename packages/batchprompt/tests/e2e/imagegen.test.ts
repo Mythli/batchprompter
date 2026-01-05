@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
-import { ActionRunner } from '../../src/ActionRunner.js';
-import { PluginRegistryV2 } from '../../src/plugins/types.js';
-import { LlmClientFactory } from '../../src/core/LlmClientFactory.js';
-import { StepResolver } from '../../src/core/StepResolver.js';
-import { MessageBuilder } from '../../src/core/MessageBuilder.js';
-import { createTestContext } from '../utils/testHelpers.js';
+import { setupTestEnvironment } from '../utils/testHelpers.js';
 import path from 'path';
 
 describe('E2E Image Generation', () => {
@@ -23,32 +17,9 @@ describe('E2E Image Generation', () => {
             }]
         };
         
-        const { globalContext, openai, events, contentResolver } = createTestContext([mockImageResponse]);
-
-        // 2. Setup Core Components
-        const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock');
-        
-        const schemaLoader = {
-            load: async () => ({})
-        };
-
-        const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
-        const messageBuilder = new MessageBuilder();
-        const pluginRegistry = new PluginRegistryV2();
-
-        const actionRunner = new ActionRunner(
-            globalContext,
-            pluginRegistry,
-            stepResolver,
-            messageBuilder
-        );
-
-        const executor = new InMemoryConfigExecutor(
-            actionRunner,
-            pluginRegistry,
-            events,
-            contentResolver
-        );
+        const { executor } = setupTestEnvironment({
+            mockResponses: [mockImageResponse]
+        });
 
         // 3. Define Config with Handlebars output path
         const config = {
