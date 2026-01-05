@@ -23,9 +23,9 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
         // Create dependencies for ConfigResolver
         const promptLoader = new PromptLoader(this.contentResolver);
         
-        // Schema loader for memory context with Handlebars support
+        // Schema loader for memory context
         const schemaLoader = {
-            load: async (source: string, context?: Record<string, any>) => {
+            load: async (source: string) => {
                 let content: string;
                 try {
                     // Try to read from content resolver (if it's a path)
@@ -33,12 +33,6 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
                 } catch {
                     // If read fails, assume it's raw JSON
                     content = source;
-                }
-
-                // Apply Handlebars if context is provided
-                if (context && content.includes('{{')) {
-                    const template = Handlebars.compile(content, { noEscape: true });
-                    content = template(context);
                 }
 
                 return JSON.parse(content);

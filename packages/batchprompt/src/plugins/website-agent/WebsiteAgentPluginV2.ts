@@ -9,7 +9,7 @@ import {
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { makeSchemaOptional } from '../../utils/schemaUtils.js';
+import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
@@ -162,6 +162,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         if (typeof schema === 'string') {
              throw new Error("Schema must be an object. Ensure ConfigNormalizer is used.");
         }
+
+        // Render schema templates
+        schema = renderSchemaObject(schema, row);
 
         const extractionSchema = makeSchemaOptional(schema);
 

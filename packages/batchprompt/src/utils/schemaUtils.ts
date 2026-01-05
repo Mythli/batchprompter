@@ -1,4 +1,5 @@
 import traverse from 'json-schema-traverse';
+import Handlebars from 'handlebars';
 
 /**
  * Creates a copy of a JSON Schema with all fields made optional/nullable.
@@ -36,4 +37,32 @@ export function makeSchemaOptional(schema: any): any {
     });
     
     return cloned;
+}
+
+/**
+ * Renders a JSON Schema object using Handlebars templates against a context.
+ * 
+ * @param schema The schema object (or array) containing potential Handlebars templates.
+ * @param context The data context for rendering.
+ * @returns The rendered schema object.
+ */
+export function renderSchemaObject(schema: any, context: Record<string, any>): any {
+    if (typeof schema !== 'object' || schema === null) {
+        return schema;
+    }
+
+    const jsonString = JSON.stringify(schema);
+
+    // Optimization: If no templates, return original
+    if (!jsonString.includes('{{')) {
+        return schema;
+    }
+
+    try {
+        const template = Handlebars.compile(jsonString, { noEscape: true });
+        const renderedString = template(context);
+        return JSON.parse(renderedString);
+    } catch (e: any) {
+        throw new Error(`Failed to render schema template: ${e.message}`);
+    }
 }

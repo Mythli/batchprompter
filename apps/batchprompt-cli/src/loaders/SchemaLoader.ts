@@ -1,4 +1,3 @@
-import Handlebars from 'handlebars';
 import { ContentResolver, SchemaLoader as ISchemaLoader } from 'batchprompt';
 
 /**
@@ -9,7 +8,7 @@ export class SchemaLoader implements ISchemaLoader {
 
     constructor(private contentResolver: ContentResolver) {}
 
-    async load(source: string, context?: Record<string, any>): Promise<any> {
+    async load(source: string): Promise<any> {
         let rawContent: string;
 
         if (this.cache.has(source)) {
@@ -22,11 +21,6 @@ export class SchemaLoader implements ISchemaLoader {
                 // If read fails, assume it's raw JSON content
                 rawContent = source;
             }
-        }
-
-        if (context && rawContent.includes('{{')) {
-            const template = Handlebars.compile(rawContent, { noEscape: true });
-            rawContent = template(context);
         }
 
         try {

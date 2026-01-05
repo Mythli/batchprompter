@@ -12,6 +12,7 @@ import { OutputConfigSchema } from '../../config/common.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
+import { renderSchemaObject } from '../../utils/schemaUtils.js';
 
 // Strict Schema
 export const ValidationConfigSchemaV2 = z.object({
@@ -92,6 +93,9 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         if (typeof schema === 'string') {
              throw new Error("Schema must be an object. Ensure ConfigNormalizer is used.");
         }
+
+        // Render schema templates
+        schema = renderSchemaObject(schema, row);
 
         return {
             type: 'validation',

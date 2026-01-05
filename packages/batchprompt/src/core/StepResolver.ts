@@ -6,6 +6,7 @@ import { ResolvedModelConfig } from '../config/types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 import { aggressiveSanitize, ensureDir } from '../utils/fileUtils.js';
 import { SchemaLoader } from '../config/SchemaLoader.js';
+import { renderSchemaObject } from '../utils/schemaUtils.js';
 
 export interface ResolvedStepContext {
     resolvedStep: StepConfig;
@@ -82,7 +83,7 @@ export class StepResolver {
 
         await ensureDir(resolvedStep.resolvedTempDir);
 
-        // Schema
+        // Schema Resolution
         if (stepConfig.schemaPath) {
             try {
                 // Resolve the path first (it might be dynamic)
@@ -90,9 +91,18 @@ export class StepResolver {
                 const resolvedPath = pathTemplate(sanitizedRow);
                 
                 // Load the schema using the abstract loader (no direct fs usage)
-                resolvedStep.jsonSchema = await this.schemaLoader.load(resolvedPath, sanitizedRow);
+                resolvedStep.jsonSchema = await this.schemaLoader.load(resolvedPath);
             } catch (e) {
                 console.warn(`[Row ${item.originalIndex}] Failed to load/parse schema from '${stepConfig.schemaPath}':`, e);
+            }
+        }
+
+        // Render Schema Templates (if any)
+        if (resolvedStep.jsonSchema) {
+            try {
+                resolvedStep.jsonSchema = renderSchemaObject(resolvedStep.jsonSchema, sanitizedRow);
+            } catch (e: any) {
+                console.warn(`[Row ${item.originalIndex}] Failed to render schema templates:`, e);
             }
         }
 
