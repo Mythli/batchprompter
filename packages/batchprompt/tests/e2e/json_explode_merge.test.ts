@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { setupTestEnvironment } from '../utils/testHelpers.js';
+import { ValidationPluginV2 } from '../../src/plugins/validation/ValidationPluginV2.js';
 
 describe('E2E JSON Explode and Merge', () => {
     it('should explode JSON output and merge subsequent step with dynamic schema validation', async () => {
@@ -23,7 +24,8 @@ describe('E2E JSON Explode and Merge', () => {
         });
 
         const { executor, contentResolver } = setupTestEnvironment({
-            mockResponses: [step1Response, step2ResponseAlice, step2ResponseBob]
+            mockResponses: [step1Response, step2ResponseAlice, step2ResponseBob],
+            plugins: [new ValidationPluginV2()]
         });
 
         // 2. Setup Dynamic Schema in Memory
