@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import PQueue from 'p-queue';
-import TurndownService from 'turn-down';
+import TurndownService from 'turndown';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
