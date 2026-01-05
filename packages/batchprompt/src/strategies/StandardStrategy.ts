@@ -179,6 +179,7 @@ export class StandardStrategy implements GenerationStrategy {
         const rawClient = this.llm.getRawClient();
         
         const results: any[] = [];
+        const historyMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
         let lastHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
 
         // Iterate over all message sets (usually 1, but >1 if exploded)
@@ -292,6 +293,7 @@ export class StandardStrategy implements GenerationStrategy {
             });
 
             results.push(finalResult);
+            historyMessages.push(finalHistoryMessage);
             lastHistoryMessage = finalHistoryMessage;
         }
 
@@ -307,7 +309,12 @@ export class StandardStrategy implements GenerationStrategy {
             return {
                 historyMessage: lastHistoryMessage!,
                 columnValue: null,
-                raw: results
+                raw: results,
+                explodedResults: results.map((r, idx) => ({
+                    historyMessage: historyMessages[idx],
+                    columnValue: typeof r === 'string' ? r : null,
+                    raw: r
+                }))
             };
         }
     }

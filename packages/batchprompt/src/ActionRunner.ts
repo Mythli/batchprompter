@@ -195,7 +195,19 @@ export class ActionRunner {
                     tempDir
                 );
 
-                // Check if we need to unwrap an array result into multiple packets for explosion
+                // Case 1: Implicit Explosion (Plugin Exploded)
+                if (result.explodedResults) {
+                     return result.explodedResults.map(subResult => ({
+                        data: subResult.raw !== undefined ? subResult.raw : subResult.columnValue,
+                        contentParts: [],
+                        _historyUpdate: {
+                            userPromptParts: resolvedStep.userPromptParts,
+                            historyMessage: subResult.historyMessage
+                        }
+                     }));
+                }
+
+                // Case 2: Explicit Explosion (JSON Array)
                 if (resolvedStep.output.explode && Array.isArray(result.modelResult)) {
                     return result.modelResult.map((item: any) => ({
                         data: item,
@@ -277,14 +289,25 @@ export class ActionRunner {
         const nextItems: PipelineItem[] = [];
 
         for (const res of validResults) {
+            // If we have multiple packets (implicit explosion), we force explode behavior in ResultProcessor
+            // by temporarily overriding the strategy if it wasn't already set to explode.
+            // However, ResultProcessor.process handles explode=false by merging all packets into one item.
+            // We want multiple items if packets > 1.
+            
+            let effectiveStrategy = outputStrategy;
+            if (res.packets.length > 1 && !outputStrategy.explode) {
+                // Force explode if we have multiple packets (e.g. from plugin explosion)
+                effectiveStrategy = { ...outputStrategy, explode: true };
+            }
+
             const processed = ResultProcessor.process(
                 [res.item],
                 res.packets,
-                outputStrategy,
+                effectiveStrategy,
                 namespace
             );
 
-            if (outputStrategy.explode) {
+            if (effectiveStrategy.explode) {
                 const totalAvailable = res.packets.length;
                 const finalCount = processed.length;
 
@@ -298,15 +321,15 @@ export class ActionRunner {
                             count: finalCount,
                             source: namespace,
                             total: totalAvailable,
-                            limit: outputStrategy.limit,
-                            offset: outputStrategy.offset
+                            limit: effectiveStrategy.limit,
+                            offset: effectiveStrategy.offset
                         }
                     });
                 }
             }
 
             if (postProcess) {
-                if (outputStrategy.explode) {
+                if (effectiveStrategy.explode) {
                     processed.forEach((newItem, idx) => {
                         postProcess(newItem, res.packets[idx]);
                     });

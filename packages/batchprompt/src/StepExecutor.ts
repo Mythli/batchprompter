@@ -3,7 +3,7 @@ import path from 'path';
 import { StepConfig, StepContext } from './types.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
-import { GenerationStrategy } from './strategies/GenerationStrategy.js';
+import { GenerationStrategy, GenerationResult } from './strategies/GenerationStrategy.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
@@ -13,6 +13,7 @@ import { ResolvedPluginBase } from './config/types.js';
 export interface StepExecutionResult {
     historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
     modelResult: any;
+    explodedResults?: GenerationResult[];
 }
 
 export class StepExecutor {
@@ -76,7 +77,8 @@ export class StepExecutor {
 
         return {
             historyMessage: result.historyMessage,
-            modelResult: result.raw !== undefined ? result.raw : result.columnValue
+            modelResult: result.raw !== undefined ? result.raw : result.columnValue,
+            explodedResults: result.explodedResults
         };
     }
 }
