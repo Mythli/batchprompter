@@ -86,9 +86,9 @@ describe('E2E Search Plugins', () => {
     it('should execute Web Search with selection and enrichment', async () => {
         const mockResponses = [
             // 1. Query Generation
-            { queries: ["tesla investor relations"] },
+            JSON.stringify({ queries: ["tesla investor relations"] }),
             // 2. Selection (Reduce)
-            { selected_indices: [0], reasoning: "This is the official IR page." },
+            JSON.stringify({ selected_indices: [0], reasoning: "This is the official IR page." }),
             // 3. Next Step (Final Generation)
             "The CEO of Tesla is Elon Musk."
         ];
@@ -136,9 +136,9 @@ describe('E2E Search Plugins', () => {
     it('should execute Image Search and pass base64 to next step', async () => {
         const mockResponses = [
             // 1. Query Generation
-            { queries: ["tesla model s photo"] },
+            JSON.stringify({ queries: ["tesla model s photo"] }),
             // 2. Selection (Reduce)
-            { selected_indices: [1], reasoning: "Model S is the requested product." },
+            JSON.stringify({ selected_indices: [1], reasoning: "Model S is the requested product." }),
             // 3. Next Step (Final Generation)
             "This is a red Tesla Model S."
         ];
@@ -188,9 +188,9 @@ describe('E2E Search Plugins', () => {
     it('should handle explosion in Web Search', async () => {
         const mockResponses = [
             // 1. Query Generation
-            { queries: ["tesla news"] },
+            JSON.stringify({ queries: ["tesla news"] }),
             // 2. Selection (Reduce) - Select 2 items
-            { selected_indices: [0, 1], reasoning: "Both are relevant news." },
+            JSON.stringify({ selected_indices: [0, 1], reasoning: "Both are relevant news." }),
             // 3. Next Step (Branch 1)
             "News 1 summary",
             // 4. Next Step (Branch 2)
