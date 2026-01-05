@@ -11,7 +11,6 @@ describe('E2E JSON Explode and Merge', () => {
             { name: "Bob" }
         ]);
 
-
         // Step 2: Returns details for Alice
         const step2ResponseAlice = JSON.stringify({
             age: 25,
@@ -30,28 +29,18 @@ describe('E2E JSON Explode and Merge', () => {
         });
 
         // 2. Setup Dynamic Schema in Memory
-        // We use a dynamic path "schema_{{name}}.json" to force per-row resolution.
-        // We register files for both Alice and Bob.
-        const schemaAlice = JSON.stringify({
+        // We use a single schema file with Handlebars inside the content.
+        // This tests that SchemaLoader correctly renders the content per-row.
+        const schemaTemplate = JSON.stringify({
             type: "object",
             properties: {
                 age: { type: "number" },
-                city: { const: "Aliceland" }
+                city: { const: "{{name}}land" } // Dynamic constraint based on row data
             },
             required: ["age", "city"]
         });
-
-        const schemaBob = JSON.stringify({
-            type: "object",
-            properties: {
-                age: { type: "number" },
-                city: { const: "Bobland" }
-            },
-            required: ["age", "city"]
-        });
-
-        contentResolver.setFile('schema_Alice.json', schemaAlice);
-        contentResolver.setFile('schema_Bob.json', schemaBob);
+        
+        contentResolver.setFile('schema_dynamic.json', schemaTemplate);
 
         // 3. Config
         const config = {
@@ -90,9 +79,8 @@ describe('E2E JSON Explode and Merge', () => {
                         }
                     ],
                     prompt: "Details for {{name}}",
-                    // Dynamic Schema Path using Handlebars
-                    // This forces ConfigNormalizer to skip loading, and StepResolver to load per row
-                    schemaPath: "schema_{{name}}.json",
+                    // Static path to dynamic content
+                    schemaPath: "schema_dynamic.json", 
                     output: {
                         mode: "merge"
                     }
