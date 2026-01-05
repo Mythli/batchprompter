@@ -161,6 +161,10 @@ export class PluginRegistryV2 {
         this.plugins.set(plugin.type, plugin);
     }
 
+    override(plugin: Plugin): void {
+        this.plugins.set(plugin.type, plugin);
+    }
+
     get(type: string): Plugin | undefined {
         return this.plugins.get(type);
     }

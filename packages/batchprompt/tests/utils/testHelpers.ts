@@ -156,11 +156,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     const pluginRegistry = createPluginRegistry(promptLoader);
 
     for (const plugin of plugins) {
-        try {
-            pluginRegistry.register(plugin);
-        } catch (e) {
-            // If already registered (built-in), we ignore.
-        }
+        pluginRegistry.override(plugin);
     }
 
     const actionRunner = new ActionRunner(
