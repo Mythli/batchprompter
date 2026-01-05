@@ -6,7 +6,7 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import PQueue from 'p-queue';
 import { Cache } from 'cache-manager';
 import { BoundLlmClient } from './core/BoundLlmClient.js';
-import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities } from './config/types.js';
+import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputConfig } from './config/types.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
@@ -25,15 +25,9 @@ export interface ModelDefinition {
     promptSource?: string;
 }
 
-export type OutputMode = 'merge' | 'column' | 'ignore';
-
-export interface OutputStrategy {
-    mode: OutputMode;
-    column?: string;
-    explode: boolean;
-    limit?: number;
-    offset?: number;
-}
+// Reuse types from config
+export type OutputStrategy = OutputConfig;
+export type OutputMode = OutputConfig['mode'];
 
 export interface PluginConfigDefinition {
     name: string;

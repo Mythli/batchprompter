@@ -35,13 +35,8 @@ export interface ResolvedModelConfig {
     promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
-export interface ResolvedOutputConfig {
-    mode: 'merge' | 'column' | 'ignore';
-    column?: string;
-    explode: boolean;
-    limit?: number;
-    offset?: number;
-}
+// Reuse the inferred type as it matches the resolved state (defaults applied)
+export type ResolvedOutputConfig = OutputConfig;
 
 export interface ResolvedPluginBase {
     type: string;
