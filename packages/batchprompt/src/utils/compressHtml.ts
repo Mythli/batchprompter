@@ -28,8 +28,8 @@ export interface CompressHtmlOptions {
  * sending it to a Large Language Model, focusing on structural modifications.
  *
  * The compression includes:
- * - Removing the entire <head> tag.
- * - Removing <script> and <style> tags from the body.
+ * - Removing <script>, <style>, <noscript>, <iframe> tags.
+ * - Removing <link rel="stylesheet"> tags.
  * - Removing HTML comments.
  * - Truncating `src`, `srcset`, and `href` attributes that contain long data URIs.
  *   By default, it preserves SVG data URIs up to 4096 characters.
@@ -54,12 +54,11 @@ export function compressHtml(html: string, options: CompressHtmlOptions = {}): s
     // Please install it using: npm install cheerio
     const $ = cheerio.load(html);
 
-    // 1. Remove the head tag completely, as it contains metadata, links, and scripts
-    // not relevant to content extraction.
-    $('head').remove();
+    // 1. Remove scripts, styles, noscripts, and iframes from anywhere in the document
+    $('script, style, noscript, iframe').remove();
 
-    // 2. Remove any script or style tags that might be in the body.
-    $('script, style').remove();
+    // 2. Remove stylesheets
+    $('link[rel="stylesheet"]').remove();
 
     // 3. Remove all HTML comments
     $('*').contents().filter(function(this: any) {
