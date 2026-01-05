@@ -69,6 +69,7 @@ describe('E2E JSON Explode and Merge', () => {
                         }
                     },
                     output: {
+                        mode: "merge",
                         explode: true
                     }
                 },
