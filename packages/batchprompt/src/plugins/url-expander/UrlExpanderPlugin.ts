@@ -70,8 +70,14 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         config: UrlExpanderResolvedConfig,
         context: PluginExecutionContext
     ): Promise<PluginResult> {
-        // This plugin transforms content, it doesn't generate new packets in execute
-        return { packets: [] };
+        // This plugin transforms content in the transform phase.
+        // We return a single empty packet to ensure the row is preserved and not filtered out.
+        return {
+            packets: [{
+                data: {},
+                contentParts: []
+            }]
+        };
     }
 
     async transform(
