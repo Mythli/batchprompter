@@ -63,6 +63,88 @@ export class StandardStrategy implements GenerationStrategy {
         return { type: 'text', data: '', extension: 'md' };
     }
 
+    private createPluginContext(row: Record<string, any>, stepIndex: number, pluginIndex: number, index: number): PluginExecutionContext {
+        return {
+            row,
+            stepIndex,
+            pluginIndex,
+            services: this.pluginServices,
+            tempDirectory: this.tempDir,
+            emit: (event, ...args) => {
+                if (event === 'plugin:artifact') {
+                    const payload = args[0];
+                    if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
+                        payload.filename = path.join(this.tempDir, payload.filename);
+                    }
+                    this.events.emit('plugin:artifact', payload);
+                } else if (event === 'step:progress') {
+                    const payload = args[0];
+                    this.events.emit('step:progress', { row: index, step: stepIndex, ...payload });
+                } else {
+                    (this.events.emit as any)(event, ...args);
+                }
+            }
+        };
+    }
+
+    private async runPreparationPhase(
+        baseMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        row: Record<string, any>,
+        index: number,
+        stepIndex: number
+    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
+        let messageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [baseMessages];
+
+        for (let i = 0; i < this.plugins.length; i++) {
+            const { instance, config: pluginConfig } = this.plugins[i];
+            if (instance.prepareMessages) {
+                const context = this.createPluginContext(row, stepIndex, i, index);
+                const nextMessageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [];
+                
+                for (const msgSet of messageSets) {
+                    const result = await instance.prepareMessages(msgSet, pluginConfig, context);
+                    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0])) {
+                        // Explode
+                        nextMessageSets.push(...(result as OpenAI.Chat.Completions.ChatCompletionMessageParam[][]));
+                    } else {
+                        nextMessageSets.push(result as OpenAI.Chat.Completions.ChatCompletionMessageParam[]);
+                    }
+                }
+                messageSets = nextMessageSets;
+            }
+        }
+
+        if (messageSets.length > 1) {
+            this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Plugin returned multiple message sets (explode), but StandardStrategy only supports one. Using the first set.` });
+        }
+        
+        return messageSets[0];
+    }
+
+    private async runPostProcessingPhase(
+        initialData: any,
+        conversation: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        row: Record<string, any>,
+        index: number,
+        stepIndex: number
+    ): Promise<any> {
+        let currentData = initialData;
+
+        for (let i = 0; i < this.plugins.length; i++) {
+            const { instance, config: pluginConfig } = this.plugins[i];
+            if (instance.postProcessMessages) {
+                const context = this.createPluginContext(row, stepIndex, i, index);
+                try {
+                    currentData = await instance.postProcessMessages(currentData, conversation, pluginConfig, context);
+                } catch (e: any) {
+                    throw new LlmRetryError(e.message, 'CUSTOM_ERROR', undefined, typeof currentData === 'string' ? currentData : JSON.stringify(currentData));
+                }
+            }
+        }
+
+        return currentData;
+    }
+
     async execute(
         row: Record<string, any>,
         index: number,
@@ -88,54 +170,8 @@ export class StandardStrategy implements GenerationStrategy {
         baseMessages.push(...history);
         baseMessages.push(...userMsgs);
 
-        // 2. Run Plugin Preparation Phase (prepareMessages)
-        let messageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [baseMessages];
-
-        for (let i = 0; i < this.plugins.length; i++) {
-            const { instance, config: pluginConfig } = this.plugins[i];
-            if (instance.prepareMessages) {
-                const context: PluginExecutionContext = {
-                    row,
-                    stepIndex,
-                    pluginIndex: i,
-                    services: this.pluginServices,
-                    tempDirectory: this.tempDir,
-                    emit: (event, ...args) => {
-                        if (event === 'plugin:artifact') {
-                            const payload = args[0];
-                            if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
-                                payload.filename = path.join(this.tempDir, payload.filename);
-                            }
-                            this.events.emit('plugin:artifact', payload);
-                        } else if (event === 'step:progress') {
-                            const payload = args[0];
-                            this.events.emit('step:progress', { row: index, step: stepIndex, ...payload });
-                        } else {
-                            (this.events.emit as any)(event, ...args);
-                        }
-                    }
-                };
-
-                const nextMessageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [];
-                
-                for (const msgSet of messageSets) {
-                    const result = await instance.prepareMessages(msgSet, pluginConfig, context);
-                    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0])) {
-                        // Explode
-                        nextMessageSets.push(...(result as OpenAI.Chat.Completions.ChatCompletionMessageParam[][]));
-                    } else {
-                        nextMessageSets.push(result as OpenAI.Chat.Completions.ChatCompletionMessageParam[]);
-                    }
-                }
-                messageSets = nextMessageSets;
-            }
-        }
-
-        if (messageSets.length > 1) {
-            this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Plugin returned multiple message sets (explode), but StandardStrategy only supports one. Using the first set.` });
-        }
-        
-        const finalMessages = messageSets[0];
+        // 2. Run Plugin Preparation Phase
+        const finalMessages = await this.runPreparationPhase(baseMessages, row, index, stepIndex);
 
         // 3. Generation Loop (Delegated to llm-fns via promptRetry)
         const requestOptions = cacheSalt ? {
@@ -207,41 +243,8 @@ ${schemaJsonString}`;
                 }
             }
 
-            // 3. Plugin Chain
-            for (let i = 0; i < this.plugins.length; i++) {
-                const { instance, config: pluginConfig } = this.plugins[i];
-                if (instance.postProcessMessages) {
-                    const context: PluginExecutionContext = {
-                        row,
-                        stepIndex,
-                        pluginIndex: i,
-                        services: this.pluginServices,
-                        tempDirectory: this.tempDir,
-                        emit: (event, ...args) => {
-                            if (event === 'plugin:artifact') {
-                                const payload = args[0];
-                                if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
-                                    payload.filename = path.join(this.tempDir, payload.filename);
-                                }
-                                this.events.emit('plugin:artifact', payload);
-                            } else if (event === 'step:progress') {
-                                const payload = args[0];
-                                this.events.emit('step:progress', { row: index, step: stepIndex, ...payload });
-                            } else {
-                                (this.events.emit as any)(event, ...args);
-                            }
-                        }
-                    };
-
-                    try {
-                        data = await instance.postProcessMessages(data, info.conversation, pluginConfig, context);
-                    } catch (e: any) {
-                        throw new LlmRetryError(e.message, 'CUSTOM_ERROR', undefined, typeof data === 'string' ? data : JSON.stringify(data));
-                    }
-                }
-            }
-
-            return data;
+            // 3. Run Plugin Post-Processing Phase
+            return await this.runPostProcessingPhase(data, info.conversation, row, index, stepIndex);
         };
 
         const rawClient = this.llm.getRawClient();
