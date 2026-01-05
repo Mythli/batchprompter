@@ -34,10 +34,7 @@ export class CandidateStrategy implements GenerationStrategy {
 
         const selector = createCandidateSelector<void, CandidateType>({
             candidateCount,
-            generate: async (_, i) => {
-                // Salt must include variation index to avoid cache collisions between exploded items
-                const salt = `${cacheSalt || ''}_var_${variationIndex ?? 'x'}_cand_${i}`;
-
+            generate: async (_, i, salt) => {
                 const res = await this.standardStrategy.execute(
                     row, index, stepIndex, config, userPromptParts, history, salt, undefined, skipCommands, variationIndex
                 );
@@ -66,7 +63,8 @@ export class CandidateStrategy implements GenerationStrategy {
             }
         });
 
-        const selection = await selector.run();
+        const baseSalt = `${cacheSalt || ''}_var_${variationIndex ?? 'x'}`;
+        const selection = await selector.run(undefined, baseSalt);
 
         if (this.stepContext.judge) {
             if (!selection.skippedJudge) {

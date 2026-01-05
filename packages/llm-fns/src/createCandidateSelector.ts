@@ -18,8 +18,9 @@ export interface CreateCandidateSelectorParams<TInput, TCandidate> {
      * Function to generate a single candidate.
      * @param input The input data.
      * @param index The index of the candidate being generated (0 to candidateCount-1).
+     * @param salt A unique salt string for this candidate.
      */
-    generate: (input: TInput, index: number) => Promise<TCandidate>;
+    generate: (input: TInput, index: number, salt: string) => Promise<TCandidate>;
 
     /**
      * Function to select the best candidate.
@@ -39,13 +40,14 @@ export function createCandidateSelector<TInput, TCandidate>(
 ) {
     const { candidateCount, generate, judge, onCandidateError } = params;
 
-    async function run(input: TInput) {
+    async function run(input: TInput, baseSalt: string | number = 'candidate') {
         // 1. Generate Candidates in Parallel
         const promises: Promise<CandidateResult<TCandidate> | null>[] = [];
 
         for (let i = 0; i < candidateCount; i++) {
+            const salt = `${baseSalt}:${i}`;
             promises.push(
-                generate(input, i)
+                generate(input, i, salt)
                     .then(candidate => ({ candidate, originalIndex: i }))
                     .catch(err => {
                         if (onCandidateError) {
