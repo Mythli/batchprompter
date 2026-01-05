@@ -11,6 +11,7 @@ import { UrlHandlerRegistry } from './url-expander/utils/UrlHandlerRegistry.js';
 import { GenericFetchHandler } from './url-expander/utils/GenericFetchHandler.js';
 import { GenericPuppeteerHandler } from './url-expander/utils/GenericPuppeteerHandler.js';
 import { WikipediaHandler } from './url-expander/utils/sites/WikipediaHandler.js';
+import { PromptLoader } from '../config/PromptLoader.js';
 
 // Re-export types
 export * from './types.js';
@@ -28,16 +29,16 @@ export { UrlExpanderPlugin } from './url-expander/UrlExpanderPlugin.js';
 /**
  * Create a plugin registry with all built-in plugins registered
  */
-export function createPluginRegistry(): PluginRegistryV2 {
+export function createPluginRegistry(promptLoader: PromptLoader): PluginRegistryV2 {
     const registry = new PluginRegistryV2();
 
-    registry.register(new WebSearchPluginV2());
-    registry.register(new ImageSearchPluginV2());
-    registry.register(new WebsiteAgentPluginV2());
+    registry.register(new WebSearchPluginV2(promptLoader));
+    registry.register(new ImageSearchPluginV2(promptLoader));
+    registry.register(new WebsiteAgentPluginV2(promptLoader));
     registry.register(new StyleScraperPluginV2());
     registry.register(new ValidationPluginV2());
     registry.register(new DedupePluginV2());
-    registry.register(new LogoScraperPluginV2());
+    registry.register(new LogoScraperPluginV2(promptLoader));
 
     // Setup UrlExpander dependencies
     const fetchHandler = new GenericFetchHandler();

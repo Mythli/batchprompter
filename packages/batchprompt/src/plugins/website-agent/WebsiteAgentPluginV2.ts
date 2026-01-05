@@ -88,6 +88,8 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
     // We use the Loose schema for the plugin interface to allow CLI/File inputs
     readonly configSchema = LooseWebsiteAgentConfigSchemaV2;
 
+    constructor(private promptLoader: PromptLoader) {}
+
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasPuppeteer'];
     }
@@ -121,8 +123,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
         contentResolver: ContentResolver
     ): Promise<WebsiteAgentResolvedConfigV2> {
-        const promptLoader = new PromptLoader(contentResolver);
-
+        
         const resolveModelWithPrompt = async (
             prompt: any,
             defaultPrompt: string,
@@ -133,8 +134,8 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             let parts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 
             if (prompt) {
-                parts = await promptLoader.load(prompt);
-                parts = parts.map(part => {
+                parts = await this.promptLoader.load(prompt);
+                parts = parts.map((part: any) => {
                     if (part.type === 'text') {
                         const template = Handlebars.compile(part.text, { noEscape: true });
                         return { type: 'text' as const, text: template(row) };

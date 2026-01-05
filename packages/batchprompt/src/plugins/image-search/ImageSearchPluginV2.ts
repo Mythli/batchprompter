@@ -78,6 +78,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     readonly type = 'image-search';
     readonly configSchema = ImageSearchConfigSchemaV2;
 
+    constructor(private promptLoader: PromptLoader) {}
+
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasSerper'];
     }
@@ -88,8 +90,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
         contentResolver: ContentResolver
     ): Promise<ImageSearchResolvedConfigV2> {
-        const promptLoader = new PromptLoader(contentResolver);
-
+        
         const resolvePrompt = async (
             prompt: any,
             modelOverride?: string,
@@ -97,8 +98,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             thinkingLevelOverride?: 'low' | 'medium' | 'high'
         ): Promise<ResolvedModelConfig | undefined> => {
             if (!prompt) return undefined;
-            const parts = await promptLoader.load(prompt);
-            const renderedParts = parts.map(part => {
+            const parts = await this.promptLoader.load(prompt);
+            const renderedParts = parts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });
                     return { type: 'text' as const, text: template(row) };

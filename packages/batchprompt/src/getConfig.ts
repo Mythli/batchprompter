@@ -82,8 +82,8 @@ class KeyvCacheAdapter {
     store: any = {};
 }
 
-export const createDefaultRegistry = (capabilities: ServiceCapabilities): PluginRegistryV2 => {
-    return createPluginRegistry();
+export const createDefaultRegistry = (capabilities: ServiceCapabilities, promptLoader: PromptLoader): PluginRegistryV2 => {
+    return createPluginRegistry(promptLoader);
 };
 
 export const initConfig = async (overrides: ConfigOverrides = {}) => {
@@ -174,16 +174,26 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // Default to MemoryContentResolver if not provided (e.g. in Web context)
     const contentResolver = overrides.contentResolver || new MemoryContentResolver();
 
-    // Loaders - Must be provided via overrides if running in CLI/Node environment
-    // If not provided, we can't load files, but we can still run if everything is in-memory.
-    // However, StepResolver needs them.
-    if (!overrides.promptLoader || !overrides.schemaLoader) {
-        // For now, we throw if they are missing, as Core relies on them.
-        // In a future refactor, we could provide in-memory fallbacks here if needed.
-        throw new Error("PromptLoader and SchemaLoader must be provided in config overrides.");
-    }
-    const promptLoader = overrides.promptLoader;
-    const schemaLoader = overrides.schemaLoader;
+    // Loaders
+    const promptLoader = overrides.promptLoader || new PromptLoader(contentResolver);
+    
+    // Schema Loader - must be provided or we use a dummy one?
+    // For now, we assume it's provided if needed, or we create a basic one if possible.
+    // But SchemaLoader is an interface. We can't instantiate it without a concrete class.
+    // If overrides.schemaLoader is missing, we might fail later if schema loading is attempted.
+    // Let's allow it to be undefined here, but StepResolver might complain.
+    // Actually, StepResolver takes schemaLoader in constructor.
+    // We need a fallback.
+    const schemaLoader = overrides.schemaLoader || {
+        load: async (source: string) => {
+            // Basic fallback: try to parse as JSON, otherwise fail
+            try {
+                return JSON.parse(source);
+            } catch {
+                throw new Error("SchemaLoader not provided and source is not valid JSON.");
+            }
+        }
+    };
 
     // Build GlobalContext
     const globalContext: GlobalContext = {
@@ -213,7 +223,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     const messageBuilder = new MessageBuilder();
 
     // Initialize Registries (with capabilities for validation)
-    const pluginRegistry = createDefaultRegistry(capabilities);
+    const pluginRegistry = createDefaultRegistry(capabilities, promptLoader);
 
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(

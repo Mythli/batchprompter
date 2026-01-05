@@ -76,6 +76,11 @@ export interface ResolvedStepConfig {
     
     // Handlers for logic injection
     handlers?: StepHandlers;
+    
+    // Legacy/Compat fields
+    skipCandidateCommand?: boolean;
+    command?: string;
+    verifyCommand?: string;
 }
 
 export interface ResolvedPipelineConfig {

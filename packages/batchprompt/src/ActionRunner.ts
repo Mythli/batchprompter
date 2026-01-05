@@ -230,8 +230,8 @@ export class ActionRunner {
                                     ...payload
                                 });
                             } else {
-                                // @ts-ignore - we know event is not 'log' anymore
-                                this.globalContext.events.emit(event, ...args);
+                                // Cast to any to bypass strict tuple check for generic emit
+                                (this.globalContext.events.emit as any)(event, ...args);
                             }
                         }
                     });
@@ -296,7 +296,7 @@ export class ActionRunner {
                             tempDirectory: tempDir,
                             emit: (event, ...args) => {
                                 // Simplified emit for transform phase
-                                this.globalContext.events.emit(event, ...args);
+                                (this.globalContext.events.emit as any)(event, ...args);
                             }
                         });
                     }

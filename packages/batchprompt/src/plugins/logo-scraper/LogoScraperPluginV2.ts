@@ -77,6 +77,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
     readonly type = 'logo-scraper';
     readonly configSchema = LogoScraperConfigSchemaV2;
 
+    constructor(private promptLoader: PromptLoader) {}
+
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasPuppeteer'];
     }
@@ -87,8 +89,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
         contentResolver: ContentResolver
     ): Promise<LogoScraperResolvedConfigV2> {
-        const promptLoader = new PromptLoader(contentResolver);
-
+        
         const resolveModel = async (
             prompt: any,
             modelOverride?: string,
@@ -97,7 +98,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         ): Promise<ResolvedModelConfig> => {
             let parts: any[] = [];
             if (prompt) {
-                parts = await promptLoader.load(prompt);
+                parts = await this.promptLoader.load(prompt);
             }
             return {
                 model: modelOverride || inheritedModel.model,

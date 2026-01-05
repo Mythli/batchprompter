@@ -1,24 +1,49 @@
 import { EventEmitter } from 'eventemitter3';
 import { ActionRunner } from '../ActionRunner.js';
-import { PluginRegistry } from '../plugins/PluginScope.js';
+import { PluginRegistryV2 } from '../plugins/types.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
 import { BatchPromptEvents } from '../core/events.js';
 import { MemoryArtifactHandler } from '../handlers/MemoryArtifactHandler.js';
-import { StepRegistry } from '../cli/StepRegistry.js';
 import { ConfigExecutor } from './ConfigRefiner.js';
+import { ConfigResolver } from '../config/ConfigResolver.js';
+import { PromptLoader } from '../config/PromptLoader.js';
 
 export class InMemoryConfigExecutor implements ConfigExecutor {
     constructor(
         private actionRunner: ActionRunner,
-        private pluginRegistry: PluginRegistry,
+        private pluginRegistry: PluginRegistryV2,
         private events: EventEmitter<BatchPromptEvents>,
         private contentResolver: ContentResolver
     ) {}
 
     async runConfig(config: any, initialRows?: any[]): Promise<{ results: any[] }> {
-        // Parse and validate the config using the registry logic
-        // We pass empty options/args as we are running from object
-        const runtimeConfig = await StepRegistry.parseConfig(config, {}, [], this.pluginRegistry, this.contentResolver);
+        // Create dependencies for ConfigResolver
+        const promptLoader = new PromptLoader(this.contentResolver);
+        
+        // Simple schema loader for memory context
+        const schemaLoader = {
+            load: async (source: string) => {
+                try {
+                    // Try to read from content resolver (if it's a path)
+                    const content = await this.contentResolver.readText(source);
+                    return JSON.parse(content);
+                } catch {
+                    // If read fails, assume it's raw JSON
+                    return JSON.parse(source);
+                }
+            }
+        };
+
+        const resolver = new ConfigResolver({
+            capabilities: { hasSerper: true, hasPuppeteer: true }, // Assume full capabilities for generation
+            pluginRegistry: this.pluginRegistry,
+            contentResolver: this.contentResolver,
+            promptLoader: promptLoader,
+            schemaLoader: schemaLoader
+        });
+
+        // Parse and validate the config
+        const runtimeConfig = await resolver.resolve(config);
 
         // Inject initialRows if provided
         if (initialRows && initialRows.length > 0) {
@@ -39,8 +64,6 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
             this.events.off('row:end', resultHandler);
             // We don't need to explicitly clear memoryHandler as it's garbage collected,
             // but we should ensure it stops listening if it hasn't already.
-            // MemoryArtifactHandler doesn't expose an 'off' method in its current interface,
-            // but since we create a new one each time, it's fine as long as we don't leak listeners.
             // Note: MemoryArtifactHandler binds to events in constructor. 
             // Ideally, it should have a dispose method. For now, we rely on it being short-lived.
         }

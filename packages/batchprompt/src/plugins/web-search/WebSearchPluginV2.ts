@@ -88,6 +88,8 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     readonly type = 'web-search';
     readonly configSchema = WebSearchConfigSchemaV2;
 
+    constructor(private promptLoader: PromptLoader) {}
+
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasSerper'];
     }
@@ -98,8 +100,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
         contentResolver: ContentResolver
     ): Promise<WebSearchResolvedConfigV2> {
-        const promptLoader = new PromptLoader(contentResolver);
-
+        
         const resolvePrompt = async (
             prompt: any,
             modelOverride?: string,
@@ -107,9 +108,9 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             thinkingLevelOverride?: 'low' | 'medium' | 'high'
         ): Promise<ResolvedModelConfig | undefined> => {
             if (!prompt) return undefined;
-            const parts = await promptLoader.load(prompt);
+            const parts = await this.promptLoader.load(prompt);
             // Render Handlebars in text parts
-            const renderedParts = parts.map(part => {
+            const renderedParts = parts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });
                     return { type: 'text' as const, text: template(row) };

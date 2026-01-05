@@ -29,9 +29,6 @@ export * from './core/ResultProcessor.js';
 export * from './core/io/ContentResolver.js';
 export * from './core/io/MemoryContentResolver.js';
 
-// Adapters
-export * from './adapters/FileAdapter.js';
-
 // Plugins
 export * from './plugins/index.js';
 export * from './plugins/PluginScope.js';
