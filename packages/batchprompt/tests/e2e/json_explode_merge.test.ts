@@ -38,23 +38,9 @@ describe('E2E JSON Explode and Merge', () => {
             return "{}";
         };
 
-        const { executor, contentResolver } = setupTestEnvironment({
+        const { executor } = setupTestEnvironment({
             mockResponses: mockResolver
         });
-
-        // 2. Setup Dynamic Schema in Memory
-        // We use a single schema file with Handlebars inside the content.
-        // This tests that SchemaLoader correctly renders the content per-row.
-        const schemaTemplate = JSON.stringify({
-            type: "object",
-            properties: {
-                age: { type: "number" },
-                city: { const: "{{name}}land" } // Dynamic constraint based on row data
-            },
-            required: ["age", "city"]
-        });
-        
-        contentResolver.setFile('schema_dynamic.json', schemaTemplate);
 
         // 3. Config
         const config = {
@@ -81,8 +67,16 @@ describe('E2E JSON Explode and Merge', () => {
                     // Step 2: Generate Details -> Merge
                     // Uses schema directly on the step, no validation plugin
                     prompt: "Details for {{name}}",
-                    // Static path to dynamic content
-                    schemaPath: "schema_dynamic.json", 
+                    // Inline dynamic schema (stringified JSON with Handlebars)
+                    // This tests that StepResolver correctly renders the schema content per-row
+                    schema: {
+                        type: "object",
+                        properties: {
+                            age: { type: "number" },
+                            city: { const: "{{name}}land" }
+                        },
+                        required: ["age", "city"]
+                    },
                     output: {
                         mode: "merge"
                     }
