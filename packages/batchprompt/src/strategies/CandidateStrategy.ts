@@ -112,15 +112,16 @@ export class CandidateStrategy implements GenerationStrategy {
             const cand = candidates[i];
             candidatePresentationParts.push({ type: 'text', text: `\n--- Candidate ${i} ---\n` });
             
-            const content = cand.historyMessage.content;
+            const val = cand.columnValue || "";
             
-            if (typeof content === 'string') {
-                candidatePresentationParts.push({ type: 'text', text: content || "(No Content)" });
-            } else if (Array.isArray(content)) {
-                // Spread content parts directly (images, audio, text)
-                candidatePresentationParts.push(...content);
+            // Heuristic for images
+            if (val.startsWith('http') || val.startsWith('data:image')) {
+                candidatePresentationParts.push({
+                    type: 'image_url',
+                    image_url: { url: val }
+                });
             } else {
-                candidatePresentationParts.push({ type: 'text', text: "(No Content)" });
+                candidatePresentationParts.push({ type: 'text', text: val });
             }
         }
 
