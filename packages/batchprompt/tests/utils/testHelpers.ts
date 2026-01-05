@@ -10,6 +10,7 @@ import { MessageBuilder } from '../../src/core/MessageBuilder.js';
 import { PluginRegistryV2, Plugin } from '../../src/plugins/types.js';
 import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
+import { DebugLogger } from '../../src/core/DebugLogger.js';
 
 export function createMockOpenAI(responses: (string | any)[]) {
     let callCount = 0;
@@ -79,6 +80,9 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     const { mockResponses = [], plugins = [], schemaLoader = { load: async () => ({}) } } = options;
 
     const { globalContext, openai, events, contentResolver } = createTestContext(mockResponses);
+
+    // Add DebugLogger to see events in test output
+    new DebugLogger(events as any);
 
     const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock');
     const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
