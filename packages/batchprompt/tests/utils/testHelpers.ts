@@ -24,11 +24,14 @@ export function createMockOpenAI(responses: (string | any)[] | MockResponseResol
                 create: vi.fn(async (params) => {
                     let response: string | any;
                     const currentCall = callCount + 1;
+                    const summary = getPromptSummary(params.messages);
+
+                    console.log(`\n--- [Mock OpenAI] Call #${currentCall} ---`);
+                    console.log(`Prompt: ${summary}`);
 
                     if (typeof responses === 'function') {
                         response = responses(params.messages);
                         if (response === undefined || response === null) {
-                            const summary = getPromptSummary(params.messages);
                             throw new Error(
                                 `[Mock OpenAI] Resolver function returned null/undefined.\n` +
                                 `Requested Call: #${currentCall}\n` +
@@ -36,10 +39,10 @@ export function createMockOpenAI(responses: (string | any)[] | MockResponseResol
                                 `Check your mock resolver logic to ensure it returns a valid response for this prompt.`
                             );
                         }
+                        console.log(`Response (Resolver): ${typeof response === 'string' ? response : JSON.stringify(response, null, 2)}`);
                         callCount++;
                     } else {
                         if (callCount >= responses.length) {
-                            const summary = getPromptSummary(params.messages);
                             throw new Error(
                                 `[Mock OpenAI] No more responses configured.\n` +
                                 `Requested Call: #${currentCall}\n` +
@@ -49,8 +52,10 @@ export function createMockOpenAI(responses: (string | any)[] | MockResponseResol
                             );
                         }
                         response = responses[callCount];
+                        console.log(`Response (Array[${callCount}]): ${typeof response === 'string' ? response : JSON.stringify(response, null, 2)}`);
                         callCount++;
                     }
+                    console.log(`---------------------------------------\n`);
 
                     // If response is a string, wrap it in a standard text message
                     if (typeof response === 'string') {
