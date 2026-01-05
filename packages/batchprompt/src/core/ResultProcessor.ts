@@ -90,8 +90,8 @@ export class ResultProcessor {
     }
 
     private static updateRow(item: PipelineItem, data: any, strategy: OutputStrategy, namespace: string) {
-        if (strategy.mode === 'column' && strategy.columnName) {
-            item.row[strategy.columnName] = data;
+        if (strategy.mode === 'column' && strategy.column) {
+            item.row[strategy.column] = data;
         } else if (strategy.mode === 'merge') {
             // Unwrap single-element arrays for merge operations
             // This handles the common case of a single-packet plugin result

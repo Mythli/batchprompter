@@ -29,7 +29,7 @@ export type OutputMode = 'merge' | 'column' | 'ignore';
 
 export interface OutputStrategy {
     mode: OutputMode;
-    columnName?: string;
+    column?: string;
     explode: boolean;
     limit?: number;
     offset?: number;
