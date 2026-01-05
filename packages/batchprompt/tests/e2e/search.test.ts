@@ -89,7 +89,7 @@ describe('E2E Search Plugins', () => {
             JSON.stringify({ queries: ["tesla investor relations"] }),
             // 2. Selection (Reduce)
             JSON.stringify({ selected_indices: [0], reasoning: "This is the official IR page." }),
-            // 3. Next Step (Final Generation)
+            // 3. Final Generation
             "The CEO of Tesla is Elon Musk."
         ];
 
@@ -108,9 +108,6 @@ describe('E2E Search Plugins', () => {
                             limit: 1
                         }
                     ],
-                    output: { mode: "merge" }
-                },
-                {
                     prompt: "Who is the CEO based on the search results?",
                     output: { mode: "column", column: "ceo" }
                 }
@@ -139,7 +136,7 @@ describe('E2E Search Plugins', () => {
             JSON.stringify({ queries: ["tesla model s photo"] }),
             // 2. Selection (Reduce)
             JSON.stringify({ selected_indices: [1], reasoning: "Model S is the requested product." }),
-            // 3. Next Step (Final Generation)
+            // 3. Final Generation
             "This is a red Tesla Model S."
         ];
 
@@ -157,9 +154,6 @@ describe('E2E Search Plugins', () => {
                             select: 1
                         }
                     ],
-                    output: { mode: "merge" }
-                },
-                {
                     prompt: "Describe this image.",
                     output: { mode: "column", column: "description" }
                 }
@@ -183,48 +177,5 @@ describe('E2E Search Plugins', () => {
         
         expect(imagePart).toBeDefined();
         expect(imagePart.image_url.url).toContain('data:image/jpeg;base64,');
-    });
-
-    it('should handle explosion in Web Search', async () => {
-        const mockResponses = [
-            // 1. Query Generation
-            JSON.stringify({ queries: ["tesla news"] }),
-            // 2. Selection (Reduce) - Select 2 items
-            JSON.stringify({ selected_indices: [0, 1], reasoning: "Both are relevant news." }),
-            // 3. Next Step (Branch 1)
-            "News 1 summary",
-            // 4. Next Step (Branch 2)
-            "News 2 summary"
-        ];
-
-        const { executor, openai } = await setupSearchTest(mockResponses);
-
-        const config = {
-            globals: { model: "gpt-mock" },
-            steps: [
-                {
-                    plugins: [
-                        {
-                            type: "web-search",
-                            queryPrompt: "Generate queries",
-                            selectPrompt: "Select 2 items",
-                            limit: 2,
-                            output: { mode: "merge", explode: true }
-                        }
-                    ]
-                },
-                {
-                    prompt: "Summarize this result",
-                    output: { mode: "column", column: "summary" }
-                }
-            ]
-        };
-
-        const { results } = await executor.runConfig(config, [{ topic: "Tesla" }]);
-
-        // Verify explosion: 1 input row -> 2 output rows
-        expect(results).toHaveLength(2);
-        expect(results[0].summary).toBe("News 1 summary");
-        expect(results[1].summary).toBe("News 2 summary");
     });
 });
