@@ -11,6 +11,7 @@ describe('E2E JSON Explode and Merge', () => {
             { name: "Bob" }
         ]);
 
+
         // Step 2: Returns details for Alice
         const step2ResponseAlice = JSON.stringify({
             age: 25,
@@ -48,7 +49,7 @@ describe('E2E JSON Explode and Merge', () => {
             },
             required: ["age", "city"]
         });
-        
+
         contentResolver.setFile('schema_Alice.json', schemaAlice);
         contentResolver.setFile('schema_Bob.json', schemaBob);
 
@@ -91,7 +92,7 @@ describe('E2E JSON Explode and Merge', () => {
                     prompt: "Details for {{name}}",
                     // Dynamic Schema Path using Handlebars
                     // This forces ConfigNormalizer to skip loading, and StepResolver to load per row
-                    schemaPath: "schema_{{name}}.json", 
+                    schemaPath: "schema_{{name}}.json",
                     output: {
                         mode: "merge"
                     }
