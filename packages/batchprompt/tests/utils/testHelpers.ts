@@ -7,7 +7,7 @@ import { MemoryContentResolver } from '../../src/core/io/MemoryContentResolver.j
 import { LlmClientFactory } from '../../src/core/LlmClientFactory.js';
 import { StepResolver } from '../../src/core/StepResolver.js';
 import { MessageBuilder } from '../../src/core/MessageBuilder.js';
-import { PluginRegistryV2, Plugin, createPluginRegistry } from '../../src/plugins/index.js';
+import { Plugin, createPluginRegistry } from '../../src/plugins/index.js';
 import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
 import { DebugLogger } from '../../src/core/DebugLogger.js';
@@ -50,7 +50,7 @@ export function createMockOpenAI(responses: (string | any)[] | MockResponseResol
                                 `Requested Call: #${currentCall}\n` +
                                 `Configured Responses: ${responses.length}\n` +
                                 `Prompt Summary: ${summary}\n\n` +
-                                `Please add more responses to your mock configuration array.`,
+                                `Please check responses in your mock configuration array.`,
                                 undefined,
                                 params.messages
                             );
@@ -70,7 +70,7 @@ export function createMockOpenAI(responses: (string | any)[] | MockResponseResol
                             }]
                         };
                     }
-                    
+
                     // If response is an object, assume it's a full message object (e.g. for images/audio)
                     // or a partial choice object
                     return {
@@ -109,9 +109,9 @@ export function createTestContext(options: TestContextOptions = {}) {
             close: vi.fn()
         } as any,
         fetcher: vi.fn() as any,
-        capabilities: { 
-            hasSerper: !!webSearch || !!imageSearch, 
-            hasPuppeteer: true 
+        capabilities: {
+            hasSerper: !!webSearch || !!imageSearch,
+            hasPuppeteer: true
         },
         defaultModel: 'gpt-mock',
         contentResolver,
@@ -131,9 +131,9 @@ export interface TestEnvOptions {
 }
 
 export function setupTestEnvironment(options: TestEnvOptions = {}) {
-    const { 
-        mockResponses = [], 
-        plugins = [], 
+    const {
+        mockResponses = [],
+        plugins = [],
         schemaLoader = { load: async () => ({}) },
         webSearch,
         imageSearch
@@ -151,7 +151,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock', 0);
     const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
     const messageBuilder = new MessageBuilder();
-    
+
     const promptLoader = new PromptLoader(contentResolver);
     const pluginRegistry = createPluginRegistry(promptLoader);
 
