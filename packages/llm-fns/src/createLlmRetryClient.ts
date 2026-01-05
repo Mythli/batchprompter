@@ -7,6 +7,7 @@ import {
     normalizeOptions,
     LlmFatalError
 } from "./createLlmClient.js";
+import { completionToMessage } from './completionToAssistantMessage.js';
 
 export class LlmRetryError extends Error {
     constructor(
@@ -144,40 +145,65 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
                 // Extract raw content immediately
                 rawResponseForError = completion.choices[0]?.message?.content || null;
 
-                const assistantMessage = completion.choices[0]?.message;
+                // Normalize the message using the shared utility
+                const assistantMessage = completionToMessage(completion);
+                
                 let dataToProcess: any = completion;
                 
                 if (responseType === 'text') {
-                    const content = assistantMessage?.content;
+                    const content = assistantMessage.content;
                     if (content === null || content === undefined) {
                         throw new LlmRetryError("LLM returned no text content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
                     }
-                    dataToProcess = content;
+                    
+                    if (typeof content === 'string') {
+                        dataToProcess = content;
+                    } else if (Array.isArray(content)) {
+                        // Extract text parts
+                        dataToProcess = content
+                            .filter(p => p.type === 'text')
+                            .map(p => p.text)
+                            .join('');
+                        
+                        if (!dataToProcess) {
+                             throw new LlmRetryError("LLM returned no text content in parts.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+                        }
+                    }
                 } else if (responseType === 'image') {
-                    const messageAny = assistantMessage as any;
-                    if (messageAny.images && Array.isArray(messageAny.images) && messageAny.images.length > 0) {
-                        const imageUrl = messageAny.images[0].image_url.url;
-                        if (typeof imageUrl === 'string') {
-                            if (imageUrl.startsWith('http')) {
-                                const imgRes = await fetch(imageUrl);
-                                const arrayBuffer = await imgRes.arrayBuffer();
-                                dataToProcess = Buffer.from(arrayBuffer);
+                    const content = assistantMessage.content;
+                    if (Array.isArray(content)) {
+                        const imagePart = content.find(p => p.type === 'image_url');
+                        if (imagePart && imagePart.type === 'image_url') {
+                             const imageUrl = imagePart.image_url.url;
+                             if (typeof imageUrl === 'string') {
+                                if (imageUrl.startsWith('http')) {
+                                    const imgRes = await fetch(imageUrl);
+                                    const arrayBuffer = await imgRes.arrayBuffer();
+                                    dataToProcess = Buffer.from(arrayBuffer);
+                                } else {
+                                    const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+                                    dataToProcess = Buffer.from(base64Data, 'base64');
+                                }
                             } else {
-                                const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-                                dataToProcess = Buffer.from(base64Data, 'base64');
+                                throw new LlmRetryError("LLM returned invalid image URL.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
                             }
                         } else {
-                            throw new LlmRetryError("LLM returned invalid image URL.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+                             throw new LlmRetryError("LLM returned no image.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
                         }
                     } else {
-                        throw new LlmRetryError("LLM returned no image.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+                         throw new LlmRetryError("LLM returned no image content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
                     }
                 } else if (responseType === 'audio') {
-                    const messageAny = assistantMessage as any;
-                    if (messageAny.audio && messageAny.audio.data) {
-                        dataToProcess = Buffer.from(messageAny.audio.data, 'base64');
+                    const content = assistantMessage.content;
+                    if (Array.isArray(content)) {
+                        const audioPart = content.find(p => p.type === 'input_audio');
+                        if (audioPart && audioPart.type === 'input_audio') {
+                             dataToProcess = Buffer.from(audioPart.input_audio.data, 'base64');
+                        } else {
+                             throw new LlmRetryError("LLM returned no audio.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+                        }
                     } else {
-                        throw new LlmRetryError("LLM returned no audio.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+                         throw new LlmRetryError("LLM returned no audio content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
                     }
                 }
 

@@ -1,31 +1,13 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import path from 'path';
+import { completionToMessage } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StepConfig } from '../types.js';
 import { MessageBuilder } from '../core/MessageBuilder.js';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from '../core/events.js';
-
-const responseSchema = z.object({
-    choices: z.array(z.object({
-        message: z.object({
-            content: z.string().nullable().optional(),
-            images: z.array(z.object({
-                image_url: z.object({
-                    url: z.string()
-                })
-            })).optional(),
-            audio: z.object({
-                id: z.string(),
-                data: z.string(),
-                expires_at: z.number(),
-                transcript: z.string().optional()
-            }).optional()
-        })
-    })).min(1)
-});
 
 type ExtractedContent = {
     type: 'text' | 'image' | 'audio';
@@ -41,16 +23,31 @@ export class StandardStrategy implements GenerationStrategy {
         private events: EventEmitter<BatchPromptEvents>
     ) {}
 
-    private extractContent(message: z.infer<typeof responseSchema>['choices'][0]['message']): ExtractedContent {
-        if (message.audio) {
-            return { type: 'audio', data: message.audio.data, extension: 'wav' };
-        }
-        if (message.images && message.images.length > 0) {
-            return { type: 'image', data: message.images[0].image_url.url, extension: 'png' };
+    private extractContent(message: OpenAI.Chat.Completions.ChatCompletionMessageParam): ExtractedContent {
+        const content = message.content;
+
+        if (typeof content === 'string') {
+            return { type: 'text', data: content, extension: 'md' };
         }
 
-        if (typeof message.content === 'string') {
-            return { type: 'text', data: message.content, extension: 'md' };
+        if (Array.isArray(content)) {
+            const audio = content.find(p => p.type === 'input_audio');
+            if (audio && audio.type === 'input_audio') {
+                return { type: 'audio', data: audio.input_audio.data, extension: 'wav' };
+            }
+
+            const image = content.find(p => p.type === 'image_url');
+            if (image && image.type === 'image_url') {
+                return { type: 'image', data: image.image_url.url, extension: 'png' };
+            }
+
+            // Fallback to text parts
+            const text = content
+                .filter(p => p.type === 'text')
+                .map(p => p.text)
+                .join('\n');
+            
+            return { type: 'text', data: text, extension: 'md' };
         }
 
         return { type: 'text', data: '', extension: 'md' };
@@ -115,6 +112,8 @@ export class StandardStrategy implements GenerationStrategy {
 
         const totalIterations = 1 + (config.feedbackLoops || 0);
         let finalContent: ExtractedContent | null = null;
+        let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
+        let finalRaw: any = undefined;
 
         const currentHistory = [...history];
 
@@ -125,7 +124,7 @@ export class StandardStrategy implements GenerationStrategy {
                 this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `🔄 Feedback Loop ${loop}/${config.feedbackLoops}` });
             }
 
-            finalContent = await this.generateWithRetry(
+            const result = await this.generateWithRetry(
                 currentHistory,
                 config,
                 row,
@@ -135,9 +134,20 @@ export class StandardStrategy implements GenerationStrategy {
                 userPromptParts,
                 cacheSalt
             );
+
+            finalContent = result.extracted;
+            finalHistoryMessage = result.historyMessage;
+            finalRaw = result.extracted.raw;
+
+            // If feedback loops are active, we need to update history for the next iteration
+            if (isFeedbackLoop || totalIterations > 1) {
+                currentHistory.push(finalHistoryMessage);
+                // TODO: Add feedback prompt from judge/feedback model here if we want true feedback loop
+                // Currently StandardStrategy just retries generation without new feedback unless implemented elsewhere
+            }
         }
 
-        if (!finalContent) throw new Error("Generation failed.");
+        if (!finalContent || !finalHistoryMessage) throw new Error("Generation failed.");
 
         // Emit Artifact
         const effectiveBasename = config.outputBasename || 'output';
@@ -170,12 +180,9 @@ export class StandardStrategy implements GenerationStrategy {
         });
 
         return {
-            historyMessage: {
-                role: 'assistant',
-                content: finalContent.type === 'text' ? finalContent.data : `[Generated ${finalContent.type}]`
-            },
+            historyMessage: finalHistoryMessage,
             columnValue: finalContent.data,
-            raw: finalContent.raw
+            raw: finalRaw
         };
     }
 
@@ -188,7 +195,7 @@ export class StandardStrategy implements GenerationStrategy {
         skipCommands: boolean,
         userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[],
         cacheSalt?: string | number
-    ): Promise<ExtractedContent> {
+    ): Promise<{ extracted: ExtractedContent, historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam }> {
         const maxRetries = 3;
         let currentHistory = [...history];
         let lastError: any;
@@ -205,6 +212,7 @@ export class StandardStrategy implements GenerationStrategy {
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             try {
                 let extracted: ExtractedContent;
+                let historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
 
                 const messages = this.messageBuilder.build(config.modelConfig, row, userPromptParts);
 
@@ -231,6 +239,10 @@ export class StandardStrategy implements GenerationStrategy {
                         extension: 'json',
                         raw: jsonResult
                     };
+                    
+                    // For JSON, we construct a text message
+                    historyMessage = { role: 'assistant', content: extracted.data };
+
                 } else {
                     const response = await this.llm.prompt({
                         messages: finalMessages,
@@ -238,15 +250,16 @@ export class StandardStrategy implements GenerationStrategy {
                         ...additionalParams
                     });
 
-                    const parsed = responseSchema.parse(response);
-                    const message = parsed.choices[0].message;
-
-                    extracted = this.extractContent(message);
+                    // Normalize the response to a message
+                    historyMessage = completionToMessage(response);
+                    
+                    // Extract content for validation and saving
+                    extracted = this.extractContent(historyMessage);
                 }
 
                 const validated = await this.validateContent(extracted, config, row, index, stepIndex);
 
-                return validated;
+                return { extracted: validated, historyMessage };
 
             } catch (error: any) {
                 lastError = error;
