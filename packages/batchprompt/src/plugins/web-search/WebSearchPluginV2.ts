@@ -1,10 +1,9 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
+import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext,
-    PluginResult,
-    PluginPacket
+    PluginExecutionContext
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
@@ -170,10 +169,11 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         };
     }
 
-    async execute(
+    async prepareMessages(
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: WebSearchResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<PluginResult> {
+    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[] | OpenAI.Chat.Completions.ChatCompletionMessageParam[][]> {
         const { services, row, emit } = context;
         const webSearch = services.webSearch;
 
@@ -266,24 +266,29 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             hl: config.hl
         });
 
-        // Convert results into individual packets.
-        const packets: PluginPacket[] = result.data.map(item => {
-            const text = `Source: ${item.title} (${item.link})\nContent:\n${item.content}`;
-            return {
-                data: item,
-                contentParts: [{ type: 'text', text }]
-            };
-        });
-
-        if (packets.length === 0) {
-            return {
-                packets: [{
-                    data: {},
-                    contentParts: result.contentParts
-                }]
-            };
+        // Handle Explosion
+        if (config.output.explode) {
+            // Return array of message sets
+            return result.data.map(item => {
+                const text = `Source: ${item.title} (${item.link})\nContent:\n${item.content}`;
+                const newMessages = [...messages];
+                newMessages.push({
+                    role: 'user',
+                    content: text
+                });
+                return newMessages;
+            });
         }
 
-        return { packets };
+        // Standard Merge
+        const newMessages = [...messages];
+        if (result.contentParts.length > 0) {
+            newMessages.push({
+                role: 'user',
+                content: result.contentParts
+            });
+        }
+
+        return newMessages;
     }
 }

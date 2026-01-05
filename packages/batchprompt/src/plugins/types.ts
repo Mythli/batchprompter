@@ -24,21 +24,6 @@ export interface StepExecutionContext {
 }
 
 // =============================================================================
-// Plugin Packet (shared)
-// =============================================================================
-
-export interface PluginPacket {
-    /** The data to be merged into the workspace/row (e.g., image metadata) */
-    data: any;
-    /** The content to be sent to the LLM (e.g., the actual image) */
-    contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-}
-
-export interface PluginResult {
-    packets: PluginPacket[];
-}
-
-// =============================================================================
 // Plugin Services (Dependency Injection)
 // =============================================================================
 

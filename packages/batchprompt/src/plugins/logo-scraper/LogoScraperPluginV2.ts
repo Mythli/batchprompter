@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import path from 'path';
+import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext,
-    PluginResult
+    PluginExecutionContext
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
@@ -160,10 +160,11 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         };
     }
 
-    async execute(
+    async prepareMessages(
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: LogoScraperResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<PluginResult> {
+    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
         const { services, emit } = context;
         const { puppeteerHelper, fetcher } = services;
 
@@ -280,11 +281,19 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             packetData.favicons = savedFaviconPaths;
         }
 
-        return {
-            packets: [{
-                data: packetData,
-                contentParts: []
-            }]
-        };
+        // Add summary to messages
+        const summary = `Logo Scraper Results for ${config.url}:
+- Primary Brand Color: ${packetData.brandColor || 'None'}
+- Logos Found: ${packetData.logos.length}
+- Favicons Found: ${packetData.favicons.length}
+`;
+        
+        const newMessages = [...messages];
+        newMessages.push({
+            role: 'user',
+            content: summary
+        });
+
+        return newMessages;
     }
 }

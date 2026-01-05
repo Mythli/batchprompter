@@ -3,8 +3,7 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext,
-    PluginResult
+    PluginExecutionContext
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
@@ -153,10 +152,11 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         };
     }
 
-    async execute(
+    async prepareMessages(
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: ImageSearchResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<PluginResult> {
+    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
         const { services, row, outputBasename, emit } = context;
         const imageSearch = services.imageSearch;
 
@@ -243,13 +243,13 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         });
 
         if (selectedImages.length === 0) {
-            return { packets: [] };
+            return messages;
         }
 
         // Build packets
-        const packets: any[] = [];
         const sharp = (await import('sharp')).default;
         const baseName = outputBasename || 'image';
+        const newContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 
         // Process final images in parallel
         await Promise.all(selectedImages.map(async (img, i) => {
@@ -273,27 +273,24 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                 });
 
                 const base64 = processed.toString('base64');
-                const contentPart: OpenAI.Chat.Completions.ChatCompletionContentPart = {
+                newContentParts.push({
                     type: 'image_url',
                     image_url: { url: `data:image/jpeg;base64,${base64}` }
-                };
-
-                packets.push({
-                    data: {
-                        ...img.metadata,
-                        // Note: localPath is no longer available directly here as we don't know where the handler saved it.
-                        // If downstream needs it, we might need to coordinate or assume standard path.
-                        // For now, we omit localPath or provide a relative hint.
-                        filename,
-                        searchIndex: i + 1
-                    },
-                    contentParts: [contentPart]
                 });
+
             } catch (e) {
                 console.warn(`[ImageSearch] Failed to process image:`, e);
             }
         }));
 
-        return { packets };
+        const newMessages = [...messages];
+        if (newContentParts.length > 0) {
+            newMessages.push({
+                role: 'user',
+                content: newContentParts
+            });
+        }
+
+        return newMessages;
     }
 }

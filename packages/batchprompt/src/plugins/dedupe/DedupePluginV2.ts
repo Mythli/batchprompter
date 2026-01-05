@@ -3,8 +3,7 @@ import Handlebars from 'handlebars';
 import { EventEmitter } from 'eventemitter3';
 import {
     Plugin,
-    PluginExecutionContext,
-    PluginResult
+    PluginExecutionContext
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
@@ -42,6 +41,13 @@ export interface DedupeResolvedConfigV2 {
 // Global deduplication state - shared across all instances
 const globalSeenKeys = new Map<string, Set<string>>();
 
+export class SkipRowError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = 'SkipRowError';
+    }
+}
+
 export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedConfigV2> {
     readonly type = 'dedupe';
     readonly configSchema = DedupeConfigSchemaV2;
@@ -69,10 +75,11 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         };
     }
 
-    async execute(
+    async prepareMessages(
+        messages: any[],
         config: DedupeResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<PluginResult> {
+    ): Promise<any[]> {
         const { row } = context;
         const scope = new PluginScope(context, this.type);
 
@@ -98,7 +105,8 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
                 tags: ['debug', 'dedupe', 'duplicate']
             });
 
-            return { packets: [] };
+            // Throw special error to skip this row
+            throw new SkipRowError(`Duplicate key found: ${key}`);
         }
 
         scope.emit('duplicate:kept', { key });
@@ -115,12 +123,7 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             tags: ['debug', 'dedupe', 'kept']
         });
 
-        return {
-            packets: [{
-                data: {},
-                contentParts: []
-            }]
-        };
+        return messages;
     }
 
     static resetState(): void {

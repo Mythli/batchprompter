@@ -44,20 +44,20 @@ describe('UrlExpanderPlugin', () => {
         const callArgs = createCall.mock.calls[0][0];
         const messages = callArgs.messages;
         const lastMessage = messages[messages.length - 1];
-        const contentParts = lastMessage.content;
         
-        // Join all text parts to search easily
-        const fullText = Array.isArray(contentParts) 
+        // The content is usually an array of parts in this architecture
+        const contentParts = lastMessage.content;
+        const textContent = Array.isArray(contentParts) 
             ? contentParts.map((p: any) => p.text).join('') 
             : contentParts;
 
         // Check that the URL was found and expanded content was injected
-        expect(fullText).toContain('Read this: https://example.com/article');
-        expect(fullText).toContain('--- Content of https://example.com/article ---');
+        expect(textContent).toContain('Read this: https://example.com/article');
+        expect(textContent).toContain('--- Content of https://example.com/article ---');
         
         // Check for Markdown conversion (h1 -> #)
         // Turndown converts <h1> to # 
-        expect(fullText).toContain('Content for https://example.com/article');
-        expect(fullText).toContain('This is mocked.');
+        expect(textContent).toContain('Content for https://example.com/article');
+        expect(textContent).toContain('This is mocked.');
     });
 });

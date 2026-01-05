@@ -4,8 +4,7 @@ import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import {
     Plugin,
-    PluginExecutionContext,
-    PluginResult
+    PluginExecutionContext
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
@@ -82,10 +81,11 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         };
     }
 
-    async execute(
+    async prepareMessages(
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: StyleScraperResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<PluginResult> {
+    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
         const { services, outputBasename, emit } = context;
         const { puppeteerHelper } = services;
 
@@ -231,12 +231,13 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                 }
             }
 
-            return {
-                packets: [{
-                    data: outputData,
-                    contentParts: result.contentParts
-                }]
-            };
+            const newMessages = [...messages];
+            newMessages.push({
+                role: 'user',
+                content: result.contentParts
+            });
+
+            return newMessages;
         } finally {
             await pageHelper.close();
         }
