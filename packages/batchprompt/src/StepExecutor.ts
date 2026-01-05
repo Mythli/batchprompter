@@ -7,6 +7,8 @@ import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
+import { Plugin, PluginServices } from './plugins/types.js';
+import { ResolvedPluginBase } from './config/types.js';
 
 export interface StepExecutionResult {
     historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
@@ -28,78 +30,31 @@ export class StepExecutor {
         config: StepConfig,
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         pluginContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
-        variationIndex?: number
+        variationIndex?: number,
+        plugins: { instance: Plugin; config: any; def: ResolvedPluginBase }[] = [],
+        pluginServices?: PluginServices,
+        tempDir?: string
     ): Promise<StepExecutionResult> {
 
         let effectiveUserPromptParts = pluginContentParts;
 
-        const hasUserPrompt = config.userPromptParts.length > 0;
-        const hasSystemPrompt = config.modelConfig.systemParts.length > 0;
-        const hasModelPrompt = config.modelConfig.promptParts.length > 0;
-
-        if (effectiveUserPromptParts.length === 0 && !hasSystemPrompt && !hasModelPrompt) {
-             this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `No prompt and no content. Treating as pass-through.` });
-             return {
-                 historyMessage: { role: 'assistant', content: '' },
-                 modelResult: {}
-             };
-        }
-
-        if (!hasUserPrompt && !hasSystemPrompt && !hasModelPrompt && effectiveUserPromptParts.length > 0) {
-             this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `No prompt detected. Saving plugin output directly...` });
-
-            // Emit artifacts for plugin content
-            for (let i = 0; i < effectiveUserPromptParts.length; i++) {
-                const part = effectiveUserPromptParts[i];
-                let ext = '.txt';
-                let content: string | Buffer = '';
-                let type = 'text';
-
-                if (part.type === 'text') {
-                    content = part.text;
-                } else if (part.type === 'image_url') {
-                    content = part.image_url.url;
-                    type = 'image';
-                    ext = '.jpg';
-                } else if (part.type === 'input_audio') {
-                    content = Buffer.from(part.input_audio.data, 'base64');
-                    type = 'audio';
-                    ext = `.${part.input_audio.format}`;
-                }
-
-                let filename = effectiveUserPromptParts.length === 1
-                    ? `${config.outputBasename || 'output'}${ext}`
-                    : `${config.outputBasename || 'output'}_${i}${ext}`;
-
-                const targetDir = config.resolvedOutputDir || config.resolvedTempDir;
-                if (targetDir) {
-                    filename = path.join(targetDir, filename);
-                }
-
-                this.events.emit('plugin:artifact', {
-                    row: index,
-                    step: stepIndex,
-                    plugin: 'model',
-                    type,
-                    filename,
-                    content,
-                    tags: ['plugin-output', 'final']
-                });
-            }
-
-            return {
-                historyMessage: {
-                    role: 'assistant',
-                    content: `[Saved ${effectiveUserPromptParts.length} items from plugins]`
-                },
-                modelResult: {}
-            };
+        // Note: With the new architecture, plugins are handled inside StandardStrategy.
+        // However, if we have NO prompt and NO plugins that do anything, we might want to skip?
+        // But StandardStrategy now handles plugins.
+        
+        // We pass plugins to StandardStrategy.
+        
+        if (!pluginServices || !tempDir) {
+            throw new Error("Plugin services and tempDir are required for StepExecutor.");
         }
 
         let strategy: GenerationStrategy = new StandardStrategy(
             stepContext.llm,
             this.messageBuilder,
-            this.events
+            this.events,
+            plugins,
+            pluginServices,
+            tempDir
         );
 
         if (config.candidates > 1) {

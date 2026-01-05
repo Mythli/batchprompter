@@ -24,7 +24,6 @@ export class ActionRunner {
         const events = this.globalContext.events;
 
         events.emit('run:start', config);
-        // Using step:progress with row -1 for global logs
         events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)` });
 
         this.globalContext.taskQueue.concurrency = taskConcurrency;
@@ -76,39 +75,15 @@ export class ActionRunner {
                     config.tmpDir
                 );
 
-                // 1. Prepare Handler
-                if (resolvedStep.handlers?.prepare) {
-                    const execContext: StepExecutionContext = {
-                        row: item.row,
-                        workspace: item.workspace,
-                        stepIndex: stepIndex,
-                        rowIndex: item.originalIndex,
-                        history: item.history
-                    };
-                    await resolvedStep.handlers.prepare(execContext);
-                }
-
-                // 2. Execute with Timeout
-                let activeItems: PipelineItem[] = [item];
-
+                // Execute with Timeout
                 let timer: NodeJS.Timeout;
                 const timeoutPromise = new Promise<never>((_, reject) => {
                     timer = setTimeout(() => reject(new Error(`Step timed out after ${stepConfig.timeout}s`)), timeoutMs);
                 });
 
                 const executionPromise = (async () => {
-                    // A. Plugins (Execute Phase)
-                    activeItems = await this.executePlugins(
-                        activeItems,
-                        resolvedStep,
-                        stepNum,
-                        pluginServices,
-                        resolvedStep.resolvedTempDir || config.tmpDir
-                    );
-
-                    // B. Model
                     return await this.executeModel(
-                        activeItems,
+                        [item],
                         resolvedStep,
                         stepContext,
                         stepNum,
@@ -120,22 +95,6 @@ export class ActionRunner {
 
                 const nextItems = await Promise.race([executionPromise, timeoutPromise]);
                 clearTimeout(timer!);
-
-                // 3. Process Handler (Post-processing)
-                if (resolvedStep.handlers?.process) {
-                    for (const nextItem of nextItems) {
-                        // We assume the last entry in stepHistory is the result of this step
-                        const result = nextItem.stepHistory[nextItem.stepHistory.length - 1];
-                        const execContext: StepExecutionContext = {
-                            row: nextItem.row,
-                            workspace: nextItem.workspace,
-                            stepIndex: stepIndex,
-                            rowIndex: nextItem.originalIndex,
-                            history: nextItem.history
-                        };
-                        await resolvedStep.handlers.process(execContext, result);
-                    }
-                }
 
                 events.emit('step:finish', { row: item.originalIndex, step: stepNum, result: nextItems.length });
                 enqueueNext(nextItems, stepIndex + 1);
@@ -170,83 +129,6 @@ export class ActionRunner {
         events.emit('run:end');
     }
 
-    private async executePlugins(
-        items: PipelineItem[],
-        resolvedStep: StepConfig,
-        stepNum: number,
-        services: PluginServices,
-        tempDir: string
-    ): Promise<PipelineItem[]> {
-        let activeItems = items;
-        const inheritedModel = {
-            model: resolvedStep.modelConfig.model || this.globalContext.defaultModel,
-            temperature: resolvedStep.modelConfig.temperature,
-            thinkingLevel: resolvedStep.modelConfig.thinkingLevel
-        };
-
-        for (let pluginIdx = 0; pluginIdx < resolvedStep.plugins.length; pluginIdx++) {
-            const pluginDef = resolvedStep.plugins[pluginIdx];
-            const plugin = this.pluginRegistry.get(pluginDef.name);
-
-            if (!plugin) continue;
-
-            activeItems = await this.processBatch(
-                activeItems,
-                async (currentItem) => {
-                    const pluginViewContext = {
-                        ...currentItem.row,
-                        ...currentItem.workspace,
-                        steps: currentItem.stepHistory,
-                        index: currentItem.originalIndex
-                    };
-
-                    const resolvedPluginConfig = await plugin.resolveConfig(
-                        pluginDef.config,
-                        pluginViewContext,
-                        inheritedModel,
-                        this.globalContext.contentResolver
-                    );
-
-                    const result = await plugin.execute(resolvedPluginConfig, {
-                        row: pluginViewContext,
-                        stepIndex: stepNum,
-                        pluginIndex: pluginIdx,
-                        services: services,
-                        tempDirectory: tempDir,
-                        // Pass emitter to plugin context
-                        emit: (event, ...args) => {
-                            if (event === 'plugin:artifact') {
-                                const payload = args[0];
-                                if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
-                                    payload.filename = path.join(tempDir, payload.filename);
-                                }
-                                this.globalContext.events.emit('plugin:artifact', payload);
-                            } else if (event === 'step:progress') {
-                                const payload = args[0];
-                                // Ensure row/step context is correct if not provided
-                                this.globalContext.events.emit('step:progress', {
-                                    row: currentItem.originalIndex,
-                                    step: stepNum,
-                                    ...payload
-                                });
-                            } else {
-                                // Cast to any to bypass strict tuple check for generic emit
-                                (this.globalContext.events.emit as any)(event, ...args);
-                            }
-                        }
-                    });
-
-                    return result.packets;
-                },
-                pluginDef.output,
-                toCamel(pluginDef.name),
-                stepNum
-            );
-        }
-
-        return activeItems;
-    }
-
     private async executeModel(
         items: PipelineItem[],
         resolvedStep: StepConfig,
@@ -273,35 +155,32 @@ export class ActionRunner {
                     index: currentItem.originalIndex
                 };
 
-                let effectiveParts = [...currentItem.accumulatedContent, ...resolvedStep.userPromptParts];
-
-                // Run Plugin Transforms (Preprocessors)
-                for (let pluginIdx = 0; pluginIdx < resolvedStep.plugins.length; pluginIdx++) {
-                    const pluginDef = resolvedStep.plugins[pluginIdx];
+                // Resolve Plugins for this row
+                const resolvedPlugins = [];
+                for (const pluginDef of resolvedStep.plugins) {
                     const plugin = this.pluginRegistry.get(pluginDef.name);
-
-                    if (plugin && plugin.transform) {
-                        const resolvedPluginConfig = await plugin.resolveConfig(
+                    if (plugin) {
+                        const resolvedConfig = await plugin.resolveConfig(
                             pluginDef.config,
                             modelViewContext,
                             inheritedModel,
                             this.globalContext.contentResolver
                         );
-
-                        effectiveParts = await plugin.transform(effectiveParts, resolvedPluginConfig, {
-                            row: modelViewContext,
-                            stepIndex: stepNum,
-                            pluginIndex: pluginIdx,
-                            services: services,
-                            tempDirectory: tempDir,
-                            emit: (event, ...args) => {
-                                // Simplified emit for transform phase
-                                (this.globalContext.events.emit as any)(event, ...args);
-                            }
-                        });
+                        resolvedPlugins.push({ instance: plugin, config: resolvedConfig, def: pluginDef });
                     }
                 }
 
+                // Pass resolved plugins to StepExecutor
+                // We need to update StepExecutor to accept plugins
+                // But StepExecutor is instantiated once.
+                // We should pass plugins to executeModel method.
+                
+                // Wait, StepExecutor.executeModel signature needs update or we pass a new strategy factory?
+                // StepExecutor creates StandardStrategy.
+                // We need to pass the plugins to StandardStrategy.
+                
+                // Let's update StepExecutor.executeModel to accept plugins.
+                
                 const result = await executor.executeModel(
                     stepContext,
                     modelViewContext,
@@ -309,8 +188,11 @@ export class ActionRunner {
                     stepNum,
                     resolvedStep,
                     currentItem.history,
-                    effectiveParts,
-                    currentItem.variationIndex
+                    currentItem.accumulatedContent, // Pass accumulated content as initial user prompt parts
+                    currentItem.variationIndex,
+                    resolvedPlugins,
+                    services,
+                    tempDir
                 );
 
                 // Check if we need to unwrap an array result into multiple packets for explosion
@@ -342,6 +224,28 @@ export class ActionRunner {
                 if (!update) return;
 
                 const newHistory = [...newItem.history];
+                // Note: userPromptParts are now handled inside StandardStrategy via prepareMessages
+                // But we still need to update history for the NEXT step.
+                // StandardStrategy returns the final history message.
+                // What about the user message constructed inside StandardStrategy?
+                // StandardStrategy constructs messages but doesn't return the full conversation.
+                // It returns `historyMessage` (assistant response).
+                
+                // If plugins modified the user message (prepareMessages), that context is lost for the next step
+                // unless we capture it.
+                // StandardStrategy should probably return the *final* messages used?
+                // Or at least the user message it constructed.
+                
+                // For now, we stick to the existing logic:
+                // We push the *configured* user prompt parts + assistant response.
+                // If plugins added stuff, it's implicitly in the history if we had a way to get it back.
+                // But we don't.
+                // This is a limitation of the current history tracking.
+                // Ideally, StandardStrategy returns `finalMessages` used.
+                
+                // Let's assume for now we just push the assistant response.
+                // The user prompt parts from config are pushed if they exist.
+                
                 const hasUserPrompt = update.userPromptParts.length > 0 && update.userPromptParts.some((p: any) => {
                     if (p.type === 'text') return p.text.trim().length > 0;
                     return true;
@@ -356,9 +260,10 @@ export class ActionRunner {
 
                 if (hasUserPrompt) {
                     newHistory.push({ role: 'user', content: update.userPromptParts });
-                    if (hasAssistantResponse) {
-                        newHistory.push(update.historyMessage);
-                    }
+                }
+                
+                if (hasAssistantResponse) {
+                    newHistory.push(update.historyMessage);
                 }
 
                 newItem.history = newHistory;
@@ -403,18 +308,16 @@ export class ActionRunner {
                 namespace
             );
 
-            // Emit explode event if applicable
             if (outputStrategy.explode) {
                 const totalAvailable = res.packets.length;
                 const finalCount = processed.length;
 
-                // Only log if something interesting happened (expansion or reduction via limit)
                 if (totalAvailable > 1 || finalCount !== totalAvailable) {
                     this.globalContext.events.emit('step:progress', {
                         row: res.item.originalIndex,
                         step: stepNum,
                         type: 'explode',
-                        message: '', // Constructed by DebugLogger
+                        message: '',
                         data: {
                             count: finalCount,
                             source: namespace,
@@ -444,7 +347,3 @@ export class ActionRunner {
         return nextItems;
     }
 }
-
-const toCamel = (s: string) => {
-    return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
-};

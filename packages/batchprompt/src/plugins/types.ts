@@ -23,17 +23,6 @@ export interface StepExecutionContext {
     history: any[];
 }
 
-export interface StepHandlers {
-    /** Runs before step execution. Can modify context. */
-    prepare?: (context: StepExecutionContext) => Promise<void>;
-
-    /** Runs to verify content. Returns validity and feedback. */
-    verify?: (content: any, context: StepExecutionContext) => Promise<{ isValid: boolean; feedback?: string }>;
-
-    /** Runs after step execution. Can save artifacts, modify result, etc. */
-    process?: (context: StepExecutionContext, result: any) => Promise<void>;
-}
-
 // =============================================================================
 // Plugin Packet (shared)
 // =============================================================================
@@ -129,39 +118,37 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     ): Promise<TResolvedConfig>;
 
     /**
-     * Execute the plugin to gather data/content.
-     */
-    execute(
-        config: TResolvedConfig,
-        context: PluginExecutionContext
-    ): Promise<PluginResult>;
-
-    /**
-     * Optional: Transform the prompt content before the model is called.
-     * This allows plugins to act as preprocessors (e.g. expanding URLs).
+     * Prepare messages before the LLM generation loop.
+     * This is where data gathering (search, scrape) happens.
      * 
-     * @param parts The current accumulated content parts.
+     * @param messages The current accumulated messages (system + user).
      * @param config The resolved configuration.
      * @param context The execution context.
-     * @returns The modified content parts.
+     * @returns The modified messages array (or an array of message arrays for explosion).
      */
-    transform?(
-        parts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
+    prepareMessages?(
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: TResolvedConfig,
         context: PluginExecutionContext
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]>;
+    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[] | OpenAI.Chat.Completions.ChatCompletionMessageParam[][]>;
 
     /**
-     * Optional: Return lifecycle handlers for this step.
-     * This allows plugins to inject logic into the execution flow (prepare, verify, process).
+     * Process the LLM response (or previous plugin output) inside the retry loop.
+     * This is where validation and extraction happen.
      * 
-     * @param config The resolved configuration for this plugin instance.
-     * @param context The execution context (services, row data, etc.).
+     * @param response The LLM response (or previous plugin output).
+     * @param history The conversation history so far.
+     * @param config The resolved configuration.
+     * @param context The execution context.
+     * @returns The processed result (passed to next plugin).
+     * @throws Error if validation fails (triggers retry).
      */
-    getHandlers?(
+    postProcessMessages?(
+        response: any,
+        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: TResolvedConfig,
         context: PluginExecutionContext
-    ): Partial<StepHandlers> | Promise<Partial<StepHandlers>>;
+    ): Promise<any>;
 }
 
 // =============================================================================
