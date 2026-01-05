@@ -161,22 +161,53 @@ export function concatMessageText(messages: OpenAI.Chat.Completions.ChatCompleti
     return textParts.join(' ');
 }
 
-export function getPromptSummary(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): string {
+/**
+ * Generates a concise summary of a prompt's content for logging purposes.
+ * Attempts to show the start, middle, and end of the combined message text.
+ * 
+ * @param messages The messages to summarize.
+ * @param maxLength The maximum length of the resulting summary string. Defaults to 200.
+ */
+export function getPromptSummary(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[], maxLength: number = 200): string {
     const fullText = concatMessageText(messages);
     const cleanedText = fullText.replace(/\s+/g, ' ').trim();
 
-    if (cleanedText.length <= 50) {
+    if (cleanedText.length <= maxLength) {
         return cleanedText;
     }
 
-    const partLength = 15;
-    const start = cleanedText.substring(0, partLength);
-    const end = cleanedText.substring(cleanedText.length - partLength);
+    // Ensure we have at least enough space for an ellipsis
+    const safeMaxLength = Math.max(3, maxLength);
+
+    // If maxLength is too small for a complex summary, just truncate at the end
+    if (safeMaxLength < 30) {
+        return cleanedText.substring(0, safeMaxLength - 3) + '...';
+    }
+
+    // We want to construct: [start] ... [middle] ... [end]
+    // Total length = partSize * 3 + 6 (for two "...")
+    const totalEllipsisLen = 6;
+    const partSize = Math.floor((safeMaxLength - totalEllipsisLen) / 3);
+
+    const start = cleanedText.substring(0, partSize);
+    const end = cleanedText.substring(cleanedText.length - partSize);
 
     const midIndex = Math.floor(cleanedText.length / 2);
-    const midStart = Math.max(partLength, midIndex - Math.ceil(partLength / 2));
-    const midEnd = Math.min(cleanedText.length - partLength, midStart + partLength);
-    const middle = cleanedText.substring(midStart, midEnd);
+    const midStart = midIndex - Math.floor(partSize / 2);
+    const middle = cleanedText.substring(midStart, midStart + partSize);
+
+    // Overlap/Proximity check:
+    // If the gaps between parts in the original text are smaller than the ellipsis (3 chars),
+    // it means the segments are practically continuous. In this case, a 3-part summary 
+    // is misleading. Fall back to a simpler "Start...End" summary.
+    const firstGap = midStart - partSize;
+    const secondGap = (cleanedText.length - partSize) - (midStart + partSize);
+
+    if (firstGap < 3 || secondGap < 3) {
+        const singleEllipsisLen = 3;
+        const halfSize = Math.floor((safeMaxLength - singleEllipsisLen) / 2);
+        return cleanedText.substring(0, halfSize) + '...' + cleanedText.substring(cleanedText.length - halfSize);
+    }
 
     return `${start}...${middle}...${end}`;
 }
