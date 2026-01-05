@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import path from 'path';
 import Ajv from 'ajv';
-import { completionToMessage, LlmRetryError, LlmRetryResponseInfo } from 'llm-fns';
+import { completionToMessage, LlmRetryError, LlmRetryResponseInfo, SchemaValidationError } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StepConfig } from '../types.js';
 import { MessageBuilder } from '../core/MessageBuilder.js';
@@ -173,7 +173,7 @@ export class StandardStrategy implements GenerationStrategy {
         // 2. Run Plugin Preparation Phase
         const finalMessages = await this.runPreparationPhase(baseMessages, row, index, stepIndex);
 
-        // 3. Generation Loop (Delegated to llm-fns via promptRetry)
+        // 3. Generation Loop
         const requestOptions = cacheSalt ? {
             headers: { 'X-Cache-Salt': String(cacheSalt) }
         } : undefined;
@@ -183,88 +183,100 @@ export class StandardStrategy implements GenerationStrategy {
              additionalParams.image_config = { aspect_ratio: config.aspectRatio };
         }
 
-        // If JSON schema is present, enforce JSON object mode
-        const response_format = config.jsonSchema ? { type: 'json_object' } : undefined;
+        const rawClient = this.llm.getRawClient();
+        
+        let finalResult: any;
+        let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
+        let columnValue: string | null;
+        let finalExtension = 'txt';
+        let finalType = 'text';
+        let finalContentPayload: string | Buffer = '';
 
-        // Add schema instruction to system prompt if needed
         if (config.jsonSchema) {
-            const schemaJsonString = JSON.stringify(config.jsonSchema);
-            const commonPromptFooter = `
-Your response MUST be a single JSON entity (object or array) that strictly adheres to the following JSON schema.
-Do NOT include any other text, explanations, or markdown formatting (like \`\`\`json) before or after the JSON entity.
-
-JSON schema:
-${schemaJsonString}`;
-
-            const systemMessageIndex = finalMessages.findIndex(m => m.role === 'system');
-            if (systemMessageIndex !== -1) {
-                const existingContent = finalMessages[systemMessageIndex].content;
-                finalMessages[systemMessageIndex] = {
-                    ...finalMessages[systemMessageIndex],
-                    content: `${existingContent}\n${commonPromptFooter}`
-                };
-            } else {
-                finalMessages.unshift({
-                    role: 'system',
-                    content: commonPromptFooter
-                });
-            }
-        }
-
-        // Variables to capture the final state from the validation callback
-        let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
-        let finalContent: ExtractedContent | null = null;
-
-        const validateCallback = async (response: any, info: LlmRetryResponseInfo) => {
-            // 1. Normalize & Extract
-            finalHistoryMessage = completionToMessage(response);
-            finalContent = this.extractContent(finalHistoryMessage);
-            let data = finalContent.data;
-
-            // 2. JSON Handling (Implicit "Plugin")
-            if (config.jsonSchema) {
-                try {
-                    // Handle markdown code blocks if present
-                    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
-                    const match = codeBlockRegex.exec(data);
-                    if (match && match[1]) {
-                        data = match[1].trim();
-                    }
-                    
-                    data = JSON.parse(data);
-                } catch (e: any) {
-                    throw new LlmRetryError(`Invalid JSON: ${e.message}`, 'JSON_PARSE_ERROR', undefined, finalContent.data);
-                }
-                
+            // --- Branch A: JSON Schema ---
+            // Use promptJson which handles schema injection, response_format, and auto-fixing
+            
+            const validator = async (data: any) => {
+                // 1. Validate Schema
                 const valid = this.ajv.validate(config.jsonSchema, data);
                 if (!valid) {
                     const errors = this.ajv.errorsText();
-                    throw new LlmRetryError(`Schema Mismatch: ${errors}`, 'CUSTOM_ERROR', undefined, JSON.stringify(data, null, 2));
+                    // Throw SchemaValidationError to trigger promptJson's fixer
+                    throw new SchemaValidationError(`Schema Mismatch: ${errors}`);
                 }
+
+                // 2. Run Plugin Post-Processing Phase
+                // Construct synthetic history for plugins so they see the assistant's response
+                const syntheticHistory = [
+                    ...finalMessages, 
+                    { role: 'assistant', content: JSON.stringify(data) } as OpenAI.Chat.Completions.ChatCompletionMessageParam
+                ];
+                
+                return await this.runPostProcessingPhase(data, syntheticHistory, row, index, stepIndex);
+            };
+
+            finalResult = await rawClient.promptJson(finalMessages, config.jsonSchema, {
+                requestOptions,
+                maxRetries: 3 + (config.feedbackLoops || 0),
+                validator,
+                ...additionalParams
+            });
+
+            finalHistoryMessage = {
+                role: 'assistant',
+                content: JSON.stringify(finalResult, null, 2)
+            };
+            columnValue = JSON.stringify(finalResult, null, 2);
+            finalExtension = 'json';
+            finalType = 'json';
+            finalContentPayload = columnValue;
+
+        } else {
+            // --- Branch B: Standard / Retry ---
+            // Use promptRetry for text, image, audio, or unstructured output
+
+            // Variables to capture state from inside the callback
+            let capturedContent: ExtractedContent | null = null;
+            let capturedHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
+
+            const validateCallback = async (response: any, info: LlmRetryResponseInfo) => {
+                // 1. Normalize & Extract
+                capturedHistoryMessage = completionToMessage(response);
+                capturedContent = this.extractContent(capturedHistoryMessage);
+                let data = capturedContent.data;
+
+                // 2. Run Plugin Post-Processing Phase
+                return await this.runPostProcessingPhase(data, info.conversation, row, index, stepIndex);
+            };
+
+            finalResult = await rawClient.promptRetry({
+                messages: finalMessages,
+                requestOptions,
+                maxRetries: 3 + (config.feedbackLoops || 0),
+                validate: validateCallback,
+                ...additionalParams
+            });
+
+            if (!capturedContent || !capturedHistoryMessage) throw new Error("Generation failed.");
+
+            finalHistoryMessage = capturedHistoryMessage;
+            columnValue = capturedContent.data;
+            finalExtension = capturedContent.extension;
+            finalType = capturedContent.type;
+            
+            if (finalType === 'audio') {
+                finalContentPayload = Buffer.from(capturedContent.data, 'base64');
+            } else {
+                finalContentPayload = capturedContent.data;
             }
-
-            // 3. Run Plugin Post-Processing Phase
-            return await this.runPostProcessingPhase(data, info.conversation, row, index, stepIndex);
-        };
-
-        const rawClient = this.llm.getRawClient();
-        const finalResult = await rawClient.promptRetry({
-            messages: finalMessages,
-            requestOptions,
-            response_format: response_format as any,
-            maxRetries: 3 + (config.feedbackLoops || 0), // Combine standard retries with feedback loops
-            validate: validateCallback,
-            ...additionalParams
-        });
-
-        if (!finalContent || !finalHistoryMessage) throw new Error("Generation failed.");
+        }
 
         // Emit Artifact
         const effectiveBasename = config.outputBasename || 'output';
-        let filename = `${effectiveBasename}.${finalContent.extension}`;
+        let filename = `${effectiveBasename}.${finalExtension}`;
 
         if (variationIndex !== undefined) {
-            filename = `${effectiveBasename}_${variationIndex}.${finalContent.extension}`;
+            filename = `${effectiveBasename}_${variationIndex}.${finalExtension}`;
         }
 
         const targetDir = config.resolvedOutputDir || config.resolvedTempDir;
@@ -272,29 +284,15 @@ ${schemaJsonString}`;
             filename = path.join(targetDir, filename);
         }
 
-        let contentPayload: string | Buffer = finalContent.data;
-        if (finalContent.type === 'audio') {
-            contentPayload = Buffer.from(finalContent.data, 'base64');
-        }
-
         this.events.emit('plugin:artifact', {
             row: index,
             step: stepIndex,
             plugin: 'model',
-            type: finalContent.type,
+            type: finalType,
             filename: filename,
-            content: contentPayload,
+            content: finalContentPayload,
             tags: ['final']
         });
-
-        // If the result was parsed JSON, update the extracted content data to be the stringified version
-        // but keep the raw object available.
-        let columnValue = finalContent.data;
-        if (typeof finalResult === 'object' && finalResult !== null) {
-            columnValue = JSON.stringify(finalResult, null, 2);
-        } else if (typeof finalResult === 'string') {
-            columnValue = finalResult;
-        }
 
         return {
             historyMessage: finalHistoryMessage,
