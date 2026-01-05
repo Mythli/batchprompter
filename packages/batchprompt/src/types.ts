@@ -10,10 +10,10 @@ import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputCon
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
-import { StepExecutionContext, StepHandlers } from './plugins/types.js';
+import { StepExecutionContext } from './plugins/types.js';
 
 // Re-export types from plugins to ensure single source of truth
-export { StepExecutionContext, StepHandlers };
+export { StepExecutionContext };
 
 // --- Definitions ---
 
@@ -112,9 +112,6 @@ export interface StepConfig {
     outputExtension?: string;
     options?: Record<string, any>;
     timeout: number;
-
-    // New: Handlers for logic injection
-    handlers?: StepHandlers;
 }
 
 export interface RuntimeConfig {

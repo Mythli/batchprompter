@@ -7,7 +7,6 @@ import {
     OutputConfigSchema,
     PromptDefSchema,
 } from './schema.js';
-import { StepHandlers } from '../plugins/types.js';
 
 // =============================================================================
 // Inferred Types from Zod Schemas (Raw Config)
@@ -69,9 +68,6 @@ export interface ResolvedStepConfig {
     outputBasename?: string;
     outputExtension?: string;
     timeout: number;
-    
-    // Handlers for logic injection
-    handlers?: StepHandlers;
     
     // Legacy/Compat fields
     skipCandidateCommand?: boolean;

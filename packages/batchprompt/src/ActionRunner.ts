@@ -1,10 +1,11 @@
 import path from 'path';
 import { RuntimeConfig, StepConfig, PipelineItem, GlobalContext, OutputStrategy, StepContext, StepExecutionContext } from './types.js';
 import { StepExecutor } from './StepExecutor.js';
-import { PluginRegistryV2, PluginPacket, PluginServices } from './plugins/types.js';
+import { PluginRegistryV2, PluginPacket, PluginServices, Plugin } from './plugins/types.js';
 import { ResultProcessor } from './core/ResultProcessor.js';
 import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
+import { ResolvedPluginBase } from './config/types.js';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -156,7 +157,7 @@ export class ActionRunner {
                 };
 
                 // Resolve Plugins for this row
-                const resolvedPlugins = [];
+                const resolvedPlugins: { instance: Plugin; config: any; def: ResolvedPluginBase }[] = [];
                 for (const pluginDef of resolvedStep.plugins) {
                     const plugin = this.pluginRegistry.get(pluginDef.name);
                     if (plugin) {
@@ -166,21 +167,19 @@ export class ActionRunner {
                             inheritedModel,
                             this.globalContext.contentResolver
                         );
-                        resolvedPlugins.push({ instance: plugin, config: resolvedConfig, def: pluginDef });
+                        
+                        // Construct ResolvedPluginBase compatible object
+                        const resolvedDef: ResolvedPluginBase = {
+                            type: pluginDef.name,
+                            id: (pluginDef.config as any).id || `${pluginDef.name}-${Date.now()}`,
+                            output: pluginDef.output,
+                            rawConfig: pluginDef.config
+                        };
+
+                        resolvedPlugins.push({ instance: plugin, config: resolvedConfig, def: resolvedDef });
                     }
                 }
 
-                // Pass resolved plugins to StepExecutor
-                // We need to update StepExecutor to accept plugins
-                // But StepExecutor is instantiated once.
-                // We should pass plugins to executeModel method.
-                
-                // Wait, StepExecutor.executeModel signature needs update or we pass a new strategy factory?
-                // StepExecutor creates StandardStrategy.
-                // We need to pass the plugins to StandardStrategy.
-                
-                // Let's update StepExecutor.executeModel to accept plugins.
-                
                 const result = await executor.executeModel(
                     stepContext,
                     modelViewContext,
@@ -224,27 +223,6 @@ export class ActionRunner {
                 if (!update) return;
 
                 const newHistory = [...newItem.history];
-                // Note: userPromptParts are now handled inside StandardStrategy via prepareMessages
-                // But we still need to update history for the NEXT step.
-                // StandardStrategy returns the final history message.
-                // What about the user message constructed inside StandardStrategy?
-                // StandardStrategy constructs messages but doesn't return the full conversation.
-                // It returns `historyMessage` (assistant response).
-                
-                // If plugins modified the user message (prepareMessages), that context is lost for the next step
-                // unless we capture it.
-                // StandardStrategy should probably return the *final* messages used?
-                // Or at least the user message it constructed.
-                
-                // For now, we stick to the existing logic:
-                // We push the *configured* user prompt parts + assistant response.
-                // If plugins added stuff, it's implicitly in the history if we had a way to get it back.
-                // But we don't.
-                // This is a limitation of the current history tracking.
-                // Ideally, StandardStrategy returns `finalMessages` used.
-                
-                // Let's assume for now we just push the assistant response.
-                // The user prompt parts from config are pushed if they exist.
                 
                 const hasUserPrompt = update.userPromptParts.length > 0 && update.userPromptParts.some((p: any) => {
                     if (p.type === 'text') return p.text.trim().length > 0;
