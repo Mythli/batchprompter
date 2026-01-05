@@ -11,11 +11,15 @@ import path from 'path';
 describe('E2E Image Generation', () => {
     it('should generate an image and save it with a Handlebars filename', async () => {
         // 1. Setup Mocks
+        // A valid 1x1 red pixel PNG base64
+        const validBase64Image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        const mockImageUrl = `data:image/png;base64,${validBase64Image}`;
+
         // Mock an image response from OpenAI
         const mockImageResponse = {
             content: null,
             images: [{
-                image_url: { url: "https://example.com/generated-image.png" }
+                image_url: { url: mockImageUrl }
             }]
         };
         
@@ -87,6 +91,6 @@ describe('E2E Image Generation', () => {
         expect(artifact.path).toContain(path.join('out', 'logos', 'AcmeCorp_logo.png'));
         
         // Check content (mocked URL)
-        expect(artifact.content).toBe("https://example.com/generated-image.png");
+        expect(artifact.content).toBe(mockImageUrl);
     });
 });
