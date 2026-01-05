@@ -10,6 +10,10 @@ import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities } from './
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
+import { StepExecutionContext, StepHandlers } from './plugins/types.js';
+
+// Re-export types from plugins to ensure single source of truth
+export { StepExecutionContext, StepHandlers };
 
 // --- Definitions ---
 
@@ -80,25 +84,6 @@ export interface NormalizedConfig {
 }
 
 // --- Resolved Configuration ---
-
-export interface StepExecutionContext {
-    row: Record<string, any>;
-    workspace: Record<string, any>;
-    stepIndex: number;
-    rowIndex: number;
-    history: any[];
-}
-
-export interface StepHandlers {
-    /** Runs before step execution. Can modify context. */
-    prepare?: (context: StepExecutionContext) => Promise<void>;
-
-    /** Runs to verify content. Returns validity and feedback. */
-    verify?: (content: any, context: StepExecutionContext) => Promise<{ isValid: boolean; feedback?: string }>;
-
-    /** Runs after step execution. Can save artifacts, modify result, etc. */
-    process?: (context: StepExecutionContext, result: any) => Promise<void>;
-}
 
 export interface StepConfig {
     modelConfig: ResolvedModelConfig;

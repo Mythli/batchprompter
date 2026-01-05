@@ -47,6 +47,7 @@ export interface ResolvedPluginBase {
     type: string;
     id: string;
     output: ResolvedOutputConfig;
+    rawConfig?: any;
 }
 
 export interface ServiceCapabilities {

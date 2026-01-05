@@ -7,6 +7,8 @@ import { MemoryArtifactHandler } from '../handlers/MemoryArtifactHandler.js';
 import { ConfigExecutor } from './ConfigRefiner.js';
 import { ConfigResolver } from '../config/ConfigResolver.js';
 import { PromptLoader } from '../config/PromptLoader.js';
+import { RuntimeConfig, StepConfig } from '../types.js';
+import { ResolvedModelConfig } from '../config/types.js';
 
 export class InMemoryConfigExecutor implements ConfigExecutor {
     constructor(
@@ -43,12 +45,66 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
         });
 
         // Parse and validate the config
-        const runtimeConfig = await resolver.resolve(config);
+        const resolvedConfig = await resolver.resolve(config);
 
         // Inject initialRows if provided
         if (initialRows && initialRows.length > 0) {
-            runtimeConfig.data = initialRows;
+            resolvedConfig.data.rows = initialRows;
         }
+        
+        // Convert ResolvedPipelineConfig to RuntimeConfig
+        const runtimeConfig: RuntimeConfig = {
+            concurrency: resolvedConfig.globals.concurrency,
+            taskConcurrency: resolvedConfig.globals.taskConcurrency,
+            tmpDir: resolvedConfig.globals.tmpDir,
+            dataOutputPath: resolvedConfig.globals.dataOutputPath,
+            data: resolvedConfig.data.rows,
+            offset: resolvedConfig.data.offset,
+            limit: resolvedConfig.data.limit,
+            steps: resolvedConfig.steps.map((step, index) => {
+                const modelConfig: ResolvedModelConfig = {
+                    model: step.model,
+                    temperature: step.temperature,
+                    thinkingLevel: step.thinkingLevel,
+                    systemParts: step.system.parts,
+                    promptParts: step.prompt.parts
+                };
+
+                const plugins = step.plugins.map(p => ({
+                    name: p.type,
+                    config: p.rawConfig || {}, 
+                    output: p.output
+                }));
+
+                const stepConfig: StepConfig = {
+                    modelConfig,
+                    tmpDir: step.tmpDir,
+                    userPromptParts: step.prompt.parts,
+                    outputPath: step.outputTemplate,
+                    outputTemplate: step.outputTemplate,
+                    output: step.output,
+                    schemaPath: undefined,
+                    jsonSchema: step.schema,
+                    candidates: step.candidates,
+                    judge: step.judge,
+                    feedback: step.feedback,
+                    feedbackLoops: step.feedback?.loops || 0,
+                    aspectRatio: step.aspectRatio,
+                    plugins,
+                    preprocessors: [], // No preprocessors in resolved config yet
+                    timeout: step.timeout,
+                    handlers: step.handlers,
+                    noCandidateCommand: false,
+                    verifyCommand: step.verifyCommand,
+                    postProcessCommand: step.command,
+                    resolvedOutputDir: step.outputDir,
+                    resolvedTempDir: step.tmpDir, // Use tmpDir as resolvedTempDir if not set
+                    outputBasename: step.outputBasename,
+                    outputExtension: step.outputExtension
+                };
+                return stepConfig;
+            })
+        };
         
         // Capture artifacts in memory (so we don't write to disk during test runs)
         const memoryHandler = new MemoryArtifactHandler(this.events);
