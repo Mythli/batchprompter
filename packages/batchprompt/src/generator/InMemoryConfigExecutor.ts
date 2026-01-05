@@ -1,4 +1,5 @@
 import { EventEmitter } from 'eventemitter3';
+import Handlebars from 'handlebars';
 import { ActionRunner } from '../ActionRunner.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
@@ -22,17 +23,25 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
         // Create dependencies for ConfigResolver
         const promptLoader = new PromptLoader(this.contentResolver);
         
-        // Simple schema loader for memory context
+        // Schema loader for memory context with Handlebars support
         const schemaLoader = {
-            load: async (source: string) => {
+            load: async (source: string, context?: Record<string, any>) => {
+                let content: string;
                 try {
                     // Try to read from content resolver (if it's a path)
-                    const content = await this.contentResolver.readText(source);
-                    return JSON.parse(content);
+                    content = await this.contentResolver.readText(source);
                 } catch {
                     // If read fails, assume it's raw JSON
-                    return JSON.parse(source);
+                    content = source;
                 }
+
+                // Apply Handlebars if context is provided
+                if (context && content.includes('{{')) {
+                    const template = Handlebars.compile(content, { noEscape: true });
+                    content = template(context);
+                }
+
+                return JSON.parse(content);
             }
         };
 
@@ -83,8 +92,9 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
                     outputPath: step.outputTemplate,
                     outputTemplate: step.outputTemplate,
                     output: step.output,
-                    schemaPath: undefined,
-                    jsonSchema: step.schema,
+                    // Map schema correctly: string -> schemaPath, object -> jsonSchema
+                    schemaPath: typeof step.schema === 'string' ? step.schema : undefined,
+                    jsonSchema: typeof step.schema === 'object' ? step.schema : undefined,
                     candidates: step.candidates,
                     judge: step.judge,
                     feedback: step.feedback,
