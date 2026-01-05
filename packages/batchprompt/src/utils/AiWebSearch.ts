@@ -4,6 +4,7 @@ import { EventEmitter } from 'eventemitter3';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { WebSearch, WebSearchResult, WebSearchMode } from '../plugins/web-search/WebSearch.js';
 import { LlmListSelector } from './LlmListSelector.js';
+import { truncateSingleMessage } from 'llm-fns';
 
 export class AiWebSearch {
     public readonly events = new EventEmitter();
@@ -188,11 +189,17 @@ export class AiWebSearch {
             }
 
             if (this.compressLlm) {
-                const truncatedContent = content.substring(0, 15000);
-                const contentToCompress: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-                    { type: 'text', text: `Title: ${result.title}\nLink: ${result.link}\n\nContent:\n${truncatedContent}` }
-                ];
-                const summary = await this.compressLlm.promptText({ suffix: contentToCompress });
+                const message: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+                    role: 'user',
+                    content: `Title: ${result.title}\nLink: ${result.link}\n\nContent:\n${content}`
+                };
+                const truncatedMessage = truncateSingleMessage(message, 15000);
+                const truncatedContent = truncatedMessage.content;
+                const contentToCompress = Array.isArray(truncatedContent)
+                    ? truncatedContent
+                    : [{ type: 'text', text: truncatedContent || '' }];
+
+                const summary = await this.compressLlm.promptText({ suffix: contentToCompress as any });
                 content = summary;
             }
 

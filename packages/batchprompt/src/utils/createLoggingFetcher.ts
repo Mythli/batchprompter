@@ -1,17 +1,4 @@
-export function summarize(text: string, limit: number = 150): string {
-    if (!text) return '';
-    // Remove newlines for cleaner logs
-    const clean = text.replace(/\s+/g, ' ').trim();
-
-    if (clean.length <= limit * 3) return clean;
-
-    const start = clean.substring(0, limit);
-    const end = clean.substring(clean.length - limit);
-    const midStart = Math.floor(clean.length / 2) - Math.floor(limit / 2);
-    const middle = clean.substring(midStart, midStart + limit);
-
-    return `${start}...${middle}...${end}`;
-}
+import { getPromptSummary } from 'llm-fns';
 
 function isAiRequest(url: string | URL | Request, init?: RequestInit): boolean {
     const urlString = typeof url === 'string' ? url : url.toString();
@@ -68,17 +55,7 @@ async function handleAiRequest(
             }
 
             if (body.messages && Array.isArray(body.messages)) {
-                const lastMessage = body.messages[body.messages.length - 1];
-                if (lastMessage?.content) {
-                    let content = lastMessage.content;
-                    if (Array.isArray(content)) {
-                        content = content
-                            .filter((p: any) => p.type === 'text')
-                            .map((p: any) => p.text)
-                            .join(' ');
-                    }
-                    console.log(`[LLM] [${requestModel}] Executing: ${summarize(String(content))}`);
-                }
+                console.log(`[LLM] [${requestModel}] Executing: ${getPromptSummary(body.messages)}`);
             }
         }
     } catch {
@@ -97,7 +74,7 @@ async function handleAiRequest(
             const responseModel = data.model || requestModel;
 
             if (data.choices && data.choices[0]?.message?.content) {
-                console.log(`[LLM] [${responseModel}] DONE ${response.status}: ${summarize(data.choices[0].message.content)}`);
+                console.log(`[LLM] [${responseModel}] DONE ${response.status}: ${getPromptSummary([{ role: 'assistant', content: data.choices[0].message.content }])}`);
             } else if (data.error) {
                 console.error(`[LLM] [${responseModel}] ERROR ${response.status}:`, data.error);
             } else {
@@ -130,9 +107,7 @@ async function handleGeneralFetch(
     }
 
     // Truncate URL for display
-    const displayUrl = urlString.length > 80
-        ? urlString.substring(0, 77) + '...'
-        : urlString;
+    const displayUrl = getPromptSummary([{ role: 'user', content: urlString }]);
 
     console.log(`[${requestType}] ${method} ${displayUrl}`);
 

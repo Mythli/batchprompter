@@ -6,6 +6,7 @@ import { ResultProcessor } from './core/ResultProcessor.js';
 import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
 import { ResolvedPluginBase } from './config/types.js';
+import { countChars } from 'llm-fns';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -224,10 +225,7 @@ export class ActionRunner {
 
                 const newHistory = [...newItem.history];
                 
-                const hasUserPrompt = update.userPromptParts.length > 0 && update.userPromptParts.some((p: any) => {
-                    if (p.type === 'text') return p.text.trim().length > 0;
-                    return true;
-                });
+                const hasUserPrompt = countChars({ role: 'user', content: update.userPromptParts }) > 0;
 
                 const assistantContent = update.historyMessage.content;
                 const hasAssistantResponse =

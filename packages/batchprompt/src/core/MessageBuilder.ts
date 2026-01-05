@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import { ResolvedModelConfig } from '../config/types.js';
+import { concatMessageText } from 'llm-fns';
 
 export class MessageBuilder {
     /**
@@ -16,7 +17,7 @@ export class MessageBuilder {
         // 1. System Message
         if (config.systemParts && config.systemParts.length > 0) {
             const renderedSystem = this.renderParts(config.systemParts, row);
-            const content = this.flattenContent(renderedSystem);
+            const content = concatMessageText([{ role: 'system', content: renderedSystem }]);
             messages.push({ role: 'system', content: content as any });
         }
 
@@ -69,15 +70,5 @@ export class MessageBuilder {
             }
             return part;
         });
-    }
-
-    private flattenContent(
-        parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
-    ): string | OpenAI.Chat.Completions.ChatCompletionContentPart[] {
-        const allText = parts.every(p => p.type === 'text');
-        if (allText) {
-            return parts.map(p => (p as any).text).join('\n\n');
-        }
-        return parts;
     }
 }

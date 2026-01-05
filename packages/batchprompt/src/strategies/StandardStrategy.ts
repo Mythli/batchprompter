@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import path from 'path';
 import Ajv from 'ajv';
-import { completionToMessage, LlmRetryError, LlmRetryResponseInfo, SchemaValidationError } from 'llm-fns';
+import { completionToMessage, LlmRetryError, LlmRetryResponseInfo, SchemaValidationError, concatMessageText } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StepConfig } from '../types.js';
 import { MessageBuilder } from '../core/MessageBuilder.js';
@@ -52,10 +52,7 @@ export class StandardStrategy implements GenerationStrategy {
             }
 
             // Fallback to text parts
-            const text = content
-                .filter(p => p.type === 'text')
-                .map(p => p.text)
-                .join('\n');
+            const text = concatMessageText([message]);
             
             return { type: 'text', data: text, extension: 'md' };
         }

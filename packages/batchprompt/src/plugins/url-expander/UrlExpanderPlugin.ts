@@ -6,6 +6,7 @@ import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
+import { concatMessageText } from 'llm-fns';
 
 // =============================================================================
 // Config Schema
@@ -189,11 +190,8 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                 newMessages.push({ ...message, content: newContent[0].text } as any);
             } else {
                 if (message.role === 'system') {
-                    // Flatten for system message - only keep text parts
-                    const text = newContent
-                        .filter((p): p is OpenAI.Chat.Completions.ChatCompletionContentPartText => p.type === 'text')
-                        .map(p => p.text)
-                        .join('\n');
+                    // Flatten for system message
+                    const text = concatMessageText([{ role: 'system', content: newContent }]);
                     newMessages.push({ ...message, content: text } as any);
                 } else {
                     newMessages.push({ ...message, content: newContent } as any);

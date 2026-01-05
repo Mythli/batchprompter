@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import PQueue from 'p-queue';
-import TurndownService from 'turndown';
+import TurndownService from 'turn-down';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { PuppeteerHelper } from './puppeteer/PuppeteerHelper.js';
 import { LinkData } from './puppeteer/PuppeteerPageHelper.js';
 import { compressHtml } from './compressHtml.js';
+import { truncateSingleMessage } from 'llm-fns';
 
 export interface AiWebsiteAgentOptions {
     budget: number;
@@ -74,13 +75,17 @@ export class AiWebsiteAgent {
         schema: any,
         row: Record<string, any>
     ): Promise<any> {
-        const truncatedMarkdown = markdown.substring(0, 20000);
+        const message: OpenAI.Chat.Completions.ChatCompletionMessageParam = {
+            role: 'user',
+            content: `URL: ${url}\n\nWebsite content (markdown):\n${markdown}`
+        };
+        const truncatedMessage = truncateSingleMessage(message, 20000);
+        const content = truncatedMessage.content;
+        const contentParts = Array.isArray(content) 
+            ? content 
+            : [{ type: 'text', text: content || '' }];
 
-        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-            { type: 'text', text: `URL: ${url}\n\nWebsite content (markdown):\n${truncatedMarkdown}` }
-        ];
-
-        const data = await this.extractLlm.promptJson({ suffix: contentParts }, schema);
+        const data = await this.extractLlm.promptJson({ suffix: contentParts as any }, schema);
 
         this.events.emit('data:extracted', { url, data });
 

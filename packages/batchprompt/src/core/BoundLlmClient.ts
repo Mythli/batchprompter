@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { LlmClient } from 'llm-fns';
+import { LlmClient, concatMessageText } from 'llm-fns';
 import { z } from 'zod';
 
 export interface PromptOptions {
@@ -34,7 +34,7 @@ export class BoundLlmClient {
 
         // 1. System message
         if (this.systemParts.length > 0) {
-            const content = this.flattenContent(this.systemParts);
+            const content = concatMessageText([{ role: 'system', content: this.systemParts }]);
             messages.push({ role: 'system', content: content as any });
         }
 
@@ -64,16 +64,6 @@ export class BoundLlmClient {
         }
 
         return messages;
-    }
-
-    private flattenContent(
-        parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
-    ): string | OpenAI.Chat.Completions.ChatCompletionContentPart[] {
-        const allText = parts.every(p => p.type === 'text');
-        if (allText) {
-            return parts.map(p => (p as any).text).join('\n\n');
-        }
-        return parts;
     }
 
     /**
