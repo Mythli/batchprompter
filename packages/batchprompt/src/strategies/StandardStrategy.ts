@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import path from 'path';
-import { completionToMessage } from 'llm-fns';
+import Ajv from 'ajv';
+import { completionToMessage, LlmRetryError, LlmRetryResponseInfo } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StepConfig } from '../types.js';
 import { MessageBuilder } from '../core/MessageBuilder.js';
@@ -18,6 +19,8 @@ type ExtractedContent = {
 };
 
 export class StandardStrategy implements GenerationStrategy {
+    private ajv: any;
+
     constructor(
         private llm: BoundLlmClient,
         private messageBuilder: MessageBuilder,
@@ -25,7 +28,10 @@ export class StandardStrategy implements GenerationStrategy {
         private plugins: { instance: Plugin; config: any; def: ResolvedPluginBase }[],
         private pluginServices: PluginServices,
         private tempDir: string
-    ) {}
+    ) {
+        // @ts-ignore
+        this.ajv = new Ajv.default ? new Ajv.default({ strict: false }) : new Ajv({ strict: false });
+    }
 
     private extractContent(message: OpenAI.Chat.Completions.ChatCompletionMessageParam): ExtractedContent {
         const content = message.content;
@@ -83,11 +89,10 @@ export class StandardStrategy implements GenerationStrategy {
         baseMessages.push(...userMsgs);
 
         // 2. Run Plugin Preparation Phase (prepareMessages)
-        // This handles data gathering, prompt enrichment, and potential explosion
         let messageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [baseMessages];
 
         for (let i = 0; i < this.plugins.length; i++) {
-            const { instance, config: pluginConfig, def } = this.plugins[i];
+            const { instance, config: pluginConfig } = this.plugins[i];
             if (instance.prepareMessages) {
                 const context: PluginExecutionContext = {
                     row,
@@ -126,54 +131,128 @@ export class StandardStrategy implements GenerationStrategy {
             }
         }
 
-        // If we have multiple message sets (explosion), we need to handle that.
-        // Currently GenerationResult only supports a single result.
-        // For now, we'll take the first one if multiple, or throw if not supported.
-        // Ideally, StandardStrategy should return an array, but that requires larger refactor.
-        // Given the constraints, we'll process the first set and warn if others exist.
-        // Or we loop and return the last one?
-        // Let's assume for now no explosion in prepareMessages for StandardStrategy context.
-        
         if (messageSets.length > 1) {
             this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Plugin returned multiple message sets (explode), but StandardStrategy only supports one. Using the first set.` });
         }
         
         const finalMessages = messageSets[0];
 
-        // 3. Generation Loop (with Retry & Post-Processing)
-        const totalIterations = 1 + (config.feedbackLoops || 0);
-        let finalContent: ExtractedContent | null = null;
-        let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
-        let finalRaw: any = undefined;
+        // 3. Generation Loop (Delegated to llm-fns via promptRetry)
+        const requestOptions = cacheSalt ? {
+            headers: { 'X-Cache-Salt': String(cacheSalt) }
+        } : undefined;
 
-        const currentHistory = [...finalMessages]; // This now includes system, history, user, and plugin additions
+        const additionalParams: Record<string, any> = {};
+        if (config.aspectRatio) {
+             additionalParams.image_config = { aspect_ratio: config.aspectRatio };
+        }
 
-        for (let loop = 0; loop < totalIterations; loop++) {
-            const isFeedbackLoop = loop > 0;
+        // If JSON schema is present, enforce JSON object mode
+        const response_format = config.jsonSchema ? { type: 'json_object' } : undefined;
 
-            if (isFeedbackLoop) {
-                this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `🔄 Feedback Loop ${loop}/${config.feedbackLoops}` });
-            }
+        // Add schema instruction to system prompt if needed
+        if (config.jsonSchema) {
+            const schemaJsonString = JSON.stringify(config.jsonSchema);
+            const commonPromptFooter = `
+Your response MUST be a single JSON entity (object or array) that strictly adheres to the following JSON schema.
+Do NOT include any other text, explanations, or markdown formatting (like \`\`\`json) before or after the JSON entity.
 
-            const result = await this.generateWithRetry(
-                currentHistory,
-                config,
-                row,
-                index,
-                stepIndex,
-                cacheSalt
-            );
+JSON schema:
+${schemaJsonString}`;
 
-            finalContent = result.extracted;
-            finalHistoryMessage = result.historyMessage;
-            finalRaw = result.extracted.raw;
-
-            // If feedback loops are active, we need to update history for the next iteration
-            if (isFeedbackLoop || totalIterations > 1) {
-                currentHistory.push(finalHistoryMessage);
-                // TODO: Add feedback prompt from judge/feedback model here if we want true feedback loop
+            const systemMessageIndex = finalMessages.findIndex(m => m.role === 'system');
+            if (systemMessageIndex !== -1) {
+                const existingContent = finalMessages[systemMessageIndex].content;
+                finalMessages[systemMessageIndex] = {
+                    ...finalMessages[systemMessageIndex],
+                    content: `${existingContent}\n${commonPromptFooter}`
+                };
+            } else {
+                finalMessages.unshift({
+                    role: 'system',
+                    content: commonPromptFooter
+                });
             }
         }
+
+        // Variables to capture the final state from the validation callback
+        let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
+        let finalContent: ExtractedContent | null = null;
+
+        const validateCallback = async (response: any, info: LlmRetryResponseInfo) => {
+            // 1. Normalize & Extract
+            finalHistoryMessage = completionToMessage(response);
+            finalContent = this.extractContent(finalHistoryMessage);
+            let data = finalContent.data;
+
+            // 2. JSON Handling (Implicit "Plugin")
+            if (config.jsonSchema) {
+                try {
+                    // Handle markdown code blocks if present
+                    const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/;
+                    const match = codeBlockRegex.exec(data);
+                    if (match && match[1]) {
+                        data = match[1].trim();
+                    }
+                    
+                    data = JSON.parse(data);
+                } catch (e: any) {
+                    throw new LlmRetryError(`Invalid JSON: ${e.message}`, 'JSON_PARSE_ERROR', undefined, finalContent.data);
+                }
+                
+                const valid = this.ajv.validate(config.jsonSchema, data);
+                if (!valid) {
+                    const errors = this.ajv.errorsText();
+                    throw new LlmRetryError(`Schema Mismatch: ${errors}`, 'CUSTOM_ERROR', undefined, JSON.stringify(data, null, 2));
+                }
+            }
+
+            // 3. Plugin Chain
+            for (let i = 0; i < this.plugins.length; i++) {
+                const { instance, config: pluginConfig } = this.plugins[i];
+                if (instance.postProcessMessages) {
+                    const context: PluginExecutionContext = {
+                        row,
+                        stepIndex,
+                        pluginIndex: i,
+                        services: this.pluginServices,
+                        tempDirectory: this.tempDir,
+                        emit: (event, ...args) => {
+                            if (event === 'plugin:artifact') {
+                                const payload = args[0];
+                                if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
+                                    payload.filename = path.join(this.tempDir, payload.filename);
+                                }
+                                this.events.emit('plugin:artifact', payload);
+                            } else if (event === 'step:progress') {
+                                const payload = args[0];
+                                this.events.emit('step:progress', { row: index, step: stepIndex, ...payload });
+                            } else {
+                                (this.events.emit as any)(event, ...args);
+                            }
+                        }
+                    };
+
+                    try {
+                        data = await instance.postProcessMessages(data, info.conversation, pluginConfig, context);
+                    } catch (e: any) {
+                        throw new LlmRetryError(e.message, 'CUSTOM_ERROR', undefined, typeof data === 'string' ? data : JSON.stringify(data));
+                    }
+                }
+            }
+
+            return data;
+        };
+
+        const rawClient = this.llm.getRawClient();
+        const finalResult = await rawClient.promptRetry({
+            messages: finalMessages,
+            requestOptions,
+            response_format: response_format as any,
+            maxRetries: 3 + (config.feedbackLoops || 0), // Combine standard retries with feedback loops
+            validate: validateCallback,
+            ...additionalParams
+        });
 
         if (!finalContent || !finalHistoryMessage) throw new Error("Generation failed.");
 
@@ -205,132 +284,19 @@ export class StandardStrategy implements GenerationStrategy {
             tags: ['final']
         });
 
+        // If the result was parsed JSON, update the extracted content data to be the stringified version
+        // but keep the raw object available.
+        let columnValue = finalContent.data;
+        if (typeof finalResult === 'object' && finalResult !== null) {
+            columnValue = JSON.stringify(finalResult, null, 2);
+        } else if (typeof finalResult === 'string') {
+            columnValue = finalResult;
+        }
+
         return {
             historyMessage: finalHistoryMessage,
-            columnValue: finalContent.data,
-            raw: finalRaw
+            columnValue: columnValue,
+            raw: finalResult
         };
-    }
-
-    private async generateWithRetry(
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        config: StepConfig,
-        row: Record<string, any>,
-        index: number,
-        stepIndex: number,
-        cacheSalt?: string | number
-    ): Promise<{ extracted: ExtractedContent, historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam }> {
-        const maxRetries = 3;
-        let currentMessages = [...messages];
-        let lastError: any;
-
-        const requestOptions = cacheSalt ? {
-            headers: { 'X-Cache-Salt': String(cacheSalt) }
-        } : undefined;
-
-        const additionalParams: Record<string, any> = {};
-        if (config.aspectRatio) {
-             additionalParams.image_config = { aspect_ratio: config.aspectRatio };
-        }
-
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-            try {
-                let extracted: ExtractedContent;
-                let historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
-                let rawResponse: any;
-
-                // A. Call LLM
-                if (config.jsonSchema) {
-                    const rawClient = this.llm.getRawClient();
-                    // Note: promptJson handles its own retries for JSON syntax, but we wrap it here
-                    // to handle plugin-level validation failures (postProcessMessages).
-                    const jsonResult = await rawClient.promptJson(
-                        currentMessages,
-                        config.jsonSchema,
-                        requestOptions ? { requestOptions, ...additionalParams } : (Object.keys(additionalParams).length > 0 ? additionalParams : undefined)
-                    );
-
-                    extracted = {
-                        type: 'text',
-                        data: JSON.stringify(jsonResult, null, 2),
-                        extension: 'json',
-                        raw: jsonResult
-                    };
-                    
-                    historyMessage = { role: 'assistant', content: extracted.data };
-                    rawResponse = jsonResult;
-
-                } else {
-                    const response = await this.llm.prompt({
-                        messages: currentMessages,
-                        requestOptions,
-                        ...additionalParams
-                    });
-
-                    historyMessage = completionToMessage(response);
-                    extracted = this.extractContent(historyMessage);
-                    rawResponse = extracted.data; // Or full response? Plugins might expect different things.
-                }
-
-                // B. Run Plugin Post-Processing (Validation/Extraction)
-                let currentResult = rawResponse;
-
-                for (let i = 0; i < this.plugins.length; i++) {
-                    const { instance, config: pluginConfig } = this.plugins[i];
-                    if (instance.postProcessMessages) {
-                        const context: PluginExecutionContext = {
-                            row,
-                            stepIndex,
-                            pluginIndex: i,
-                            services: this.pluginServices,
-                            tempDirectory: this.tempDir,
-                            emit: (event, ...args) => {
-                                if (event === 'plugin:artifact') {
-                                    const payload = args[0];
-                                    if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
-                                        payload.filename = path.join(this.tempDir, payload.filename);
-                                    }
-                                    this.events.emit('plugin:artifact', payload);
-                                } else if (event === 'step:progress') {
-                                    const payload = args[0];
-                                    this.events.emit('step:progress', { row: index, step: stepIndex, ...payload });
-                                } else {
-                                    (this.events.emit as any)(event, ...args);
-                                }
-                            }
-                        };
-
-                        // Pass the result through the chain
-                        currentResult = await instance.postProcessMessages(currentResult, currentMessages, pluginConfig, context);
-                    }
-                }
-
-                // If we got here, everything passed!
-                // Update extracted.raw with the final processed result if it changed
-                if (currentResult !== rawResponse) {
-                    extracted.raw = currentResult;
-                    if (typeof currentResult === 'string') {
-                        extracted.data = currentResult;
-                    } else {
-                        extracted.data = JSON.stringify(currentResult, null, 2);
-                    }
-                }
-
-                return { extracted, historyMessage };
-
-            } catch (error: any) {
-                lastError = error;
-                this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Attempt ${attempt+1}/${maxRetries+1} failed: ${error.message}` });
-
-                if (attempt < maxRetries) {
-                    // Add error to history to guide the model in the next attempt
-                    currentMessages.push({
-                        role: 'user',
-                        content: `The previous response was invalid:\n${error.message}\n\nPlease fix the issue and try again.`
-                    });
-                }
-            }
-        }
-        throw new Error(`Generation failed after ${maxRetries + 1} attempts. Last error: ${lastError?.message}`);
     }
 }
