@@ -1,5 +1,5 @@
 import { Command, Option } from 'commander';
-import { ModelConfig, CLIOptionDefinition } from 'batchprompt';
+import { ModelConfig } from 'batchprompt';
 
 export interface ModelFlagOptions {
     includePrompt?: boolean; // Registers --{ns}-prompt
@@ -17,7 +17,7 @@ export class ModelFlags {
     /**
      * Returns CLI option definitions for a model configuration.
      * Plugins can spread this into their cliOptions array.
-     * 
+     *
      * @param namespace Prefix for flags (e.g., "image-query" produces --image-query-model)
      * @param options Configuration for which flags to include
      */
@@ -45,7 +45,7 @@ export class ModelFlags {
     /**
      * Registers model-related flags for a specific namespace.
      * Static because it's used during CLI setup before config is loaded.
-     * 
+     *
      * @param program The Commander instance
      * @param namespace Prefix for flags (e.g., "judge", "feedback", "judge-1"). Empty string for main.
      * @param options Configuration for which flags to include
@@ -78,20 +78,20 @@ export class ModelFlags {
     /**
      * Extracts model configuration from the parsed options object.
      * Uses the instance's defaultModel if no specific model is found.
-     * 
+     *
      * Fallback order for inheritable settings (model, temperature, thinking-level):
      * 1. Specific namespace (e.g., `--website-navigator-1-thinking-level`)
      * 2. Fallback namespace (e.g., `--website-navigator-thinking-level`)
      * 3. Global namespace (e.g., `--thinking-level`)
-     * 
+     *
      * Non-inheritable settings (prompt, system) only check specific and fallback namespaces.
      */
     extract(
-        options: Record<string, any>, 
-        namespace: string, 
+        options: Record<string, any>,
+        namespace: string,
         fallbackNamespace?: string
     ): Partial<ModelConfig> {
-        
+
         const toCamel = (s: string) => {
             return s.replace(/-([a-z0-9])/g, (g) => g[1].toUpperCase());
         };
@@ -154,7 +154,7 @@ export class ModelFlags {
     /**
      * Helper to extract model config from options using the plugin's step-suffix pattern.
      * This handles the pattern where step index goes at the END: --image-query-model-1
-     * 
+     *
      * @param options Parsed CLI options
      * @param prefix The camelCase prefix (e.g., 'imageQuery')
      * @param stepIndex The step index
