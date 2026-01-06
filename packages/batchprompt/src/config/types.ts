@@ -1,30 +1,12 @@
 import { z } from 'zod';
 import OpenAI from 'openai';
-import {
-    PipelineConfigSchema,
-    GlobalsConfigSchema,
-    StepConfigSchema,
-    OutputConfigSchema,
-    PromptDefSchema,
-} from './schema.js';
+import { ModelConfig } from './schemas/model.js';
+import { OutputConfigSchema } from './common.js';
 
-// =============================================================================
-// Inferred Types from Zod Schemas (Raw Config)
-// =============================================================================
+// Re-export
+export { ModelConfig };
 
-export type PromptDef = z.infer<typeof PromptDefSchema>;
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
-export type GlobalsConfig = z.infer<typeof GlobalsConfigSchema>;
-export type RawStepConfig = z.infer<typeof StepConfigSchema>;
-export type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
-
-// =============================================================================
-// Resolved Types (After Loading Files, Rendering Templates)
-// =============================================================================
-
-export interface ResolvedPrompt {
-    parts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-}
 
 export interface ResolvedModelConfig {
     model?: string;
@@ -34,13 +16,10 @@ export interface ResolvedModelConfig {
     promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
-// Reuse the inferred type as it matches the resolved state (defaults applied)
-export type ResolvedOutputConfig = OutputConfig;
-
 export interface ResolvedPluginBase {
     type: string;
     id: string;
-    output: ResolvedOutputConfig;
+    output: OutputConfig;
     rawConfig?: any;
 }
 
@@ -49,36 +28,76 @@ export interface ServiceCapabilities {
     hasPuppeteer: boolean;
 }
 
-export interface ResolvedStepConfig {
-    prompt: ResolvedPrompt;
-    system: ResolvedPrompt;
-    model: string;
-    temperature?: number;
-    thinkingLevel?: 'low' | 'medium' | 'high';
-    plugins: ResolvedPluginBase[];
-    output: ResolvedOutputConfig;
-    outputTemplate?: string;
-    schema?: any;
+// The Runtime Step Config (Flattened)
+export interface StepConfig {
+    // Model Object
+    model: ModelConfig;
+    
+    // Execution
+    timeout: number;
     candidates: number;
-    judge?: ResolvedModelConfig;
-    feedback?: ResolvedModelConfig & { loops: number };
+    
+    // I/O
+    output: OutputConfig;
+    outputPath?: string;
+    outputTemplate?: string; // Alias for outputPath
+    
+    // Validation
+    schema?: any; // Object or Template String
+    schemaPath?: string; // Legacy alias
+
+    // Plugins
+    plugins: ResolvedPluginBase[];
+
+    // Judge & Feedback
+    judge?: ModelConfig;
+    feedback?: ModelConfig & { loops: number };
+
+    // Misc
     aspectRatio?: string;
-    tmpDir: string;
-    outputDir?: string;
+    
+    // Resolved Paths
+    resolvedOutputDir?: string;
+    resolvedTempDir?: string;
     outputBasename?: string;
     outputExtension?: string;
-    timeout: number;
-    
-    // Legacy/Compat fields
-    skipCandidateCommand?: boolean;
-    command?: string;
+
+    // Legacy
     verifyCommand?: string;
+    postProcessCommand?: string;
+    noCandidateCommand?: boolean;
+    command?: string;
+    skipCandidateCommand?: boolean;
+    
+    // Resolved Prompts (for internal use if needed, but we use model.prompt now)
+    userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
-export interface ResolvedPipelineConfig {
+export interface RuntimeConfig {
+    concurrency: number;
+    taskConcurrency: number;
+    tmpDir: string;
+    dataOutputPath?: string;
+    steps: StepConfig[];
     data: Record<string, any>[];
-    inputOffset: number;
+    offset?: number;
+    limit?: number;
+    inputOffset?: number;
     inputLimit?: number;
-    globals: GlobalsConfig;
-    steps: ResolvedStepConfig[];
+}
+
+export interface GlobalsConfig {
+    model?: string;
+    temperature?: number;
+    thinkingLevel?: 'low' | 'medium' | 'high';
+    concurrency: number;
+    taskConcurrency: number;
+    tmpDir: string;
+    outputPath?: string;
+    dataOutputPath?: string;
+    timeout: number;
+    inputLimit?: number;
+    inputOffset?: number;
+    limit?: number;
+    offset?: number;
 }

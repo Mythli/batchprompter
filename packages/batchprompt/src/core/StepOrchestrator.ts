@@ -7,7 +7,6 @@ import { PluginRegistryV2, PluginServices } from '../plugins/types.js';
 import { GlobalContext, PipelineItem, StepExecutionState } from '../types.js';
 import { ResultProcessor } from './ResultProcessor.js';
 import { ResolvedPluginBase } from '../config/types.js';
-import { concatMessageText } from 'llm-fns';
 
 export class StepOrchestrator {
     constructor(
@@ -40,26 +39,29 @@ export class StepOrchestrator {
         // 2. Resolve Plugins
         const resolvedPlugins: ResolvedPlugin[] = [];
         for (const pluginDef of resolvedStep.plugins) {
-            const plugin = this.pluginRegistry.get(pluginDef.name);
+            const plugin = this.pluginRegistry.get(pluginDef.type);
             if (plugin) {
                 const inheritedModel = {
-                    model: resolvedStep.modelConfig.model || this.globalContext.defaultModel,
-                    temperature: resolvedStep.modelConfig.temperature,
-                    thinkingLevel: resolvedStep.modelConfig.thinkingLevel
+                    model: resolvedStep.model.model || this.globalContext.defaultModel,
+                    temperature: resolvedStep.model.temperature,
+                    thinkingLevel: resolvedStep.model.thinkingLevel
                 };
 
+                // Plugins might have rawConfig wrapper or be direct objects depending on how they were loaded
+                const rawPluginConfig = (pluginDef as any).rawConfig || pluginDef;
+
                 const resolvedConfig = await plugin.resolveConfig(
-                    pluginDef.config,
+                    rawPluginConfig,
                     initialViewContext,
                     inheritedModel,
                     this.globalContext.contentResolver
                 );
                 
                 const resolvedDef: ResolvedPluginBase = {
-                    type: pluginDef.name,
-                    id: (pluginDef.config as any).id || `${pluginDef.name}-${Date.now()}`,
+                    type: pluginDef.type,
+                    id: (pluginDef as any).id || `${pluginDef.type}-${Date.now()}`,
                     output: pluginDef.output,
-                    rawConfig: pluginDef.config
+                    rawConfig: rawPluginConfig
                 };
 
                 resolvedPlugins.push({ instance: plugin, config: resolvedConfig, def: resolvedDef });
@@ -70,37 +72,33 @@ export class StepOrchestrator {
         // We start with the resolved user prompt in 'content'
         const initialState: StepExecutionState = {
             history: item.history,
-            content: [...resolvedStep.userPromptParts],
-            context: { ...item.row, ...item.workspace }, // Working context starts with row + workspace
-            row: { ...item.row }, // Final output starts with row
+            content: [...(resolvedStep.userPromptParts || [])],
+            context: { ...item.row, ...item.workspace },
+            row: { ...item.row },
             originalIndex: item.originalIndex,
             variationIndex: item.variationIndex,
             stepHistory: item.stepHistory
         };
 
-        // 4. Run Plugins (Preparation Phase) -> Explosion & Data Merging
+        // 4. Run Plugins
         const processedStates = await this.pluginExecutor.runPreparationPhase(
             [initialState],
             resolvedPlugins,
             stepIndex
         );
 
-        // 5. Execute Model (or Pass-through) for each processed state
+        // 5. Execute Model
         const nextItems: PipelineItem[] = [];
 
         for (const state of processedStates) {
             // Check if we should run the model.
-            // We only run the model if there is an explicit prompt (user or system) defined in the config.
-            // Merely having content from plugins (state.content) is not enough to trigger generation 
-            // if the user didn't ask for it.
+            // We run if there is an explicit prompt (user or system)
             const hasExplicitPrompt = 
-                resolvedStep.userPromptParts.length > 0 || 
-                (resolvedStep.modelConfig.systemParts && resolvedStep.modelConfig.systemParts.length > 0);
+                (resolvedStep.userPromptParts && resolvedStep.userPromptParts.length > 0) || 
+                (resolvedStep.model.system && (Array.isArray(resolvedStep.model.system) ? resolvedStep.model.system.length > 0 : true));
             
             if (hasExplicitPrompt) {
                 // --- EXECUTE MODEL ---
-
-                // Re-construct view context for message building (system prompt rendering)
                 const viewContext = {
                     ...state.context,
                     steps: state.stepHistory,
@@ -109,15 +107,17 @@ export class StepOrchestrator {
 
                 // Build Messages
                 // We pass empty promptParts to MessageBuilder because we manually handle the user message construction
-                // from state.content below. This avoids duplicating the prompt if it was already in state.content.
+                // from state.content below.
                 const configForMessageBuilder = {
-                    ...resolvedStep.modelConfig,
+                    model: resolvedStep.model.model,
+                    temperature: resolvedStep.model.temperature,
+                    thinkingLevel: resolvedStep.model.thinkingLevel,
+                    systemParts: stepContext.llm.getSystemParts(), // Already resolved in StepResolver
                     promptParts: [] 
                 };
 
                 const currentMessages = this.messageBuilder.build(configForMessageBuilder, viewContext, state.content);
                 
-                // Inject History
                 const systemMsg = currentMessages.find(m => m.role === 'system');
                 const userMsgs = currentMessages.filter(m => m.role !== 'system');
                 
@@ -137,7 +137,7 @@ export class StepOrchestrator {
                     resolvedPlugins,
                     pluginServices,
                     resolvedStep.resolvedTempDir || configTmpDir,
-                    state.context // Pass working context for post-processing
+                    state.context
                 );
                 
                 const resultData = result.modelResult;
@@ -148,7 +148,7 @@ export class StepOrchestrator {
                     explodedResults = result.explodedResults.map(r => r.raw !== undefined ? r.raw : r.columnValue);
                 }
 
-                // Process Results (Explosion & Output)
+                // Process Results
                 let itemsToProcess: any[] = [];
                 
                 if (explodedResults) {
@@ -159,13 +159,11 @@ export class StepOrchestrator {
                     itemsToProcess = [resultData];
                 }
 
-                // Map to PluginPackets for ResultProcessor
                 const packets = itemsToProcess.map(data => ({
                     data,
-                    contentParts: [], // We don't accumulate content from model output
+                    contentParts: [],
                 }));
 
-                // Use ResultProcessor to apply data to states
                 const finalStates = ResultProcessor.process(
                     [state],
                     packets,
@@ -173,13 +171,10 @@ export class StepOrchestrator {
                     'modelOutput'
                 );
 
-                // Convert final states to PipelineItems
                 for (const finalState of finalStates) {
                     const newHistory = [...finalState.history];
-                    
-                    // Add the User message (which contains prompt + plugin content)
                     if (userMsgs.length > 0) {
-                         newHistory.push(userMsgs[0]); // Assuming single user message block
+                         newHistory.push(userMsgs[0]);
                     }
                     newHistory.push(historyMessage);
 
@@ -197,16 +192,13 @@ export class StepOrchestrator {
 
             } else {
                 // --- PASS-THROUGH MODE ---
-                // Plugins have already executed and modified 'state.row' via ResultProcessor in PluginExecutor.
-                // We just pass the state forward.
-                
                 events.emit('step:progress', { row: state.originalIndex, step: stepNum, type: 'info', message: 'No prompt provided. Skipping model execution.' });
 
                 const newItem: PipelineItem = {
                     row: state.row,
                     workspace: item.workspace,
-                    stepHistory: [...state.stepHistory], // No new step history for pass-through? Or should we record null?
-                    history: state.history, // Keep history as-is (don't inject plugin content without a response)
+                    stepHistory: [...state.stepHistory],
+                    history: state.history,
                     originalIndex: state.originalIndex,
                     variationIndex: state.variationIndex
                 };

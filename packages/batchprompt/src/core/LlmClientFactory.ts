@@ -14,7 +14,6 @@ export class LlmClientFactory {
 
     /**
      * Creates a BoundLlmClient from a ResolvedModelConfig.
-     * The returned client has the system and prompt parts bound.
      */
     create(config: ResolvedModelConfig): BoundLlmClient {
         const modelConfig: Record<string, any> = {

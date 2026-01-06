@@ -1,0 +1,30 @@
+import { PluginRegistryV2 } from '../plugins/types.js';
+
+export class ConfigExpander {
+    static expand(config: any, registry: PluginRegistryV2): any {
+        const expanded = JSON.parse(JSON.stringify(config)); // Deep clone
+
+        if (expanded.steps) {
+            for (const step of expanded.steps) {
+                step.plugins = step.plugins || [];
+                
+                for (const plugin of registry.getAll()) {
+                    if (plugin.mapStepToConfig) {
+                        const pluginConfig = plugin.mapStepToConfig(step);
+                        if (pluginConfig) {
+                            // Add to plugins
+                            step.plugins.unshift(pluginConfig);
+                            
+                            // Remove the trigger key from step to pass strict validation
+                            // Hardcoded cleanup for known plugins for now
+                            if (plugin.type === 'url-expander') {
+                                delete step.expandUrls;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return expanded;
+    }
+}

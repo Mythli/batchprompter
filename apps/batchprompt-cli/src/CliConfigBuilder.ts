@@ -54,17 +54,19 @@ export class CliConfigBuilder {
             const stepNum = i + 1;
             const step = config.steps[i];
 
+            // Ensure model object exists
+            step.model = step.model || {};
+
             if (args[i]) {
-                step.prompt = args[i];
+                step.model.prompt = args[i];
             }
 
-            // Model Config
-            step.model = step.model || {};
+            // Model Config (Nested)
             if (options[`model${stepNum}`]) step.model.model = options[`model${stepNum}`];
             if (options[`temperature${stepNum}`] !== undefined) step.model.temperature = parseFloat(String(options[`temperature${stepNum}`]));
             if (options[`thinkingLevel${stepNum}`]) step.model.thinkingLevel = options[`thinkingLevel${stepNum}`];
-            if (options[`system${stepNum}`]) step.system = options[`system${stepNum}`];
-            if (options[`prompt${stepNum}`]) step.prompt = options[`prompt${stepNum}`];
+            if (options[`system${stepNum}`]) step.model.system = options[`system${stepNum}`];
+            if (options[`prompt${stepNum}`]) step.model.prompt = options[`prompt${stepNum}`];
 
             // Output Config
             step.output = step.output || {};

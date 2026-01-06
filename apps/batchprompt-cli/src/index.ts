@@ -8,7 +8,6 @@ import { Parser, transforms } from 'json2csv';
 import {
     createDefaultRegistry,
     ServiceCapabilities,
-    PipelineConfigSchema,
     DebugLogger,
     ConfigRefiner,
     InMemoryConfigExecutor,
@@ -20,7 +19,8 @@ import {
     ValidationPluginV2,
     DedupePluginV2,
     LogoScraperPluginV2,
-    PromptLoader
+    PromptLoader,
+    SchemaBuilder
 } from 'batchprompt';
 import { getConfig } from './getConfig.js';
 import { StepRegistry } from './StepRegistry.js';
@@ -87,9 +87,7 @@ generateCmd.action(async (templateFilePaths, options) => {
             puppeteerHelper, 
             config: resolvedConfig, 
             pluginRegistry, 
-            globalContext,
-            schemaLoader,
-            promptLoader
+            globalContext
         } = await getConfig();
         
         // Register ShellPlugin in the runtime registry
@@ -97,22 +95,11 @@ generateCmd.action(async (templateFilePaths, options) => {
         
         puppeteerHelperInstance = puppeteerHelper;
 
-        let fileConfig = {};
-
-        if (options.config) {
-            const fileAdapter = new FileAdapter();
-            fileConfig = await fileAdapter.load(options.config);
-        }
-
         const config = await stepRegistry.parseConfig(
-            fileConfig, 
+            options.config, 
             options, 
             templateFilePaths, 
-            pluginRegistry, 
-            schemaLoader, 
-            promptLoader,
-            globalContext.contentResolver,
-            globalContext.capabilities
+            pluginRegistry
         );
 
         new FileSystemArtifactHandler(globalContext.events, config.tmpDir);
@@ -271,7 +258,9 @@ program.command('init')
 program.command('schema')
     .description('Print the JSON Schema for the configuration file')
     .action(() => {
-        const jsonSchema = z.toJSONSchema(PipelineConfigSchema, {
+        const builder = new SchemaBuilder(cliRegistry);
+        const schema = builder.build('input');
+        const jsonSchema = z.toJSONSchema(schema, {
             unrepresentable: 'any'
         });
         console.log(JSON.stringify(jsonSchema, null, 2));

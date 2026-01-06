@@ -7,14 +7,12 @@ import {
     PluginRegistryV2,
     SchemaLoader,
     UrlExpanderPlugin,
-    ConfigResolver,
     ContentResolver,
-    ServiceCapabilities,
-    mapToRuntimeConfig
+    ServiceCapabilities
 } from 'batchprompt';
 import { CliPluginAdapter } from './interfaces/CliPluginAdapter.js';
 import { UrlExpanderAdapter } from './adapters/UrlExpanderAdapter.js';
-import { CliConfigBuilder } from './CliConfigBuilder.js';
+import { ConfigLoader } from './ConfigLoader.js';
 
 export class StepRegistry {
     private adapters: CliPluginAdapter[] = [];
@@ -81,7 +79,6 @@ export class StepRegistry {
         }
 
         // Register UrlExpander Adapter explicitly if not already in adapters list
-        // Check if UrlExpander is already handled
         const hasUrlExpander = this.adapters.some(a => a.plugin.type === 'url-expander');
         if (!hasUrlExpander) {
             const urlExpanderPlugin = registry.get('url-expander');
@@ -91,50 +88,29 @@ export class StepRegistry {
                 for (let i = 1; i <= 10; i++) {
                     adapter.registerOptionsForStep(program, i);
                 }
-                // Add to adapters list for parsing later
                 this.adapters.push(adapter);
             }
         }
     }
 
     async parseConfig(
-        fileConfig: any, 
+        configPath: string | undefined, 
         options: Record<string, any>, 
         positionalArgs: string[], 
-        registry: PluginRegistryV2,
-        schemaLoader: SchemaLoader,
-        promptLoader: PromptLoader,
-        contentResolver: ContentResolver,
-        capabilities: ServiceCapabilities
+        registry: PluginRegistryV2
     ): Promise<RuntimeConfig> {
         // 1. Load Data from Pipe
         const pipedData = await loadData();
 
-        // 2. Merge Data into Config
-        const configToParse = { ...fileConfig };
-        if (!configToParse.data) {
-            configToParse.data = [];
-        }
+        // 2. Use ConfigLoader to load and hydrate config
+        const loader = new ConfigLoader(registry, this.adapters);
+        const config = await loader.load(configPath, options, positionalArgs);
 
+        // 3. Merge Data
         if (pipedData) {
-            configToParse.data = pipedData;
+            config.data = pipedData;
         }
 
-        // 3. Build Raw Config (Merge File + CLI)
-        const rawConfig = CliConfigBuilder.build(configToParse, options, positionalArgs, this.adapters);
-
-        // 4. Resolve via Core ConfigResolver
-        const resolver = new ConfigResolver({
-            capabilities,
-            pluginRegistry: registry,
-            contentResolver,
-            promptLoader,
-            schemaLoader
-        });
-
-        const resolvedConfig = await resolver.resolve(rawConfig);
-
-        // 5. Map to RuntimeConfig
-        return mapToRuntimeConfig(resolvedConfig);
+        return config;
     }
 }
