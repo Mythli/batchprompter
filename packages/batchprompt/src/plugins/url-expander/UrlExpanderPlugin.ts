@@ -71,7 +71,7 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: UrlExpanderResolvedConfig,
         context: PluginExecutionContext
-    ): Promise<PluginPacket[]> {
+    ): Promise<PluginPacket[] | null> {
 
         const { mode, maxChars } = config;
 
@@ -92,15 +92,15 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         const lastMessage = messages[messages.length - 1];
         
         if (!lastMessage) {
-            return [];
+            return null;
         }
 
         if (lastMessage.role !== 'user' && lastMessage.role !== 'system') {
-            return [];
+            return null;
         }
 
         const content = lastMessage.content;
-        if (!content) return [];
+        if (!content) return null;
 
         let partsToCheck: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 
@@ -176,6 +176,11 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                     console.warn(`[UrlExpander] Failed to expand ${url}: ${e.message}`);
                 }
             }
+        }
+
+        // If no content was added, return null to indicate pass-through (don't filter the row)
+        if (contentPartsToAdd.length === 0) {
+            return null;
         }
 
         // Return a single packet with all expansions
