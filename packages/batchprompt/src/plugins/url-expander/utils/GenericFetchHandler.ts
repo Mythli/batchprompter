@@ -6,8 +6,9 @@ export class GenericFetchHandler implements GenericHandler {
 
     async handle(url: string, services: PluginServices): Promise<string | null> {
         const response = await services.fetcher(url);
-        if (!response.ok) {
-            throw new Error(`Fetch failed for ${url}: ${response.status} ${response.statusText}`);
+        if (!response || !response.ok) {
+            const status = response ? `${response.status} ${response.statusText}` : 'No Response';
+            throw new Error(`Fetch failed for ${url}: ${status}`);
         }
         return await response.text();
     }

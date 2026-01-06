@@ -18,7 +18,7 @@ export const UrlExpanderConfigSchema = z.object({
         mode: 'ignore',
         explode: false
     }).describe("How to save the expanded content (usually ignored as it modifies prompt)."),
-    mode: z.enum(['fetch', 'puppeteer']).default('puppeteer').describe("Method used to fetch the URL content."),
+    mode: z.enum(['fetch', 'puppeteer']).default('fetch').describe("Method used to fetch the URL content."),
     maxChars: z.number().int().positive().default(30000).describe("Maximum number of characters to include from the expanded content.")
 });
 

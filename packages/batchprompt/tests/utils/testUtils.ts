@@ -119,7 +119,15 @@ export function createTestContext(options: TestContextOptions = {}) {
             getPageHelper: vi.fn(),
             close: vi.fn()
         } as any,
-        fetcher: vi.fn() as any,
+        // Default mock fetcher that returns 404 to prevent crashes if not overridden
+        fetcher: vi.fn().mockResolvedValue({
+            ok: false,
+            status: 404,
+            statusText: "Not Found",
+            text: async () => "",
+            json: async () => ({}),
+            headers: new Map()
+        }) as any,
         capabilities: {
             hasSerper: !!webSearch || !!imageSearch,
             hasPuppeteer: true
