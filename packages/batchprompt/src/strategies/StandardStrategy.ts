@@ -148,6 +148,15 @@ export class StandardStrategy implements GenerationStrategy {
                 const valid = this.ajv.validate(config.jsonSchema, data);
                 if (!valid) {
                     const errors = this.ajv.errorsText();
+                    
+                    this.events.emit('validation:failed', {
+                        row: index,
+                        step: stepIndex,
+                        data,
+                        schema: config.jsonSchema,
+                        errors: this.ajv.errors
+                    });
+
                     throw new SchemaValidationError(`Schema Mismatch: ${errors}`);
                 }
 

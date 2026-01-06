@@ -36,6 +36,13 @@ export class StepOrchestrator {
             configTmpDir
         );
 
+        events.emit('step:resolved', {
+            row: item.originalIndex,
+            step: stepNum,
+            config: resolvedStep,
+            context: initialViewContext
+        });
+
         // 2. Resolve Plugins
         const resolvedPlugins: ResolvedPlugin[] = [];
         for (const pluginDef of resolvedStep.plugins) {

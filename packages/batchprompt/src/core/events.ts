@@ -12,6 +12,14 @@ export interface BatchPromptEvents {
     'step:start': (payload: { row: number; step: number; name?: string }) => void;
     'step:finish': (payload: { row: number; step: number; result: any }) => void;
     
+    // New Event: Step Resolved
+    'step:resolved': (payload: {
+        row: number;
+        step: number;
+        config: any; // Resolved StepConfig
+        context: Record<string, any>; // The context used for resolution
+    }) => void;
+
     // Unified Progress Event
     'step:progress': (payload: {
         row: number;
@@ -19,6 +27,15 @@ export interface BatchPromptEvents {
         type: 'status' | 'explode' | 'generation' | 'plugin' | 'info' | 'warn' | 'error';
         message: string;
         data?: any;
+    }) => void;
+
+    // New Event: Validation Failed
+    'validation:failed': (payload: {
+        row: number;
+        step: number;
+        data: any;
+        schema: any;
+        errors: any;
     }) => void;
 
     // The Unified Data Stream for Plugins

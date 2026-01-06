@@ -47,6 +47,37 @@ export class DebugLogger {
             }
         });
 
+        this.events.on('step:resolved', (payload) => {
+            const prefix = `[Row ${payload.row}] Step ${payload.step}`;
+            
+            // Log Prompt Summary
+            if (payload.config.userPromptParts) {
+                const promptText = payload.config.userPromptParts
+                    .map((p: any) => p.text || '[Image/Audio]')
+                    .join('')
+                    .replace(/\n/g, ' ')
+                    .substring(0, 100);
+                console.log(`${prefix} [Step Resolved] Prompt: "${promptText}..."`);
+            }
+
+            // Log Schema if present
+            if (payload.config.schema) {
+                console.log(`${prefix} [Step Resolved] Schema: ${JSON.stringify(payload.config.schema)}`);
+            }
+            
+            // Log Context Keys (useful to see what variables are available)
+            const keys = Object.keys(payload.context).join(', ');
+            console.log(`${prefix} [Step Resolved] Context Keys: [${keys}]`);
+        });
+
+        this.events.on('validation:failed', (payload) => {
+            const prefix = `[Row ${payload.row}] Step ${payload.step}`;
+            console.log(`${prefix} [Validation] ❌ Schema Violation`);
+            console.log(`${prefix} [Validation] Expected Schema: ${JSON.stringify(payload.schema)}`);
+            console.log(`${prefix} [Validation] Received Data: ${JSON.stringify(payload.data)}`);
+            console.log(`${prefix} [Validation] Errors: ${JSON.stringify(payload.errors)}`);
+        });
+
         this.events.on('plugin:event', (payload) => {
             const prefix = `[Row ${payload.row}] [${payload.plugin}]`;
             const data = payload.data;
