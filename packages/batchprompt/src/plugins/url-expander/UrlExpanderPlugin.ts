@@ -184,14 +184,14 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                     newContent.push({ type: 'text', text: expansions.join('') });
                 }
             }
-            
+
             // Reconstruct message with expanded content
             if (newContent.length === 1 && newContent[0].type === 'text') {
                 newMessages.push({ ...message, content: newContent[0].text } as any);
             } else {
                 if (message.role === 'system') {
                     // Flatten for system message
-                    const text = concatMessageText([{ role: 'system', content: newContent }]);
+                    const text = concatMessageText([{ role: 'user', content: newContent }]);
                     newMessages.push({ ...message, content: text } as any);
                 } else {
                     newMessages.push({ ...message, content: newContent } as any);
