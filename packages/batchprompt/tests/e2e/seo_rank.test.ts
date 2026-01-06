@@ -1,0 +1,78 @@
+import { describe, it, expect } from 'vitest';
+import { setupTestEnvironment } from '../utils/testUtils.js';
+import { WebSearch } from '../../src/plugins/web-search/WebSearch.js';
+
+// Mock WebSearch
+class MockWebSearch extends WebSearch {
+    constructor() {
+        super('mock-key', null as any, null as any);
+    }
+    async search(query: string) {
+        // Return mixed results
+        return [
+            { title: 'Competitor A', link: 'https://comp-a.com', snippet: 'Snippet A', type: 'seo' as const },
+            { title: 'Butlerapp Home', link: 'https://butlerapp.de', snippet: 'Butlerapp Homepage', type: 'seo' as const },
+            { title: 'Competitor B', link: 'https://comp-b.com', snippet: 'Snippet B', type: 'seo' as const },
+            { title: 'Butlerapp Pricing', link: 'https://butlerapp.de/pricing', snippet: 'Butlerapp Pricing', type: 'seo' as const }
+        ];
+    }
+}
+
+describe('E2E SEO Rank', () => {
+    it('should filter search results using selectPrompt and explode them', async () => {
+        // Mock Responses for the LLM Selector
+        // The selector asks the LLM to select indices.
+        // We expect it to select indices 1 and 3 (Butlerapp links).
+        const mockResponses = [
+            // Response for "Select up to 10 links..."
+            JSON.stringify({
+                selected_indices: [1, 3],
+                reasoning: "Selected links pointing to butlerapp.de"
+            })
+        ];
+
+        const mockWebSearch = new MockWebSearch();
+        const { executor } = setupTestEnvironment({
+            mockResponses,
+            webSearch: mockWebSearch
+        });
+
+        const config = {
+            globals: { model: "gpt-mock" },
+            steps: [
+                {
+                    plugins: [
+                        {
+                            type: "web-search",
+                            query: "{{keyword}}",
+                            // We simulate the config from the example
+                            maxPages: 1, // simplified for test
+                            limit: 30,
+                            mode: "none",
+                            selectPrompt: "Select links for Butlerapp",
+                            output: {
+                                mode: "merge",
+                                explode: true
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const initialRows = [{ keyword: "kursverwaltung" }];
+
+        const { results } = await executor.runConfig(config, initialRows);
+
+        // We expect 2 results because 2 links were selected and exploded
+        expect(results).toHaveLength(2);
+
+        expect(results[0].title).toBe("Butlerapp Home");
+        expect(results[0].link).toBe("https://butlerapp.de");
+        expect(results[0].keyword).toBe("kursverwaltung"); // Original data preserved
+
+        expect(results[1].title).toBe("Butlerapp Pricing");
+        expect(results[1].link).toBe("https://butlerapp.de/pricing");
+        expect(results[1].keyword).toBe("kursverwaltung");
+    });
+});
