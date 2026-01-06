@@ -1,7 +1,5 @@
 import * as fs from 'fs';
-import * as path from 'path';
-import yaml from 'js-yaml';
-import { PipelineConfig } from 'batchprompt';
+import yaml from 'js-yaml/index.js';
 
 export class FileAdapter {
     /**
