@@ -70,7 +70,8 @@ export class ConfigResolver {
 
         // Priority: globals.inputLimit > globals.limit
         const effectiveInputLimit = config.globals.inputLimit ?? config.globals.limit;
-        const effectiveInputOffset = config.globals.inputOffset ?? 0;
+        // Priority: globals.inputOffset > globals.offset
+        const effectiveInputOffset = config.globals.inputOffset ?? config.globals.offset ?? 0;
 
         // FIX: Do NOT slice here. Pass full data to ActionRunner to handle slicing.
         const rows = allRows;
