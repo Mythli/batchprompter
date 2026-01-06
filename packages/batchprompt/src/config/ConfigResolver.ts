@@ -94,8 +94,7 @@ export class ConfigResolver {
             data: rows,
             inputOffset: effectiveInputOffset,
             inputLimit: effectiveInputLimit,
-            steps: resolvedSteps,
-            globals: config // Keep a reference to globals for backward compatibility in types if needed, though types are updated
+            steps: resolvedSteps
         };
     }
 

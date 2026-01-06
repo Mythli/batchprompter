@@ -62,7 +62,7 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
                 // Ensure stepExtensionSchema is treated as an object schema for merge
                 if (plugin.stepExtensionSchema instanceof z.ZodObject) {
                     // Cast to any to allow merging potentially incompatible schemas (though they should be compatible extensions)
-                    StepSchema = StepSchema.merge(plugin.stepExtensionSchema as any);
+                    StepSchema = StepSchema.merge(plugin.stepExtensionSchema as any) as any;
                 }
             }
         }
