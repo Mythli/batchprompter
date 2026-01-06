@@ -10,7 +10,8 @@
   "scripts": {
     "test": "vitest run",
     "release": "scripts/release.sh",
-    "build": "tsc"
+    "build": "tsc",
+    "watch": "tsc -b -w"
   },
   "keywords": [],
   "author": "",

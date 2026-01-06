@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "watch": "tsc -b -w",
     "test": "vitest"
   },
   "devDependencies": {

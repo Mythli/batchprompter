@@ -4,10 +4,11 @@
   "description": "CLI tool for BatchPrompt",
   "type": "module",
   "bin": {
-    "batchprompt": "./dist/apps/batchprompt-cli/src/index.js"
+    "batchprompt": "./dist/index.js"
   },
   "scripts": {
     "build": "tsc -b",
+    "watch": "tsc -b -w",
     "debug-init": "tsx src/index.ts init 'tell me at what ranking the website butlerapp is for the keyword kursverwaltung'",
     "dev": "tsx watch src/index.ts"
   },
