@@ -2,18 +2,19 @@ import { Command } from 'commander';
 import { ModelFlags } from './ModelFlags.js';
 import { 
     RuntimeConfig, 
-    StepConfig, 
-    ModelDefinition, 
-    ResolvedModelConfig,
     loadData,
     PromptLoader,
     PluginRegistryV2,
     SchemaLoader,
-    UrlExpanderPlugin
+    UrlExpanderPlugin,
+    ConfigResolver,
+    ContentResolver,
+    ServiceCapabilities,
+    mapToRuntimeConfig
 } from 'batchprompt';
-import { createConfigSchema } from './ConfigSchema.js';
 import { CliPluginAdapter } from './interfaces/CliPluginAdapter.js';
 import { UrlExpanderAdapter } from './adapters/UrlExpanderAdapter.js';
+import { CliConfigBuilder } from './CliConfigBuilder.js';
 
 export class StepRegistry {
     private adapters: CliPluginAdapter[] = [];
@@ -102,7 +103,9 @@ export class StepRegistry {
         positionalArgs: string[], 
         registry: PluginRegistryV2,
         schemaLoader: SchemaLoader,
-        promptLoader: PromptLoader
+        promptLoader: PromptLoader,
+        contentResolver: ContentResolver,
+        capabilities: ServiceCapabilities
     ): Promise<RuntimeConfig> {
         // 1. Load Data from Pipe
         const pipedData = await loadData();
@@ -110,110 +113,28 @@ export class StepRegistry {
         // 2. Merge Data into Config
         const configToParse = { ...fileConfig };
         if (!configToParse.data) {
-            configToParse.data = {};
+            configToParse.data = [];
         }
 
         if (pipedData) {
-            configToParse.data.rows = pipedData;
+            configToParse.data = pipedData;
         }
 
-        // 3. Normalize via Zod Schema (Merge File + CLI)
-        const normalized = createConfigSchema(this.adapters).parse({ 
-            fileConfig: configToParse, 
-            options, 
-            args: positionalArgs 
+        // 3. Build Raw Config (Merge File + CLI)
+        const rawConfig = CliConfigBuilder.build(configToParse, options, positionalArgs, this.adapters);
+
+        // 4. Resolve via Core ConfigResolver
+        const resolver = new ConfigResolver({
+            capabilities,
+            pluginRegistry: registry,
+            contentResolver,
+            promptLoader,
+            schemaLoader
         });
 
-        // 4. Normalize Schemas (Resolve paths to objects)
-        for (const step of normalized.steps) {
-            // Step Schema
-            if (step.schemaPath) {
-                try {
-                    step.jsonSchema = await schemaLoader.load(step.schemaPath);
-                    step.schemaPath = undefined; 
-                } catch (e: any) {
-                    // Ignore dynamic paths
-                }
-            }
+        const resolvedConfig = await resolver.resolve(rawConfig);
 
-            // Plugin Schemas
-            for (const plugin of step.plugins) {
-                const pluginInstance = registry.get(plugin.name);
-                if (pluginInstance && pluginInstance.normalizeConfig) {
-                    // We need a content resolver here. 
-                    // But normalizeConfig is async.
-                    // We can't easily inject it here without changing the signature of parseConfig or passing it down.
-                    // Wait, parseConfig receives schemaLoader and promptLoader, but not contentResolver directly?
-                    // Actually, schemaLoader has a contentResolver inside.
-                    // But we need to pass it to normalizeConfig.
-                    // Let's assume for now we skip this or we need to expose contentResolver from schemaLoader?
-                    // Or we just don't support normalizeConfig in CLI parsing for now?
-                    // The original code did:
-                    // if (plugin.name === 'website-agent' || plugin.name === 'validation') ...
-                    // Now we should use plugin.normalizeConfig if available.
-                    // But we need contentResolver.
-                    // Let's skip for now as it requires more refactoring of parseConfig signature.
-                }
-            }
-        }
-
-        // 5. Resolve Steps
-        const steps: StepConfig[] = [];
-
-        const resolveModel = async (def: ModelDefinition | undefined): Promise<ResolvedModelConfig | undefined> => {
-            if (!def) return undefined;
-            return {
-                model: def.model,
-                temperature: def.temperature,
-                thinkingLevel: def.thinkingLevel,
-                systemParts: await promptLoader.load(def.systemSource),
-                promptParts: await promptLoader.load(def.promptSource)
-            };
-        };
-
-        for (const stepDef of normalized.steps) {
-            const mainResolved = await resolveModel(stepDef.modelConfig);
-            if (!mainResolved || !mainResolved.model) {
-                throw new Error(`Step ${stepDef.stepIndex}: Model configuration missing.`);
-            }
-
-            const judge = await resolveModel(stepDef.judge);
-            const feedback = await resolveModel(stepDef.feedback);
-
-            steps.push({
-                modelConfig: mainResolved,
-                tmpDir: normalized.global.tmpDir,
-                userPromptParts: mainResolved.promptParts,
-                outputPath: stepDef.outputPath,
-                outputTemplate: stepDef.outputTemplate,
-                output: stepDef.output,
-                schemaPath: stepDef.schemaPath,
-                jsonSchema: stepDef.jsonSchema,
-                candidates: stepDef.candidates,
-                judge,
-                feedback,
-                feedbackLoops: stepDef.feedbackLoops,
-                aspectRatio: stepDef.aspectRatio,
-                plugins: stepDef.plugins,
-                options: options,
-                timeout: stepDef.timeout,
-                // Command fields are gone from StepConfig, handled by ShellPlugin
-                noCandidateCommand: false, // Deprecated/Removed
-                verifyCommand: undefined, // Deprecated/Removed
-                postProcessCommand: undefined // Deprecated/Removed
-            });
-        }
-
-        return {
-            concurrency: normalized.global.concurrency,
-            taskConcurrency: normalized.global.taskConcurrency,
-            tmpDir: normalized.global.tmpDir,
-            dataOutputPath: normalized.global.dataOutputPath,
-            steps,
-            data: normalized.data.rows,
-            options,
-            offset: normalized.data.offset,
-            limit: normalized.data.limit
-        };
+        // 5. Map to RuntimeConfig
+        return mapToRuntimeConfig(resolvedConfig);
     }
 }

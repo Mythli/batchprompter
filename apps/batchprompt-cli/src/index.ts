@@ -104,7 +104,16 @@ generateCmd.action(async (templateFilePaths, options) => {
             fileConfig = await fileAdapter.load(options.config);
         }
 
-        const config = await stepRegistry.parseConfig(fileConfig, options, templateFilePaths, pluginRegistry, schemaLoader, promptLoader);
+        const config = await stepRegistry.parseConfig(
+            fileConfig, 
+            options, 
+            templateFilePaths, 
+            pluginRegistry, 
+            schemaLoader, 
+            promptLoader,
+            globalContext.contentResolver,
+            globalContext.capabilities
+        );
 
         new FileSystemArtifactHandler(globalContext.events, config.tmpDir);
         new DebugLogger(globalContext.events);

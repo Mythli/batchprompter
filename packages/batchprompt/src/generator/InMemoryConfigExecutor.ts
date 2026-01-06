@@ -1,5 +1,4 @@
 import { EventEmitter } from 'eventemitter3';
-import Handlebars from 'handlebars';
 import { ActionRunner } from '../ActionRunner.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
@@ -8,16 +7,7 @@ import { MemoryArtifactHandler, Artifact } from '../handlers/MemoryArtifactHandl
 import { ConfigExecutor } from './ConfigRefiner.js';
 import { ConfigResolver } from '../config/ConfigResolver.js';
 import { PromptLoader } from '../config/PromptLoader.js';
-import { RuntimeConfig, StepConfig } from '../types.js';
-import { ResolvedModelConfig } from '../config/types.js';
-import { StepOrchestrator } from '../core/StepOrchestrator.js';
-import { PluginExecutor } from '../core/PluginExecutor.js';
-import { StepExecutor } from '../StepExecutor.js';
-import { LlmClientFactory } from '../core/LlmClientFactory.js';
-import { StepResolver } from '../core/StepResolver.js';
-import { MessageBuilder } from '../core/MessageBuilder.js';
-import { GlobalContext } from '../types.js';
-import PQueue from 'p-queue';
+import { mapToRuntimeConfig } from '../config/runtimeMapper.js';
 
 export class InMemoryConfigExecutor implements ConfigExecutor {
     constructor(
@@ -64,57 +54,7 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
         }
         
         // Convert ResolvedPipelineConfig to RuntimeConfig
-        const runtimeConfig: RuntimeConfig = {
-            concurrency: resolvedConfig.globals.concurrency,
-            taskConcurrency: resolvedConfig.globals.taskConcurrency,
-            tmpDir: resolvedConfig.globals.tmpDir,
-            dataOutputPath: resolvedConfig.globals.dataOutputPath,
-            data: resolvedConfig.data,
-            offset: resolvedConfig.inputOffset,
-            limit: resolvedConfig.inputLimit,
-            steps: resolvedConfig.steps.map((step, index) => {
-                const modelConfig: ResolvedModelConfig = {
-                    model: step.model,
-                    temperature: step.temperature,
-                    thinkingLevel: step.thinkingLevel,
-                    systemParts: step.system.parts,
-                    promptParts: step.prompt.parts
-                };
-
-                const plugins = step.plugins.map(p => ({
-                    name: p.type,
-                    config: p.rawConfig || {}, 
-                    output: p.output
-                }));
-
-                const stepConfig: StepConfig = {
-                    modelConfig,
-                    tmpDir: step.tmpDir,
-                    userPromptParts: step.prompt.parts,
-                    outputPath: step.outputTemplate,
-                    outputTemplate: step.outputTemplate,
-                    output: step.output,
-                    // Map schema correctly: string -> schemaPath, object -> jsonSchema
-                    schemaPath: typeof step.schema === 'string' ? step.schema : undefined,
-                    jsonSchema: typeof step.schema === 'object' ? step.schema : undefined,
-                    candidates: step.candidates,
-                    judge: step.judge,
-                    feedback: step.feedback,
-                    feedbackLoops: step.feedback?.loops || 0,
-                    aspectRatio: step.aspectRatio,
-                    plugins,
-                    timeout: step.timeout,
-                    noCandidateCommand: false,
-                    verifyCommand: step.verifyCommand,
-                    postProcessCommand: step.command,
-                    resolvedOutputDir: step.outputDir,
-                    resolvedTempDir: step.tmpDir, // Use tmpDir as resolvedTempDir if not set
-                    outputBasename: step.outputBasename,
-                    outputExtension: step.outputExtension
-                };
-                return stepConfig;
-            })
-        };
+        const runtimeConfig = mapToRuntimeConfig(resolvedConfig);
         
         // Capture artifacts in memory (so we don't write to disk during test runs)
         const memoryHandler = new MemoryArtifactHandler(this.events);
@@ -125,10 +65,6 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
         this.events.on('row:end', resultHandler);
 
         try {
-            // We need to ensure the ActionRunner used here is compatible with the new architecture.
-            // The ActionRunner passed in constructor is likely created via getConfig or similar.
-            // If InMemoryConfigExecutor is used in tests, it might be constructed manually.
-            // Assuming the ActionRunner passed in is already the new version.
             await this.actionRunner.run(runtimeConfig);
         } finally {
             this.events.off('row:end', resultHandler);
