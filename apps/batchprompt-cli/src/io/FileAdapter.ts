@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import yaml from 'js-yaml/index.js';
+import YAML from 'yaml';
 
 export class FileAdapter {
     /**
@@ -25,7 +25,7 @@ export class FileAdapter {
         } catch (e) {
             // If JSON fails, try YAML
             try {
-                return yaml.load(content);
+                return YAML.parse(content);
             } catch (e2) {
                 throw new Error('Failed to parse configuration. Ensure it is valid JSON or YAML.');
             }
