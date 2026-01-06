@@ -8,5 +8,9 @@
       "llm-fns": ["../../packages/llm-fns/src/index.ts"]
     }
   },
+  "references": [
+    { "path": "../../packages/batchprompt" },
+    { "path": "../../packages/llm-fns" }
+  ],
   "include": ["src/**/*"]
 }
