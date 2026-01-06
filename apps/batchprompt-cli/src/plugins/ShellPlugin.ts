@@ -9,9 +9,9 @@ import {
     PluginExecutionContext,
     ServiceCapabilities,
     ContentResolver,
-    OutputConfigSchema
+    OutputConfigSchema,
+    zHandlebars
 } from 'batchprompt';
-import { zHandlebars } from 'batchprompt';
 
 const execAsync = promisify(exec);
 

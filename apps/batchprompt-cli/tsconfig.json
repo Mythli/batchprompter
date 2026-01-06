@@ -4,11 +4,9 @@
     "rootDir": "src",
     "outDir": "dist",
     "paths": {
-      "batchprompt": ["../../packages/batchprompt/src/index.ts"]
+      "batchprompt": ["../../packages/batchprompt/src/index.ts"],
+      "llm-fns": ["../../packages/llm-fns/src/index.ts"]
     }
   },
-  "references": [
-    { "path": "../../packages/batchprompt" }
-  ],
   "include": ["src/**/*"]
 }
