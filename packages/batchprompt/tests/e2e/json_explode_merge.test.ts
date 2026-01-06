@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { setupTestEnvironment } from '../utils/testUtils.js';
 
 describe('E2E JSON Explode and Merge', () => {
-    it('should retry when the first response fails schema validation (object instead of array) and succeed on the second', async () => {
+    it('should retry when the first response fails schema validation and limit explosion via global limit', async () => {
         // 1. Mock Responses
         // The first response is a single object, which will fail the 'array' type schema validation in StandardStrategy.
         const step1ResponseFail = JSON.stringify({
@@ -10,9 +10,11 @@ describe('E2E JSON Explode and Merge', () => {
             reason: "This should trigger a retry because the schema expects an array"
         });
 
+        // Return 3 items, but we will limit to 2 via globals
         const step1ResponseSuccess = JSON.stringify([
             { name: "Alice" },
-            { name: "Bob" }
+            { name: "Bob" },
+            { name: "Charlie" }
         ]);
 
         const step2ResponseAlice = JSON.stringify({
@@ -47,6 +49,10 @@ describe('E2E JSON Explode and Merge', () => {
             if (content.includes("Details for Bob")) {
                 return step2ResponseBob;
             }
+            // Charlie shouldn't be called if limit works
+            if (content.includes("Details for Charlie")) {
+                throw new Error("Should not request details for Charlie due to limit");
+            }
             return "{}";
         };
 
@@ -57,7 +63,8 @@ describe('E2E JSON Explode and Merge', () => {
         // 3. Config
         const config = {
             globals: {
-                model: "gpt-mock"
+                model: "gpt-mock",
+                limit: 2 // Global limit to test explosion capping
             },
             steps: [
                 {
@@ -97,7 +104,7 @@ describe('E2E JSON Explode and Merge', () => {
         const { results } = await executor.runConfig(config, [{}]);
 
         // 5. Assertions
-        // We expect 2 results because the successful retry of Step 1 returned 2 items.
+        // We expect 2 results because the successful retry of Step 1 returned 3 items but limit was 2.
         expect(results).toHaveLength(2);
         expect(step1CallCount).toBe(2); // Verify that Step 1 was indeed called twice (initial + retry)
 
@@ -110,5 +117,8 @@ describe('E2E JSON Explode and Merge', () => {
         expect(bob).toBeDefined();
         expect(bob.age).toBe(30);
         expect(bob.city).toBe("Bobland");
+
+        const charlie = results.find(r => r.name === "Charlie");
+        expect(charlie).toBeUndefined();
     });
 });
