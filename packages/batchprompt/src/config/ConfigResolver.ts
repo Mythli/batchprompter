@@ -3,7 +3,9 @@ import {
     ResolvedPipelineConfig,
     ResolvedStepConfig,
     ResolvedModelConfig,
-    ServiceCapabilities
+    ServiceCapabilities,
+    StepConfig,
+    ModelConfig
 } from './types.js';
 import { LoosePipelineConfigSchema, PipelineConfigSchema } from './schema.js';
 import { PromptLoader } from './PromptLoader.js';
@@ -90,7 +92,13 @@ export class ConfigResolver {
             inputOffset: effectiveInputOffset,
             inputLimit: effectiveInputLimit,
             globals: config.globals,
-            steps: resolvedSteps
+            steps: resolvedSteps,
+            concurrency: config.globals.concurrency,
+            taskConcurrency: config.globals.taskConcurrency,
+            tmpDir: config.globals.tmpDir,
+            dataOutputPath: config.globals.dataOutputPath,
+            offset: config.globals.offset,
+            limit: config.globals.limit
         };
     }
 
@@ -102,15 +110,13 @@ export class ConfigResolver {
         const stepModelConfig = step.model ?? {};
 
         // Merge model settings: Step > Global
-        const mergedModel = {
+        const mergedModel: ModelConfig = {
             model: stepModelConfig.model ?? globals.model,
             temperature: stepModelConfig.temperature ?? globals.temperature,
-            thinkingLevel: stepModelConfig.thinkingLevel ?? globals.thinkingLevel
+            thinkingLevel: stepModelConfig.thinkingLevel ?? globals.thinkingLevel,
+            system: step.system,
+            prompt: step.prompt
         };
-
-        // Resolve prompts (templates remain unrendered)
-        const prompt = await this.resolvePrompt(step.prompt);
-        const system = await this.resolvePrompt(step.system);
 
         // Resolve Output Limits (Explode Limits)
         // Priority: step.output.limit > globals.limit
@@ -172,66 +178,45 @@ export class ConfigResolver {
         });
 
         // Resolve judge
-        let judge: ResolvedModelConfig | undefined;
+        let judge: ModelConfig | undefined;
         if (step.judge?.prompt) {
-            judge = await this.resolveModelConfig(step.judge, mergedModel);
+            judge = {
+                ...step.judge,
+                model: step.judge.model ?? mergedModel.model,
+                temperature: step.judge.temperature ?? mergedModel.temperature,
+                thinkingLevel: step.judge.thinkingLevel ?? mergedModel.thinkingLevel
+            };
         }
 
         // Resolve feedback
-        let feedback: (ResolvedModelConfig & { loops: number }) | undefined;
+        let feedback: (ModelConfig & { loops: number }) | undefined;
         if (step.feedback?.prompt || step.feedback?.loops) {
-            const feedbackModel = await this.resolveModelConfig(step.feedback || {}, mergedModel);
             feedback = {
-                ...feedbackModel,
+                ...step.feedback,
+                model: step.feedback?.model ?? mergedModel.model,
+                temperature: step.feedback?.temperature ?? mergedModel.temperature,
+                thinkingLevel: step.feedback?.thinkingLevel ?? mergedModel.thinkingLevel,
                 loops: step.feedback?.loops ?? 0
             };
         }
 
         return {
-            prompt: { parts: prompt },
-            system: { parts: system },
-            model: mergedModel.model,
-            temperature: mergedModel.temperature,
-            thinkingLevel: mergedModel.thinkingLevel,
+            model: mergedModel,
             plugins,
             output: step.output,
             outputTemplate: step.outputPath ?? globals.outputPath,
             schema: step.schema, // Already normalized to object
+            jsonSchema: step.schema, // Alias
             candidates: step.candidates,
             skipCandidateCommand: step.skipCandidateCommand,
             judge,
             feedback,
+            feedbackLoops: feedback?.loops,
             aspectRatio: step.aspectRatio,
             command: step.command,
             verifyCommand: step.verifyCommand,
             tmpDir: globals.tmpDir,
             timeout: step.timeout ?? globals.timeout
-        };
-    }
-
-    private async resolvePrompt(
-        prompt?: string | { file?: string; text?: string; parts?: any[] }
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
-        if (!prompt) return [];
-        return this.promptLoader.load(prompt);
-    }
-
-    private async resolveModelConfig(
-        config: { model?: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high'; prompt?: any; system?: any },
-        inherited: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
-    ): Promise<ResolvedModelConfig> {
-        const merged = {
-            model: config.model ?? inherited.model,
-            temperature: config.temperature ?? inherited.temperature,
-            thinkingLevel: config.thinkingLevel ?? inherited.thinkingLevel
-        };
-
-        return {
-            model: merged.model,
-            temperature: merged.temperature,
-            thinkingLevel: merged.thinkingLevel,
-            systemParts: await this.resolvePrompt(config.system),
-            promptParts: await this.resolvePrompt(config.prompt)
         };
     }
 }

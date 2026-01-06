@@ -10,43 +10,38 @@ export function mapToRuntimeConfig(resolvedConfig: ResolvedPipelineConfig): Runt
         data: resolvedConfig.data,
         offset: resolvedConfig.inputOffset,
         limit: resolvedConfig.inputLimit,
+        globals: resolvedConfig.globals,
         steps: resolvedConfig.steps.map((step) => {
-            const modelConfig: ResolvedModelConfig = {
-                model: step.model,
-                temperature: step.temperature,
-                thinkingLevel: step.thinkingLevel,
-                systemParts: step.system.parts,
-                promptParts: step.prompt.parts
-            };
-
-            const plugins = step.plugins.map(p => ({
-                name: p.type,
-                config: p.rawConfig || {}, 
-                output: p.output
-            }));
+            // In the new architecture, step.model is already a ModelConfig object
+            // But we need to ensure it's fully populated if we are mapping from an old structure
+            // or if we need to transform it.
+            // However, ResolvedStepConfig (step) already matches StepConfig mostly.
+            
+            // If we are just passing through, we can return step as is, 
+            // but let's be explicit to match the interface.
 
             const stepConfig: StepConfig = {
-                modelConfig,
+                model: step.model,
                 tmpDir: step.tmpDir,
-                userPromptParts: step.prompt.parts,
+                // userPromptParts is derived from model.prompt if needed, but usually handled by resolver
+                userPromptParts: undefined, 
                 outputPath: step.outputTemplate,
                 outputTemplate: step.outputTemplate,
                 output: step.output,
-                // Map schema correctly: string -> schemaPath, object -> jsonSchema
-                schemaPath: typeof step.schema === 'string' ? step.schema : undefined,
-                jsonSchema: typeof step.schema === 'object' ? step.schema : undefined,
+                schema: step.schema,
+                jsonSchema: step.schema,
                 candidates: step.candidates,
                 judge: step.judge,
                 feedback: step.feedback,
                 feedbackLoops: step.feedback?.loops || 0,
                 aspectRatio: step.aspectRatio,
-                plugins,
+                plugins: step.plugins,
                 timeout: step.timeout,
                 noCandidateCommand: false,
                 verifyCommand: step.verifyCommand,
                 postProcessCommand: step.command,
-                resolvedOutputDir: step.outputDir,
-                resolvedTempDir: step.tmpDir, // Use tmpDir as resolvedTempDir if not set
+                resolvedOutputDir: step.resolvedOutputDir,
+                resolvedTempDir: step.resolvedTempDir || step.tmpDir,
                 outputBasename: step.outputBasename,
                 outputExtension: step.outputExtension
             };

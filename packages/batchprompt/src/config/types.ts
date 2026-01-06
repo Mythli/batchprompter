@@ -46,6 +46,7 @@ export interface StepConfig {
     // Validation
     schema?: any; // Object or Template String
     schemaPath?: string; // Legacy alias
+    jsonSchema?: any; // Alias for schema
 
     // Plugins
     plugins: ResolvedPluginBase[];
@@ -53,6 +54,7 @@ export interface StepConfig {
     // Judge & Feedback
     judge?: ModelConfig;
     feedback?: ModelConfig & { loops: number };
+    feedbackLoops?: number; // Alias for feedback.loops
 
     // Misc
     aspectRatio?: string;
@@ -72,6 +74,9 @@ export interface StepConfig {
     
     // Resolved Prompts (for internal use if needed, but we use model.prompt now)
     userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+    
+    // Temp dir for this step
+    tmpDir?: string;
 }
 
 export type ResolvedStepConfig = StepConfig;

@@ -149,10 +149,10 @@ export class ModelFlags {
         if (think) config.thinkingLevel = think;
 
         const system = getVal('system');
-        if (system) config.systemSource = system;
+        if (system) config.system = system;
 
         const prompt = getVal('prompt');
-        if (prompt) config.promptSource = prompt;
+        if (prompt) config.prompt = prompt;
 
         return config;
     }

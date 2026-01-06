@@ -48,6 +48,10 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
         verifyCommand: z.string().optional(),
         command: z.string().optional(),
         skipCandidateCommand: z.boolean().optional(),
+        
+        // Prompts (Top level for convenience, merged into model later)
+        prompt: z.union([z.string(), z.array(z.any())]).optional(),
+        system: z.union([z.string(), z.array(z.any())]).optional(),
     });
 
     // In Input Mode, merge plugin extensions (shortcuts) into the Step Schema
@@ -56,7 +60,7 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
             if (plugin.stepExtensionSchema) {
                 // Ensure stepExtensionSchema is treated as an object schema for merge
                 if (plugin.stepExtensionSchema instanceof z.ZodObject) {
-                    StepSchema = StepSchema.merge(plugin.stepExtensionSchema);
+                    StepSchema = StepSchema.merge(plugin.stepExtensionSchema as any);
                 }
             }
         }
