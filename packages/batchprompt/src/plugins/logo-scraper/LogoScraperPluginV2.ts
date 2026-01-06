@@ -4,7 +4,8 @@ import path from 'path';
 import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext
+    PluginExecutionContext,
+    PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
@@ -164,7 +165,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: LogoScraperResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
+    ): Promise<PluginPacket[]> {
         const { services, emit } = context;
         const { puppeteerHelper, fetcher } = services;
 
@@ -288,12 +289,9 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
 - Favicons Found: ${packetData.favicons.length}
 `;
         
-        const newMessages = [...messages];
-        newMessages.push({
-            role: 'user',
-            content: summary
-        });
-
-        return newMessages;
+        return [{
+            data: packetData,
+            contentParts: [{ type: 'text', text: summary }]
+        }];
     }
 }

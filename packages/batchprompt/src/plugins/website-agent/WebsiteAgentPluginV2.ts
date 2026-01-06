@@ -3,7 +3,8 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext
+    PluginExecutionContext,
+    PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
@@ -208,7 +209,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: WebsiteAgentResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
+    ): Promise<PluginPacket[]> {
         const { services, row } = context;
         const { puppeteerHelper, puppeteerQueue } = services;
 
@@ -287,12 +288,12 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             }
         );
 
-        const newMessages = [...messages];
-        newMessages.push({
-            role: 'user',
-            content: `Website Agent Result for ${config.url}:\n${JSON.stringify(result, null, 2)}`
-        });
-
-        return newMessages;
+        return [{
+            data: result,
+            contentParts: [{
+                type: 'text',
+                text: `Website Agent Result for ${config.url}:\n${JSON.stringify(result, null, 2)}`
+            }]
+        }];
     }
 }

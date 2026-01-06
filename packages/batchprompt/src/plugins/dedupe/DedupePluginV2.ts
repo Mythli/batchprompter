@@ -3,7 +3,8 @@ import Handlebars from 'handlebars';
 import { EventEmitter } from 'eventemitter3';
 import {
     Plugin,
-    PluginExecutionContext
+    PluginExecutionContext,
+    PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
@@ -79,7 +80,7 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         messages: any[],
         config: DedupeResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<any[]> {
+    ): Promise<PluginPacket[]> {
         const { row } = context;
         const scope = new PluginScope(context, this.type);
 
@@ -123,7 +124,8 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             tags: ['debug', 'dedupe', 'kept']
         });
 
-        return messages;
+        // Return empty packet to indicate no content change, just side effects (or error)
+        return [];
     }
 
     static resetState(): void {

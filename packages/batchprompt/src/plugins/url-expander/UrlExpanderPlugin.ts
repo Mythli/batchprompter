@@ -1,12 +1,11 @@
 import OpenAI from 'openai';
 import TurndownService from 'turndown';
 import { z } from 'zod';
-import { Plugin, PluginExecutionContext } from '../types.js';
+import { Plugin, PluginExecutionContext, PluginPacket } from '../types.js';
 import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema } from '../../config/common.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
-import { concatMessageText } from 'llm-fns';
 
 // =============================================================================
 // Config Schema
@@ -71,14 +70,12 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: UrlExpanderResolvedConfig,
         context: PluginExecutionContext
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
+    ): Promise<PluginPacket[]> {
 
         const { mode, maxChars } = config;
 
         // Resolve the generic handler based on mode
         const fallbackHandler = this.registry.getFallback(mode);
-
-        const newMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
         // Regex to find http/https URLs.
         const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -86,40 +83,33 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         const turndownService = new TurndownService();
         turndownService.remove(['script', 'style', 'noscript', 'iframe']);
 
+        const contentPartsToAdd: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+        const expandedData: Record<string, string> = {};
+
+        // Scan all messages for URLs to expand
         for (const message of messages) {
             if (message.role !== 'user' && message.role !== 'system') {
-                newMessages.push(message);
                 continue;
             }
 
             const content = message.content;
-            if (!content) {
-                newMessages.push(message);
-                continue;
-            }
+            if (!content) continue;
 
-            let newContent: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-            let originalParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+            let partsToCheck: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 
             if (typeof content === 'string') {
-                originalParts = [{ type: 'text', text: content }];
+                partsToCheck = [{ type: 'text', text: content }];
             } else if (Array.isArray(content)) {
-                originalParts = content as OpenAI.Chat.Completions.ChatCompletionContentPart[];
+                partsToCheck = content as OpenAI.Chat.Completions.ChatCompletionContentPart[];
             }
 
-            for (const part of originalParts) {
-                if (part.type !== 'text') {
-                    newContent.push(part);
-                    continue;
-                }
+            for (const part of partsToCheck) {
+                if (part.type !== 'text') continue;
 
                 const text = part.text;
                 const rawUrls = text.match(urlRegex);
 
-                if (!rawUrls || rawUrls.length === 0) {
-                    newContent.push(part);
-                    continue;
-                }
+                if (!rawUrls || rawUrls.length === 0) continue;
 
                 const uniqueUrls = new Set<string>();
 
@@ -148,8 +138,6 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                     }
                 }
 
-                const expansions: string[] = [];
-
                 for (const url of uniqueUrls) {
                     try {
                         let content: string | null = null;
@@ -172,33 +160,23 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                         if (content) {
                             console.log(`[UrlExpander] Expanded ${url} using ${handlerName}`);
                             const truncated = content.substring(0, maxChars);
-                            expansions.push(`\n\n--- Content of ${url} ---\n${truncated}\n--------------------------\n`);
+                            const expansionText = `\n\n--- Content of ${url} ---\n${truncated}\n--------------------------\n`;
+                            
+                            contentPartsToAdd.push({ type: 'text', text: expansionText });
+                            expandedData[url] = truncated;
                         }
                     } catch (e: any) {
                         console.warn(`[UrlExpander] Failed to expand ${url}: ${e.message}`);
                     }
                 }
-
-                newContent.push(part);
-                if (expansions.length > 0) {
-                    newContent.push({ type: 'text', text: expansions.join('') });
-                }
-            }
-
-            // Reconstruct message with expanded content
-            if (newContent.length === 1 && newContent[0].type === 'text') {
-                newMessages.push({ ...message, content: newContent[0].text } as any);
-            } else {
-                if (message.role === 'system') {
-                    // Flatten for system message
-                    const text = concatMessageText([{ role: 'user', content: newContent }]);
-                    newMessages.push({ ...message, content: text } as any);
-                } else {
-                    newMessages.push({ ...message, content: newContent } as any);
-                }
             }
         }
 
-        return newMessages;
+        // Return a single packet with all expansions
+        // This will be appended to the accumulated content by ResultProcessor
+        return [{
+            data: expandedData,
+            contentParts: contentPartsToAdd
+        }];
     }
 }

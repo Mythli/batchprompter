@@ -83,24 +83,14 @@ export class PluginExecutor {
                 let packets: PluginPacket[] = [];
 
                 if (Array.isArray(result)) {
-                    // Check if it's Message[] or Packet[]/Message[][]
                     if (result.length === 0) {
                         // Empty array -> packets is []
-                    } else if ('role' in result[0]) {
-                        // It's Message[] -> Single packet with no data
-                        packets.push({
-                            data: undefined,
-                            contentParts: result as OpenAI.Chat.Completions.ChatCompletionContentPart[]
-                        });
-                    } else if ('contentParts' in result[0]) {
-                        // It's Packet[]
+                    } else if ('data' in result[0] && 'contentParts' in result[0]) {
+                        // It's already PluginPacket[]
                         packets = result;
-                    } else if (Array.isArray(result[0])) {
-                        // It's Message[][] -> Map to packets
-                        packets = result.map((msgs: any) => ({
-                            data: undefined,
-                            contentParts: msgs
-                        }));
+                    } else {
+                        // Legacy or invalid format - warn and ignore to enforce new interface
+                        console.warn(`[PluginExecutor] Plugin '${def.type}' returned invalid format. Expected PluginPacket[]. Ignoring result.`);
                     }
                 } else if (typeof result === 'object' && result !== null) {
                     if ('contentParts' in result) {
