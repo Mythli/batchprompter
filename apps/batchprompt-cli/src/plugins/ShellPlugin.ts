@@ -11,7 +11,7 @@ import {
     ContentResolver,
     OutputConfigSchema
 } from 'batchprompt';
-import { zHandlebars } from 'batchprompt/dist/config/validationRules.js';
+import { zHandlebars } from 'batchprompt';
 
 const execAsync = promisify(exec);
 
@@ -86,18 +86,18 @@ export class ShellPlugin implements Plugin<ShellConfig, ShellConfig> {
         // BUT if a subsequent plugin fails validation, this command would have already run.
         // This might be a side effect we accept, or we need 'onStepFinish'.
         // Given the constraints, running here is the closest equivalent to 'process' handler.
-        
+
         if (config.command) {
             const tempFile = path.join(context.tempDirectory, `cmd_input_${Date.now()}.tmp`);
             await fs.writeFile(tempFile, typeof response === 'string' ? response : JSON.stringify(response));
-            
+
             try {
                 const template = Handlebars.compile(config.command, { noEscape: true });
                 const cmd = template({
                     ...row,
                     file: tempFile
                 });
-                
+
                 await execAsync(cmd);
             } finally {
                 await fs.unlink(tempFile).catch(() => {});
