@@ -30,7 +30,7 @@ export class StepOrchestrator {
         const events = this.globalContext.events;
 
         // 1. Resolve Step Configuration
-        const { resolvedStep, stepContext, viewContext } = await this.stepResolver.resolve(
+        const { resolvedStep, stepContext, viewContext: initialViewContext } = await this.stepResolver.resolve(
             item,
             stepConfig,
             stepIndex,
@@ -50,7 +50,7 @@ export class StepOrchestrator {
 
                 const resolvedConfig = await plugin.resolveConfig(
                     pluginDef.config,
-                    viewContext,
+                    initialViewContext,
                     inheritedModel,
                     this.globalContext.contentResolver
                 );
@@ -66,48 +66,46 @@ export class StepOrchestrator {
             }
         }
 
-        // 3. Build Base Messages (System + History + User Prompt)
-        // Note: We use accumulatedContent from previous steps as part of the user prompt if available
-        const effectiveUserPromptParts = [
-            ...item.accumulatedContent,
-            ...resolvedStep.userPromptParts
-        ];
-
-        const currentMessages = this.messageBuilder.build(resolvedStep.modelConfig, viewContext, effectiveUserPromptParts);
-        
-        // Inject History
-        const systemMsg = currentMessages.find(m => m.role === 'system');
-        const userMsgs = currentMessages.filter(m => m.role !== 'system');
-        
-        const baseMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-        if (systemMsg) baseMessages.push(systemMsg);
-        baseMessages.push(...item.history);
-        baseMessages.push(...userMsgs);
-
-        // 4. Run Plugins (Preparation Phase) -> Explosion
-        const messageSets = await this.pluginExecutor.runPreparationPhase(
-            baseMessages,
+        // 3. Run Plugins (Preparation Phase) -> Explosion & Data Merging
+        // We pass the initial item. The executor returns a list of items (potentially exploded/modified).
+        const processedItems = await this.pluginExecutor.runPreparationPhase(
+            [item],
             resolvedPlugins,
-            viewContext,
-            item.originalIndex,
             stepIndex
         );
 
-        // 5. Execute Model (or Pass-through) for each message set
+        // 4. Execute Model (or Pass-through) for each processed item
         const nextItems: PipelineItem[] = [];
 
-        // Check if we have a prompt to execute
-        const hasPrompt = resolvedStep.userPromptParts.length > 0 || item.accumulatedContent.length > 0;
-        
-        // If no prompt, we skip the model execution and treat the plugin output as the result.
-        // However, we need to extract "data" from the messages if possible.
-        // Since we can't easily extract structured data from messages without the LLM,
-        // we will assume the "result" is the text content of the last message added by the plugin.
+        for (const processedItem of processedItems) {
+            // Re-construct view context because row/workspace might have changed
+            const viewContext = {
+                ...processedItem.row,
+                ...processedItem.workspace,
+                steps: processedItem.stepHistory,
+                index: processedItem.originalIndex
+            };
 
-        for (let i = 0; i < messageSets.length; i++) {
-            const messages = messageSets[i];
-            const variationIndex = messageSets.length > 1 ? i : item.variationIndex;
+            // Build Messages for THIS specific item state
+            const effectiveUserPromptParts = [
+                ...processedItem.accumulatedContent,
+                ...resolvedStep.userPromptParts
+            ];
 
+            const currentMessages = this.messageBuilder.build(resolvedStep.modelConfig, viewContext, effectiveUserPromptParts);
+            
+            // Inject History
+            const systemMsg = currentMessages.find(m => m.role === 'system');
+            const userMsgs = currentMessages.filter(m => m.role !== 'system');
+            
+            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+            if (systemMsg) messages.push(systemMsg);
+            messages.push(...processedItem.history);
+            messages.push(...userMsgs);
+
+            // Check if we have a prompt to execute
+            const hasPrompt = resolvedStep.userPromptParts.length > 0 || processedItem.accumulatedContent.length > 0;
+            
             let resultData: any;
             let historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
             let explodedResults: any[] | undefined;
@@ -116,11 +114,11 @@ export class StepOrchestrator {
                 // Execute Model
                 const result = await this.stepExecutor.executeModel(
                     stepContext,
-                    item.originalIndex,
+                    processedItem.originalIndex,
                     stepNum,
                     resolvedStep,
                     messages,
-                    variationIndex,
+                    processedItem.variationIndex,
                     resolvedPlugins,
                     pluginServices,
                     resolvedStep.resolvedTempDir || configTmpDir
@@ -134,9 +132,12 @@ export class StepOrchestrator {
 
             } else {
                 // Pass-through Mode
-                events.emit('step:progress', { row: item.originalIndex, step: stepNum, type: 'info', message: 'No prompt provided. Skipping model execution.' });
+                events.emit('step:progress', { row: processedItem.originalIndex, step: stepNum, type: 'info', message: 'No prompt provided. Skipping model execution.' });
                 
                 // Use the last message as the "result"
+                // Note: messages includes system, history, and user prompt.
+                // If no user prompt parts, it might just be history.
+                // But accumulatedContent > 0 check passed.
                 const lastMsg = messages[messages.length - 1];
                 const content = concatMessageText([lastMsg]);
                 
@@ -144,8 +145,7 @@ export class StepOrchestrator {
                 historyMessage = { role: 'assistant', content: '[Pass-through]' };
             }
 
-            // 6. Process Results (Explosion & Output)
-            // Handle Explicit Explosion (JSON Array from Model)
+            // 5. Process Results (Explosion & Output)
             let itemsToProcess: any[] = [];
             
             if (explodedResults) {
@@ -163,52 +163,25 @@ export class StepOrchestrator {
             }));
 
             // Use ResultProcessor to apply data to items
-            // We create a temporary item for this variation
-            const tempItem = { ...item, variationIndex };
-            
-            const processedItems = ResultProcessor.process(
-                [tempItem],
+            const finalItems = ResultProcessor.process(
+                [processedItem],
                 packets,
                 resolvedStep.output,
                 'modelOutput'
             );
 
             // Apply History Updates
-            for (const newItem of processedItems) {
+            for (const newItem of finalItems) {
                 const newHistory = [...newItem.history];
                 
-                // Add User Prompt if it exists (and wasn't already in history)
-                // In this architecture, baseMessages included history.
-                // We need to append the *new* parts (User Prompt + Assistant Response)
-                
-                // Re-construct what was added to history
-                // The `messages` array contains everything.
-                // We want to append the *difference* between `item.history` and `messages` + `historyMessage`.
-                
-                // Actually, simpler: `messages` IS the new history context (minus system).
-                // But `messages` includes the system prompt which we don't store in `item.history`.
-                
-                // Let's just append the User Prompt and the Assistant Response.
-                
                 if (hasPrompt) {
-                    // Add User Prompt (effective)
-                    // We only add it if it's not empty
                     if (effectiveUserPromptParts.length > 0) {
                          newHistory.push({ role: 'user', content: effectiveUserPromptParts });
                     }
-                    
-                    // Add Assistant Response
                     newHistory.push(historyMessage);
                 } else {
-                    // In pass-through, we usually don't update history with a fake assistant message
-                    // unless we want to record the plugin's output as context.
-                    // But the plugin's output is ALREADY in `messages`.
-                    
-                    // If we want to persist the plugin's context for the next step:
-                    // We should update `newItem.history` to match `messages` (excluding system).
-                    
+                    // In pass-through, update history to match current state (excluding system)
                     const nonSystemMessages = messages.filter(m => m.role !== 'system');
-                    // This replaces the old history entirely with the new state (including plugin injections)
                     newItem.history = nonSystemMessages;
                 }
 

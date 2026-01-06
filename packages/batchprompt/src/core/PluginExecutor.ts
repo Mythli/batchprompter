@@ -2,8 +2,10 @@ import OpenAI from 'openai';
 import path from 'path';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './events.js';
-import { Plugin, PluginExecutionContext, PluginServices } from '../plugins/types.js';
+import { Plugin, PluginExecutionContext, PluginServices, PluginPacket } from '../plugins/types.js';
 import { ResolvedPluginBase } from '../config/types.js';
+import { PipelineItem } from '../types.js';
+import { ResultProcessor } from './ResultProcessor.js';
 
 export interface ResolvedPlugin {
     instance: Plugin;
@@ -43,33 +45,80 @@ export class PluginExecutor {
     }
 
     async runPreparationPhase(
-        baseMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        items: PipelineItem[],
         plugins: ResolvedPlugin[],
-        row: Record<string, any>,
-        index: number,
         stepIndex: number
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[][]> {
-        let messageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [baseMessages];
+    ): Promise<PipelineItem[]> {
+        let currentItems = [...items];
 
         for (let i = 0; i < plugins.length; i++) {
-            const { instance, config: pluginConfig } = plugins[i];
-            if (instance.prepareMessages) {
-                const context = this.createPluginContext(row, stepIndex, i, index);
-                const nextMessageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [];
+            const { instance, config: pluginConfig, def } = plugins[i];
+            
+            if (!instance.prepareMessages) {
+                continue;
+            }
+
+            const nextItems: PipelineItem[] = [];
+
+            for (const item of currentItems) {
+                const context = this.createPluginContext(item.row, stepIndex, i, item.originalIndex);
                 
-                for (const msgSet of messageSets) {
-                    const result = await instance.prepareMessages(msgSet, pluginConfig, context);
-                    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0])) {
-                        // Explode
-                        nextMessageSets.push(...(result as OpenAI.Chat.Completions.ChatCompletionMessageParam[][]));
-                    } else {
-                        nextMessageSets.push(result as OpenAI.Chat.Completions.ChatCompletionMessageParam[]);
+                // Construct messages for this item context
+                // We combine history + accumulated content (User Prompt is not yet added)
+                const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [...item.history];
+                if (item.accumulatedContent.length > 0) {
+                    messages.push({ role: 'user', content: item.accumulatedContent });
+                }
+
+                // Execute Plugin
+                const result = await instance.prepareMessages(messages, pluginConfig, context) as any;
+                
+                // Normalize to PluginPacket[]
+                let packets: PluginPacket[] = [];
+
+                if (Array.isArray(result)) {
+                    // Check if it's Message[] or Packet[]/Message[][]
+                    if (result.length === 0) {
+                        // Empty array
+                    } else if ('role' in result[0]) {
+                        // It's Message[] -> Single packet with no data
+                        packets.push({
+                            data: undefined,
+                            contentParts: result as OpenAI.Chat.Completions.ChatCompletionContentPart[]
+                        });
+                    } else if ('contentParts' in result[0]) {
+                        // It's Packet[]
+                        packets = result;
+                    } else if (Array.isArray(result[0])) {
+                        // It's Message[][] -> Map to packets
+                        packets = result.map((msgs: any) => ({
+                            data: undefined,
+                            contentParts: msgs
+                        }));
+                    }
+                } else if (typeof result === 'object' && result !== null) {
+                    if ('contentParts' in result) {
+                        // It's a single Packet { contentParts, data }
+                        packets.push(result);
                     }
                 }
-                messageSets = nextMessageSets;
+
+                // Determine namespace (camelCase of plugin type)
+                const namespace = def.type.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+
+                // Process Results (Merge/Explode)
+                const processed = ResultProcessor.process(
+                    [item],
+                    packets,
+                    def.output,
+                    namespace
+                );
+                
+                nextItems.push(...processed);
             }
+            currentItems = nextItems;
         }
         
-        return messageSets;
+        return currentItems;
     }
 }
