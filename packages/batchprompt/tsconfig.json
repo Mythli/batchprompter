@@ -3,7 +3,10 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
-    "composite": true
+    "composite": true,
+    "paths": {
+      "llm-fns": ["../llm-fns/src/index.ts"]
+    }
   },
   "references": [
     { "path": "../llm-fns" }

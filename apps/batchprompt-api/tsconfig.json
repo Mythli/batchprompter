@@ -4,7 +4,11 @@
     "rootDir": "src",
     "outDir": "dist",
     "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx"
+    "jsxImportSource": "hono/jsx",
+    "paths": {
+      "batchprompt": ["../../packages/batchprompt/src/index.ts"],
+      "llm-fns": ["../../packages/llm-fns/src/index.ts"]
+    }
   },
   "references": [
     { "path": "../../packages/batchprompt" },

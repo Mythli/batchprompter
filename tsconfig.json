@@ -1,8 +1,8 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/batchprompt" },
     { "path": "./packages/llm-fns" },
+    { "path": "./packages/batchprompt" },
     { "path": "./apps/batchprompt-cli" },
     { "path": "./apps/batchprompt-api" }
   ]
