@@ -28,7 +28,11 @@ describe('E2E SEO Rank', () => {
             JSON.stringify({
                 selected_indices: [1, 3],
                 reasoning: "Selected links pointing to butlerapp.de"
-            })
+            }),
+            // Response for the main model step (Item 1)
+            "Analysis complete for Item 1.",
+            // Response for the main model step (Item 2)
+            "Analysis complete for Item 2."
         ];
 
         const mockWebSearch = new MockWebSearch();

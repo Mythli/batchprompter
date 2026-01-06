@@ -27,7 +27,7 @@ export class AiImageSearch {
             gl?: string;
             hl?: string;
         }
-    ): Promise<{ data: ImageSearchResult[], contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] }> {
+    ): Promise<ImageSearchResult[]> {
 
         // 1. Generate Queries
         const queries: string[] = [];
@@ -47,7 +47,7 @@ export class AiImageSearch {
             this.events.emit('query:generated', { queries: response.queries });
         }
 
-        if (queries.length === 0) return { data: [], contentParts: [] };
+        if (queries.length === 0) return [];
 
         // 2. Scatter (Parallel Fetch)
         const tasks: { query: string; page: number }[] = [];
@@ -129,24 +129,7 @@ export class AiImageSearch {
 
         this.events.emit('result:selected', { results: finalSelection });
 
-        // 6. Construct Content Parts
-        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        for (const item of finalSelection) {
-            if (item.buffer) {
-                const base64 = item.buffer.toString('base64');
-                contentParts.push({
-                    type: 'image_url',
-                    image_url: { url: `data:image/png;base64,${base64}` }
-                });
-            } else if (item.metadata?.imageUrl) {
-                 contentParts.push({
-                    type: 'image_url',
-                    image_url: { url: item.metadata.imageUrl }
-                });
-            }
-        }
-
-        return { data: finalSelection, contentParts };
+        return finalSelection;
     }
 
     private async selectFromPool(
