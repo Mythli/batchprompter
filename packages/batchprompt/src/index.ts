@@ -24,6 +24,8 @@ export * from './core/BoundLlmClient.js';
 export * from './core/MessageBuilder.js';
 export * from './core/StepResolver.js';
 export * from './core/ResultProcessor.js';
+export * from './core/StepOrchestrator.js';
+export * from './core/PluginExecutor.js';
 
 // IO
 export * from './core/io/ContentResolver.js';

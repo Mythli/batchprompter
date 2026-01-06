@@ -21,6 +21,9 @@ import { ContentResolver } from './core/io/ContentResolver.js';
 import { MemoryContentResolver } from './core/io/MemoryContentResolver.js';
 import { PromptLoader } from './config/PromptLoader.js';
 import { SchemaLoader } from './config/SchemaLoader.js';
+import { StepOrchestrator } from './core/StepOrchestrator.js';
+import { PluginExecutor } from './core/PluginExecutor.js';
+import { StepExecutor } from './StepExecutor.js';
 
 dotenv.config();
 
@@ -179,22 +182,13 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     });
 
     // Content Resolver
-    // Default to MemoryContentResolver if not provided (e.g. in Web context)
     const contentResolver = overrides.contentResolver || new MemoryContentResolver();
 
     // Loaders
     const promptLoader = overrides.promptLoader || new PromptLoader(contentResolver);
     
-    // Schema Loader - must be provided or we use a dummy one?
-    // For now, we assume it's provided if needed, or we create a basic one if possible.
-    // But SchemaLoader is an interface. We can't instantiate it without a concrete class.
-    // If overrides.schemaLoader is missing, we might fail later if schema loading is attempted.
-    // Let's allow it to be undefined here, but StepResolver might complain.
-    // Actually, StepResolver takes schemaLoader in constructor.
-    // We need a fallback.
     const schemaLoader = overrides.schemaLoader || {
         load: async (source: string) => {
-            // Basic fallback: try to parse as JSON, otherwise fail
             try {
                 return JSON.parse(source);
             } catch {
@@ -204,6 +198,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     };
 
     // Build GlobalContext
+    const { EventEmitter } = await import('eventemitter3');
     const globalContext: GlobalContext = {
         openai,
         cache,
@@ -218,27 +213,51 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         capabilities,
         defaultModel,
         contentResolver,
-        events: new (await import('eventemitter3')).EventEmitter() as any // Hack to avoid importing EventEmitter in types.ts if not needed, but we did import it.
+        events: new EventEmitter()
     };
-    // Re-assign events properly
-    const { EventEmitter } = await import('eventemitter3');
-    globalContext.events = new EventEmitter();
-
 
     // Create Factories
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
     const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
     const messageBuilder = new MessageBuilder();
 
-    // Initialize Registries (with capabilities for validation)
+    // Initialize Registries
     const pluginRegistry = createDefaultRegistry(capabilities, promptLoader);
+
+    // --- New Architecture Components ---
+    
+    // 1. Plugin Executor
+    // It needs PluginServices. We construct a base one here, but StepOrchestrator might augment it.
+    // However, PluginExecutor constructor needs it.
+    const basePluginServices = {
+        puppeteerHelper,
+        puppeteerQueue,
+        fetcher,
+        cache,
+        imageSearch,
+        webSearch,
+        createLlm: (config: any) => llmFactory.create(config)
+    };
+
+    const pluginExecutor = new PluginExecutor(globalContext.events, basePluginServices, '/tmp'); // Temp dir is overridden per step
+
+    // 2. Step Executor (Model)
+    const stepExecutor = new StepExecutor(globalContext.events);
+
+    // 3. Step Orchestrator
+    const stepOrchestrator = new StepOrchestrator(
+        globalContext,
+        pluginRegistry,
+        stepResolver,
+        messageBuilder,
+        pluginExecutor,
+        stepExecutor
+    );
 
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         globalContext,
-        pluginRegistry,
-        stepResolver,
-        messageBuilder
+        stepOrchestrator
     );
 
     return {
@@ -252,7 +271,10 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         stepResolver,
         messageBuilder,
         promptLoader,
-        schemaLoader
+        schemaLoader,
+        stepOrchestrator,
+        pluginExecutor,
+        stepExecutor
     };
 }
 

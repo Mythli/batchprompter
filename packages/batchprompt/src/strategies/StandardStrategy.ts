@@ -4,7 +4,6 @@ import Ajv from 'ajv';
 import { completionToMessage, LlmRetryError, LlmRetryResponseInfo, SchemaValidationError, concatMessageText } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StepConfig } from '../types.js';
-import { MessageBuilder } from '../core/MessageBuilder.js';
 import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from '../core/events.js';
@@ -23,7 +22,6 @@ export class StandardStrategy implements GenerationStrategy {
 
     constructor(
         private llm: BoundLlmClient,
-        private messageBuilder: MessageBuilder,
         private events: EventEmitter<BatchPromptEvents>,
         private plugins: { instance: Plugin; config: any; def: ResolvedPluginBase }[],
         private pluginServices: PluginServices,
@@ -84,36 +82,6 @@ export class StandardStrategy implements GenerationStrategy {
         };
     }
 
-    private async runPreparationPhase(
-        baseMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        row: Record<string, any>,
-        index: number,
-        stepIndex: number
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[][]> {
-        let messageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [baseMessages];
-
-        for (let i = 0; i < this.plugins.length; i++) {
-            const { instance, config: pluginConfig } = this.plugins[i];
-            if (instance.prepareMessages) {
-                const context = this.createPluginContext(row, stepIndex, i, index);
-                const nextMessageSets: OpenAI.Chat.Completions.ChatCompletionMessageParam[][] = [];
-                
-                for (const msgSet of messageSets) {
-                    const result = await instance.prepareMessages(msgSet, pluginConfig, context);
-                    if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0])) {
-                        // Explode
-                        nextMessageSets.push(...(result as OpenAI.Chat.Completions.ChatCompletionMessageParam[][]));
-                    } else {
-                        nextMessageSets.push(result as OpenAI.Chat.Completions.ChatCompletionMessageParam[]);
-                    }
-                }
-                messageSets = nextMessageSets;
-            }
-        }
-        
-        return messageSets;
-    }
-
     private async runPostProcessingPhase(
         initialData: any,
         conversation: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
@@ -143,30 +111,17 @@ export class StandardStrategy implements GenerationStrategy {
         index: number,
         stepIndex: number,
         config: StepConfig,
-        userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
-        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
         outputPathOverride?: string,
         skipCommands: boolean = false,
         variationIndex?: number
     ): Promise<GenerationResult> {
 
-        // 1. Build Initial Messages
-        let currentMessages = this.messageBuilder.build(config.modelConfig, row, userPromptParts);
-        
-        // Inject History
-        const systemMsg = currentMessages.find(m => m.role === 'system');
-        const userMsgs = currentMessages.filter(m => m.role !== 'system');
-        
-        const baseMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-        if (systemMsg) baseMessages.push(systemMsg);
-        baseMessages.push(...history);
-        baseMessages.push(...userMsgs);
+        // 1. Messages are now passed in (already prepared by PluginExecutor)
+        const finalMessages = messages;
 
-        // 2. Run Plugin Preparation Phase
-        const messageSets = await this.runPreparationPhase(baseMessages, row, index, stepIndex);
-
-        // 3. Generation Loop
+        // 2. Generation Loop
         const requestOptions = cacheSalt ? {
             headers: { 'X-Cache-Salt': String(cacheSalt) }
         } : undefined;
@@ -178,144 +133,113 @@ export class StandardStrategy implements GenerationStrategy {
 
         const rawClient = this.llm.getRawClient();
         
-        const results: any[] = [];
-        const historyMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-        let lastHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
+        let finalResult: any;
+        let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
+        let columnValue: string | null;
+        let finalExtension = 'txt';
+        let finalType = 'text';
+        let finalContentPayload: string | Buffer = '';
 
-        // Iterate over all message sets (usually 1, but >1 if exploded)
-        for (let i = 0; i < messageSets.length; i++) {
-            const finalMessages = messageSets[i];
+        if (config.jsonSchema) {
+            // --- Branch A: JSON Schema ---
             
-            // Calculate a sub-variation index if we are exploding here
-            const currentVariationIndex = messageSets.length > 1 ? i : variationIndex;
-
-            let finalResult: any;
-            let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
-            let columnValue: string | null;
-            let finalExtension = 'txt';
-            let finalType = 'text';
-            let finalContentPayload: string | Buffer = '';
-
-            if (config.jsonSchema) {
-                // --- Branch A: JSON Schema ---
-                
-                const validator = async (data: any) => {
-                    // 1. Validate Schema
-                    const valid = this.ajv.validate(config.jsonSchema, data);
-                    if (!valid) {
-                        const errors = this.ajv.errorsText();
-                        throw new SchemaValidationError(`Schema Mismatch: ${errors}`);
-                    }
-
-                    // 2. Run Plugin Post-Processing Phase
-                    const syntheticHistory = [
-                        ...finalMessages, 
-                        { role: 'assistant', content: JSON.stringify(data) } as OpenAI.Chat.Completions.ChatCompletionMessageParam
-                    ];
-                    
-                    return await this.runPostProcessingPhase(data, syntheticHistory, row, index, stepIndex);
-                };
-
-                finalResult = await rawClient.promptJson(finalMessages, config.jsonSchema, {
-                    requestOptions,
-                    maxRetries: 3 + (config.feedbackLoops || 0),
-                    validator,
-                    ...additionalParams
-                });
-
-                finalHistoryMessage = {
-                    role: 'assistant',
-                    content: JSON.stringify(finalResult, null, 2)
-                };
-                columnValue = JSON.stringify(finalResult, null, 2);
-                finalExtension = 'json';
-                finalType = 'json';
-                finalContentPayload = columnValue;
-
-            } else {
-                // --- Branch B: Standard / Retry ---
-
-                let capturedContent: ExtractedContent | null = null;
-                let capturedHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
-
-                const validateCallback = async (response: any, info: LlmRetryResponseInfo) => {
-                    capturedHistoryMessage = completionToMessage(response);
-                    capturedContent = this.extractContent(capturedHistoryMessage);
-                    let data = capturedContent.data;
-
-                    return await this.runPostProcessingPhase(data, info.conversation, row, index, stepIndex);
-                };
-
-                finalResult = await rawClient.promptRetry({
-                    messages: finalMessages,
-                    requestOptions,
-                    maxRetries: 3 + (config.feedbackLoops || 0),
-                    validate: validateCallback,
-                    ...additionalParams
-                });
-
-                if (!capturedContent || !capturedHistoryMessage) throw new Error("Generation failed.");
-
-                const content: ExtractedContent = capturedContent;
-                finalHistoryMessage = capturedHistoryMessage;
-                columnValue = content.data;
-                finalExtension = content.extension;
-                finalType = content.type;
-                
-                if (finalType === 'audio') {
-                    finalContentPayload = Buffer.from(content.data, 'base64');
-                } else {
-                    finalContentPayload = content.data;
+            const validator = async (data: any) => {
+                // 1. Validate Schema
+                const valid = this.ajv.validate(config.jsonSchema, data);
+                if (!valid) {
+                    const errors = this.ajv.errorsText();
+                    throw new SchemaValidationError(`Schema Mismatch: ${errors}`);
                 }
-            }
 
-            // Emit Artifact
-            const effectiveBasename = config.outputBasename || 'output';
-            let filename = `${effectiveBasename}.${finalExtension}`;
+                // 2. Run Plugin Post-Processing Phase
+                const syntheticHistory = [
+                    ...finalMessages, 
+                    { role: 'assistant', content: JSON.stringify(data) } as OpenAI.Chat.Completions.ChatCompletionMessageParam
+                ];
+                
+                return await this.runPostProcessingPhase(data, syntheticHistory, row, index, stepIndex);
+            };
 
-            if (currentVariationIndex !== undefined) {
-                filename = `${effectiveBasename}_${currentVariationIndex}.${finalExtension}`;
-            }
-
-            const targetDir = config.resolvedOutputDir || config.resolvedTempDir;
-            if (targetDir) {
-                filename = path.join(targetDir, filename);
-            }
-
-            this.events.emit('plugin:artifact', {
-                row: index,
-                step: stepIndex,
-                plugin: 'model',
-                type: finalType,
-                filename: filename,
-                content: finalContentPayload,
-                tags: ['final']
+            finalResult = await rawClient.promptJson(finalMessages, config.jsonSchema, {
+                requestOptions,
+                maxRetries: 3 + (config.feedbackLoops || 0),
+                validator,
+                ...additionalParams
             });
 
-            results.push(finalResult);
-            historyMessages.push(finalHistoryMessage);
-            lastHistoryMessage = finalHistoryMessage;
+            finalHistoryMessage = {
+                role: 'assistant',
+                content: JSON.stringify(finalResult, null, 2)
+            };
+            columnValue = JSON.stringify(finalResult, null, 2);
+            finalExtension = 'json';
+            finalType = 'json';
+            finalContentPayload = columnValue;
+
+        } else {
+            // --- Branch B: Standard / Retry ---
+
+            let capturedContent: ExtractedContent | null = null;
+            let capturedHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
+
+            const validateCallback = async (response: any, info: LlmRetryResponseInfo) => {
+                capturedHistoryMessage = completionToMessage(response);
+                capturedContent = this.extractContent(capturedHistoryMessage);
+                let data = capturedContent.data;
+
+                return await this.runPostProcessingPhase(data, info.conversation, row, index, stepIndex);
+            };
+
+            finalResult = await rawClient.promptRetry({
+                messages: finalMessages,
+                requestOptions,
+                maxRetries: 3 + (config.feedbackLoops || 0),
+                validate: validateCallback,
+                ...additionalParams
+            });
+
+            if (!capturedContent || !capturedHistoryMessage) throw new Error("Generation failed.");
+
+            const content: ExtractedContent = capturedContent;
+            finalHistoryMessage = capturedHistoryMessage;
+            columnValue = content.data;
+            finalExtension = content.extension;
+            finalType = content.type;
+            
+            if (finalType === 'audio') {
+                finalContentPayload = Buffer.from(content.data, 'base64');
+            } else {
+                finalContentPayload = content.data;
+            }
         }
 
-        // Return results
-        if (results.length === 1) {
-            return {
-                historyMessage: lastHistoryMessage!,
-                columnValue: typeof results[0] === 'string' ? results[0] : null,
-                raw: results[0]
-            };
-        } else {
-            // Exploded results
-            return {
-                historyMessage: lastHistoryMessage!,
-                columnValue: null,
-                raw: results,
-                explodedResults: results.map((r, idx) => ({
-                    historyMessage: historyMessages[idx],
-                    columnValue: typeof r === 'string' ? r : null,
-                    raw: r
-                }))
-            };
+        // Emit Artifact
+        const effectiveBasename = config.outputBasename || 'output';
+        let filename = `${effectiveBasename}.${finalExtension}`;
+
+        if (variationIndex !== undefined) {
+            filename = `${effectiveBasename}_${variationIndex}.${finalExtension}`;
         }
+
+        const targetDir = config.resolvedOutputDir || config.resolvedTempDir;
+        if (targetDir) {
+            filename = path.join(targetDir, filename);
+        }
+
+        this.events.emit('plugin:artifact', {
+            row: index,
+            step: stepIndex,
+            plugin: 'model',
+            type: finalType,
+            filename: filename,
+            content: finalContentPayload,
+            tags: ['final']
+        });
+
+        return {
+            historyMessage: finalHistoryMessage!,
+            columnValue: typeof finalResult === 'string' ? finalResult : null,
+            raw: finalResult
+        };
     }
 }

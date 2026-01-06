@@ -13,6 +13,9 @@ import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecut
 import { DebugLogger } from '../../src/core/DebugLogger.js';
 import { PromptLoader } from '../../src/config/PromptLoader.js';
 import { getPromptSummary, LlmFatalError } from 'llm-fns';
+import { StepOrchestrator } from '../../src/core/StepOrchestrator.js';
+import { PluginExecutor } from '../../src/core/PluginExecutor.js';
+import { StepExecutor } from '../../src/StepExecutor.js';
 
 export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
 
@@ -167,11 +170,32 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         pluginRegistry.override(plugin);
     }
 
-    const actionRunner = new ActionRunner(
+    // --- New Architecture Setup ---
+    const basePluginServices = {
+        puppeteerHelper: globalContext.puppeteerHelper,
+        puppeteerQueue: globalContext.puppeteerQueue,
+        fetcher: globalContext.fetcher,
+        cache: globalContext.cache,
+        imageSearch: globalContext.imageSearch,
+        webSearch: globalContext.webSearch,
+        createLlm: (config: any) => llmFactory.create(config)
+    };
+
+    const pluginExecutor = new PluginExecutor(events as any, basePluginServices, '/tmp');
+    const stepExecutor = new StepExecutor(events as any);
+
+    const stepOrchestrator = new StepOrchestrator(
         globalContext,
         pluginRegistry,
         stepResolver,
-        messageBuilder
+        messageBuilder,
+        pluginExecutor,
+        stepExecutor
+    );
+
+    const actionRunner = new ActionRunner(
+        globalContext,
+        stepOrchestrator
     );
 
     const executor = new InMemoryConfigExecutor(

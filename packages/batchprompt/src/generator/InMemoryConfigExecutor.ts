@@ -10,6 +10,14 @@ import { ConfigResolver } from '../config/ConfigResolver.js';
 import { PromptLoader } from '../config/PromptLoader.js';
 import { RuntimeConfig, StepConfig } from '../types.js';
 import { ResolvedModelConfig } from '../config/types.js';
+import { StepOrchestrator } from '../core/StepOrchestrator.js';
+import { PluginExecutor } from '../core/PluginExecutor.js';
+import { StepExecutor } from '../StepExecutor.js';
+import { LlmClientFactory } from '../core/LlmClientFactory.js';
+import { StepResolver } from '../core/StepResolver.js';
+import { MessageBuilder } from '../core/MessageBuilder.js';
+import { GlobalContext } from '../types.js';
+import PQueue from 'p-queue';
 
 export class InMemoryConfigExecutor implements ConfigExecutor {
     constructor(
@@ -117,13 +125,13 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
         this.events.on('row:end', resultHandler);
 
         try {
+            // We need to ensure the ActionRunner used here is compatible with the new architecture.
+            // The ActionRunner passed in constructor is likely created via getConfig or similar.
+            // If InMemoryConfigExecutor is used in tests, it might be constructed manually.
+            // Assuming the ActionRunner passed in is already the new version.
             await this.actionRunner.run(runtimeConfig);
         } finally {
             this.events.off('row:end', resultHandler);
-            // We don't need to explicitly clear memoryHandler as it's garbage collected,
-            // but we should ensure it stops listening if it hasn't already.
-            // Note: MemoryArtifactHandler binds to events in constructor. 
-            // Ideally, it should have a dispose method. For now, we rely on it being short-lived.
         }
 
         return { results, artifacts: memoryHandler.artifacts };

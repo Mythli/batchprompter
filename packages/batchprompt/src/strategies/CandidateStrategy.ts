@@ -21,8 +21,7 @@ export class CandidateStrategy implements GenerationStrategy {
         index: number,
         stepIndex: number,
         config: StepConfig,
-        userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
-        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
         outputPathOverride?: string,
         skipCommands?: boolean,
@@ -36,7 +35,7 @@ export class CandidateStrategy implements GenerationStrategy {
             candidateCount,
             generate: async (_, i, salt) => {
                 const res = await this.standardStrategy.execute(
-                    row, index, stepIndex, config, userPromptParts, history, salt, undefined, skipCommands, variationIndex
+                    row, index, stepIndex, config, messages, salt, undefined, skipCommands, variationIndex
                 );
                 return { ...res, candidateIndex: i };
             },
@@ -48,7 +47,7 @@ export class CandidateStrategy implements GenerationStrategy {
 
                 this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Judging ${candidates.length} candidates...` });
                 try {
-                    const decision = await this.performJudging(candidates, userPromptParts);
+                    const decision = await this.performJudging(candidates, messages);
                     return {
                         bestCandidateIndex: decision.best_candidate_index,
                         reason: decision.reason
@@ -98,7 +97,7 @@ export class CandidateStrategy implements GenerationStrategy {
 
     private async performJudging(
         candidates: CandidateType[],
-        userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
     ): Promise<{ best_candidate_index: number; reason: string }> {
 
         if (!this.stepContext.judge) throw new Error("No judge configuration found");
@@ -126,10 +125,23 @@ export class CandidateStrategy implements GenerationStrategy {
         }
 
         // Add context about the original request
+        // We extract the user prompt parts from the messages if possible, or just pass the whole history?
+        // The judge needs context. Passing the last user message is usually enough.
+        // But `messages` contains System + History + User.
+        // We can pass the whole conversation as context?
+        // BoundLlmClient.promptZod takes prefix/suffix.
+        
+        // Let's try to extract the last user message content
+        const lastUserMsg = messages.slice().reverse().find(m => m.role === 'user');
         const contextParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
-            { type: 'text', text: "Original request:\n" },
-            ...userPromptParts
+            { type: 'text', text: "Original request context:\n" }
         ];
+        
+        if (lastUserMsg && Array.isArray(lastUserMsg.content)) {
+            contextParts.push(...lastUserMsg.content);
+        } else if (lastUserMsg && typeof lastUserMsg.content === 'string') {
+            contextParts.push({ type: 'text', text: lastUserMsg.content });
+        }
 
         const JudgeSchema = z.object({
             best_candidate_index: z.number().int().min(0).max(candidates.length - 1).describe("The index of the best candidate (0-based)"),
