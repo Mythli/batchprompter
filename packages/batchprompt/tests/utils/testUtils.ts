@@ -22,6 +22,14 @@ export function createMockOpenAI(responses: (string | any)[] | MockResponseResol
         chat: {
             completions: {
                 create: vi.fn(async (params) => {
+                    if (!params.messages || params.messages.length === 0) {
+                        throw new LlmFatalError(
+                            `[Mock OpenAI] 400 Input required: specify "prompt" or "messages"`,
+                            undefined,
+                            params.messages
+                        );
+                    }
+
                     let response: string | any;
                     const currentCall = callCount + 1;
                     const summary = getPromptSummary(params.messages);
