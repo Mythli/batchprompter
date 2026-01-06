@@ -73,13 +73,19 @@ export class PluginExecutor {
                 // Execute Plugin
                 const result = await instance.prepareMessages(messages, pluginConfig, context) as any;
                 
+                // Handle undefined/null result (Pass-through)
+                if (result === undefined || result === null) {
+                    nextItems.push(item);
+                    continue;
+                }
+
                 // Normalize to PluginPacket[]
                 let packets: PluginPacket[] = [];
 
                 if (Array.isArray(result)) {
                     // Check if it's Message[] or Packet[]/Message[][]
                     if (result.length === 0) {
-                        // Empty array
+                        // Empty array -> packets is []
                     } else if ('role' in result[0]) {
                         // It's Message[] -> Single packet with no data
                         packets.push({
