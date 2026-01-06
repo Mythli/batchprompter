@@ -3,7 +3,8 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext
+    PluginExecutionContext,
+    PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
@@ -156,7 +157,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: ImageSearchResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
+    ): Promise<PluginPacket[]> {
         const { services, row, outputBasename, emit } = context;
         const imageSearch = services.imageSearch;
 
@@ -243,16 +244,15 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         });
 
         if (selectedImages.length === 0) {
-            return messages;
+            return [];
         }
 
         // Build packets
         const sharp = (await import('sharp')).default;
         const baseName = outputBasename || 'image';
-        const newContentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-
+        
         // Process final images in parallel
-        await Promise.all(selectedImages.map(async (img, i) => {
+        const processedImages = await Promise.all(selectedImages.map(async (img, i) => {
             const filename = `image_search/selected/${baseName}_selected_${i}.jpg`;
 
             try {
@@ -273,24 +273,36 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                 });
 
                 const base64 = processed.toString('base64');
-                newContentParts.push({
+                const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [{
                     type: 'image_url',
                     image_url: { url: `data:image/jpeg;base64,${base64}` }
-                });
+                }];
+
+                return {
+                    data: img.metadata,
+                    contentParts
+                };
 
             } catch (e) {
                 console.warn(`[ImageSearch] Failed to process image:`, e);
+                return null;
             }
         }));
 
-        const newMessages = [...messages];
-        if (newContentParts.length > 0) {
-            newMessages.push({
-                role: 'user',
-                content: newContentParts
-            });
+        const validPackets = processedImages.filter((p): p is PluginPacket => p !== null);
+
+        // Handle Explosion
+        if (config.output.explode) {
+            return validPackets;
         }
 
-        return newMessages;
+        // Standard Merge (Single Packet with all images)
+        const allContentParts = validPackets.flatMap(p => p.contentParts);
+        const allData = validPackets.map(p => p.data);
+
+        return [{
+            data: allData,
+            contentParts: allContentParts
+        }];
     }
 }

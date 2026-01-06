@@ -3,7 +3,8 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext
+    PluginExecutionContext,
+    PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
@@ -173,7 +174,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: WebSearchResolvedConfigV2,
         context: PluginExecutionContext
-    ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[] | OpenAI.Chat.Completions.ChatCompletionMessageParam[][]> {
+    ): Promise<PluginPacket[]> {
         const { services, row, emit } = context;
         const webSearch = services.webSearch;
 
@@ -268,27 +269,20 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
 
         // Handle Explosion
         if (config.output.explode) {
-            // Return array of message sets
+            // Return array of packets, one per item
             return result.data.map(item => {
                 const text = `Source: ${item.title} (${item.link})\nContent:\n${item.content}`;
-                const newMessages = [...messages];
-                newMessages.push({
-                    role: 'user',
-                    content: text
-                });
-                return newMessages;
+                return {
+                    data: item,
+                    contentParts: [{ type: 'text', text }]
+                };
             });
         }
 
-        // Standard Merge
-        const newMessages = [...messages];
-        if (result.contentParts.length > 0) {
-            newMessages.push({
-                role: 'user',
-                content: result.contentParts
-            });
-        }
-
-        return newMessages;
+        // Standard Merge (Single Packet)
+        return [{
+            data: result.data,
+            contentParts: result.contentParts
+        }];
     }
 }
