@@ -63,12 +63,7 @@ export interface StepDefinition {
 export interface NormalizedConfig {
     global: GlobalsConfig;
     steps: StepDefinition[];
-    data: {
-        format: string;
-        offset?: number;
-        limit?: number;
-        rows: Record<string, any>[];
-    };
+    data: Record<string, any>[];
 }
 
 // --- Resolved Configuration ---

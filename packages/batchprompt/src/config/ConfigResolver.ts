@@ -45,8 +45,12 @@ export class ConfigResolver {
 
         // 2. Merge Data
         const configToParse = typeof rawConfig === 'object' && rawConfig !== null ? { ...(rawConfig as any) } : {};
-        if (!configToParse.data) configToParse.data = {};
-        if (pipedData) configToParse.data.rows = pipedData;
+        
+        if (pipedData) {
+            configToParse.data = pipedData;
+        } else if (!configToParse.data) {
+            configToParse.data = [{}];
+        }
 
         // 3. Parse with Loose Schema (allows strings for schemas)
         // This applies defaults and basic structure validation
@@ -62,15 +66,14 @@ export class ConfigResolver {
         this.deps.pluginRegistry.validateCapabilities(config.steps, this.deps.capabilities);
 
         // 7. Slice Data (Input Limits)
-        const allRows = config.data.rows;
+        const allRows = config.data;
 
-        // Priority: globals.inputLimit > globals.limit > data.limit
-        const effectiveInputLimit = config.globals.inputLimit ?? config.globals.limit ?? config.data.limit;
-        const effectiveInputOffset = config.globals.inputOffset ?? config.data.offset ?? 0;
+        // Priority: globals.inputLimit > globals.limit
+        const effectiveInputLimit = config.globals.inputLimit ?? config.globals.limit;
+        const effectiveInputOffset = config.globals.inputOffset ?? 0;
 
-        const rows = effectiveInputLimit
-            ? allRows.slice(effectiveInputOffset, effectiveInputOffset + effectiveInputLimit)
-            : allRows.slice(effectiveInputOffset);
+        // FIX: Do NOT slice here. Pass full data to ActionRunner to handle slicing.
+        const rows = allRows;
 
         // 8. Resolve steps (without row context - templates remain)
         const resolvedSteps: ResolvedStepConfig[] = [];
@@ -82,11 +85,9 @@ export class ConfigResolver {
         }
 
         return {
-            data: {
-                rows,
-                offset: effectiveInputOffset,
-                limit: effectiveInputLimit
-            },
+            data: rows,
+            inputOffset: effectiveInputOffset,
+            inputLimit: effectiveInputLimit,
             globals: config.globals,
             steps: resolvedSteps
         };

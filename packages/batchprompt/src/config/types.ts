@@ -76,11 +76,9 @@ export interface ResolvedStepConfig {
 }
 
 export interface ResolvedPipelineConfig {
-    data: {
-        rows: Record<string, any>[];
-        offset: number;
-        limit?: number;
-    };
+    data: Record<string, any>[];
+    inputOffset: number;
+    inputLimit?: number;
     globals: GlobalsConfig;
     steps: ResolvedStepConfig[];
 }

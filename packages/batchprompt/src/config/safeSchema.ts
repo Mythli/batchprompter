@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import {
-    DataConfigSchema,
     GlobalsConfigSchema,
     StepConfigSchema // This is now the Strict version
 } from './schema.js';
@@ -9,7 +8,7 @@ import {
 export const SafeStepConfigSchema = StepConfigSchema;
 
 export const SafePipelineConfigSchema = z.object({
-    data: DataConfigSchema.optional().default(DataConfigSchema.parse({})),
+    data: z.array(z.record(z.string(), z.any())).default([{}]),
     globals: GlobalsConfigSchema.optional().default(GlobalsConfigSchema.parse({})),
     steps: z.array(SafeStepConfigSchema).min(1)
 });

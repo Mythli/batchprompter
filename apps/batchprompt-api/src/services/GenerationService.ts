@@ -37,10 +37,7 @@ export class GenerationService {
 
         // Inject sample rows into the config so they are available for execution in the UI
         if (sampleRows && sampleRows.length > 0) {
-            if (!config.data) {
-                config.data = { rows: [], format: 'json' };
-            }
-            config.data.rows = sampleRows;
+            config.data = sampleRows;
         }
 
         return config;

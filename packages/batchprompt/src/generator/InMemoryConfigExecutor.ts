@@ -60,7 +60,7 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
 
         // Inject initialRows if provided
         if (initialRows && initialRows.length > 0) {
-            resolvedConfig.data.rows = initialRows;
+            resolvedConfig.data = initialRows;
         }
         
         // Convert ResolvedPipelineConfig to RuntimeConfig
@@ -69,9 +69,9 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
             taskConcurrency: resolvedConfig.globals.taskConcurrency,
             tmpDir: resolvedConfig.globals.tmpDir,
             dataOutputPath: resolvedConfig.globals.dataOutputPath,
-            data: resolvedConfig.data.rows,
-            offset: resolvedConfig.data.offset,
-            limit: resolvedConfig.data.limit,
+            data: resolvedConfig.data,
+            offset: resolvedConfig.inputOffset,
+            limit: resolvedConfig.inputLimit,
             steps: resolvedConfig.steps.map((step, index) => {
                 const modelConfig: ResolvedModelConfig = {
                     model: step.model,

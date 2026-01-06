@@ -49,13 +49,6 @@ export const LooseStepConfigSchema = StepConfigSchema.extend({
     plugins: z.array(LoosePluginUnionSchema).default([])
 });
 
-export const DataConfigSchema = z.object({
-    format: z.enum(['csv', 'json', 'auto']).default('auto').describe("Format of the input data."),
-    offset: z.number().int().min(0).optional().describe("Start processing from this row index."),
-    limit: z.number().int().positive().optional().describe("Limit the number of rows to process."),
-    rows: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows.")
-}).describe("Configuration for input data loading.");
-
 export const GlobalsConfigSchema = z.object({
     model: z.string().default('google/gemini-3-flash-preview').describe("Default model to use if not specified in a step."),
     temperature: z.number().min(0).max(2).optional().describe("Default temperature."),
@@ -76,7 +69,7 @@ export const GlobalsConfigSchema = z.object({
 
 // --- Strict Pipeline Schema ---
 export const PipelineConfigSchema = z.object({
-    data: DataConfigSchema.optional().default(DataConfigSchema.parse({})).describe("Input data configuration."),
+    data: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows."),
     globals: GlobalsConfigSchema.optional().default(GlobalsConfigSchema.parse({})).describe("Global settings."),
     steps: z.array(StepConfigSchema).min(1).describe("List of steps to execute.")
 }).describe("Root configuration for the BatchPrompt pipeline.");
