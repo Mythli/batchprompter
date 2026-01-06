@@ -142,6 +142,18 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
         config: TResolvedConfig,
         context: PluginExecutionContext
     ): Promise<any>;
+
+    /**
+     * Optional Zod schema to extend the StepConfig.
+     * Fields defined here will be merged into the main StepConfigSchema.
+     */
+    stepExtensionSchema?: z.ZodType<any>;
+
+    /**
+     * Optional function to map step-level configuration to a plugin configuration.
+     * If this returns a config object, the plugin will be implicitly added to the step.
+     */
+    mapStepToConfig?(stepConfig: any): TRawConfig | null;
 }
 
 // =============================================================================

@@ -31,7 +31,9 @@ describe('UrlExpanderPlugin', () => {
         const config = {
             steps: [{
                 prompt: "Read this: https://example.com/article",
-                plugins: [{ type: 'url-expander' }] // Activates our injected plugin
+                // Implicitly active via expandUrls: true (default).
+                // But we need to set mode to 'puppeteer' to match the mock handler we injected.
+                expandUrls: { mode: 'puppeteer' }
             }]
         };
 

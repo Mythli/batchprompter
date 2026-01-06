@@ -8,6 +8,7 @@ import {
 } from './common.js';
 import { PluginUnionSchema, LoosePluginUnionSchema } from './pluginUnion.js';
 import { zJsonSchemaObject, zHandlebars } from './validationRules.js';
+import { UrlExpanderStepExtension } from '../plugins/url-expander/UrlExpanderConfig.js';
 
 // Re-export common schemas
 export { PromptDefSchema, ModelConfigSchema, OutputConfigSchema };
@@ -20,8 +21,8 @@ export const FeedbackConfigSchema = ModelConfigSchema.extend({
     loops: z.number().int().min(0).default(0).describe("Number of feedback iterations to run.")
 }).describe("Configuration for the feedback loop (self-correction).");
 
-// --- Strict Step Schema (Runtime / Generation) ---
-export const StepConfigSchema = z.object({
+// --- Core Step Schema (Runtime / Generation) ---
+const CoreStepConfigSchema = z.object({
     prompt: PromptDefSchema.optional().describe("The main instruction for this step."),
     system: PromptDefSchema.optional().describe("System instruction for this step."),
     model: ModelConfigSchema.optional().describe("Model configuration for this step."),
@@ -37,7 +38,10 @@ export const StepConfigSchema = z.object({
     feedback: FeedbackConfigSchema.optional().describe("Configuration for a feedback loop to improve the result."),
     aspectRatio: z.string().optional().describe("Aspect ratio for image generation (e.g., '16:9')."),
     timeout: z.number().int().positive().optional().describe("Timeout in seconds for this step.")
-}).describe("Configuration for a single step in the pipeline.");
+});
+
+// --- Strict Step Schema (Merged with Extensions) ---
+export const StepConfigSchema = CoreStepConfigSchema.merge(UrlExpanderStepExtension).describe("Configuration for a single step in the pipeline.");
 
 // --- Loose Step Schema (Input / CLI) ---
 export const LooseStepConfigSchema = StepConfigSchema.extend({

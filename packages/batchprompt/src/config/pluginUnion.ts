@@ -6,7 +6,7 @@ import { StyleScraperConfigSchemaV2 } from '../plugins/style-scraper/StyleScrape
 import { ValidationConfigSchemaV2, LooseValidationConfigSchemaV2 } from '../plugins/validation/ValidationPluginV2.js';
 import { DedupeConfigSchemaV2 } from '../plugins/dedupe/DedupePluginV2.js';
 import { LogoScraperConfigSchemaV2 } from '../plugins/logo-scraper/LogoScraperPluginV2.js';
-import { UrlExpanderConfigSchema } from '../plugins/url-expander/UrlExpanderPlugin.js';
+import { UrlExpanderConfigSchema } from '../plugins/url-expander/UrlExpanderConfig.js';
 
 /**
  * Strict Union (Runtime / Generation)

@@ -121,10 +121,36 @@ export class ConfigResolver {
             }
         }
 
+        // Resolve Implicit Plugins
+        const implicitPlugins: any[] = [];
+        const allRegisteredPlugins = this.deps.pluginRegistry.getAll();
+
+        for (const plugin of allRegisteredPlugins) {
+            if (plugin.mapStepToConfig) {
+                const implicitConfig = plugin.mapStepToConfig(step);
+                if (implicitConfig) {
+                    // Check if this plugin type is already explicitly configured in the 'plugins' array
+                    const isExplicitlyConfigured = step.plugins.some((p: any) => p.type === implicitConfig.type);
+                    
+                    if (!isExplicitlyConfigured) {
+                        implicitPlugins.push({
+                            type: implicitConfig.type,
+                            id: implicitConfig.id || `${implicitConfig.type}-implicit-${stepIndex}`,
+                            output: implicitConfig.output || { mode: 'ignore', explode: false },
+                            rawConfig: implicitConfig
+                        });
+                    }
+                }
+            }
+        }
+
+        // Merge: Implicit plugins run FIRST
+        const mergedPlugins = [...implicitPlugins, ...step.plugins];
+
         // Plugins are resolved per-row during execution
         // Here we just store the raw config (which is now Normalized/Strict)
         // AND inject global limits if needed
-        const plugins = step.plugins.map((p: any, idx: number) => {
+        const plugins = mergedPlugins.map((p: any, idx: number) => {
             // Inject global limits into plugin output if exploding
             if (p.output.explode) {
                 if (p.output.limit === undefined && globals.limit !== undefined) {
@@ -139,7 +165,7 @@ export class ConfigResolver {
                 type: p.type as string,
                 id: (p as any).id ?? `${p.type}-${stepIndex}-${idx}`,
                 output: p.output,
-                rawConfig: p
+                rawConfig: p.rawConfig || p // Handle both rawConfig wrapper and direct object
             };
         });
 

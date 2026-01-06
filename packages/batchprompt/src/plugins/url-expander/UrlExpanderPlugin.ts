@@ -1,41 +1,20 @@
 import OpenAI from 'openai';
 import TurndownService from 'turndown';
-import { z } from 'zod';
 import { Plugin, PluginExecutionContext, PluginPacket } from '../types.js';
 import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
-import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema } from '../../config/common.js';
+import { ServiceCapabilities } from '../../config/types.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
-
-// =============================================================================
-// Config Schema
-// =============================================================================
-
-export const UrlExpanderConfigSchema = z.object({
-    type: z.literal('url-expander').describe("Identifies this as a URL expander plugin."),
-    id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default({
-        mode: 'ignore',
-        explode: false
-    }).describe("How to save the expanded content (usually ignored as it modifies prompt)."),
-    mode: z.enum(['fetch', 'puppeteer']).default('fetch').describe("Method used to fetch the URL content."),
-    maxChars: z.number().int().positive().default(30000).describe("Maximum number of characters to include from the expanded content.")
-});
-
-export type UrlExpanderConfig = z.infer<typeof UrlExpanderConfigSchema>;
-
-export interface UrlExpanderResolvedConfig {
-    type: 'url-expander';
-    id: string;
-    output: ResolvedOutputConfig;
-    mode: 'fetch' | 'puppeteer';
-    maxChars: number;
-}
+import { 
+    UrlExpanderConfig, 
+    UrlExpanderResolvedConfig, 
+    UrlExpanderConfigSchema,
+    UrlExpanderStepExtension 
+} from './UrlExpanderConfig.js';
 
 export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderResolvedConfig> {
     readonly type = 'url-expander';
     readonly configSchema = UrlExpanderConfigSchema;
-    readonly cliOptions = []; // Managed by adapter
+    readonly stepExtensionSchema = UrlExpanderStepExtension;
 
     constructor(private registry: UrlHandlerRegistry) {}
 
@@ -43,8 +22,30 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         return [];
     }
 
-    parseCLIOptions(): UrlExpanderConfig | null {
-        return null; // Managed by adapter
+    mapStepToConfig(stepConfig: any): UrlExpanderConfig | null {
+        const config = stepConfig.expandUrls;
+        
+        // If explicitly false, do not activate
+        if (config === false) return null;
+
+        // If true or undefined (default), use defaults
+        if (config === true || config === undefined) {
+            return {
+                type: 'url-expander',
+                output: { mode: 'ignore', explode: false },
+                mode: 'fetch',
+                maxChars: 30000
+            };
+        }
+
+        // If object, merge with defaults
+        return {
+            type: 'url-expander',
+            output: { mode: 'ignore', explode: false },
+            mode: config.mode || 'fetch',
+            maxChars: config.maxChars || 30000,
+            id: config.id
+        };
     }
 
     async resolveConfig(
