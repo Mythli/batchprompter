@@ -11,25 +11,24 @@ export class CliConfigBuilder {
 
         // Ensure basic structure exists
         config.data = config.data || {};
-        config.globals = config.globals || {};
         config.steps = config.steps || [];
 
-        // --- Global Overrides ---
-        if (options.model) config.globals.model = options.model;
-        if (options.temperature !== undefined) config.globals.temperature = parseFloat(String(options.temperature));
-        if (options.thinkingLevel) config.globals.thinkingLevel = options.thinkingLevel;
-        if (options.concurrency) config.globals.concurrency = parseInt(String(options.concurrency), 10);
-        if (options.taskConcurrency) config.globals.taskConcurrency = parseInt(String(options.taskConcurrency), 10);
-        if (options.tmpDir) config.globals.tmpDir = options.tmpDir;
-        if (options.output) config.globals.outputPath = options.output;
-        if (options.dataOutput) config.globals.dataOutputPath = options.dataOutput;
-        if (options.timeout) config.globals.timeout = parseInt(String(options.timeout), 10);
+        // --- Global Overrides (Flat) ---
+        if (options.model) config.model = options.model;
+        if (options.temperature !== undefined) config.temperature = parseFloat(String(options.temperature));
+        if (options.thinkingLevel) config.thinkingLevel = options.thinkingLevel;
+        if (options.concurrency) config.concurrency = parseInt(String(options.concurrency), 10);
+        if (options.taskConcurrency) config.taskConcurrency = parseInt(String(options.taskConcurrency), 10);
+        if (options.tmpDir) config.tmpDir = options.tmpDir;
+        if (options.output) config.outputPath = options.output;
+        if (options.dataOutput) config.dataOutputPath = options.dataOutput;
+        if (options.timeout) config.timeout = parseInt(String(options.timeout), 10);
 
         // --- Limit & Offset Overrides ---
-        if (options.inputLimit !== undefined) config.globals.inputLimit = parseInt(String(options.inputLimit), 10);
-        if (options.inputOffset !== undefined) config.globals.inputOffset = parseInt(String(options.inputOffset), 10);
-        if (options.limit !== undefined) config.globals.limit = parseInt(String(options.limit), 10);
-        if (options.offset !== undefined) config.globals.offset = parseInt(String(options.offset), 10);
+        if (options.inputLimit !== undefined) config.inputLimit = parseInt(String(options.inputLimit), 10);
+        if (options.inputOffset !== undefined) config.inputOffset = parseInt(String(options.inputOffset), 10);
+        if (options.limit !== undefined) config.limit = parseInt(String(options.limit), 10);
+        if (options.offset !== undefined) config.offset = parseInt(String(options.offset), 10);
 
         // --- Step Overrides ---
         let maxStepIndex = config.steps.length;

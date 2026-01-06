@@ -62,6 +62,7 @@ export class ConfigResolver {
         const normalizedConfig = await this.normalizer.normalize(looseConfig);
 
         // 5. Validate with Strict Schema (enforces objects and valid schemas)
+        // This also flattens 'globals' if present via preprocess
         const config = PipelineConfigSchema.parse(normalizedConfig);
 
         // 6. Validate plugin capabilities
@@ -70,10 +71,10 @@ export class ConfigResolver {
         // 7. Slice Data (Input Limits)
         const allRows = config.data;
 
-        // Priority: globals.inputLimit > globals.limit
-        const effectiveInputLimit = config.globals.inputLimit ?? config.globals.limit;
-        // Priority: globals.inputOffset > globals.offset
-        const effectiveInputOffset = config.globals.inputOffset ?? config.globals.offset ?? 0;
+        // Priority: inputLimit > limit
+        const effectiveInputLimit = config.inputLimit ?? config.limit;
+        // Priority: inputOffset > offset
+        const effectiveInputOffset = config.inputOffset ?? config.offset ?? 0;
 
         // FIX: Do NOT slice here. Pass full data to ActionRunner to handle slicing.
         const rows = allRows;
@@ -83,27 +84,18 @@ export class ConfigResolver {
 
         for (let i = 0; i < config.steps.length; i++) {
             const step = config.steps[i];
-            const resolved = await this.resolveStep(step, config.globals, i);
+            // Pass the entire flattened config as globals context
+            const resolved = await this.resolveStep(step, config, i);
             resolvedSteps.push(resolved);
         }
 
         return {
+            ...config, // Spread all flattened global properties
             data: rows,
             inputOffset: effectiveInputOffset,
             inputLimit: effectiveInputLimit,
             steps: resolvedSteps,
-            concurrency: config.globals.concurrency,
-            taskConcurrency: config.globals.taskConcurrency,
-            tmpDir: config.globals.tmpDir,
-            dataOutputPath: config.globals.dataOutputPath,
-            offset: config.globals.offset,
-            limit: config.globals.limit,
-            // Flattened globals
-            model: config.globals.model,
-            temperature: config.globals.temperature,
-            thinkingLevel: config.globals.thinkingLevel,
-            outputPath: config.globals.outputPath,
-            timeout: config.globals.timeout
+            globals: config // Keep a reference to globals for backward compatibility in types if needed, though types are updated
         };
     }
 

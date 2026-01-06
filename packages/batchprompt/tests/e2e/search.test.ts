@@ -96,7 +96,7 @@ describe('E2E Search Plugins', () => {
         const { executor, openai } = await setupSearchTest(mockResponses);
 
         const config = {
-            globals: { model: "gpt-mock" },
+            model: "gpt-mock",
             steps: [
                 {
                     plugins: [
@@ -143,7 +143,7 @@ describe('E2E Search Plugins', () => {
         const { executor, openai } = await setupSearchTest(mockResponses);
 
         const config = {
-            globals: { model: "gpt-mock" },
+            model: "gpt-mock",
             steps: [
                 {
                     plugins: [

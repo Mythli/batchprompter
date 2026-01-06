@@ -62,10 +62,8 @@ describe('E2E JSON Explode and Merge', () => {
 
         // 3. Config
         const config = {
-            globals: {
-                model: "gpt-mock",
-                limit: 2 // Global limit to test explosion capping
-            },
+            model: "gpt-mock",
+            limit: 2, // Global limit to test explosion capping
             steps: [
                 {
                     // Step 1: Generate Array -> Explode

@@ -34,7 +34,7 @@ describe('E2E Plugin Explosion', () => {
         });
 
         const config = {
-            globals: { model: "gpt-mock" },
+            model: "gpt-mock",
             steps: [
                 {
                     // Step 1: Search and Explode

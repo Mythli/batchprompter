@@ -66,32 +66,34 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
         }
     }
 
-    const PipelineSchema = z.object({
-        globals: z.object({
-            model: z.string().optional(),
-            temperature: z.number().optional(),
-            thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-            concurrency: z.number().int().positive().default(50),
-            taskConcurrency: z.number().int().positive().default(100),
-            tmpDir: z.string().default(path.join(os.tmpdir(), 'batchprompt')),
-            outputPath: z.string().optional(),
-            dataOutputPath: z.string().optional(),
-            timeout: z.number().int().positive().default(180),
-            inputLimit: z.number().int().positive().optional(),
-            inputOffset: z.number().int().min(0).optional(),
-            limit: z.number().int().positive().optional(),
-            offset: z.number().int().min(0).optional()
-        }).default({}),
+    const GlobalsSchema = z.object({
+        model: z.string().optional(),
+        temperature: z.number().optional(),
+        thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+        concurrency: z.number().int().positive().default(50),
+        taskConcurrency: z.number().int().positive().default(100),
+        tmpDir: z.string().default(path.join(os.tmpdir(), 'batchprompt')),
+        outputPath: z.string().optional(),
+        dataOutputPath: z.string().optional(),
+        timeout: z.number().int().positive().default(180),
+        inputLimit: z.number().int().positive().optional(),
+        inputOffset: z.number().int().min(0).optional(),
+        limit: z.number().int().positive().optional(),
+        offset: z.number().int().min(0).optional()
+    });
+
+    // Flattened Pipeline Schema
+    const PipelineSchema = GlobalsSchema.extend({
         data: z.array(z.record(z.string(), z.any())).default([{}]),
         steps: z.array(StepSchema).min(1)
     });
 
-    // Flatten globals into the root object
-    return PipelineSchema.transform((data) => {
-        const { globals, ...rest } = data;
-        return {
-            ...rest,
-            ...globals
-        };
-    });
+    // Preprocess to handle legacy 'globals' nesting
+    return z.preprocess((val: any) => {
+        if (val && typeof val === 'object' && val.globals) {
+            const { globals, ...rest } = val;
+            return { ...globals, ...rest };
+        }
+        return val;
+    }, PipelineSchema);
 }

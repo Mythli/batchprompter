@@ -15,9 +15,7 @@ describe('E2E Chain', () => {
 
         // 3. Define Config
         const config = {
-            globals: {
-                model: "gpt-mock"
-            },
+            model: "gpt-mock",
             steps: [
                 {
                     prompt: "Generate a cool game name",

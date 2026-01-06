@@ -68,11 +68,19 @@ export const GlobalsConfigSchema = z.object({
 }).describe("Global configuration settings.");
 
 // --- Strict Pipeline Schema ---
-export const PipelineConfigSchema = z.object({
+// We merge Globals directly into the root.
+// We also support a legacy 'globals' object via preprocess for backward compatibility.
+export const PipelineConfigSchema = GlobalsConfigSchema.extend({
     data: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows."),
-    globals: GlobalsConfigSchema.optional().default(GlobalsConfigSchema.parse({})).describe("Global settings."),
     steps: z.array(StepConfigSchema).min(1).describe("List of steps to execute.")
-}).describe("Root configuration for the BatchPrompt pipeline.");
+}).preprocess((val: any) => {
+    if (val && typeof val === 'object' && val.globals) {
+        // Merge legacy globals into root
+        const { globals, ...rest } = val;
+        return { ...globals, ...rest };
+    }
+    return val;
+}, z.object({}).passthrough()); // The base object for preprocess validation isn't strictly checked here, the main schema does it.
 
 // --- Loose Pipeline Schema ---
 export const LoosePipelineConfigSchema = PipelineConfigSchema.extend({

@@ -22,9 +22,7 @@ describe('E2E Candidates with Judge', () => {
 
         // 2. Define Config
         const config = {
-            globals: {
-                model: "gpt-mock"
-            },
+            model: "gpt-mock",
             steps: [
                 {
                     prompt: "Generate a creative animal name",

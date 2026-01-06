@@ -2,32 +2,12 @@ import { ResolvedPipelineConfig, ResolvedModelConfig } from './types.js';
 import { RuntimeConfig, StepConfig } from '../types.js';
 
 export function mapToRuntimeConfig(resolvedConfig: ResolvedPipelineConfig): RuntimeConfig {
+    // The resolved config is already flat and matches RuntimeConfig structure
+    // We just need to map the steps to ensure they match StepConfig interface strictly
+    
     return {
-        concurrency: resolvedConfig.concurrency,
-        taskConcurrency: resolvedConfig.taskConcurrency,
-        tmpDir: resolvedConfig.tmpDir,
-        dataOutputPath: resolvedConfig.dataOutputPath,
-        data: resolvedConfig.data,
-        offset: resolvedConfig.inputOffset,
-        limit: resolvedConfig.inputLimit,
-        // Flattened globals
-        model: resolvedConfig.model,
-        temperature: resolvedConfig.temperature,
-        thinkingLevel: resolvedConfig.thinkingLevel,
-        outputPath: resolvedConfig.outputPath,
-        timeout: resolvedConfig.timeout,
-        inputLimit: resolvedConfig.inputLimit,
-        inputOffset: resolvedConfig.inputOffset,
-        
+        ...resolvedConfig,
         steps: resolvedConfig.steps.map((step) => {
-            // In the new architecture, step.model is already a ModelConfig object
-            // But we need to ensure it's fully populated if we are mapping from an old structure
-            // or if we need to transform it.
-            // However, ResolvedStepConfig (step) already matches StepConfig mostly.
-            
-            // If we are just passing through, we can return step as is, 
-            // but let's be explicit to match the interface.
-
             const stepConfig: StepConfig = {
                 model: step.model,
                 tmpDir: step.tmpDir,

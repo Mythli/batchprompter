@@ -24,11 +24,8 @@ describe('E2E Image Generation', () => {
 
         // 3. Define Config with Handlebars output path
         const config = {
-            globals: {
-                model: "dall-e-3",
-                // Global temp dir
-                tmpDir: "/tmp/batchprompt"
-            },
+            model: "dall-e-3",
+            tmpDir: "/tmp/batchprompt",
             steps: [
                 {
                     prompt: "Generate a logo for {{company}}",
