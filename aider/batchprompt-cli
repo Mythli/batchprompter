@@ -1,10 +1,7 @@
 #!/bin/bash
-PATHS="apps/batchprompt-cli/src packages/llm-fns/src"
+PATHS="apps/batchprompt-cli/src"
 if [ -d "apps/batchprompt-cli/tests" ]; then
     PATHS="$PATHS apps/batchprompt-cli/tests"
-fi
-if [ -d "packages/llm-fns/tests" ]; then
-    PATHS="$PATHS packages/llm-fns/tests"
 fi
 
 aider $(find $PATHS -type d -name "generated" -prune -o -type f \( -name "*.ts" -o -name "*.js" \) ! -name "*.d.ts" -print) "$@"
