@@ -20,7 +20,7 @@ import {
     DedupePluginV2,
     LogoScraperPluginV2,
     PromptLoader,
-    SchemaBuilder
+    createPipelineSchema
 } from 'batchprompt';
 import { getConfig } from './getConfig.js';
 import { StepRegistry } from './StepRegistry.js';
@@ -258,8 +258,8 @@ program.command('init')
 program.command('schema')
     .description('Print the JSON Schema for the configuration file')
     .action(() => {
-        const builder = new SchemaBuilder(cliRegistry);
-        const schema = builder.build('input');
+        const inputJsonSchemaType = z.union([z.string(), z.record(z.string(), z.any())]);
+        const schema = createPipelineSchema(cliRegistry, inputJsonSchemaType, true);
         const jsonSchema = z.toJSONSchema(schema, {
             unrepresentable: 'any'
         });

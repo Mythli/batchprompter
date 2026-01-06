@@ -97,18 +97,9 @@ export interface GlobalsConfig {
     offset?: number;
 }
 
-export interface RuntimeConfig {
-    concurrency: number;
-    taskConcurrency: number;
-    tmpDir: string;
-    dataOutputPath?: string;
+export interface RuntimeConfig extends GlobalsConfig {
     steps: StepConfig[];
     data: Record<string, any>[];
-    offset?: number;
-    limit?: number;
-    inputOffset?: number;
-    inputLimit?: number;
-    globals: GlobalsConfig;
 }
 
 export type ResolvedPipelineConfig = RuntimeConfig;

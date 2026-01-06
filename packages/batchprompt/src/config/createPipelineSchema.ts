@@ -66,7 +66,7 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
         }
     }
 
-    return z.object({
+    const PipelineSchema = z.object({
         globals: z.object({
             model: z.string().optional(),
             temperature: z.number().optional(),
@@ -84,5 +84,14 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
         }).default({}),
         data: z.array(z.record(z.string(), z.any())).default([{}]),
         steps: z.array(StepSchema).min(1)
+    });
+
+    // Flatten globals into the root object
+    return PipelineSchema.transform((data) => {
+        const { globals, ...rest } = data;
+        return {
+            ...rest,
+            ...globals
+        };
     });
 }

@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { PluginRegistryV2 } from '../plugins/types.js';
 
 export class ConfigExpander {
@@ -15,10 +16,13 @@ export class ConfigExpander {
                             // Add to plugins
                             step.plugins.unshift(pluginConfig);
                             
-                            // Remove the trigger key from step to pass strict validation
-                            // Hardcoded cleanup for known plugins for now
-                            if (plugin.type === 'url-expander') {
-                                delete step.expandUrls;
+                            // Remove the trigger keys from step to pass strict validation
+                            // We use the stepExtensionSchema to identify which keys belong to this plugin's shortcut
+                            if (plugin.stepExtensionSchema && plugin.stepExtensionSchema instanceof z.ZodObject) {
+                                const keys = Object.keys(plugin.stepExtensionSchema.shape);
+                                for (const key of keys) {
+                                    delete step[key];
+                                }
                             }
                         }
                     }

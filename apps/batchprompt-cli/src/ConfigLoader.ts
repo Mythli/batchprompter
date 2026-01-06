@@ -3,7 +3,7 @@ import * as path from 'path';
 import { z } from 'zod';
 import { 
     PluginRegistryV2, 
-    SchemaBuilder, 
+    createPipelineSchema, 
     ConfigExpander, 
     PromptLoader,
     RuntimeConfig
@@ -34,8 +34,9 @@ export class ConfigLoader {
         const rawConfig = CliConfigBuilder.build(fileConfig, options, args, this.adapters);
 
         // 3. Validate Input (Loose)
-        const builder = new SchemaBuilder(this.registry);
-        const inputSchema = builder.build('input');
+        // Input: Schema can be string (path) or object.
+        const inputJsonSchemaType = z.union([z.string(), z.record(z.string(), z.any())]);
+        const inputSchema = createPipelineSchema(this.registry, inputJsonSchemaType, true);
         const userConfig = inputSchema.parse(rawConfig);
 
         // 4. Hydrate Static Files (Pre-normalization)
@@ -75,23 +76,14 @@ export class ConfigLoader {
         const expandedConfig = ConfigExpander.expand(userConfig, this.registry);
 
         // 6. Validate Runtime (Strict)
-        const runtimeSchema = builder.build('runtime');
-        const parsedConfig = runtimeSchema.parse(expandedConfig);
+        // Runtime: Schema can be string (template) or object.
+        const runtimeJsonSchemaType = z.union([z.string(), z.record(z.string(), z.any())]);
+        const runtimeSchema = createPipelineSchema(this.registry, runtimeJsonSchemaType, false);
+        
+        // This returns a flattened object now
+        const runtimeConfig = runtimeSchema.parse(expandedConfig);
 
-        // Flatten globals into RuntimeConfig
-        const runtimeConfig: RuntimeConfig = {
-            ...parsedConfig,
-            concurrency: parsedConfig.globals.concurrency,
-            taskConcurrency: parsedConfig.globals.taskConcurrency,
-            tmpDir: parsedConfig.globals.tmpDir,
-            dataOutputPath: parsedConfig.globals.dataOutputPath,
-            offset: parsedConfig.globals.offset,
-            limit: parsedConfig.globals.limit,
-            inputOffset: parsedConfig.globals.inputOffset,
-            inputLimit: parsedConfig.globals.inputLimit,
-        };
-
-        return runtimeConfig;
+        return runtimeConfig as RuntimeConfig;
     }
 
     private async hydratePrompt(prompt: any): Promise<any> {

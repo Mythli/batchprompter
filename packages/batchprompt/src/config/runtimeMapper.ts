@@ -3,14 +3,22 @@ import { RuntimeConfig, StepConfig } from '../types.js';
 
 export function mapToRuntimeConfig(resolvedConfig: ResolvedPipelineConfig): RuntimeConfig {
     return {
-        concurrency: resolvedConfig.globals.concurrency,
-        taskConcurrency: resolvedConfig.globals.taskConcurrency,
-        tmpDir: resolvedConfig.globals.tmpDir,
-        dataOutputPath: resolvedConfig.globals.dataOutputPath,
+        concurrency: resolvedConfig.concurrency,
+        taskConcurrency: resolvedConfig.taskConcurrency,
+        tmpDir: resolvedConfig.tmpDir,
+        dataOutputPath: resolvedConfig.dataOutputPath,
         data: resolvedConfig.data,
         offset: resolvedConfig.inputOffset,
         limit: resolvedConfig.inputLimit,
-        globals: resolvedConfig.globals,
+        // Flattened globals
+        model: resolvedConfig.model,
+        temperature: resolvedConfig.temperature,
+        thinkingLevel: resolvedConfig.thinkingLevel,
+        outputPath: resolvedConfig.outputPath,
+        timeout: resolvedConfig.timeout,
+        inputLimit: resolvedConfig.inputLimit,
+        inputOffset: resolvedConfig.inputOffset,
+        
         steps: resolvedConfig.steps.map((step) => {
             // In the new architecture, step.model is already a ModelConfig object
             // But we need to ensure it's fully populated if we are mapping from an old structure

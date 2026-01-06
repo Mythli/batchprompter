@@ -91,14 +91,19 @@ export class ConfigResolver {
             data: rows,
             inputOffset: effectiveInputOffset,
             inputLimit: effectiveInputLimit,
-            globals: config.globals,
             steps: resolvedSteps,
             concurrency: config.globals.concurrency,
             taskConcurrency: config.globals.taskConcurrency,
             tmpDir: config.globals.tmpDir,
             dataOutputPath: config.globals.dataOutputPath,
             offset: config.globals.offset,
-            limit: config.globals.limit
+            limit: config.globals.limit,
+            // Flattened globals
+            model: config.globals.model,
+            temperature: config.globals.temperature,
+            thinkingLevel: config.globals.thinkingLevel,
+            outputPath: config.globals.outputPath,
+            timeout: config.globals.timeout
         };
     }
 
