@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.8.2",
-    "batchprompt": "0.0.1",
-    "llm-fns": "1.0.23",
+    "batchprompt": "workspace:*",
+    "llm-fns": "workspace:*",
     "hono": "^4.0.8",
     "jszip": "^3.10.1",
     "papaparse": "^5.4.1"

@@ -12,12 +12,14 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "batchprompt": "0.0.1",
+    "batchprompt": "workspace:*",
     "commander": "^12.1.0",
     "dotenv": "^16.6.1",
     "eventemitter3": "^5.0.1",
+    "handlebars": "^4.7.8",
     "json2csv": "6.0.0-alpha.2",
     "papaparse": "^5.4.1",
+    "yaml": "^2.8.2",
     "zod": "^4.3.5"
   },
   "devDependencies": {
