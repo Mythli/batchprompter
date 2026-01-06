@@ -52,7 +52,7 @@ export interface CreateJsonSchemaLlmClientParams {
 export function createJsonSchemaLlmClient(params: CreateJsonSchemaLlmClientParams) {
     const { prompt, fallbackPrompt, disableJsonFixer = false, retryBaseDelay } = params;
     const llmRetryClient = createLlmRetryClient({ prompt, fallbackPrompt, retryBaseDelay });
-    const ajv = new Ajv({ strict: false });
+    const ajv = new (Ajv as any)({ strict: false });
 
     async function _tryToFixJson(
         brokenResponse: string,
@@ -248,7 +248,7 @@ ${schemaJsonString}`;
                 const validate = ajv.compile(schema);
                 const valid = validate(data);
                 if (!valid) {
-                    const errors = (validate.errors || []).map(e => `${e.instancePath} ${e.message}`).join(', ');
+                    const errors = (validate.errors || []).map((e: any) => `${e.instancePath} ${e.message}`).join(', ');
                     throw new SchemaValidationError(`AJV Validation Error: ${errors}`);
                 }
                 return data as T;
