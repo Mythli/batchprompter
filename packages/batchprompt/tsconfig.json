@@ -12,5 +12,5 @@
   "references": [
     { "path": "../llm-fns" }
   ],
-  "include": ["src/**/*", "tests/**/*"]
+  "include": ["src/**/*"]
 }
