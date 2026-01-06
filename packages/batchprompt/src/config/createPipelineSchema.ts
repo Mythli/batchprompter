@@ -14,8 +14,9 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
         : z.object({ type: z.string() }).passthrough();
 
     // Use .optional().default({}) to allow empty input for objects that have defaults
-    const SafeModelConfigSchema = ModelConfigSchema.optional().default({});
-    const SafeOutputConfigSchema = OutputConfigSchema.optional().default({});
+    // We need to cast to any to bypass strict type checking on default({}) which expects required fields
+    const SafeModelConfigSchema = ModelConfigSchema.optional().default({} as any);
+    const SafeOutputConfigSchema = OutputConfigSchema.optional().default({} as any);
 
     let StepSchema = z.object({
         // Model
@@ -60,6 +61,7 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
             if (plugin.stepExtensionSchema) {
                 // Ensure stepExtensionSchema is treated as an object schema for merge
                 if (plugin.stepExtensionSchema instanceof z.ZodObject) {
+                    // Cast to any to allow merging potentially incompatible schemas (though they should be compatible extensions)
                     StepSchema = StepSchema.merge(plugin.stepExtensionSchema as any);
                 }
             }

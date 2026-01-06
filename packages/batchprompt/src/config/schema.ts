@@ -70,19 +70,31 @@ export const GlobalsConfigSchema = z.object({
 // --- Strict Pipeline Schema ---
 // We merge Globals directly into the root.
 // We also support a legacy 'globals' object via preprocess for backward compatibility.
-export const PipelineConfigSchema = GlobalsConfigSchema.extend({
+const BasePipelineConfigSchema = GlobalsConfigSchema.extend({
     data: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows."),
     steps: z.array(StepConfigSchema).min(1).describe("List of steps to execute.")
-}).preprocess((val: any) => {
+});
+
+export const PipelineConfigSchema = z.preprocess((val: any) => {
     if (val && typeof val === 'object' && val.globals) {
         // Merge legacy globals into root
         const { globals, ...rest } = val;
         return { ...globals, ...rest };
     }
     return val;
-}, z.object({}).passthrough()); // The base object for preprocess validation isn't strictly checked here, the main schema does it.
+}, BasePipelineConfigSchema);
 
 // --- Loose Pipeline Schema ---
-export const LoosePipelineConfigSchema = PipelineConfigSchema.extend({
+const BaseLoosePipelineConfigSchema = GlobalsConfigSchema.extend({
+    data: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows."),
     steps: z.array(LooseStepConfigSchema).min(1)
 });
+
+export const LoosePipelineConfigSchema = z.preprocess((val: any) => {
+    if (val && typeof val === 'object' && val.globals) {
+        // Merge legacy globals into root
+        const { globals, ...rest } = val;
+        return { ...globals, ...rest };
+    }
+    return val;
+}, BaseLoosePipelineConfigSchema);
