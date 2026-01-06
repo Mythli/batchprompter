@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { ModelConfigSchema } from './schemas/model.js';
+
+export { ModelConfigSchema };
 
 export const OutputConfigSchema = z.object({
     mode: z.enum(['merge', 'column', 'ignore']).default('ignore'),

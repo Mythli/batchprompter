@@ -7,6 +7,7 @@ import { OutputConfigSchema } from './common.js';
 export { ModelConfig };
 
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
+export type ResolvedOutputConfig = OutputConfig;
 
 export interface ResolvedModelConfig {
     model?: string;
@@ -73,18 +74,7 @@ export interface StepConfig {
     userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
-export interface RuntimeConfig {
-    concurrency: number;
-    taskConcurrency: number;
-    tmpDir: string;
-    dataOutputPath?: string;
-    steps: StepConfig[];
-    data: Record<string, any>[];
-    offset?: number;
-    limit?: number;
-    inputOffset?: number;
-    inputLimit?: number;
-}
+export type ResolvedStepConfig = StepConfig;
 
 export interface GlobalsConfig {
     model?: string;
@@ -101,3 +91,25 @@ export interface GlobalsConfig {
     limit?: number;
     offset?: number;
 }
+
+export interface RuntimeConfig {
+    concurrency: number;
+    taskConcurrency: number;
+    tmpDir: string;
+    dataOutputPath?: string;
+    steps: StepConfig[];
+    data: Record<string, any>[];
+    offset?: number;
+    limit?: number;
+    inputOffset?: number;
+    inputLimit?: number;
+    globals: GlobalsConfig;
+}
+
+export type ResolvedPipelineConfig = RuntimeConfig;
+
+export type PromptDef = string | {
+    file?: string;
+    text?: string;
+    parts?: { type: 'text' | 'image' | 'audio'; content: string }[];
+};

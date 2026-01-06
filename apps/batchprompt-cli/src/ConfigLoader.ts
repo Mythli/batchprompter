@@ -76,9 +76,22 @@ export class ConfigLoader {
 
         // 6. Validate Runtime (Strict)
         const runtimeSchema = builder.build('runtime');
-        const runtimeConfig = runtimeSchema.parse(expandedConfig);
+        const parsedConfig = runtimeSchema.parse(expandedConfig);
 
-        return runtimeConfig as RuntimeConfig;
+        // Flatten globals into RuntimeConfig
+        const runtimeConfig: RuntimeConfig = {
+            ...parsedConfig,
+            concurrency: parsedConfig.globals.concurrency,
+            taskConcurrency: parsedConfig.globals.taskConcurrency,
+            tmpDir: parsedConfig.globals.tmpDir,
+            dataOutputPath: parsedConfig.globals.dataOutputPath,
+            offset: parsedConfig.globals.offset,
+            limit: parsedConfig.globals.limit,
+            inputOffset: parsedConfig.globals.inputOffset,
+            inputLimit: parsedConfig.globals.inputLimit,
+        };
+
+        return runtimeConfig;
     }
 
     private async hydratePrompt(prompt: any): Promise<any> {

@@ -6,7 +6,7 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import PQueue from 'p-queue';
 import { Cache } from 'cache-manager';
 import { BoundLlmClient } from './core/BoundLlmClient.js';
-import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputConfig } from './config/types.js';
+import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputConfig, StepConfig, ModelConfig, ResolvedPluginBase } from './config/types.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
@@ -14,6 +14,9 @@ import { StepExecutionContext } from './plugins/types.js';
 
 // Re-export types from plugins to ensure single source of truth
 export { StepExecutionContext };
+
+// Re-export from config/types
+export { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputConfig, StepConfig, ModelConfig, ResolvedPluginBase };
 
 // --- Definitions ---
 
@@ -29,92 +32,7 @@ export interface ModelDefinition {
 export type OutputStrategy = OutputConfig;
 export type OutputMode = OutputConfig['mode'];
 
-export interface PluginConfigDefinition {
-    name: string;
-    config: any;
-    output: OutputStrategy;
-}
-
-export interface StepDefinition {
-    stepIndex: number;
-    modelConfig: ModelDefinition;
-
-    outputPath?: string;
-    outputTemplate?: string;
-    output: OutputStrategy;
-
-    schemaPath?: string;
-    jsonSchema?: any;
-    verifyCommand?: string;
-    postProcessCommand?: string;
-
-    candidates: number;
-    noCandidateCommand: boolean;
-
-    judge?: ModelDefinition;
-    feedback?: ModelDefinition;
-    feedbackLoops: number;
-
-    aspectRatio?: string;
-    plugins: PluginConfigDefinition[];
-    timeout: number;
-}
-
-export interface NormalizedConfig {
-    global: GlobalsConfig;
-    steps: StepDefinition[];
-    data: Record<string, any>[];
-}
-
-// --- Resolved Configuration ---
-
-export interface StepConfig {
-    modelConfig: ResolvedModelConfig;
-    tmpDir: string;
-    userPromptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-
-    outputPath?: string;
-    outputTemplate?: string;
-    output: OutputStrategy;
-
-    schemaPath?: string;
-    jsonSchema?: any;
-
-    // Legacy command strings (kept for config loading, but Core uses handlers)
-    verifyCommand?: string;
-    postProcessCommand?: string;
-
-    candidates: number;
-    noCandidateCommand: boolean;
-
-    judge?: ResolvedModelConfig;
-    feedback?: ResolvedModelConfig;
-    feedbackLoops: number;
-
-    aspectRatio?: string;
-    plugins: PluginConfigDefinition[];
-
-    resolvedOutputDir?: string;
-    resolvedTempDir?: string;
-    outputBasename?: string;
-    outputExtension?: string;
-    options?: Record<string, any>;
-    timeout: number;
-}
-
-export interface RuntimeConfig {
-    concurrency: number;
-    taskConcurrency: number;
-    tmpDir: string;
-    dataOutputPath?: string;
-    steps: StepConfig[];
-    data: Record<string, any>[];
-    options?: Record<string, any>;
-    offset?: number;
-    limit?: number;
-}
-
-export interface ModelConfig extends ModelDefinition {}
+export type PluginConfigDefinition = ResolvedPluginBase;
 
 // --- Execution Architecture ---
 

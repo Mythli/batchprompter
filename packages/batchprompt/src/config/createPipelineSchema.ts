@@ -13,16 +13,20 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
         ? z.discriminatedUnion('type', pluginSchemas as any)
         : z.object({ type: z.string() }).passthrough();
 
+    // Use .optional().default({}) to allow empty input for objects that have defaults
+    const SafeModelConfigSchema = ModelConfigSchema.optional().default({});
+    const SafeOutputConfigSchema = OutputConfigSchema.optional().default({});
+
     let StepSchema = z.object({
         // Model
-        model: ModelConfigSchema.default({}),
+        model: SafeModelConfigSchema,
         
         // Execution
         timeout: z.number().int().positive().default(180),
         candidates: z.number().int().positive().default(1),
         
         // I/O
-        output: OutputConfigSchema.default({}),
+        output: SafeOutputConfigSchema,
         outputPath: z.string().optional(), // Template
         
         // Validation
@@ -50,7 +54,10 @@ export function createPipelineSchema(registry: PluginRegistryV2, jsonSchemaType:
     if (isInputMode) {
         for (const plugin of registry.getAll()) {
             if (plugin.stepExtensionSchema) {
-                StepSchema = StepSchema.merge(plugin.stepExtensionSchema);
+                // Ensure stepExtensionSchema is treated as an object schema for merge
+                if (plugin.stepExtensionSchema instanceof z.ZodObject) {
+                    StepSchema = StepSchema.merge(plugin.stepExtensionSchema);
+                }
             }
         }
     }
