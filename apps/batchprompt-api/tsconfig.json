@@ -1,14 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "../../src",
+    "rootDir": "src",
     "outDir": "dist",
     "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx",
-    "paths": {
-      "batchprompt": ["../../packages/batchprompt/src/index.ts"],
-      "llm-fns": ["../../packages/llm-fns/src/index.ts"]
-    }
+    "jsxImportSource": "hono/jsx"
   },
   "references": [
     { "path": "../../packages/batchprompt" },

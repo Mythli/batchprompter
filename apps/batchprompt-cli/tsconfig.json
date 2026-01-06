@@ -2,11 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist",
-    "paths": {
-      "batchprompt": ["../../packages/batchprompt/src/index.ts"],
-      "llm-fns": ["../../packages/llm-fns/src/index.ts"]
-    }
+    "outDir": "dist"
   },
   "references": [
     { "path": "../../packages/batchprompt" },
