@@ -124,13 +124,46 @@ export interface ModelConfig extends ModelDefinition {}
 // --- Execution Architecture ---
 
 export interface PipelineItem {
+    // The Persistent Data
     row: Record<string, any>;
-    workspace: Record<string, any>;
-    stepHistory: Record<string, any>[];
-    history: any[];
+    
+    // The Conversation History
+    history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+    
+    // Metadata
     originalIndex: number;
     variationIndex?: number;
-    accumulatedContent: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+    
+    // Step Trace
+    stepHistory: Record<string, any>[];
+    
+    // Workspace (Legacy/Global scratchpad if needed, but mostly replaced by StepExecutionState.context)
+    workspace: Record<string, any>;
+}
+
+export interface StepExecutionState {
+    // 1. The Immutable Past
+    readonly history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+
+    // 2. The Continuous Content Stream
+    // Initialized with the Step's User Prompt.
+    // Plugins append their output content here.
+    content: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+
+    // 3. The Working Context ("Context")
+    // Starts as a copy of the input row.
+    // ALL plugin outputs are merged here immediately.
+    context: Record<string, any>;
+
+    // 4. The Final Output ("Row")
+    // Starts as a copy of the input row.
+    // Plugin outputs are merged here ONLY if configured (output="merge" or "column").
+    row: Record<string, any>;
+    
+    // Metadata
+    originalIndex: number;
+    variationIndex?: number;
+    stepHistory: Record<string, any>[];
 }
 
 // --- Dependency Injection Contexts ---

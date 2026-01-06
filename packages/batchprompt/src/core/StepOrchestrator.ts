@@ -4,10 +4,10 @@ import { PluginExecutor, ResolvedPlugin } from './PluginExecutor.js';
 import { StepExecutor } from '../StepExecutor.js';
 import { MessageBuilder } from './MessageBuilder.js';
 import { PluginRegistryV2, PluginServices } from '../plugins/types.js';
-import { GlobalContext, PipelineItem, StepConfig, StepContext } from '../types.js';
+import { GlobalContext, PipelineItem, StepExecutionState } from '../types.js';
 import { ResultProcessor } from './ResultProcessor.js';
 import { ResolvedPluginBase } from '../config/types.js';
-import { countChars, concatMessageText } from 'llm-fns';
+import { concatMessageText } from 'llm-fns';
 
 export class StepOrchestrator {
     constructor(
@@ -66,33 +66,55 @@ export class StepOrchestrator {
             }
         }
 
-        // 3. Run Plugins (Preparation Phase) -> Explosion & Data Merging
-        // We pass the initial item. The executor returns a list of items (potentially exploded/modified).
-        const processedItems = await this.pluginExecutor.runPreparationPhase(
-            [item],
+        // 3. Initialize StepExecutionState
+        // We start with the resolved user prompt in 'content'
+        const initialState: StepExecutionState = {
+            history: item.history,
+            content: [...resolvedStep.userPromptParts],
+            context: { ...item.row, ...item.workspace }, // Working context starts with row + workspace
+            row: { ...item.row }, // Final output starts with row
+            originalIndex: item.originalIndex,
+            variationIndex: item.variationIndex,
+            stepHistory: item.stepHistory
+        };
+
+        // 4. Run Plugins (Preparation Phase) -> Explosion & Data Merging
+        const processedStates = await this.pluginExecutor.runPreparationPhase(
+            [initialState],
             resolvedPlugins,
             stepIndex
         );
 
-        // 4. Execute Model (or Pass-through) for each processed item
+        // 5. Execute Model (or Pass-through) for each processed state
         const nextItems: PipelineItem[] = [];
 
-        for (const processedItem of processedItems) {
-            // Re-construct view context because row/workspace might have changed
+        for (const state of processedStates) {
+            // Re-construct view context for message building (system prompt rendering)
             const viewContext = {
-                ...processedItem.row,
-                ...processedItem.workspace,
-                steps: processedItem.stepHistory,
-                index: processedItem.originalIndex
+                ...state.context,
+                steps: state.stepHistory,
+                index: state.originalIndex
             };
 
-            // Build Messages for THIS specific item state
-            const effectiveUserPromptParts = [
-                ...processedItem.accumulatedContent,
-                ...resolvedStep.userPromptParts
-            ];
+            // Build Messages
+            // Note: state.content already contains User Prompt + Plugin Content
+            // We pass state.content as 'externalContent' to MessageBuilder, but MessageBuilder
+            // also appends resolvedStep.userPromptParts if we aren't careful.
+            // MessageBuilder.build takes (config, row, externalContent).
+            // config.promptParts are the userPromptParts.
+            // If we pass state.content as externalContent, we duplicate the prompt parts because we initialized state.content with them.
+            
+            // Fix: We should use MessageBuilder to build SYSTEM messages only, 
+            // and construct the User message manually from state.content.
+            
+            // Or, we can pass empty promptParts to MessageBuilder and pass state.content as external.
+            // Let's do the latter to reuse MessageBuilder's system prompt logic.
+            const configForMessageBuilder = {
+                ...resolvedStep.modelConfig,
+                promptParts: [] // Clear prompt parts to avoid duplication
+            };
 
-            const currentMessages = this.messageBuilder.build(resolvedStep.modelConfig, viewContext, effectiveUserPromptParts);
+            const currentMessages = this.messageBuilder.build(configForMessageBuilder, viewContext, state.content);
             
             // Inject History
             const systemMsg = currentMessages.find(m => m.role === 'system');
@@ -100,28 +122,29 @@ export class StepOrchestrator {
             
             const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
             if (systemMsg) messages.push(systemMsg);
-            messages.push(...processedItem.history);
+            messages.push(...state.history);
             messages.push(...userMsgs);
 
-            // Check if we have a prompt to execute
-            const hasPrompt = resolvedStep.userPromptParts.length > 0 || processedItem.accumulatedContent.length > 0;
+            // Check if we have content to execute
+            const hasContent = state.content.length > 0;
             
             let resultData: any;
             let historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
             let explodedResults: any[] | undefined;
 
-            if (hasPrompt) {
+            if (hasContent) {
                 // Execute Model
                 const result = await this.stepExecutor.executeModel(
                     stepContext,
-                    processedItem.originalIndex,
+                    state.originalIndex,
                     stepNum,
                     resolvedStep,
                     messages,
-                    processedItem.variationIndex,
+                    state.variationIndex,
                     resolvedPlugins,
                     pluginServices,
-                    resolvedStep.resolvedTempDir || configTmpDir
+                    resolvedStep.resolvedTempDir || configTmpDir,
+                    state.context // Pass working context for post-processing
                 );
                 
                 resultData = result.modelResult;
@@ -132,20 +155,17 @@ export class StepOrchestrator {
 
             } else {
                 // Pass-through Mode
-                events.emit('step:progress', { row: processedItem.originalIndex, step: stepNum, type: 'info', message: 'No prompt provided. Skipping model execution.' });
+                events.emit('step:progress', { row: state.originalIndex, step: stepNum, type: 'info', message: 'No prompt/content provided. Skipping model execution.' });
                 
-                // Use the last message as the "result"
-                // Note: messages includes system, history, and user prompt.
-                // If no user prompt parts, it might just be history.
-                // But accumulatedContent > 0 check passed.
+                // Use the last message as the "result" if available, or empty
                 const lastMsg = messages[messages.length - 1];
-                const content = concatMessageText([lastMsg]);
+                const content = lastMsg ? concatMessageText([lastMsg]) : "";
                 
                 resultData = content;
                 historyMessage = { role: 'assistant', content: '[Pass-through]' };
             }
 
-            // 5. Process Results (Explosion & Output)
+            // 6. Process Results (Explosion & Output)
             let itemsToProcess: any[] = [];
             
             if (explodedResults) {
@@ -159,33 +179,52 @@ export class StepOrchestrator {
             // Map to PluginPackets for ResultProcessor
             const packets = itemsToProcess.map(data => ({
                 data,
-                contentParts: [], // We don't accumulate content from model output usually
+                contentParts: [], // We don't accumulate content from model output
             }));
 
-            // Use ResultProcessor to apply data to items
-            const finalItems = ResultProcessor.process(
-                [processedItem],
+            // Use ResultProcessor to apply data to states
+            const finalStates = ResultProcessor.process(
+                [state],
                 packets,
                 resolvedStep.output,
                 'modelOutput'
             );
 
-            // Apply History Updates
-            for (const newItem of finalItems) {
-                const newHistory = [...newItem.history];
+            // Convert final states to PipelineItems
+            for (const finalState of finalStates) {
+                const newHistory = [...finalState.history];
                 
-                if (hasPrompt) {
-                    if (effectiveUserPromptParts.length > 0) {
-                         newHistory.push({ role: 'user', content: effectiveUserPromptParts });
+                if (hasContent) {
+                    // Add the User message (which contains prompt + plugin content)
+                    // We can grab it from 'messages' or reconstruct it.
+                    // 'userMsgs' contains the constructed user message parts.
+                    if (userMsgs.length > 0) {
+                         newHistory.push(userMsgs[0]); // Assuming single user message block
                     }
                     newHistory.push(historyMessage);
                 } else {
                     // In pass-through, update history to match current state (excluding system)
                     const nonSystemMessages = messages.filter(m => m.role !== 'system');
-                    newItem.history = nonSystemMessages;
+                    // If pass-through, we might not want to duplicate history if it was just history passed in.
+                    // But if we added content (e.g. from plugins) but no prompt, we should record it.
+                    // Here hasContent is false, so state.content is empty.
+                    // So we just keep history as is?
+                    // Actually, if hasContent is false, userMsgs is empty.
+                    // So newHistory is just state.history.
                 }
 
-                newItem.stepHistory = [...newItem.stepHistory, resultData];
+                const newItem: PipelineItem = {
+                    row: finalState.row,
+                    workspace: item.workspace, // Preserve original workspace or update?
+                    // The prompt implies 'context' is the working state.
+                    // We can update workspace with finalState.context if we want persistence.
+                    // But let's stick to 'row' being the output.
+                    stepHistory: [...finalState.stepHistory, resultData],
+                    history: newHistory,
+                    originalIndex: finalState.originalIndex,
+                    variationIndex: finalState.variationIndex
+                };
+                
                 nextItems.push(newItem);
             }
         }

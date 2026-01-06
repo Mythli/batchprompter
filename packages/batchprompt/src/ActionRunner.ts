@@ -38,25 +38,10 @@ export class ActionRunner {
             imageSearch: this.globalContext.imageSearch,
             webSearch: this.globalContext.webSearch,
             createLlm: (config) => {
-                // We need to access the factory via a roundabout way or pass it in.
-                // Since ActionRunner doesn't have direct access to LlmFactory anymore,
-                // we rely on StepOrchestrator -> StepResolver -> LlmFactory.
-                // But PluginServices needs it.
-                // We can expose it on GlobalContext or pass it through StepOrchestrator?
-                // Actually, StepResolver has it.
-                // Let's assume StepOrchestrator handles the creation if needed, 
-                // OR we pass a closure that calls StepResolver.
                 throw new Error("Direct createLlm in PluginServices via ActionRunner is deprecated. Plugins should use provided context.");
             }
         };
         
-        // Fix for createLlm: We need to pass a working createLlm.
-        // StepOrchestrator has StepResolver which has LlmFactory.
-        // We can expose a helper on StepOrchestrator.
-        // Or better, we pass the factory to ActionRunner?
-        // For now, let's use a hack: StepOrchestrator will inject the correct service when calling plugins.
-        // The `pluginServices` object here is a base, StepOrchestrator can extend it.
-
         const enqueueNext = (items: PipelineItem[], nextStepIndex: number) => {
             if (nextStepIndex >= steps.length) {
                 for (const item of items) {
@@ -117,8 +102,7 @@ export class ActionRunner {
                 workspace: {},
                 stepHistory: [],
                 history: [],
-                originalIndex: originalIndex,
-                accumulatedContent: []
+                originalIndex: originalIndex
             };
             events.emit('row:start', { index: originalIndex, row: initialItem.row });
             queue.add(() => processTask({ item: initialItem, stepIndex: 0 }));

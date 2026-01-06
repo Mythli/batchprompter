@@ -29,7 +29,8 @@ export class StepExecutor {
         variationIndex?: number,
         plugins: ResolvedPlugin[] = [],
         pluginServices?: PluginServices,
-        tempDir?: string
+        tempDir?: string,
+        rowContext?: Record<string, any>
     ): Promise<StepExecutionResult> {
 
         if (!pluginServices || !tempDir) {
@@ -49,7 +50,7 @@ export class StepExecutor {
         }
 
         const result = await strategy.execute(
-            {}, // Row is not needed here as messages are already built
+            rowContext || {}, // Pass the full working context
             index,
             stepIndex,
             config,

@@ -4,7 +4,7 @@ import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './events.js';
 import { Plugin, PluginExecutionContext, PluginServices, PluginPacket } from '../plugins/types.js';
 import { ResolvedPluginBase } from '../config/types.js';
-import { PipelineItem } from '../types.js';
+import { StepExecutionState } from '../types.js';
 import { ResultProcessor } from './ResultProcessor.js';
 
 export interface ResolvedPlugin {
@@ -45,11 +45,11 @@ export class PluginExecutor {
     }
 
     async runPreparationPhase(
-        items: PipelineItem[],
+        states: StepExecutionState[],
         plugins: ResolvedPlugin[],
         stepIndex: number
-    ): Promise<PipelineItem[]> {
-        let currentItems = [...items];
+    ): Promise<StepExecutionState[]> {
+        let currentStates = [...states];
 
         for (let i = 0; i < plugins.length; i++) {
             const { instance, config: pluginConfig, def } = plugins[i];
@@ -58,16 +58,17 @@ export class PluginExecutor {
                 continue;
             }
 
-            const nextItems: PipelineItem[] = [];
+            const nextStates: StepExecutionState[] = [];
 
-            for (const item of currentItems) {
-                const context = this.createPluginContext(item.row, stepIndex, i, item.originalIndex);
+            for (const state of currentStates) {
+                // Use state.context as the row context for the plugin
+                // This ensures plugins see data from previous plugins in the same step
+                const context = this.createPluginContext(state.context, stepIndex, i, state.originalIndex);
                 
-                // Construct messages for this item context
-                // We combine history + accumulated content (User Prompt is not yet added)
-                const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [...item.history];
-                if (item.accumulatedContent.length > 0) {
-                    messages.push({ role: 'user', content: item.accumulatedContent });
+                // Construct messages: History + Current Content (which includes Prompt + Prev Plugins)
+                const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [...state.history];
+                if (state.content.length > 0) {
+                    messages.push({ role: 'user', content: state.content });
                 }
 
                 // Execute Plugin
@@ -75,7 +76,7 @@ export class PluginExecutor {
                 
                 // Handle undefined/null result (Pass-through)
                 if (result === undefined || result === null) {
-                    nextItems.push(item);
+                    nextStates.push(state);
                     continue;
                 }
 
@@ -104,17 +105,17 @@ export class PluginExecutor {
 
                 // Process Results (Merge/Explode)
                 const processed = ResultProcessor.process(
-                    [item],
+                    [state],
                     packets,
                     def.output,
                     namespace
                 );
                 
-                nextItems.push(...processed);
+                nextStates.push(...processed);
             }
-            currentItems = nextItems;
+            currentStates = nextStates;
         }
         
-        return currentItems;
+        return currentStates;
     }
 }

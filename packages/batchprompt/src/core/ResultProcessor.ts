@@ -1,33 +1,32 @@
-import { OutputStrategy, PipelineItem } from '../types.js';
+import { OutputStrategy, StepExecutionState } from '../types.js';
 import { PluginPacket } from '../plugins/types.js';
 
 export class ResultProcessor {
     /**
-     * Applies a result (from a plugin or model) to the current list of PipelineItems.
+     * Applies a result (from a plugin or model) to the current list of StepExecutionStates.
      *
      * 1. Handles flow control (Filter/Enrich/Explode) based on the result packets.
-     * 2. Updates `item.workspace[namespace]` and `item.accumulatedContent`.
-     * 3. Conditionally updates `item.row` based on the OutputStrategy.
+     * 2. Updates `state.context` (always) and `state.content` (append).
+     * 3. Conditionally updates `state.row` based on the OutputStrategy.
      */
     static process(
-        currentItems: PipelineItem[],
+        currentStates: StepExecutionState[],
         packets: PluginPacket[],
         strategy: OutputStrategy,
         namespace: string
-    ): PipelineItem[] {
+    ): StepExecutionState[] {
 
-        const nextItems: PipelineItem[] = [];
+        const nextStates: StepExecutionState[] = [];
 
-        // If no packets (Filter), we return empty nextItems (Drop).
+        // If no packets (Filter), we return empty nextStates (Drop).
         if (packets.length === 0) {
-            return nextItems;
+            return nextStates;
         }
 
-        for (const item of currentItems) {
+        for (const state of currentStates) {
             let variationCounter = 0;
 
             // Iterate over packets (Topology Expansion)
-            // Each packet represents a distinct result from the previous step/plugin execution
             packets.forEach((packet) => {
                 
                 // Check for Data Expansion (strategy.explode = true AND data is array)
@@ -44,83 +43,76 @@ export class ResultProcessor {
                     }
 
                     dataArray.forEach((dataItem: any) => {
-                        const newItem = ResultProcessor.cloneItem(item);
-                        newItem.variationIndex = variationCounter++;
+                        const newState = ResultProcessor.cloneState(state);
+                        newState.variationIndex = variationCounter++;
                         
-                        // Apply Data
-                        newItem.workspace[namespace] = dataItem;
+                        // Apply Data to Context (Always)
+                        newState.context[namespace] = dataItem;
                         
                         // Apply Content
-                        newItem.accumulatedContent.push(...packet.contentParts);
+                        newState.content.push(...packet.contentParts);
                         
-                        // Update Row
-                        ResultProcessor.updateRow(newItem, dataItem, strategy, namespace);
+                        // Update Row (Conditional)
+                        ResultProcessor.updateRow(newState, dataItem, strategy, namespace);
                         
-                        // Attach source packet for post-processing (history updates)
-                        (newItem as any)._sourcePacket = packet;
-
-                        nextItems.push(newItem);
+                        nextStates.push(newState);
                     });
 
                 } else {
                     // No Data Explosion (1 Packet -> 1 Row)
-                    const newItem = ResultProcessor.cloneItem(item);
-                    newItem.variationIndex = variationCounter++;
+                    const newState = ResultProcessor.cloneState(state);
+                    newState.variationIndex = variationCounter++;
 
-                    newItem.workspace[namespace] = packet.data;
-                    newItem.accumulatedContent.push(...packet.contentParts);
+                    // Apply Data to Context (Always)
+                    newState.context[namespace] = packet.data;
                     
-                    ResultProcessor.updateRow(newItem, packet.data, strategy, namespace);
+                    // Apply Content
+                    newState.content.push(...packet.contentParts);
                     
-                    // Attach source packet for post-processing (history updates)
-                    (newItem as any)._sourcePacket = packet;
-
-                    nextItems.push(newItem);
+                    // Update Row (Conditional)
+                    ResultProcessor.updateRow(newState, packet.data, strategy, namespace);
+                    
+                    nextStates.push(newState);
                 }
             });
         }
 
-        return nextItems;
+        return nextStates;
     }
 
-    private static cloneItem(item: PipelineItem): PipelineItem {
+    private static cloneState(state: StepExecutionState): StepExecutionState {
         return {
-            row: { ...item.row },
-            workspace: { ...item.workspace },
-            stepHistory: [...item.stepHistory],
-            history: [...item.history],
-            originalIndex: item.originalIndex,
-            variationIndex: item.variationIndex,
-            accumulatedContent: [...item.accumulatedContent]
+            history: state.history, // Immutable, reference copy is fine
+            content: [...state.content],
+            context: { ...state.context },
+            row: { ...state.row },
+            originalIndex: state.originalIndex,
+            variationIndex: state.variationIndex,
+            stepHistory: [...state.stepHistory]
         };
     }
 
-    private static updateRow(item: PipelineItem, data: any, strategy: OutputStrategy, namespace: string) {
+    private static updateRow(state: StepExecutionState, data: any, strategy: OutputStrategy, namespace: string) {
         // Unwrap single-element arrays for both column and merge operations
-        // This handles the common case of a single-packet result (e.g. model output)
         let dataToMerge = data;
         if (Array.isArray(data) && data.length === 1) {
             dataToMerge = data[0];
         }
 
         // Also unwrap if the packet data itself is a single-element array
-        // This handles plugins that return a list of results (like WebSearch)
-        // when that list happens to contain exactly one item.
         if (Array.isArray(dataToMerge) && dataToMerge.length === 1) {
             dataToMerge = dataToMerge[0];
         }
 
         if (strategy.mode === 'column' && strategy.column) {
-            item.row[strategy.column] = dataToMerge;
+            state.row[strategy.column] = dataToMerge;
         } else if (strategy.mode === 'merge') {
             // Special handling for model output: Merge at root if it's an object
-            // This ensures model results like { location: "Berlin" } become row.location
-            // instead of row.modelOutput.location
             if (namespace === 'modelOutput' && typeof dataToMerge === 'object' && dataToMerge !== null && !Array.isArray(dataToMerge)) {
-                Object.assign(item.row, dataToMerge);
+                Object.assign(state.row, dataToMerge);
             } else {
                 // Plugins or primitives: Use namespace to avoid collisions
-                item.row[namespace] = dataToMerge;
+                state.row[namespace] = dataToMerge;
             }
         }
     }
