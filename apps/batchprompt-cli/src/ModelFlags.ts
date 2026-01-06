@@ -7,6 +7,12 @@ export interface ModelFlagOptions {
     defaultModel?: string;
 }
 
+export interface CLIOptionDefinition {
+    flags: string;
+    description: string;
+    parser?: any;
+}
+
 export class ModelFlags {
     private defaultModel?: string;
 

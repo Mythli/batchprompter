@@ -19,12 +19,14 @@ import {
     StyleScraperPluginV2,
     ValidationPluginV2,
     DedupePluginV2,
-    LogoScraperPluginV2
+    LogoScraperPluginV2,
+    PromptLoader
 } from 'batchprompt';
 import { getConfig } from './getConfig.js';
 import { StepRegistry } from './StepRegistry.js';
 import { FileSystemArtifactHandler } from './handlers/FileSystemArtifactHandler.js';
 import { FileAdapter } from './io/FileAdapter.js';
+import { FileSystemContentResolver } from './io/FileSystemContentResolver.js';
 import Papa from 'papaparse';
 
 // Adapters
@@ -53,18 +55,23 @@ const cliCapabilities: ServiceCapabilities = {
     hasSerper: true,
     hasPuppeteer: true
 };
-const cliRegistry = createDefaultRegistry(cliCapabilities);
+
+// Initialize dependencies for CLI registry
+const contentResolver = new FileSystemContentResolver();
+const promptLoader = new PromptLoader(contentResolver);
+
+const cliRegistry = createDefaultRegistry(cliCapabilities, promptLoader);
 
 // Initialize Plugins and Adapters
 const shellPlugin = new ShellPlugin();
 const adapters = [
-    new WebSearchAdapter(new WebSearchPluginV2()),
-    new ImageSearchAdapter(new ImageSearchPluginV2()),
-    new WebsiteAgentAdapter(new WebsiteAgentPluginV2()),
+    new WebSearchAdapter(new WebSearchPluginV2(promptLoader)),
+    new ImageSearchAdapter(new ImageSearchPluginV2(promptLoader)),
+    new WebsiteAgentAdapter(new WebsiteAgentPluginV2(promptLoader)),
     new StyleScraperAdapter(new StyleScraperPluginV2()),
     new ValidationAdapter(new ValidationPluginV2()),
     new DedupeAdapter(new DedupePluginV2()),
-    new LogoScraperAdapter(new LogoScraperPluginV2()),
+    new LogoScraperAdapter(new LogoScraperPluginV2(promptLoader)),
     new ShellAdapter(shellPlugin)
 ];
 

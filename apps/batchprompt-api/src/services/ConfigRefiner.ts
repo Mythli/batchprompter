@@ -4,10 +4,10 @@ import { createIterativeRefiner, EvaluationResult } from 'llm-fns';
 import {
     SafePipelineConfig,
     SafePipelineConfigSchema,
-    LlmClientFactory
+    LlmClientFactory,
+    CONFIG_DOCUMENTATION
 } from 'batchprompt';
 import { ExecutionService } from './ExecutionService.js';
-import { CONFIG_DOCUMENTATION } from '../../generated/ConfigDocumentation.js';
 
 export interface ConfigRefinerInput {
     prompt: string;

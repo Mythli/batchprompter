@@ -1,5 +1,5 @@
 import JSZip from 'jszip';
-import { getConfig, StepRegistry, MemoryArtifactHandler, MemoryContentResolver } from 'batchprompt';
+import { getConfig, InMemoryConfigExecutor, MemoryContentResolver } from 'batchprompt';
 
 export class ExecutionService {
 
@@ -10,28 +10,16 @@ export class ExecutionService {
         // Initialize config with the memory resolver
         const { actionRunner, pluginRegistry, globalContext } = await getConfig({ contentResolver });
         
-        // Parse and validate the config using the registry logic
-        // We pass empty options/args as we are running from object
-        const runtimeConfig = await StepRegistry.parseConfig(config, {}, [], pluginRegistry, contentResolver);
+        // Use InMemoryConfigExecutor to handle config resolution and execution
+        const executor = new InMemoryConfigExecutor(
+            actionRunner,
+            pluginRegistry,
+            globalContext.events,
+            contentResolver
+        );
 
-        // Inject initialRows if provided
-        if (initialRows && initialRows.length > 0) {
-            runtimeConfig.data = initialRows;
-        }
-        
-        // Capture artifacts in memory
-        const memoryHandler = new MemoryArtifactHandler(globalContext.events);
-        
-        // Capture results
-        const results: any[] = [];
-        const resultHandler = ({ result }: any) => results.push(result);
-        globalContext.events.on('row:end', resultHandler);
-
-        try {
-            await actionRunner.run(runtimeConfig);
-        } finally {
-            globalContext.events.off('row:end', resultHandler);
-        }
+        // Execute
+        const { results, artifacts } = await executor.runConfig(config, initialRows);
 
         // Create Zip of artifacts
         const zip = new JSZip();
@@ -41,7 +29,7 @@ export class ExecutionService {
         zip.file('results.json', JSON.stringify(results, null, 2));
         
         // Add artifacts
-        for (const artifact of memoryHandler.artifacts) {
+        for (const artifact of artifacts) {
             // Ensure unique paths or handle directories
             zip.file(artifact.path, artifact.content);
         }
@@ -50,7 +38,7 @@ export class ExecutionService {
 
         return {
             results,
-            artifacts: memoryHandler.artifacts,
+            artifacts,
             zip: zipBase64
         };
     }

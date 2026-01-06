@@ -1,6 +1,5 @@
-import { getConfig as getCoreConfig } from 'batchprompt';
+import { getConfig as getCoreConfig, PromptLoader } from 'batchprompt';
 import { FileSystemContentResolver } from './io/FileSystemContentResolver.js';
-import { PromptLoader } from './loaders/PromptLoader.js';
 import { SchemaLoader } from './loaders/SchemaLoader.js';
 
 export const getConfig = async () => {
