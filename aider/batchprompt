@@ -1,0 +1,2 @@
+#!/bin/bash
+aider $(find packages/batchprompt/src -type d \( -name "generated" -o -name "plugins" \) -prune -o -type f \( -name "*.ts" -o -name "*.js" \) ! -name "*.d.ts" -print) "$@"
