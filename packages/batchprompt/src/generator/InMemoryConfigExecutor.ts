@@ -95,7 +95,6 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
                     feedbackLoops: step.feedback?.loops || 0,
                     aspectRatio: step.aspectRatio,
                     plugins,
-                    preprocessors: [], // No preprocessors in resolved config yet
                     timeout: step.timeout,
                     noCandidateCommand: false,
                     verifyCommand: step.verifyCommand,

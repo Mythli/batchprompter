@@ -35,11 +35,6 @@ export interface PluginConfigDefinition {
     output: OutputStrategy;
 }
 
-export interface PreprocessorConfigDefinition {
-    name: string;
-    config: any;
-}
-
 export interface StepDefinition {
     stepIndex: number;
     modelConfig: ModelDefinition;
@@ -62,7 +57,6 @@ export interface StepDefinition {
 
     aspectRatio?: string;
     plugins: PluginConfigDefinition[];
-    preprocessors: PreprocessorConfigDefinition[];
     timeout: number;
 }
 
@@ -104,7 +98,6 @@ export interface StepConfig {
 
     aspectRatio?: string;
     plugins: PluginConfigDefinition[];
-    preprocessors: PreprocessorConfigDefinition[];
 
     resolvedOutputDir?: string;
     resolvedTempDir?: string;
@@ -170,10 +163,4 @@ export interface StepContext {
     judge?: BoundLlmClient;
     feedback?: BoundLlmClient;
     createLlm(config: ResolvedModelConfig): BoundLlmClient;
-}
-
-export interface PreprocessorServices {
-    puppeteerHelper?: PuppeteerHelper;
-    fetcher: Fetcher;
-    puppeteerQueue?: PQueue;
 }
