@@ -226,15 +226,22 @@ export class StandardStrategy implements GenerationStrategy {
             filename = path.join(targetDir, filename);
         }
 
-        this.events.emit('plugin:artifact', {
-            row: index,
-            step: stepIndex,
-            plugin: 'model',
-            type: finalType,
-            filename: filename,
-            content: finalContentPayload,
-            tags: ['final']
-        });
+        // Check for empty content before emitting
+        const hasContent = Buffer.isBuffer(finalContentPayload) 
+            ? finalContentPayload.length > 0 
+            : String(finalContentPayload).trim().length > 0;
+
+        if (hasContent) {
+            this.events.emit('plugin:artifact', {
+                row: index,
+                step: stepIndex,
+                plugin: 'model',
+                type: finalType,
+                filename: filename,
+                content: finalContentPayload,
+                tags: ['final']
+            });
+        }
 
         return {
             historyMessage: finalHistoryMessage!,

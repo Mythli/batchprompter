@@ -10,9 +10,10 @@ describe('E2E Image Generation', () => {
         const mockImageUrl = `data:image/png;base64,${validBase64Image}`;
 
         // Mock an image response from OpenAI
+        // Use standard content array format which StandardStrategy.extractContent understands
         const mockImageResponse = {
-            content: null,
-            images: [{
+            content: [{
+                type: 'image_url',
                 image_url: { url: mockImageUrl }
             }]
         };
@@ -54,6 +55,7 @@ describe('E2E Image Generation', () => {
         
         const artifact = artifacts[0];
         expect(artifact.type).toBe('image');
+        expect(artifact.content).toBeTruthy(); // Ensure content is not empty
         
         // Check if the filename was correctly resolved using Handlebars
         // Note: StepResolver resolves to absolute path. 
