@@ -123,7 +123,7 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         config: TResolvedConfig,
         context: PluginExecutionContext
-    ): Promise<PluginPacket[]>;
+    ): Promise<PluginPacket[] | null>;
 
     /**
      * Process the LLM response (or previous plugin output) inside the retry loop.
