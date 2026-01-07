@@ -23,6 +23,9 @@ importers:
       batchprompt:
         specifier: workspace:*
         version: link:../../packages/batchprompt
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       hono:
         specifier: ^4.0.8
         version: 4.11.3
@@ -127,9 +130,6 @@ importers:
       csv-parser:
         specifier: ^3.2.0
         version: 3.2.0
-      dotenv:
-        specifier: ^16.6.1
-        version: 16.6.1
       eventemitter3:
         specifier: ^5.0.1
         version: 5.0.1

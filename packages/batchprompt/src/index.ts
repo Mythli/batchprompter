@@ -1,6 +1,6 @@
 // Core Exports
 export * from './types.js';
-export * from './getConfig.js';
+export * from './getDiContainer.js';
 export * from './ActionRunner.js';
 export * from './StepExecutor.js';
 
@@ -19,7 +19,6 @@ export * from './generated/ConfigDocumentation.js';
 
 // Core Components
 export * from './core/events.js';
-export * from './core/DebugLogger.js';
 export * from './core/LlmClientFactory.js';
 export * from './core/BoundLlmClient.js';
 export * from './core/MessageBuilder.js';
@@ -43,7 +42,6 @@ export * from './handlers/MemoryArtifactHandler.js';
 export * from './utils/dataLoader.js';
 export * from './utils/fileUtils.js';
 export * from './utils/getUniqueRows.js';
-export * from './utils/queueUtils.js';
 export * from './utils/schemaUtils.js';
 export * from './utils/AiWebsiteAgent.js';
 export * from './utils/AiWebSearch.js';
@@ -51,3 +49,9 @@ export * from './utils/AiImageSearch.js';
 export * from './utils/LlmListSelector.js';
 export * from './utils/SpriteGenerator.js';
 export * from './utils/compressHtml.js';
+
+
+// Ddebug
+export * from './debug/DebugLogger.js';
+export * from './debug/queue.js';
+

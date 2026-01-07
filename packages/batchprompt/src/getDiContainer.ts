@@ -8,13 +8,12 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import { createPluginRegistry, PluginRegistryV2 } from './plugins/index.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { createCachedFetcher } from "llm-fns";
+import {createAiLoggingFetcher, createCachedFetcher} from "llm-fns";
 import { GlobalContext } from './types.js';
 import { ServiceCapabilities } from './config/types.js';
 import { LlmClientFactory } from './core/LlmClientFactory.js';
 import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
-import { createLoggingFetcher } from "./debug/createLoggingFetcher.js";
 import { ContentResolver } from './core/io/ContentResolver.js';
 import { MemoryContentResolver } from './core/io/MemoryContentResolver.js';
 import { PromptLoader } from './config/PromptLoader.js';
@@ -127,7 +126,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     // Setup Fetcher (Global)
     const fetcher = createCachedFetcher({
         cache,
-        fetch: createLoggingFetcher(),
+        fetch: createAiLoggingFetcher(),
         prefix: 'fetch',
         ttl: 24 * 60 * 60 * 1000,
         timeout: 3 * 60 * 1000,

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from './events.js';
+import { BatchPromptEvents } from '../core/events.js';
 
 export class DebugLogger {
     constructor(private events: EventEmitter<BatchPromptEvents>) {
@@ -49,7 +49,7 @@ export class DebugLogger {
 
         this.events.on('step:resolved', (payload) => {
             const prefix = `[Row ${payload.row}] Step ${payload.step}`;
-            
+
             // Log Prompt Summary
             if (payload.config.userPromptParts) {
                 const promptText = payload.config.userPromptParts
@@ -64,7 +64,7 @@ export class DebugLogger {
             if (payload.config.schema) {
                 console.log(`${prefix} [Step Resolved] Schema: ${JSON.stringify(payload.config.schema)}`);
             }
-            
+
             // Log Context Keys (useful to see what variables are available)
             const keys = Object.keys(payload.context).join(', ');
             console.log(`${prefix} [Step Resolved] Context Keys: [${keys}]`);

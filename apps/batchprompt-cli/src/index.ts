@@ -23,10 +23,9 @@ import {
     createPipelineSchema,
     zJsonSchemaObject
 } from 'batchprompt';
-import { getConfig } from './getConfig.js';
+import { getDiContainer } from './getDiContainer.js';
 import { StepRegistry } from './StepRegistry.js';
 import { FileSystemArtifactHandler } from './handlers/FileSystemArtifactHandler.js';
-import { FileAdapter } from './io/FileAdapter.js';
 import { FileSystemContentResolver } from './io/FileSystemContentResolver.js';
 import Papa from 'papaparse';
 
@@ -83,23 +82,23 @@ stepRegistry.registerStepArgs(generateCmd, cliRegistry);
 generateCmd.action(async (templateFilePaths, options) => {
     let puppeteerHelperInstance;
     try {
-        const { 
-            actionRunner, 
-            puppeteerHelper, 
-            config: resolvedConfig, 
-            pluginRegistry, 
+        const {
+            actionRunner,
+            puppeteerHelper,
+            config: resolvedConfig,
+            pluginRegistry,
             globalContext
-        } = await getConfig();
-        
+        } = await getDiContainer();
+
         // Register ShellPlugin in the runtime registry
         pluginRegistry.register(shellPlugin);
-        
+
         puppeteerHelperInstance = puppeteerHelper;
 
         const config = await stepRegistry.parseConfig(
-            options.config, 
-            options, 
-            templateFilePaths, 
+            options.config,
+            options,
+            templateFilePaths,
             pluginRegistry
         );
 
@@ -194,7 +193,7 @@ program.command('init')
                 console.log(`Loaded ${sampleRows.length} sample rows from ${options.data}`);
             }
 
-            const { actionRunner, llmFactory, pluginRegistry, globalContext, puppeteerHelper } = await getConfig();
+            const { actionRunner, llmFactory, pluginRegistry, globalContext, puppeteerHelper } = await getDiContainer();
             puppeteerHelperInstance = puppeteerHelper;
             const contentResolver = globalContext.contentResolver;
 
@@ -264,14 +263,14 @@ program.command('schema')
             ...cliRegistry.getAll().map(p => p.configSchema),
             ShellConfigSchema
         ];
-        
-        const pluginUnion = allPluginSchemas.length > 0 
+
+        const pluginUnion = allPluginSchemas.length > 0
             ? z.discriminatedUnion('type', allPluginSchemas as any)
             : z.object({ type: z.string() });
-        
+
         // Allow string or object for schema field (input mode)
         const schemaFieldType = z.union([z.string(), zJsonSchemaObject]);
-        
+
         const schema = createPipelineSchema(pluginUnion, schemaFieldType);
         const jsonSchema = z.toJSONSchema(schema, {
             unrepresentable: 'any'
