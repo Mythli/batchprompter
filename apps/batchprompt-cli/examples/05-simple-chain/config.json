@@ -25,9 +25,12 @@
         "prompt": "Act as a harsh music critic. Judge the potential of the band '{{band_name}}' with the slogan '{{slogan}}'. Write a short review."
       },
       "candidates": 3,
+      "judge": {
+        "prompt": "You are selecting the best music review. Choose the review that is the most entertaining, insightful, and well-written. Prefer reviews with sharp wit and specific criticisms over generic dismissals."
+      },
       "output": {
         "mode": "column",
-        "column": "reviews"
+        "column": "review"
       }
     }
   ]
