@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 
 /**
  * Converts an OpenAI ChatCompletion object into an assistant message parameter.
- * Handles text, audio, tool calls, and custom image attachments.
+ * Handles text, audio and custom image attachments.
  *
  * @param completion The ChatCompletion object.
  * @returns An OpenAI ChatCompletionMessageParam with role 'assistant'.

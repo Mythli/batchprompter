@@ -8,4 +8,4 @@
 cd "$(dirname "$0")/../.."
 
 # Run using config file
-npx tsx src/index.ts generate --config examples/02-lead-gen/config-1-find.json --limit 5
+node dist/index.js generate --config examples/02-lead-gen/config-1-find.json --limit 5

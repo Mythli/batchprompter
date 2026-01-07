@@ -34,7 +34,7 @@ export class BoundLlmClient {
 
         // 1. System message
         if (this.systemParts.length > 0) {
-            const content = concatMessageText([{ role: 'system', content: this.systemParts }]);
+            const content = concatMessageText([{ role: 'user', content: this.systemParts }]);
             messages.push({ role: 'system', content: content as any });
         }
 
@@ -120,7 +120,7 @@ export class BoundLlmClient {
      * Raw prompt call with full control over messages.
      * Useful for strategies that need to manage conversation history.
      */
-    async prompt(params: { 
+    async prompt(params: {
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
         requestOptions?: RequestOptions;
         [key: string]: any;

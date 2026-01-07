@@ -10,6 +10,6 @@ export default defineConfig({
     },
     // Only run .ts test files, ignoring stale .js artifacts
     include: ['tests/**/*.test.ts', 'src/**/*.spec.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/*.js']
+    exclude: ['**/node_modules/**', '**/dist/**']
   }
 });

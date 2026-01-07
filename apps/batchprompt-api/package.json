@@ -7,15 +7,16 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc -b",
     "watch": "tsc -b -w",
-    "start": "node dist/apps/batchprompt-api/src/server.js"
+    "start": "node dist/server.js"
   },
   "dependencies": {
     "@hono/node-server": "^1.8.2",
     "batchprompt": "workspace:*",
-    "llm-fns": "workspace:*",
     "hono": "^4.0.8",
     "jszip": "^3.10.1",
-    "papaparse": "^5.4.1"
+    "llm-fns": "workspace:*",
+    "papaparse": "^5.4.1",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/node": "^20.19.27",

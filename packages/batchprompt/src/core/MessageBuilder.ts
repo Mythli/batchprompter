@@ -17,7 +17,7 @@ export class MessageBuilder {
         // 1. System Message
         if (config.systemParts && config.systemParts.length > 0) {
             const renderedSystem = this.renderParts(config.systemParts, row);
-            const content = concatMessageText([{ role: 'system', content: renderedSystem }]);
+            const content = concatMessageText([{ role: 'user', content: renderedSystem }]);
             messages.push({ role: 'system', content: content as any });
         }
 

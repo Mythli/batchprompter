@@ -53,14 +53,14 @@ export function truncateSingleMessage(message: OpenAI.Chat.Completions.ChatCompl
         const textParts = messageCopy.content.filter((p: any) => p.type === 'text');
         const imageParts = messageCopy.content.filter((p: any) => p.type === 'image_url');
         const audioParts = messageCopy.content.filter((p: any) => p.type === 'input_audio');
-        
+
         let combinedText = textParts.map((p: any) => p.text).join('\n');
         let keptImages = [...imageParts];
         let keptAudio = [...audioParts];
 
-        const calculateSize = () => 
-            combinedText.length + 
-            (keptImages.length * 2500) + 
+        const calculateSize = () =>
+            combinedText.length +
+            (keptImages.length * 2500) +
             keptAudio.reduce((s, a: any) => s + (a.input_audio?.data?.length || 0), 0);
 
         while (calculateSize() > charLimit) {
@@ -164,11 +164,11 @@ export function concatMessageText(messages: OpenAI.Chat.Completions.ChatCompleti
 /**
  * Generates a concise summary of a prompt's content for logging purposes.
  * Attempts to show the start, middle, and end of the combined message text.
- * 
+ *
  * @param messages The messages to summarize.
  * @param maxLength The maximum length of the resulting summary string. Defaults to 200.
  */
-export function getPromptSummary(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[], maxLength: number = 200): string {
+export function getPromptSummary(messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[], maxLength: number = 300): string {
     const fullText = concatMessageText(messages);
     const cleanedText = fullText.replace(/\s+/g, ' ').trim();
 
@@ -198,7 +198,7 @@ export function getPromptSummary(messages: OpenAI.Chat.Completions.ChatCompletio
 
     // Overlap/Proximity check:
     // If the gaps between parts in the original text are smaller than the ellipsis (3 chars),
-    // it means the segments are practically continuous. In this case, a 3-part summary 
+    // it means the segments are practically continuous. In this case, a 3-part summary
     // is misleading. Fall back to a simpler "Start...End" summary.
     const firstGap = midStart - partSize;
     const secondGap = (cleanedText.length - partSize) - (midStart + partSize);

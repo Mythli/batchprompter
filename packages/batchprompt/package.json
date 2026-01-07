@@ -9,8 +9,8 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc -b",
-    "watch": "tsc -b -w",
+    "watch": "pnpm build && tsc -b -w",
+    "build": "tsc",
     "compile-samples": "tsx scripts/create-docs-ts.ts",
     "test": "vitest"
   },

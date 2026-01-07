@@ -9,4 +9,4 @@ rm -rf out/04-describe-website-css
 # - Uses the style-scraper plugin to capture screenshots (desktop & mobile) and interactive element styles.
 # - Passes these assets to the AI to generate a design description.
 
-cat examples/04-describe-website-css/data.csv | npx tsx src/index.ts generate --config examples/04-describe-website-css/config.json
+cat examples/04-describe-website-css/data.csv | node dist/index.js generate --config examples/04-describe-website-css/config.json

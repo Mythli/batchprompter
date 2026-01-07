@@ -7,9 +7,10 @@
     "batchprompt": "./dist/index.js"
   },
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b --verbose",
     "watch": "tsc -b -w",
     "debug-init": "tsx src/index.ts init 'tell me at what ranking the website butlerapp is for the keyword kursverwaltung'",
+    "debug-lead-find": "examples/02-lead-gen/1-find.sh",
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {

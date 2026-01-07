@@ -14,7 +14,9 @@
           "mode": "none",
           "gl": "de",
           "hl": "de",
-          "selectPrompt": "Select up to 10 links that point to Butlerapp (butlerapp.de). If no Butlerapp link exists, select nothing.",
+          "selectModel": {
+            "prompt": "Select up to 10 links that point to Butlerapp (butlerapp.de). If no Butlerapp link exists, select nothing."
+          },
           "output": {
             "mode": "merge",
             "explode": true
