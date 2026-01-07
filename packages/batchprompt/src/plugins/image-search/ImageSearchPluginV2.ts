@@ -7,7 +7,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
+import { OutputConfigSchema, PluginModelConfigSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
@@ -26,19 +26,9 @@ export const ImageSearchConfigSchemaV2 = z.object({
     }).describe("How to save the image results."),
     query: z.string().optional().describe("Static image search query. Supports Handlebars."),
 
-    // Query model config
-    queryModel: z.string().optional().describe("Model used to generate search queries."),
-    queryTemperature: z.number().min(0).max(2).optional().describe("Temperature for query generation."),
-    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for query generation."),
-    queryPrompt: PromptDefSchema.optional().describe("Instructions for generating search queries."),
-    querySystem: PromptDefSchema.optional().describe("System prompt for query generation."),
-
-    // Select model config
-    selectModel: z.string().optional().describe("Model used to select the best images."),
-    selectTemperature: z.number().min(0).max(2).optional().describe("Temperature for selection."),
-    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for selection."),
-    selectPrompt: PromptDefSchema.optional().describe("Criteria for selecting images (e.g., scoring rubric)."),
-    selectSystem: PromptDefSchema.optional().describe("System prompt for selection."),
+    // Nested model configs
+    queryModel: PluginModelConfigSchema.optional().describe("Model configuration for generating search queries."),
+    selectModel: PluginModelConfigSchema.optional().describe("Model configuration for selecting the best images."),
 
     // Search options
     limit: z.number().int().positive().default(12).describe("Images to fetch per query."),
@@ -84,6 +74,43 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         return ['hasSerper'];
     }
 
+    private async resolvePluginModel(
+        config: z.infer<typeof PluginModelConfigSchema> | undefined,
+        row: Record<string, any>,
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+    ): Promise<ResolvedModelConfig | undefined> {
+        if (!config?.prompt) return undefined;
+
+        const parts = await this.promptLoader.load(config.prompt);
+        const renderedParts = parts.map((part: any) => {
+            if (part.type === 'text') {
+                const template = Handlebars.compile(part.text, { noEscape: true });
+                return { type: 'text' as const, text: template(row) };
+            }
+            return part;
+        });
+
+        let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+        if (config.system) {
+            systemParts = await this.promptLoader.load(config.system);
+            systemParts = systemParts.map((part: any) => {
+                if (part.type === 'text') {
+                    const template = Handlebars.compile(part.text, { noEscape: true });
+                    return { type: 'text' as const, text: template(row) };
+                }
+                return part;
+            });
+        }
+
+        return {
+            model: config.model || inheritedModel.model,
+            temperature: config.temperature ?? inheritedModel.temperature,
+            thinkingLevel: config.thinkingLevel ?? inheritedModel.thinkingLevel,
+            systemParts,
+            promptParts: renderedParts
+        };
+    }
+
     async resolveConfig(
         rawConfig: ImageSearchRawConfigV2,
         row: Record<string, any>,
@@ -91,30 +118,6 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         contentResolver: ContentResolver
     ): Promise<ImageSearchResolvedConfigV2> {
         
-        const resolvePrompt = async (
-            prompt: any,
-            modelOverride?: string,
-            temperatureOverride?: number,
-            thinkingLevelOverride?: 'low' | 'medium' | 'high'
-        ): Promise<ResolvedModelConfig | undefined> => {
-            if (!prompt) return undefined;
-            const parts = await this.promptLoader.load(prompt);
-            const renderedParts = parts.map((part: any) => {
-                if (part.type === 'text') {
-                    const template = Handlebars.compile(part.text, { noEscape: true });
-                    return { type: 'text' as const, text: template(row) };
-                }
-                return part;
-            });
-            return {
-                model: modelOverride || inheritedModel.model,
-                temperature: temperatureOverride ?? inheritedModel.temperature,
-                thinkingLevel: thinkingLevelOverride ?? inheritedModel.thinkingLevel,
-                systemParts: [],
-                promptParts: renderedParts
-            };
-        };
-
         let query: string | undefined;
         if (rawConfig.query) {
             const template = Handlebars.compile(rawConfig.query, { noEscape: true });
@@ -130,18 +133,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                 explode: rawConfig.output.explode
             },
             query,
-            queryModel: await resolvePrompt(
-                rawConfig.queryPrompt,
-                rawConfig.queryModel,
-                rawConfig.queryTemperature,
-                rawConfig.queryThinkingLevel
-            ),
-            selectModel: await resolvePrompt(
-                rawConfig.selectPrompt,
-                rawConfig.selectModel,
-                rawConfig.selectTemperature,
-                rawConfig.selectThinkingLevel
-            ),
+            queryModel: await this.resolvePluginModel(rawConfig.queryModel, row, inheritedModel),
+            selectModel: await this.resolvePluginModel(rawConfig.selectModel, row, inheritedModel),
             limit: rawConfig.limit,
             select: rawConfig.select,
             queryCount: rawConfig.queryCount,

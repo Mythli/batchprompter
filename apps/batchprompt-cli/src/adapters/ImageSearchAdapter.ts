@@ -7,8 +7,8 @@ export class ImageSearchAdapter implements CliPluginAdapter {
     constructor(public plugin: ImageSearchPluginV2) {}
 
     registerOptions(program: Command) {
-        ModelFlags.register(program, 'image-query', { includePrompt: true });
-        ModelFlags.register(program, 'image-select', { includePrompt: true });
+        ModelFlags.register(program, 'image-query', { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, 'image-select', { includePrompt: true, includeSystem: true });
 
         program.option('--image-search-query <text>', 'Static image search query');
         program.option('--image-search-limit <number>', 'Images per query (default: 12)', parseInt);
@@ -30,8 +30,8 @@ export class ImageSearchAdapter implements CliPluginAdapter {
             program.option(stepFlags, `${desc} for step ${stepIndex}`, parser);
         };
 
-        ModelFlags.register(program, `image-query-${stepIndex}`, { includePrompt: true });
-        ModelFlags.register(program, `image-select-${stepIndex}`, { includePrompt: true });
+        ModelFlags.register(program, `image-query-${stepIndex}`, { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, `image-select-${stepIndex}`, { includePrompt: true, includeSystem: true });
 
         registerStep('--image-search-query <text>', 'Static image search query');
         registerStep('--image-search-limit <number>', 'Images per query', parseInt);
@@ -69,17 +69,24 @@ export class ImageSearchAdapter implements CliPluginAdapter {
         if (outputColumn) outputMode = 'column';
         else if (exportFlag) outputMode = 'merge';
 
+        const buildModelConfig = (config: any) => {
+            if (!config.prompt && !config.model && !config.temperature && !config.thinkingLevel && !config.system) {
+                return undefined;
+            }
+            return {
+                model: config.model,
+                temperature: config.temperature,
+                thinkingLevel: config.thinkingLevel,
+                prompt: config.prompt,
+                system: config.system
+            };
+        };
+
         return {
             type: 'image-search',
             query,
-            queryPrompt: queryConfig.prompt,
-            queryModel: queryConfig.model,
-            queryTemperature: queryConfig.temperature,
-            queryThinkingLevel: queryConfig.thinkingLevel,
-            selectPrompt: selectConfig.prompt,
-            selectModel: selectConfig.model,
-            selectTemperature: selectConfig.temperature,
-            selectThinkingLevel: selectConfig.thinkingLevel,
+            queryModel: buildModelConfig(queryConfig),
+            selectModel: buildModelConfig(selectConfig),
             limit: getOpt('imageSearchLimit'),
             select: getOpt('imageSearchSelect'),
             queryCount: getOpt('imageSearchQueryCount'),

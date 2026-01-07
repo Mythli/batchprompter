@@ -8,7 +8,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '../../config/types.js';
-import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
+import { OutputConfigSchema, PluginModelConfigSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper } from './utils/AiLogoScraper.js';
@@ -29,19 +29,9 @@ export const LogoScraperConfigSchemaV2 = z.object({
     }).describe("How to save the scraped logos."),
     url: zHandlebars.describe("URL to scrape logos from. Supports Handlebars."),
 
-    // Analyze model (Vision capable)
-    analyzeModel: z.string().optional().describe("Vision model used to analyze screenshots and score logos."),
-    analyzeTemperature: z.number().min(0).max(2).optional().describe("Temperature for analysis."),
-    analyzeThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for analysis."),
-    analyzePrompt: PromptDefSchema.optional().describe("Custom instructions for analysis."),
-    analyzeSystem: PromptDefSchema.optional().describe("System prompt for analysis."),
-
-    // Extract model (Cheaper/Faster)
-    extractModel: z.string().optional().describe("Model used to find inline SVGs and image URLs."),
-    extractTemperature: z.number().min(0).max(2).optional().describe("Temperature for extraction."),
-    extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for extraction."),
-    extractPrompt: PromptDefSchema.optional().describe("Custom instructions for extraction."),
-    extractSystem: PromptDefSchema.optional().describe("System prompt for extraction."),
+    // Nested model configs
+    analyze: PluginModelConfigSchema.optional().describe("Model configuration for analyzing screenshots and scoring logos (vision capable)."),
+    extract: PluginModelConfigSchema.optional().describe("Model configuration for finding inline SVGs and image URLs."),
 
     maxCandidates: z.number().int().positive().default(10).describe("Max logo candidates to download and analyze."),
     minScore: z.number().int().min(1).max(10).default(5).describe("Min score (1-10) to keep a logo."),
@@ -84,6 +74,45 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         return ['hasPuppeteer'];
     }
 
+    private async resolvePluginModel(
+        config: z.infer<typeof PluginModelConfigSchema> | undefined,
+        row: Record<string, any>,
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+    ): Promise<ResolvedModelConfig> {
+        let promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+        let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+
+        if (config?.prompt) {
+            promptParts = await this.promptLoader.load(config.prompt);
+            promptParts = promptParts.map((part: any) => {
+                if (part.type === 'text') {
+                    const template = Handlebars.compile(part.text, { noEscape: true });
+                    return { type: 'text' as const, text: template(row) };
+                }
+                return part;
+            });
+        }
+
+        if (config?.system) {
+            systemParts = await this.promptLoader.load(config.system);
+            systemParts = systemParts.map((part: any) => {
+                if (part.type === 'text') {
+                    const template = Handlebars.compile(part.text, { noEscape: true });
+                    return { type: 'text' as const, text: template(row) };
+                }
+                return part;
+            });
+        }
+
+        return {
+            model: config?.model || inheritedModel.model,
+            temperature: config?.temperature ?? inheritedModel.temperature,
+            thinkingLevel: config?.thinkingLevel ?? inheritedModel.thinkingLevel,
+            systemParts,
+            promptParts
+        };
+    }
+
     async resolveConfig(
         rawConfig: LogoScraperRawConfigV2,
         row: Record<string, any>,
@@ -91,25 +120,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         contentResolver: ContentResolver
     ): Promise<LogoScraperResolvedConfigV2> {
         
-        const resolveModel = async (
-            prompt: any,
-            modelOverride?: string,
-            temperatureOverride?: number,
-            thinkingLevelOverride?: 'low' | 'medium' | 'high'
-        ): Promise<ResolvedModelConfig> => {
-            let parts: any[] = [];
-            if (prompt) {
-                parts = await this.promptLoader.load(prompt);
-            }
-            return {
-                model: modelOverride || inheritedModel.model,
-                temperature: temperatureOverride ?? inheritedModel.temperature,
-                thinkingLevel: thinkingLevelOverride ?? inheritedModel.thinkingLevel,
-                systemParts: [],
-                promptParts: parts
-            };
-        };
-
         const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
         const url = urlTemplate(row);
 
@@ -140,18 +150,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 explode: rawConfig.output.explode
             },
             url,
-            analyzeModel: await resolveModel(
-                rawConfig.analyzePrompt,
-                rawConfig.analyzeModel,
-                rawConfig.analyzeTemperature,
-                rawConfig.analyzeThinkingLevel
-            ),
-            extractModel: await resolveModel(
-                rawConfig.extractPrompt,
-                rawConfig.extractModel,
-                rawConfig.extractTemperature,
-                rawConfig.extractThinkingLevel
-            ),
+            analyzeModel: await this.resolvePluginModel(rawConfig.analyze, row, inheritedModel),
+            extractModel: await this.resolvePluginModel(rawConfig.extract, row, inheritedModel),
             maxCandidates: rawConfig.maxCandidates,
             minScore: rawConfig.minScore,
             logoPath,

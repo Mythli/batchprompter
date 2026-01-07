@@ -7,7 +7,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
+import { OutputConfigSchema, PluginModelConfigSchema, PromptDefSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
@@ -26,26 +26,10 @@ export const WebSearchConfigSchemaV2 = z.object({
     }).describe("How to save the search results."),
     query: z.string().optional().describe("The search query. Supports Handlebars (e.g., '{{keyword}}')."),
 
-    // Query model config
-    queryModel: z.string().optional().describe("Model used to generate search queries."),
-    queryTemperature: z.number().min(0).max(2).optional().describe("Temperature for query generation."),
-    queryThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for query generation."),
-    queryPrompt: PromptDefSchema.optional().describe("Instructions for generating search queries."),
-    querySystem: PromptDefSchema.optional().describe("System prompt for query generation."),
-
-    // Select model config
-    selectModel: z.string().optional().describe("Model used to select/filter results."),
-    selectTemperature: z.number().min(0).max(2).optional().describe("Temperature for selection."),
-    selectThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for selection."),
-    selectPrompt: PromptDefSchema.optional().describe("Criteria for selecting results."),
-    selectSystem: PromptDefSchema.optional().describe("System prompt for selection."),
-
-    // Compress model config
-    compressModel: z.string().optional().describe("Model used to summarize page content."),
-    compressTemperature: z.number().min(0).max(2).optional().describe("Temperature for compression."),
-    compressThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for compression."),
-    compressPrompt: PromptDefSchema.optional().describe("Instructions for summarizing content."),
-    compressSystem: PromptDefSchema.optional().describe("System prompt for compression."),
+    // Nested model configs
+    queryModel: PluginModelConfigSchema.optional().describe("Model configuration for generating search queries."),
+    selectModel: PluginModelConfigSchema.optional().describe("Model configuration for selecting/filtering results."),
+    compressModel: PluginModelConfigSchema.optional().describe("Model configuration for summarizing page content."),
 
     // Search options
     limit: z.number().int().positive().default(5).describe("Max total results to return."),
@@ -94,6 +78,43 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         return ['hasSerper'];
     }
 
+    private async resolvePluginModel(
+        config: z.infer<typeof PluginModelConfigSchema> | undefined,
+        row: Record<string, any>,
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+    ): Promise<ResolvedModelConfig | undefined> {
+        if (!config?.prompt) return undefined;
+
+        const parts = await this.promptLoader.load(config.prompt);
+        const renderedParts = parts.map((part: any) => {
+            if (part.type === 'text') {
+                const template = Handlebars.compile(part.text, { noEscape: true });
+                return { type: 'text' as const, text: template(row) };
+            }
+            return part;
+        });
+
+        let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+        if (config.system) {
+            systemParts = await this.promptLoader.load(config.system);
+            systemParts = systemParts.map((part: any) => {
+                if (part.type === 'text') {
+                    const template = Handlebars.compile(part.text, { noEscape: true });
+                    return { type: 'text' as const, text: template(row) };
+                }
+                return part;
+            });
+        }
+
+        return {
+            model: config.model || inheritedModel.model,
+            temperature: config.temperature ?? inheritedModel.temperature,
+            thinkingLevel: config.thinkingLevel ?? inheritedModel.thinkingLevel,
+            systemParts,
+            promptParts: renderedParts
+        };
+    }
+
     async resolveConfig(
         rawConfig: WebSearchRawConfigV2,
         row: Record<string, any>,
@@ -101,31 +122,6 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         contentResolver: ContentResolver
     ): Promise<WebSearchResolvedConfigV2> {
         
-        const resolvePrompt = async (
-            prompt: any,
-            modelOverride?: string,
-            temperatureOverride?: number,
-            thinkingLevelOverride?: 'low' | 'medium' | 'high'
-        ): Promise<ResolvedModelConfig | undefined> => {
-            if (!prompt) return undefined;
-            const parts = await this.promptLoader.load(prompt);
-            // Render Handlebars in text parts
-            const renderedParts = parts.map((part: any) => {
-                if (part.type === 'text') {
-                    const template = Handlebars.compile(part.text, { noEscape: true });
-                    return { type: 'text' as const, text: template(row) };
-                }
-                return part;
-            });
-            return {
-                model: modelOverride || inheritedModel.model,
-                temperature: temperatureOverride ?? inheritedModel.temperature,
-                thinkingLevel: thinkingLevelOverride ?? inheritedModel.thinkingLevel,
-                systemParts: [],
-                promptParts: renderedParts
-            };
-        };
-
         // Render query template
         let query: string | undefined;
         if (rawConfig.query) {
@@ -142,24 +138,9 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
                 explode: rawConfig.output.explode
             },
             query,
-            queryModel: await resolvePrompt(
-                rawConfig.queryPrompt,
-                rawConfig.queryModel,
-                rawConfig.queryTemperature,
-                rawConfig.queryThinkingLevel
-            ),
-            selectModel: await resolvePrompt(
-                rawConfig.selectPrompt,
-                rawConfig.selectModel,
-                rawConfig.selectTemperature,
-                rawConfig.selectThinkingLevel
-            ),
-            compressModel: await resolvePrompt(
-                rawConfig.compressPrompt,
-                rawConfig.compressModel,
-                rawConfig.compressTemperature,
-                rawConfig.compressThinkingLevel
-            ),
+            queryModel: await this.resolvePluginModel(rawConfig.queryModel, row, inheritedModel),
+            selectModel: await this.resolvePluginModel(rawConfig.selectModel, row, inheritedModel),
+            compressModel: await this.resolvePluginModel(rawConfig.compressModel, row, inheritedModel),
             limit: rawConfig.limit,
             mode: rawConfig.mode,
             queryCount: rawConfig.queryCount,

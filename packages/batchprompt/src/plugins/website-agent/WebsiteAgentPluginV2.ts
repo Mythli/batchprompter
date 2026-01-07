@@ -7,7 +7,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PromptDefSchema } from '../../config/common.js';
+import { OutputConfigSchema, PluginModelConfigSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
@@ -32,26 +32,10 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
     budget: z.number().int().positive().default(10).describe("Maximum number of pages to visit per website."),
     batchSize: z.number().int().positive().default(3).describe("Number of pages to visit in parallel during each iteration."),
 
-    // Navigator model config
-    navigatorModel: z.string().optional().describe("Model used by the Navigator agent."),
-    navigatorTemperature: z.number().min(0).max(2).optional().describe("Temperature for the Navigator."),
-    navigatorThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for the Navigator."),
-    navigatorPrompt: PromptDefSchema.optional().describe("Custom instructions for the Navigator."),
-    navigatorSystem: PromptDefSchema.optional().describe("System prompt for the Navigator."),
-
-    // Extract model config
-    extractModel: z.string().optional().describe("Model used by the Extractor agent."),
-    extractTemperature: z.number().min(0).max(2).optional().describe("Temperature for the Extractor."),
-    extractThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for the Extractor."),
-    extractPrompt: PromptDefSchema.optional().describe("Custom instructions for the Extractor."),
-    extractSystem: PromptDefSchema.optional().describe("System prompt for the Extractor."),
-
-    // Merge model config
-    mergeModel: z.string().optional().describe("Model used by the Merger agent."),
-    mergeTemperature: z.number().min(0).max(2).optional().describe("Temperature for the Merger."),
-    mergeThinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Thinking level for the Merger."),
-    mergePrompt: PromptDefSchema.optional().describe("Custom instructions for the Merger."),
-    mergeSystem: PromptDefSchema.optional().describe("System prompt for the Merger.")
+    // Nested model configs
+    navigator: PluginModelConfigSchema.optional().describe("Model configuration for the Navigator agent (decides which links to click)."),
+    extract: PluginModelConfigSchema.optional().describe("Model configuration for the Extractor agent (reads page content)."),
+    merge: PluginModelConfigSchema.optional().describe("Model configuration for the Merger agent (consolidates data).")
 }).describe("Configuration for the Website Agent plugin.");
 
 // Loose Schema (String or Object)
@@ -117,6 +101,48 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         return config;
     }
 
+    private async resolvePluginModel(
+        config: z.infer<typeof PluginModelConfigSchema> | undefined,
+        defaultPrompt: string,
+        row: Record<string, any>,
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+    ): Promise<ResolvedModelConfig> {
+        let promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+
+        if (config?.prompt) {
+            promptParts = await this.promptLoader.load(config.prompt);
+            promptParts = promptParts.map((part: any) => {
+                if (part.type === 'text') {
+                    const template = Handlebars.compile(part.text, { noEscape: true });
+                    return { type: 'text' as const, text: template(row) };
+                }
+                return part;
+            });
+        } else {
+            promptParts = [{ type: 'text', text: defaultPrompt }];
+        }
+
+        let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+        if (config?.system) {
+            systemParts = await this.promptLoader.load(config.system);
+            systemParts = systemParts.map((part: any) => {
+                if (part.type === 'text') {
+                    const template = Handlebars.compile(part.text, { noEscape: true });
+                    return { type: 'text' as const, text: template(row) };
+                }
+                return part;
+            });
+        }
+
+        return {
+            model: config?.model || inheritedModel.model,
+            temperature: config?.temperature ?? inheritedModel.temperature,
+            thinkingLevel: config?.thinkingLevel ?? inheritedModel.thinkingLevel,
+            systemParts,
+            promptParts
+        };
+    }
+
     async resolveConfig(
         rawConfig: WebsiteAgentRawConfigV2,
         row: Record<string, any>,
@@ -124,37 +150,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         contentResolver: ContentResolver
     ): Promise<WebsiteAgentResolvedConfigV2> {
         
-        const resolveModelWithPrompt = async (
-            prompt: any,
-            defaultPrompt: string,
-            modelOverride?: string,
-            temperatureOverride?: number,
-            thinkingLevelOverride?: 'low' | 'medium' | 'high'
-        ): Promise<ResolvedModelConfig> => {
-            let parts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-
-            if (prompt) {
-                parts = await this.promptLoader.load(prompt);
-                parts = parts.map((part: any) => {
-                    if (part.type === 'text') {
-                        const template = Handlebars.compile(part.text, { noEscape: true });
-                        return { type: 'text' as const, text: template(row) };
-                    }
-                    return part;
-                });
-            } else {
-                parts = [{ type: 'text', text: defaultPrompt }];
-            }
-
-            return {
-                model: modelOverride || inheritedModel.model,
-                temperature: temperatureOverride ?? inheritedModel.temperature,
-                thinkingLevel: thinkingLevelOverride ?? inheritedModel.thinkingLevel,
-                systemParts: [],
-                promptParts: parts
-            };
-        };
-
         const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
         const url = urlTemplate(row);
 
@@ -181,27 +176,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             extractionSchema,
             budget: rawConfig.budget,
             batchSize: rawConfig.batchSize,
-            navigatorModel: await resolveModelWithPrompt(
-                rawConfig.navigatorPrompt,
-                DEFAULT_NAVIGATOR,
-                rawConfig.navigatorModel,
-                rawConfig.navigatorTemperature,
-                rawConfig.navigatorThinkingLevel
-            ),
-            extractModel: await resolveModelWithPrompt(
-                rawConfig.extractPrompt,
-                DEFAULT_EXTRACT,
-                rawConfig.extractModel,
-                rawConfig.extractTemperature,
-                rawConfig.extractThinkingLevel
-            ),
-            mergeModel: await resolveModelWithPrompt(
-                rawConfig.mergePrompt,
-                DEFAULT_MERGE,
-                rawConfig.mergeModel,
-                rawConfig.mergeTemperature,
-                rawConfig.mergeThinkingLevel
-            )
+            navigatorModel: await this.resolvePluginModel(rawConfig.navigator, DEFAULT_NAVIGATOR, row, inheritedModel),
+            extractModel: await this.resolvePluginModel(rawConfig.extract, DEFAULT_EXTRACT, row, inheritedModel),
+            mergeModel: await this.resolvePluginModel(rawConfig.merge, DEFAULT_MERGE, row, inheritedModel)
         };
     }
 

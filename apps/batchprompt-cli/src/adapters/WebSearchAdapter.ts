@@ -7,9 +7,9 @@ export class WebSearchAdapter implements CliPluginAdapter {
     constructor(public plugin: WebSearchPluginV2) {}
 
     registerOptions(program: Command) {
-        ModelFlags.register(program, 'web-query', { includePrompt: true });
-        ModelFlags.register(program, 'web-select', { includePrompt: true });
-        ModelFlags.register(program, 'web-compress', { includePrompt: true });
+        ModelFlags.register(program, 'web-query', { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, 'web-select', { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, 'web-compress', { includePrompt: true, includeSystem: true });
         
         program.option('--web-search-query <text>', 'Static search query');
         program.option('--web-search-limit <number>', 'Max total results (default: 5)', parseInt);
@@ -25,24 +25,14 @@ export class WebSearchAdapter implements CliPluginAdapter {
     }
 
     registerOptionsForStep(program: Command, stepIndex: number) {
-        // ModelFlags handles step registration internally if we pass the namespace with suffix?
-        // No, ModelFlags.register takes a namespace. We need to register for step.
-        // But ModelFlags.register doesn't support step index directly in the current implementation shown in previous context.
-        // Wait, ModelFlags.register takes a namespace. If we want step specific flags, we need to register them manually or update ModelFlags.
-        // The previous implementation of PluginRegistryV2.registerCLI did this:
-        // const stepFlags = this.makeStepFlags(opt.flags, i);
-        // It regex replaced the flag name.
-        
-        // Let's replicate that logic here for the specific flags.
         const registerStep = (flags: string, desc: string, parser?: any) => {
             const stepFlags = flags.replace(/^(--[\w-]+)/, `$1-${stepIndex}`);
             program.option(stepFlags, `${desc} for step ${stepIndex}`, parser);
         };
 
-        // For ModelFlags, we can use the namespace with suffix
-        ModelFlags.register(program, `web-query-${stepIndex}`, { includePrompt: true });
-        ModelFlags.register(program, `web-select-${stepIndex}`, { includePrompt: true });
-        ModelFlags.register(program, `web-compress-${stepIndex}`, { includePrompt: true });
+        ModelFlags.register(program, `web-query-${stepIndex}`, { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, `web-select-${stepIndex}`, { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, `web-compress-${stepIndex}`, { includePrompt: true, includeSystem: true });
 
         registerStep('--web-search-query <text>', 'Static search query');
         registerStep('--web-search-limit <number>', 'Max total results', parseInt);
@@ -65,13 +55,11 @@ export class WebSearchAdapter implements CliPluginAdapter {
 
         const query = getOpt('webSearchQuery');
         
-        // For ModelFlags extraction, we need to handle the step suffix logic.
-        // ModelFlags.extractPluginModel handles the step index logic internally if we pass the base prefix.
         const queryConfig = ModelFlags.extractPluginModel(options, 'webQuery', stepIndex);
         const selectConfig = ModelFlags.extractPluginModel(options, 'webSelect', stepIndex);
         const compressConfig = ModelFlags.extractPluginModel(options, 'webCompress', stepIndex);
 
-        // Only activate if query or queryPrompt is provided
+        // Only activate if query or queryModel.prompt is provided
         if (!query && !queryConfig.prompt) {
             return null;
         }
@@ -84,21 +72,26 @@ export class WebSearchAdapter implements CliPluginAdapter {
         if (outputColumn) outputMode = 'column';
         else if (exportFlag) outputMode = 'merge';
 
+        // Build nested model config objects
+        const buildModelConfig = (config: any) => {
+            if (!config.prompt && !config.model && !config.temperature && !config.thinkingLevel && !config.system) {
+                return undefined;
+            }
+            return {
+                model: config.model,
+                temperature: config.temperature,
+                thinkingLevel: config.thinkingLevel,
+                prompt: config.prompt,
+                system: config.system
+            };
+        };
+
         return {
             type: 'web-search',
             query,
-            queryPrompt: queryConfig.prompt,
-            queryModel: queryConfig.model,
-            queryTemperature: queryConfig.temperature,
-            queryThinkingLevel: queryConfig.thinkingLevel,
-            selectPrompt: selectConfig.prompt,
-            selectModel: selectConfig.model,
-            selectTemperature: selectConfig.temperature,
-            selectThinkingLevel: selectConfig.thinkingLevel,
-            compressPrompt: compressConfig.prompt,
-            compressModel: compressConfig.model,
-            compressTemperature: compressConfig.temperature,
-            compressThinkingLevel: compressConfig.thinkingLevel,
+            queryModel: buildModelConfig(queryConfig),
+            selectModel: buildModelConfig(selectConfig),
+            compressModel: buildModelConfig(compressConfig),
             limit: getOpt('webSearchLimit'),
             mode: getOpt('webSearchMode'),
             queryCount: getOpt('webSearchQueryCount'),

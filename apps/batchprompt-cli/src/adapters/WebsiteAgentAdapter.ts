@@ -7,9 +7,9 @@ export class WebsiteAgentAdapter implements CliPluginAdapter {
     constructor(public plugin: WebsiteAgentPluginV2) {}
 
     registerOptions(program: Command) {
-        ModelFlags.register(program, 'website-navigator', { includePrompt: true });
-        ModelFlags.register(program, 'website-extract', { includePrompt: true });
-        ModelFlags.register(program, 'website-merge', { includePrompt: true });
+        ModelFlags.register(program, 'website-navigator', { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, 'website-extract', { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, 'website-merge', { includePrompt: true, includeSystem: true });
 
         program.option('--website-agent-url <url>', 'Starting URL to scrape');
         program.option('--website-agent-schema <path>', 'JSON Schema for extraction');
@@ -25,9 +25,9 @@ export class WebsiteAgentAdapter implements CliPluginAdapter {
             program.option(stepFlags, `${desc} for step ${stepIndex}`, parser);
         };
 
-        ModelFlags.register(program, `website-navigator-${stepIndex}`, { includePrompt: true });
-        ModelFlags.register(program, `website-extract-${stepIndex}`, { includePrompt: true });
-        ModelFlags.register(program, `website-merge-${stepIndex}`, { includePrompt: true });
+        ModelFlags.register(program, `website-navigator-${stepIndex}`, { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, `website-extract-${stepIndex}`, { includePrompt: true, includeSystem: true });
+        ModelFlags.register(program, `website-merge-${stepIndex}`, { includePrompt: true, includeSystem: true });
 
         registerStep('--website-agent-url <url>', 'Starting URL to scrape');
         registerStep('--website-agent-schema <path>', 'JSON Schema for extraction');
@@ -54,32 +54,4 @@ export class WebsiteAgentAdapter implements CliPluginAdapter {
         const outputColumn = getOpt('websiteAgentOutput');
 
         let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) outputMode = 'column';
-        else if (exportFlag) outputMode = 'merge';
-
-        return {
-            type: 'website-agent',
-            url,
-            schema: getOpt('websiteAgentSchema'),
-            budget: getOpt('websiteAgentBudget'),
-            batchSize: getOpt('websiteAgentBatchSize'),
-            navigatorPrompt: navigatorConfig.prompt,
-            navigatorModel: navigatorConfig.model,
-            navigatorTemperature: navigatorConfig.temperature,
-            navigatorThinkingLevel: navigatorConfig.thinkingLevel,
-            extractPrompt: extractConfig.prompt,
-            extractModel: extractConfig.model,
-            extractTemperature: extractConfig.temperature,
-            extractThinkingLevel: extractConfig.thinkingLevel,
-            mergePrompt: mergeConfig.prompt,
-            mergeModel: mergeConfig.model,
-            mergeTemperature: mergeConfig.temperature,
-            mergeThinkingLevel: mergeConfig.thinkingLevel,
-            output: {
-                mode: outputMode,
-                column: outputColumn,
-                explode: false
-            }
-        };
-    }
-}
+        if (outputColumn) outputMode =
