@@ -19,8 +19,8 @@ import { PluginScope } from '../PluginScope.js';
 // Config Schema
 // =============================================================================
 
-// Strict Schema (Object only)
-export const WebsiteAgentConfigSchemaV2 = z.object({
+// Loose Schema (String or Object for schema field) - defined first as base
+export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent').describe("Identifies this as a Website Agent plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
@@ -30,7 +30,7 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
     
     // Required fields
     url: zHandlebars.describe("The starting URL to scrape. Supports Handlebars."),
-    schema: zJsonSchemaObject.describe("The JSON Schema defining the data to extract."),
+    schema: z.union([z.string(), zJsonSchemaObject]).describe("The JSON Schema defining the data to extract. Can be inline object or file path."),
     
     // Options
     budget: z.number().int().positive().default(10).describe("Maximum number of pages to visit per website."),
@@ -40,12 +40,12 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
     navigator: PluginModelConfigSchema.optional().describe("Model configuration for the Navigator agent (decides which links to click)."),
     extract: PluginModelConfigSchema.optional().describe("Model configuration for the Extractor agent (reads page content)."),
     merge: PluginModelConfigSchema.optional().describe("Model configuration for the Merger agent (consolidates data).")
-}).strict().describe("Configuration for the Website Agent plugin.");
+}).describe("Configuration for the Website Agent plugin.");
 
-// Loose Schema (String or Object for schema field)
-export const LooseWebsiteAgentConfigSchemaV2 = WebsiteAgentConfigSchemaV2.innerType().extend({
-    schema: z.union([z.string(), zJsonSchemaObject])
-});
+// Strict Schema (Object only) - derived by narrowing the schema field
+export const WebsiteAgentConfigSchemaV2 = LooseWebsiteAgentConfigSchemaV2.extend({
+    schema: zJsonSchemaObject.describe("The JSON Schema defining the data to extract.")
+}).strict();
 
 export type WebsiteAgentRawConfigV2 = z.infer<typeof LooseWebsiteAgentConfigSchemaV2>;
 

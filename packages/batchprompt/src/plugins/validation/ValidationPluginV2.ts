@@ -14,8 +14,8 @@ import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js'
 import { PluginScope } from '../PluginScope.js';
 import { renderSchemaObject } from '../../utils/schemaUtils.js';
 
-// Strict Schema
-export const ValidationConfigSchemaV2 = z.object({
+// Loose Schema (String or Object for schema field) - defined first as base
+export const LooseValidationConfigSchemaV2 = z.object({
     type: z.literal('validation').describe("Identifies this as a Validation plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
@@ -24,16 +24,16 @@ export const ValidationConfigSchemaV2 = z.object({
     }).describe("How to save validation results."),
     
     // Required
-    schema: zJsonSchemaObject.describe("JSON Schema to validate the data against."),
+    schema: z.union([z.string(), zJsonSchemaObject]).describe("JSON Schema to validate the data against. Can be inline object or file path."),
     
     // Optional
     target: zHandlebars.optional().describe("Data to validate (Handlebars template). Defaults to the current row.")
-}).strict().describe("Configuration for the Validation plugin.");
+}).describe("Configuration for the Validation plugin.");
 
-// Loose Schema
-export const LooseValidationConfigSchemaV2 = ValidationConfigSchemaV2.innerType().extend({
-    schema: z.union([z.string(), zJsonSchemaObject])
-});
+// Strict Schema (Object only) - derived by narrowing the schema field
+export const ValidationConfigSchemaV2 = LooseValidationConfigSchemaV2.extend({
+    schema: zJsonSchemaObject.describe("JSON Schema to validate the data against.")
+}).strict();
 
 export type ValidationRawConfigV2 = z.infer<typeof LooseValidationConfigSchemaV2>;
 

@@ -21,32 +21,31 @@ export const FeedbackConfigSchema = ModelConfigSchema.extend({
     loops: z.number().int().min(0).default(0).describe("Number of feedback iterations to run.")
 }).describe("Configuration for the feedback loop (self-correction).");
 
-// --- Core Step Schema (Runtime / Generation) ---
-const CoreStepConfigSchema = z.object({
+// --- Loose Step Schema (Input / CLI) - defined first as base ---
+const LooseCoreStepConfigSchema = z.object({
     prompt: PromptDefSchema.optional().describe("The main instruction for this step."),
     system: PromptDefSchema.optional().describe("System instruction for this step."),
     model: ModelConfigSchema.optional().describe("Model configuration for this step."),
-    plugins: z.array(PluginUnionSchema).default([]).describe("List of plugins to execute before the model."),
+    plugins: z.array(LoosePluginUnionSchema).default([]).describe("List of plugins to execute before the model."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
         explode: false
     }).describe("How to save the result of this step."),
     outputPath: zHandlebars.optional().describe("Template for saving the result to a file (e.g., 'out/{{id}}.md')."),
-    schema: zJsonSchemaObject.optional().describe("JSON Schema to enforce structured output from the model."), // Strict: Object only
+    schema: z.union([z.string(), zJsonSchemaObject]).optional().describe("JSON Schema to enforce structured output. Can be inline object or file path."),
     candidates: z.number().int().positive().default(1).describe("Number of candidate responses to generate."),
     judge: ModelConfigSchema.optional().describe("Configuration for a judge model to select the best candidate."),
     feedback: FeedbackConfigSchema.optional().describe("Configuration for a feedback loop to improve the result."),
     aspectRatio: z.string().optional().describe("Aspect ratio for image generation (e.g., '16:9')."),
     timeout: z.number().int().positive().optional().describe("Timeout in seconds for this step.")
-});
+}).describe("Configuration for a single step in the pipeline.");
 
-// --- Strict Step Schema (Merged with Extensions) ---
-export const StepConfigSchema = CoreStepConfigSchema.merge(UrlExpanderStepExtension).describe("Configuration for a single step in the pipeline.");
+export const LooseStepConfigSchema = LooseCoreStepConfigSchema.merge(UrlExpanderStepExtension);
 
-// --- Loose Step Schema (Input / CLI) ---
-export const LooseStepConfigSchema = StepConfigSchema.extend({
-    schema: z.union([z.string(), zJsonSchemaObject]).optional(),
-    plugins: z.array(LoosePluginUnionSchema).default([])
+// --- Strict Step Schema (Runtime / Generation) - derived by narrowing ---
+export const StepConfigSchema = LooseStepConfigSchema.extend({
+    schema: zJsonSchemaObject.optional().describe("JSON Schema to enforce structured output from the model."),
+    plugins: z.array(PluginUnionSchema).default([]).describe("List of plugins to execute before the model.")
 });
 
 export const GlobalsConfigSchema = z.object({
@@ -67,23 +66,6 @@ export const GlobalsConfigSchema = z.object({
     offset: z.number().int().min(0).optional().describe("Default starting index when exploding.")
 }).describe("Global configuration settings.");
 
-// --- Strict Pipeline Schema ---
-// We merge Globals directly into the root.
-// We also support a legacy 'globals' object via preprocess for backward compatibility.
-const BasePipelineConfigSchema = GlobalsConfigSchema.extend({
-    data: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows."),
-    steps: z.array(StepConfigSchema).min(1).describe("List of steps to execute.")
-});
-
-export const PipelineConfigSchema = z.preprocess((val: any) => {
-    if (val && typeof val === 'object' && val.globals) {
-        // Merge legacy globals into root
-        const { globals, ...rest } = val;
-        return { ...globals, ...rest };
-    }
-    return val;
-}, BasePipelineConfigSchema);
-
 // --- Loose Pipeline Schema ---
 const BaseLoosePipelineConfigSchema = GlobalsConfigSchema.extend({
     data: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows."),
@@ -98,3 +80,18 @@ export const LoosePipelineConfigSchema = z.preprocess((val: any) => {
     }
     return val;
 }, BaseLoosePipelineConfigSchema);
+
+// --- Strict Pipeline Schema ---
+const BasePipelineConfigSchema = GlobalsConfigSchema.extend({
+    data: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows."),
+    steps: z.array(StepConfigSchema).min(1).describe("List of steps to execute.")
+});
+
+export const PipelineConfigSchema = z.preprocess((val: any) => {
+    if (val && typeof val === 'object' && val.globals) {
+        // Merge legacy globals into root
+        const { globals, ...rest } = val;
+        return { ...globals, ...rest };
+    }
+    return val;
+}, BasePipelineConfigSchema);
