@@ -1,8 +1,6 @@
 {
-  "globals": {
-    "model": "google/gemini-3-flash-preview",
-    "dataOutputPath": "out/05-simple-chain/results.csv"
-  },
+  "model": "google/gemini-3-flash-preview",
+  "dataOutputPath": "out/05-simple-chain/results.csv",
   "steps": [
     {
       "prompt": "Generate a creative band name for a {{genre}} band. Return ONLY the name, nothing else.",

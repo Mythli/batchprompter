@@ -1,12 +1,7 @@
 {
-  "data": {
-    "format": "csv"
-  },
-  "globals": {
-    "concurrency": 2,
-    "tmpDir": "out/05-logo-downloader/.tmp",
-    "dataOutputPath": "out/05-logo-downloader/results.csv"
-  },
+  "concurrency": 2,
+  "tmpDir": "out/05-logo-downloader/.tmp",
+  "dataOutputPath": "out/05-logo-downloader/results.csv",
   "steps": [
     {
       "plugins": [
