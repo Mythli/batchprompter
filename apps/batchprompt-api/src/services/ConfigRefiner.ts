@@ -2,8 +2,7 @@ import { z } from 'zod';
 import type OpenAI from 'openai';
 import { createIterativeRefiner, EvaluationResult } from 'llm-fns';
 import {
-    SafePipelineConfig,
-    SafePipelineConfigSchema,
+    PipelineConfigSchema,
     LlmClientFactory,
     CONFIG_DOCUMENTATION
 } from 'batchprompt';
@@ -14,6 +13,8 @@ export interface ConfigRefinerInput {
     sampleRows: any[];
     partialConfig?: any;
 }
+
+type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
 
 const EvaluationSchema = z.object({
     success: z.boolean().describe("Whether the configuration output satisfies the user request."),
@@ -31,8 +32,8 @@ export class ConfigRefiner {
         const refiner = createIterativeRefiner({
             maxRetries: this.options.maxRetries,
             generate: (input: ConfigRefinerInput, history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => this.generate(input, history),
-            evaluate: (input: ConfigRefinerInput, generated: SafePipelineConfig) => this.evaluate(input, generated),
-            generatedToMessage: (config: SafePipelineConfig) => ({
+            evaluate: (input: ConfigRefinerInput, generated: PipelineConfig) => this.evaluate(input, generated),
+            generatedToMessage: (config: PipelineConfig) => ({
                 role: 'assistant',
                 content: JSON.stringify(config, null, 2)
             })
@@ -41,7 +42,7 @@ export class ConfigRefiner {
         return refiner.run(input);
     }
 
-    private async generate(input: ConfigRefinerInput, history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): Promise<SafePipelineConfig> {
+    private async generate(input: ConfigRefinerInput, history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]): Promise<PipelineConfig> {
         const generatorLlm = this.llmFactory.create({
             model: 'google/gemini-3-flash-preview',
             thinkingLevel: 'high',
@@ -86,11 +87,11 @@ export class ConfigRefiner {
         messages.push(...history);
 
         // Determine schema to use
-        let schema: z.ZodType<any> = SafePipelineConfigSchema;
+        let schema: z.ZodType<any> = PipelineConfigSchema;
         let isDataOmitted = false;
 
         if (input.sampleRows && input.sampleRows.length > 0) {
-            schema = SafePipelineConfigSchema.omit({ data: true });
+            schema = PipelineConfigSchema.omit({ data: true });
             isDataOmitted = true;
         }
 
@@ -98,13 +99,13 @@ export class ConfigRefiner {
 
         if (isDataOmitted) {
             // Re-hydrate the result with default data config
-            return SafePipelineConfigSchema.parse(result);
+            return PipelineConfigSchema.parse(result);
         }
 
-        return result as SafePipelineConfig;
+        return result as PipelineConfig;
     }
 
-    private async evaluate(input: ConfigRefinerInput, config: SafePipelineConfig): Promise<EvaluationResult> {
+    private async evaluate(input: ConfigRefinerInput, config: PipelineConfig): Promise<EvaluationResult> {
         // 1. Execute
         let executionResults: any[] = [];
         let executionError: string | undefined;

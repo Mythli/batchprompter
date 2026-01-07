@@ -1,9 +1,12 @@
-import { SafePipelineConfig, getConfig, ConfigRefiner } from 'batchprompt';
+import { z } from 'zod';
+import { PipelineConfigSchema, getConfig, ConfigRefiner } from 'batchprompt';
 import { ExecutionService } from './ExecutionService.js';
+
+type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
 
 export class GenerationService {
 
-    async generateConfig(prompt: string, partialConfig?: any, sampleRows?: any[]): Promise<SafePipelineConfig> {
+    async generateConfig(prompt: string, partialConfig?: any, sampleRows?: any[]): Promise<PipelineConfig> {
         const { llmFactory } = await getConfig();
         const executionService = new ExecutionService();
 
