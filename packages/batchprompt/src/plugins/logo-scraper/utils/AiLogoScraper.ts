@@ -13,6 +13,27 @@ export interface LogoScraperOptions {
     brandLogoScoreThreshold?: number;
 }
 
+export interface BrandColor {
+    hex: string;
+    isDark: boolean;
+    contrastColor: string;
+}
+
+export interface AnalyzedLogo extends ImageConversionResult {
+    isFavicon: boolean;
+    brandLogoScore: number;
+    duplicateOfIndex: number | null;
+    darkBackgroundPerformance?: number;
+    lightBackgroundPerformance?: number;
+    originalIndex: number;
+}
+
+export interface LogoScraperResult {
+    primaryColor?: BrandColor;
+    brandColors: BrandColor[];
+    logos: AnalyzedLogo[];
+}
+
 const hexColorRegex = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{8})$/;
 
 const backgroundPerformanceScale = z.number().min(0).max(10)
@@ -67,7 +88,7 @@ export class AiLogoScraper {
         this.options.brandLogoScoreThreshold = options.brandLogoScoreThreshold ?? 5;
     }
 
-    public async scrape(url: string) {
+    public async scrape(url: string): Promise<LogoScraperResult> {
         const pageHelper = await this.puppeteerHelper.getPageHelper();
         try {
             const resolutions: Resolution[] = [{ width: 1280, height: 800 }];
@@ -150,7 +171,7 @@ export class AiLogoScraper {
 
         } catch (error) {
             console.error(`[AiLogoScraper] Error processing ${url}:`, error);
-            return {};
+            return { brandColors: [], logos: [] };
         } finally {
             await pageHelper.close();
         }
@@ -278,7 +299,32 @@ async () => {
         }
     }
 
-    private async normalizeLogos(baseUrl: string, base64Logos: Array<ImageConversionResult & { isFavicon: boolean }>, siteTitle: string, screenshotBase64: string) {
+    private async normalizeLogos(baseUrl: string, base64Logos: Array<ImageConversionResult & { isFavicon: boolean }>, siteTitle: string, screenshotBase64: string): Promise<LogoScraperResult> {
+        if (base64Logos.length === 0) {
+            // Still try to get brand colors from screenshot
+            try {
+                const colorOnlySchema = z.object({
+                    brandColors: z.array(brandColorSchema)
+                        .min(1)
+                        .max(5)
+                        .describe("An array of up to 5 colors that represent the company's brand. The first color MUST be the primary brand color."),
+                });
+
+                const colorPrompt: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+                    { type: "text", text: `Analyze the screenshot and identify the brand colors for "${siteTitle}".` },
+                    { type: "image_url", image_url: { url: screenshotBase64, detail: "low" } }
+                ];
+
+                const colorResult = await this.analyzeLlm.promptZod({ suffix: colorPrompt }, colorOnlySchema);
+                const brandColors = colorResult.brandColors || [];
+                const primaryColor = brandColors.length > 0 ? brandColors[0] : undefined;
+
+                return { primaryColor, brandColors, logos: [] };
+            } catch (e) {
+                return { brandColors: [], logos: [] };
+            }
+        }
+
         const analyseLogosSchema = z.object({
             brandColors: z.array(brandColorSchema)
                 .min(1)
@@ -310,29 +356,25 @@ Accurately populate the provided JSON schema.`;
             { type: "image_url", image_url: { url: screenshotBase64, detail: "low" } }
         ];
 
-        if (base64Logos.length > 0) {
-            userMessagePayload.push({ type: "text", text: "\n\nPotential logo images to analyze:" });
-            base64Logos.forEach((logo, index) => {
-                userMessagePayload.push({ type: "text", text: `Image ${index + 1} (${logo.width}x${logo.height}px)${logo.isFavicon ? ' (Favicon)' : ''}:` });
-                userMessagePayload.push({ type: "image_url", image_url: { url: logo.base64PngData, detail: "low" } });
-            });
-        } else {
-            userMessagePayload.push({ type: "text", text: "\n\nNo logo images were provided. Please determine brand colors from the screenshot." });
-        }
+        userMessagePayload.push({ type: "text", text: "\n\nPotential logo images to analyze:" });
+        base64Logos.forEach((logo, index) => {
+            userMessagePayload.push({ type: "text", text: `Image ${index + 1} (${logo.width}x${logo.height}px)${logo.isFavicon ? ' (Favicon)' : ''}:` });
+            userMessagePayload.push({ type: "image_url", image_url: { url: logo.base64PngData, detail: "low" } });
+        });
 
         const logoMetaData = await this.analyzeLlm.promptZod({ suffix: userMessagePayload }, analyseLogosSchema);
 
         const brandColors = logoMetaData.brandColors || [];
 
         // Combine original logo info with LLM analysis
-        const allLogoData = base64Logos.map((logo, i) => ({
+        const allLogoData: AnalyzedLogo[] = base64Logos.map((logo, i) => ({
             ...logo,
             ...logoMetaData.logos[i],
             originalIndex: i
         }));
 
         // Deduplicate
-        const logoGroups: { [key: number]: typeof allLogoData } = {};
+        const logoGroups: { [key: number]: AnalyzedLogo[] } = {};
         allLogoData.forEach(logo => {
             const groupKey = logo.duplicateOfIndex ?? logo.originalIndex;
             if (!logoGroups[groupKey]) logoGroups[groupKey] = [];

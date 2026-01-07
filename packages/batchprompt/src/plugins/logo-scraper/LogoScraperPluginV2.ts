@@ -11,7 +11,7 @@ import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '
 import { OutputConfigSchema, PluginModelConfigSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
-import { AiLogoScraper } from './utils/AiLogoScraper.js';
+import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
@@ -201,7 +201,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
 
         console.log(`[LogoScraper] Scraping logos from: ${config.url}`);
 
-        const result = await scraper.scrape(config.url);
+        const result: LogoScraperResult = await scraper.scrape(config.url);
 
         // Emit artifacts for logos
         const logos = result.logos || [];
@@ -243,7 +243,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         }
 
         // Save favicons
-        const favicons = logos.filter(l => l.isFavicon);
+        const favicons = logos.filter((l: AnalyzedLogo) => l.isFavicon);
         for (let i = 0; i < Math.min(favicons.length, config.faviconLimit); i++) {
             const favicon = favicons[i];
             const filename = config.faviconPath
