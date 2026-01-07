@@ -18,13 +18,12 @@ class MockWebSearch extends WebSearch {
 }
 
 describe('E2E Plugin Explosion', () => {
-    it('should explode plugin results into multiple rows and execute model for each', async () => {
+    it('should explode plugin results and respect global limit', async () => {
         // Mocks
+        // We expect 2 calls to the model (limited by global limit: 2)
         const mockResponses = [
-            // We expect 3 calls to the model, one for each search result
             "Summary for Result 1",
-            "Summary for Result 2",
-            "Summary for Result 3"
+            "Summary for Result 2"
         ];
 
         const mockWebSearch = new MockWebSearch();
@@ -35,6 +34,7 @@ describe('E2E Plugin Explosion', () => {
 
         const config = {
             model: "gpt-mock",
+            limit: 2, // Global limit - should cap explosion to 2 items
             steps: [
                 {
                     // Step 1: Search and Explode
@@ -62,15 +62,14 @@ describe('E2E Plugin Explosion', () => {
 
         const { results } = await executor.runConfig(config, [{ id: 1 }]);
 
-        // Assertions
-        expect(results).toHaveLength(3);
+        // Assertions - should be limited to 2 despite 3 results from search
+        expect(results).toHaveLength(2);
         expect(results[0].summary).toBe("Summary for Result 1");
         expect(results[1].summary).toBe("Summary for Result 2");
-        expect(results[2].summary).toBe("Summary for Result 3");
 
-        // Verify LLM calls
+        // Verify LLM calls - only 2 due to limit
         const createCall = (openai.chat.completions.create as any);
-        expect(createCall).toHaveBeenCalledTimes(3);
+        expect(createCall).toHaveBeenCalledTimes(2);
         
         // Verify context of calls
         const call1 = createCall.mock.calls[0][0];
@@ -78,8 +77,5 @@ describe('E2E Plugin Explosion', () => {
         
         const call2 = createCall.mock.calls[1][0];
         expect(JSON.stringify(call2.messages)).toContain("Snippet 2");
-
-        const call3 = createCall.mock.calls[2][0];
-        expect(JSON.stringify(call3.messages)).toContain("Snippet 3");
     });
 });
