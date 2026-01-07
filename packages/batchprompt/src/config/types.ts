@@ -45,7 +45,6 @@ export interface StepConfig {
     
     // Validation
     schema?: any; // Object or Template String
-    schemaPath?: string; // Legacy alias
 
     // Plugins
     plugins: ResolvedPluginBase[];
@@ -53,25 +52,23 @@ export interface StepConfig {
     // Judge & Feedback
     judge?: ModelConfig;
     feedback?: ModelConfig & { loops: number };
-    feedbackLoops?: number; // Alias for feedback.loops
+    feedbackLoops?: number; // Derived from feedback.loops for convenience
 
     // Misc
     aspectRatio?: string;
     
-    // Resolved Paths
+    // Resolved Paths (set by StepResolver at runtime)
     resolvedOutputDir?: string;
     resolvedTempDir?: string;
     outputBasename?: string;
     outputExtension?: string;
 
-    // Legacy
+    // Shell Commands
     verifyCommand?: string;
-    postProcessCommand?: string;
-    noCandidateCommand?: boolean;
     command?: string;
     skipCandidateCommand?: boolean;
     
-    // Resolved Prompts (for internal use if needed, but we use model.prompt now)
+    // Resolved Prompts (set by StepResolver at runtime)
     userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[];
     
     // Temp dir for this step

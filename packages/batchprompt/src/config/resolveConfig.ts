@@ -201,14 +201,14 @@ function resolveStep(
         outputPath: outputPathTemplate,
         outputTemplate: outputPathTemplate,
         schema: step.schema,
-        candidates: step.candidates,
-        skipCandidateCommand: step.skipCandidateCommand,
+        candidates: step.candidates ?? 1,
         judge,
         feedback,
-        feedbackLoops: feedback?.loops,
+        feedbackLoops: feedback?.loops ?? 0,
         aspectRatio: step.aspectRatio,
         command: step.command,
         verifyCommand: step.verifyCommand,
+        skipCandidateCommand: step.skipCandidateCommand,
         tmpDir: globals.tmpDir,
         timeout: step.timeout ?? globals.timeout
     };
