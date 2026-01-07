@@ -118,3 +118,151 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
                     return { type: 'text' as const, text: template(row) };
                 }
                 return part;
+            });
+        } else {
+            promptParts = [{ type: 'text', text: defaultPrompt }];
+        }
+
+        let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+        if (config?.system) {
+            systemParts = await this.promptLoader.load(config.system as any);
+            systemParts = systemParts.map((part: any) => {
+                if (part.type === 'text') {
+                    const template = Handlebars.compile(part.text, { noEscape: true });
+                    return { type: 'text' as const, text: template(row) };
+                }
+                return part;
+            });
+        }
+
+        return {
+            model: config?.model || inheritedModel.model,
+            temperature: config?.temperature ?? inheritedModel.temperature,
+            thinkingLevel: config?.thinkingLevel ?? inheritedModel.thinkingLevel,
+            systemParts,
+            promptParts
+        };
+    }
+
+    async resolveConfig(
+        rawConfig: WebsiteAgentRawConfigV2,
+        row: Record<string, any>,
+        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        contentResolver: ContentResolver
+    ): Promise<WebsiteAgentResolvedConfigV2> {
+        // Resolve URL template
+        const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
+        const url = urlTemplate(row);
+
+        // Schema should already be an object after normalizeConfig
+        let schema = rawConfig.schema;
+        if (typeof schema === 'string') {
+            throw new Error("Schema must be an object. Ensure ConfigNormalizer is used.");
+        }
+
+        // Render schema templates
+        schema = renderSchemaObject(schema, row);
+
+        // Create extraction schema (make all fields optional for partial extraction)
+        const extractionSchema = makeSchemaOptional(schema);
+
+        return {
+            type: 'website-agent',
+            id: rawConfig.id ?? `website-agent-${Date.now()}`,
+            output: {
+                mode: rawConfig.output.mode,
+                column: rawConfig.output.column,
+                explode: rawConfig.output.explode
+            },
+            url,
+            schema,
+            extractionSchema,
+            budget: rawConfig.budget,
+            batchSize: rawConfig.batchSize,
+            navigatorModel: await this.resolvePluginModel(rawConfig.navigator, DEFAULT_NAVIGATOR, row, inheritedModel),
+            extractModel: await this.resolvePluginModel(rawConfig.extract, DEFAULT_EXTRACT, row, inheritedModel),
+            mergeModel: await this.resolvePluginModel(rawConfig.merge, DEFAULT_MERGE, row, inheritedModel)
+        };
+    }
+
+    async prepareMessages(
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        config: WebsiteAgentResolvedConfigV2,
+        context: PluginExecutionContext
+    ): Promise<PluginPacket[]> {
+        const { services, row, emit } = context;
+        const { puppeteerHelper, puppeteerQueue } = services;
+
+        if (!puppeteerHelper) {
+            throw new Error('[WebsiteAgent] Puppeteer not available');
+        }
+
+        if (!puppeteerQueue) {
+            throw new Error('[WebsiteAgent] Puppeteer queue not available');
+        }
+
+        const scope = new PluginScope(context, this.type);
+
+        // Create LLM clients
+        const navigatorLlm = services.createLlm(config.navigatorModel);
+        const extractLlm = services.createLlm(config.extractModel);
+        const mergeLlm = services.createLlm(config.mergeModel);
+
+        // Create the agent
+        const agent = new AiWebsiteAgent(
+            navigatorLlm,
+            extractLlm,
+            mergeLlm,
+            puppeteerHelper,
+            puppeteerQueue
+        );
+
+        // Bridge events to plugin scope
+        scope.bridge(agent.events);
+
+        console.log(`[WebsiteAgent] Starting scrape of: ${config.url}`);
+
+        // Execute the scrape
+        const result = await agent.scrapeIterative(
+            config.url,
+            config.extractionSchema,
+            config.schema,
+            {
+                budget: config.budget,
+                batchSize: config.batchSize,
+                row
+            }
+        );
+
+        // Emit artifact with final result
+        emit('plugin:artifact', {
+            row: context.row.index,
+            step: context.stepIndex,
+            plugin: 'website-agent',
+            type: 'json',
+            filename: `website_agent/result_${Date.now()}.json`,
+            content: JSON.stringify(result, null, 2),
+            tags: ['final', 'website-agent', 'result']
+        });
+
+        // Build content parts for LLM context
+        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+
+        if (result && Object.keys(result).length > 0) {
+            contentParts.push({
+                type: 'text',
+                text: `\n--- Website Data from ${config.url} ---\n${JSON.stringify(result, null, 2)}\n--------------------------\n`
+            });
+        } else {
+            contentParts.push({
+                type: 'text',
+                text: `\n--- Website Data from ${config.url} ---\nNo data extracted.\n--------------------------\n`
+            });
+        }
+
+        return [{
+            data: result,
+            contentParts
+        }];
+    }
+}
