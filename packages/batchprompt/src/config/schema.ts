@@ -67,31 +67,13 @@ export const GlobalsConfigSchema = z.object({
 }).describe("Global configuration settings.");
 
 // --- Loose Pipeline Schema ---
-const BaseLoosePipelineConfigSchema = GlobalsConfigSchema.extend({
+export const LoosePipelineConfigSchema = GlobalsConfigSchema.extend({
     data: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows."),
     steps: z.array(LooseStepConfigSchema).min(1)
 });
 
-export const LoosePipelineConfigSchema = z.preprocess((val: any) => {
-    if (val && typeof val === 'object' && val.globals) {
-        // Merge legacy globals into root
-        const { globals, ...rest } = val;
-        return { ...globals, ...rest };
-    }
-    return val;
-}, BaseLoosePipelineConfigSchema);
-
 // --- Strict Pipeline Schema ---
-const BasePipelineConfigSchema = GlobalsConfigSchema.extend({
+export const PipelineConfigSchema = GlobalsConfigSchema.extend({
     data: z.array(z.record(z.string(), z.any())).default([{}]).describe("The input data rows."),
     steps: z.array(StepConfigSchema).min(1).describe("List of steps to execute.")
 });
-
-export const PipelineConfigSchema = z.preprocess((val: any) => {
-    if (val && typeof val === 'object' && val.globals) {
-        // Merge legacy globals into root
-        const { globals, ...rest } = val;
-        return { ...globals, ...rest };
-    }
-    return val;
-}, BasePipelineConfigSchema);
