@@ -257,22 +257,14 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             hl: config.hl
         });
 
-        // Handle Explosion
-        if (config.output.explode) {
-            // Return array of packets, one per item
-            return result.data.map(item => {
-                const text = `Source: ${item.title} (${item.link})\nContent:\n${item.content}`;
-                return {
-                    data: item,
-                    contentParts: [{ type: 'text', text }]
-                };
-            });
-        }
-
-        // Standard Merge (Single Packet)
-        return [{
-            data: result.data,
-            contentParts: result.contentParts
-        }];
+        // Always return one packet per result item
+        // ResultProcessor handles explosion/merging based on output config
+        return result.data.map(item => {
+            const text = `Source: ${item.title} (${item.link})\nContent:\n${item.content || item.snippet || ''}`;
+            return {
+                data: item,
+                contentParts: [{ type: 'text' as const, text }]
+            };
+        });
     }
 }

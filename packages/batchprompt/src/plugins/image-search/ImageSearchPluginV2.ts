@@ -247,12 +247,11 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             return [];
         }
 
-        // Build packets
+        // Process final images in parallel and build packets
         const sharp = (await import('sharp')).default;
         const baseName = outputBasename || 'image';
         
-        // Process final images in parallel
-        const processedImages = await Promise.all(selectedImages.map(async (img, i) => {
+        const processedPackets = await Promise.all(selectedImages.map(async (img, i) => {
             const filename = `image_search/selected/${baseName}_selected_${i}.jpg`;
 
             try {
@@ -289,20 +288,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             }
         }));
 
-        const validPackets = processedImages.filter((p): p is PluginPacket => p !== null);
-
-        // Handle Explosion
-        if (config.output.explode) {
-            return validPackets;
-        }
-
-        // Standard Merge (Single Packet with all images)
-        const allContentParts = validPackets.flatMap(p => p.contentParts);
-        const allData = validPackets.map(p => p.data);
-
-        return [{
-            data: allData,
-            contentParts: allContentParts
-        }];
+        // Always return one packet per image
+        // ResultProcessor handles explosion/merging based on output config
+        return processedPackets.filter((p): p is PluginPacket => p !== null);
     }
 }

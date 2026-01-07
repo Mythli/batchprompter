@@ -23,46 +23,25 @@ export class ResultProcessor {
             return nextStates;
         }
 
+        // 1. Apply limit/offset to PACKETS when exploding
+        let processedPackets = packets;
+        if (strategy.explode) {
+            if (strategy.offset !== undefined && strategy.offset > 0) {
+                processedPackets = processedPackets.slice(strategy.offset);
+            }
+            if (strategy.limit !== undefined && strategy.limit > 0) {
+                processedPackets = processedPackets.slice(0, strategy.limit);
+            }
+        }
+
+        // 2. Process based on mode
         for (const state of currentStates) {
-            let variationCounter = 0;
-
-            // Iterate over packets (Topology Expansion)
-            packets.forEach((packet) => {
-                
-                // Check for Data Expansion (strategy.explode = true AND data is array)
-                if (strategy.explode && Array.isArray(packet.data)) {
-                    // Data Explosion
-                    let dataArray = packet.data;
-                    
-                    // Apply limit/offset to the data array
-                    if (strategy.offset !== undefined && strategy.offset > 0) {
-                        dataArray = dataArray.slice(strategy.offset);
-                    }
-                    if (strategy.limit !== undefined && strategy.limit > 0) {
-                        dataArray = dataArray.slice(0, strategy.limit);
-                    }
-
-                    dataArray.forEach((dataItem: any) => {
-                        const newState = ResultProcessor.cloneState(state);
-                        newState.variationIndex = variationCounter++;
-                        
-                        // Apply Data to Context (Always)
-                        newState.context[namespace] = dataItem;
-                        
-                        // Apply Content
-                        newState.content.push(...packet.contentParts);
-                        
-                        // Update Row (Conditional)
-                        ResultProcessor.updateRow(newState, dataItem, strategy, namespace);
-                        
-                        nextStates.push(newState);
-                    });
-
-                } else {
-                    // No Data Explosion (1 Packet -> 1 Row)
+            if (strategy.explode) {
+                // Explode mode: each packet creates one row
+                processedPackets.forEach((packet, index) => {
                     const newState = ResultProcessor.cloneState(state);
-                    newState.variationIndex = variationCounter++;
-
+                    newState.variationIndex = index;
+                    
                     // Apply Data to Context (Always)
                     newState.context[namespace] = packet.data;
                     
@@ -73,8 +52,29 @@ export class ResultProcessor {
                     ResultProcessor.updateRow(newState, packet.data, strategy, namespace);
                     
                     nextStates.push(newState);
+                });
+            } else {
+                // Merge mode: all packets merge into one row
+                const newState = ResultProcessor.cloneState(state);
+                newState.variationIndex = 0;
+                
+                // Merge all packet data
+                const allData = processedPackets.map(p => p.data);
+                const mergedData = allData.length === 1 ? allData[0] : allData;
+                
+                // Apply Data to Context (Always)
+                newState.context[namespace] = mergedData;
+                
+                // Merge all content parts
+                for (const packet of processedPackets) {
+                    newState.content.push(...packet.contentParts);
                 }
-            });
+                
+                // Update Row (Conditional)
+                ResultProcessor.updateRow(newState, mergedData, strategy, namespace);
+                
+                nextStates.push(newState);
+            }
         }
 
         return nextStates;
