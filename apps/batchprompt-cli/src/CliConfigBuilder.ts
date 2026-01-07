@@ -10,7 +10,6 @@ export class CliConfigBuilder {
         const config = JSON.parse(JSON.stringify(fileConfig || {})); // Deep clone
 
         // Ensure basic structure exists
-        config.data = config.data || {};
         config.steps = config.steps || [];
 
         // --- Global Overrides (Flat) ---
