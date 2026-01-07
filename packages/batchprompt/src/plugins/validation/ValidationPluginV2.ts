@@ -22,12 +22,16 @@ export const ValidationConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }).describe("How to save validation results."),
+    
+    // Required
     schema: zJsonSchemaObject.describe("JSON Schema to validate the data against."),
+    
+    // Optional
     target: zHandlebars.optional().describe("Data to validate (Handlebars template). Defaults to the current row.")
-}).describe("Configuration for the Validation plugin.");
+}).strict().describe("Configuration for the Validation plugin.");
 
 // Loose Schema
-export const LooseValidationConfigSchemaV2 = ValidationConfigSchemaV2.extend({
+export const LooseValidationConfigSchemaV2 = ValidationConfigSchemaV2.innerType().extend({
     schema: z.union([z.string(), zJsonSchemaObject])
 });
 

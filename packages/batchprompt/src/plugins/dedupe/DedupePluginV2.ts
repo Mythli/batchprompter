@@ -23,8 +23,10 @@ export const DedupeConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }).describe("How to save deduplication results."),
+    
+    // Required
     key: zHandlebars.describe("Deduplication key (Handlebars template). Items with the same key are dropped.")
-}).describe("Configuration for the Dedupe plugin.");
+}).strict().describe("Configuration for the Dedupe plugin.");
 
 export type DedupeRawConfigV2 = z.infer<typeof DedupeConfigSchemaV2>;
 

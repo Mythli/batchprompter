@@ -15,7 +15,7 @@ import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
 
 // =============================================================================
-// Config Schema (Single source of truth for defaults)
+// Config Schema
 // =============================================================================
 
 export const StyleScraperConfigSchemaV2 = z.object({
@@ -25,11 +25,15 @@ export const StyleScraperConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }).describe("How to save the scraped style data."),
+    
+    // Required
     url: zHandlebars.describe("URL to scrape. Supports Handlebars."),
+    
+    // Options
     resolution: z.string().default('1920x1080').describe("Viewport resolution for desktop screenshot."),
     mobile: z.boolean().default(false).describe("Capture an additional mobile screenshot (iPhone X viewport)."),
     interactive: z.boolean().default(false).describe("Find interactive elements, hover them, and capture screenshots + CSS.")
-}).describe("Configuration for the Style Scraper plugin.");
+}).strict().describe("Configuration for the Style Scraper plugin.");
 
 export type StyleScraperRawConfigV2 = z.infer<typeof StyleScraperConfigSchemaV2>;
 

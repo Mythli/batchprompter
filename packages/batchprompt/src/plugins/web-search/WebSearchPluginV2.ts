@@ -7,14 +7,14 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PluginModelConfigSchema, PromptDefSchema } from '../../config/common.js';
+import { OutputConfigSchema, PluginModelConfigSchema } from '../../config/common.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================
-// Raw Config Schema (Single source of truth for defaults)
+// Raw Config Schema
 // =============================================================================
 
 export const WebSearchConfigSchemaV2 = z.object({
@@ -24,22 +24,31 @@ export const WebSearchConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }).describe("How to save the search results."),
-    query: z.string().optional().describe("The search query. Supports Handlebars (e.g., '{{keyword}}')."),
-
-    // Nested model configs
+    
+    // Query source - at least one required
+    query: z.string().optional().describe("Static search query. Supports Handlebars (e.g., '{{keyword}}')."),
     queryModel: PluginModelConfigSchema.optional().describe("Model configuration for generating search queries."),
+    
+    // Selection/filtering
     selectModel: PluginModelConfigSchema.optional().describe("Model configuration for selecting/filtering results."),
+    
+    // Content compression
     compressModel: PluginModelConfigSchema.optional().describe("Model configuration for summarizing page content."),
 
     // Search options
     limit: z.number().int().positive().default(5).describe("Max total results to return."),
-    mode: z.enum(['none', 'markdown', 'html']).default('none').describe("Content fetching mode: 'none' (snippets only), 'markdown', 'html'."),
-    queryCount: z.number().int().positive().default(3).describe("Number of queries to generate (if using query model)."),
+    mode: z.enum(['none', 'markdown', 'html']).default('none').describe("Content fetching mode."),
+    queryCount: z.number().int().positive().default(3).describe("Number of queries to generate (if using queryModel)."),
     maxPages: z.number().int().positive().default(1).describe("Max pages of search results to fetch per query."),
     dedupeStrategy: z.enum(['none', 'domain', 'url']).default('none').describe("Deduplication strategy."),
     gl: z.string().optional().describe("Google Search country code (e.g. 'de', 'us')."),
     hl: z.string().optional().describe("Google Search language code (e.g. 'de', 'en').")
-}).describe("Configuration for the Web Search plugin.");
+}).strict().refine(
+    (data) => data.query !== undefined || data.queryModel?.prompt !== undefined,
+    {
+        message: "web-search requires either 'query' or 'queryModel.prompt' to know what to search for."
+    }
+).describe("Configuration for the Web Search plugin.");
 
 export type WebSearchRawConfigV2 = z.infer<typeof WebSearchConfigSchemaV2>;
 

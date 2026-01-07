@@ -27,8 +27,12 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }).describe("How to save the extracted data."),
+    
+    // Required fields
     url: zHandlebars.describe("The starting URL to scrape. Supports Handlebars."),
     schema: zJsonSchemaObject.describe("The JSON Schema defining the data to extract."),
+    
+    // Options
     budget: z.number().int().positive().default(10).describe("Maximum number of pages to visit per website."),
     batchSize: z.number().int().positive().default(3).describe("Number of pages to visit in parallel during each iteration."),
 
@@ -36,10 +40,10 @@ export const WebsiteAgentConfigSchemaV2 = z.object({
     navigator: PluginModelConfigSchema.optional().describe("Model configuration for the Navigator agent (decides which links to click)."),
     extract: PluginModelConfigSchema.optional().describe("Model configuration for the Extractor agent (reads page content)."),
     merge: PluginModelConfigSchema.optional().describe("Model configuration for the Merger agent (consolidates data).")
-}).describe("Configuration for the Website Agent plugin.");
+}).strict().describe("Configuration for the Website Agent plugin.");
 
-// Loose Schema (String or Object)
-export const LooseWebsiteAgentConfigSchemaV2 = WebsiteAgentConfigSchemaV2.extend({
+// Loose Schema (String or Object for schema field)
+export const LooseWebsiteAgentConfigSchemaV2 = WebsiteAgentConfigSchemaV2.innerType().extend({
     schema: z.union([z.string(), zJsonSchemaObject])
 });
 

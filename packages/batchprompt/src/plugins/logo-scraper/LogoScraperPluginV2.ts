@@ -27,12 +27,15 @@ export const LogoScraperConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }).describe("How to save the scraped logos."),
+    
+    // Required
     url: zHandlebars.describe("URL to scrape logos from. Supports Handlebars."),
 
     // Nested model configs
     analyze: PluginModelConfigSchema.optional().describe("Model configuration for analyzing screenshots and scoring logos (vision capable)."),
     extract: PluginModelConfigSchema.optional().describe("Model configuration for finding inline SVGs and image URLs."),
 
+    // Options
     maxCandidates: z.number().int().positive().default(10).describe("Max logo candidates to download and analyze."),
     minScore: z.number().int().min(1).max(10).default(5).describe("Min score (1-10) to keep a logo."),
 
@@ -41,7 +44,7 @@ export const LogoScraperConfigSchemaV2 = z.object({
 
     logoLimit: z.number().int().positive().default(1).describe("Max logos to save."),
     faviconLimit: z.number().int().positive().default(1).describe("Max favicons to save.")
-}).describe("Configuration for the Logo Scraper plugin.");
+}).strict().describe("Configuration for the Logo Scraper plugin.");
 
 export type LogoScraperRawConfigV2 = z.infer<typeof LogoScraperConfigSchemaV2>;
 
@@ -162,136 +165,4 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
     }
 
     async prepareMessages(
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        config: LogoScraperResolvedConfigV2,
-        context: PluginExecutionContext
-    ): Promise<PluginPacket[]> {
-        const { services, emit } = context;
-        const { puppeteerHelper, fetcher } = services;
-
-        if (!puppeteerHelper) {
-            throw new Error('[LogoScraper] Puppeteer not available');
-        }
-
-        const analyzeLlm = services.createLlm(config.analyzeModel);
-        const extractLlm = services.createLlm(config.extractModel);
-
-        const imageDownloader = new ImageDownloader(fetcher);
-        const scraper = new AiLogoScraper(
-            puppeteerHelper,
-            analyzeLlm,
-            extractLlm,
-            imageDownloader,
-            {
-                maxLogosToAnalyze: config.maxCandidates,
-                brandLogoScoreThreshold: config.minScore
-            }
-        );
-
-        const result = await scraper.scrape(config.url) as any;
-
-        const packetData: any = {
-            brandColor: result.primaryColor?.hex,
-            brandColors: result.brandColors?.map((c: any) => c.hex) || [],
-            logos: [],
-            favicons: [],
-            logoMetadata: []
-        };
-
-        if (result.logos && result.logos.length > 0) {
-            const safeUrl = config.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-
-            emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
-                plugin: 'logo-scraper',
-                type: 'json',
-                filename: `logo_scraper/analysis/${safeUrl}_analysis.json`,
-                content: JSON.stringify({ brandColors: result.brandColors, logos: result.logos }, null, 2),
-                tags: ['debug', 'logo-scraper', 'analysis']
-            });
-
-            let savedLogosCount = 0;
-            let savedFaviconsCount = 0;
-            const savedLogoPaths: string[] = [];
-            const savedFaviconPaths: string[] = [];
-
-            for (let i = 0; i < result.logos.length; i++) {
-                const logo = result.logos[i];
-
-                const tempFilename = `logo_scraper/logos/${safeUrl}/logo_${i}.png`;
-                emit('plugin:artifact', {
-                    row: context.row.index,
-                    step: context.stepIndex,
-                    plugin: 'logo-scraper',
-                    type: 'image',
-                    filename: tempFilename,
-                    content: logo.base64PngData,
-                    tags: ['debug', 'logo-scraper', 'logo']
-                });
-
-                const isSquare = Math.abs((logo.width || 0) - (logo.height || 0)) <= 1;
-
-                const isFaviconTarget = isSquare && !!config.faviconPath;
-
-                const limit = isFaviconTarget ? config.faviconLimit : config.logoLimit;
-                const currentCount = isFaviconTarget ? savedFaviconsCount : savedLogosCount;
-                const pathTemplate = isFaviconTarget ? config.faviconPath : config.logoPath;
-
-                if (pathTemplate && currentCount < limit) {
-                    let finalPath = pathTemplate;
-
-                    if (limit > 1) {
-                        const ext = path.extname(pathTemplate);
-                        const base = pathTemplate.slice(0, -ext.length);
-                        finalPath = `${base}_${currentCount + 1}${ext}`;
-                    }
-
-                    emit('plugin:artifact', {
-                        row: context.row.index,
-                        step: context.stepIndex,
-                        plugin: 'logo-scraper',
-                        type: 'image',
-                        filename: finalPath,
-                        content: logo.base64PngData,
-                        tags: ['final', 'logo-scraper', isFaviconTarget ? 'favicon' : 'logo']
-                    });
-
-                    if (isFaviconTarget) {
-                        savedFaviconsCount++;
-                        savedFaviconPaths.push(finalPath);
-                    } else {
-                        savedLogosCount++;
-                        savedLogoPaths.push(finalPath);
-                    }
-
-                    packetData.logoMetadata.push({
-                        path: finalPath,
-                        score: logo.brandLogoScore,
-                        performance: logo.lightBackgroundPerformance,
-                        isFavicon: isFaviconTarget,
-                        width: logo.width,
-                        height: logo.height
-                    });
-                }
-            }
-
-            packetData.logo = savedLogoPaths.length > 0 ? savedLogoPaths[0] : undefined;
-            packetData.favicon = savedFaviconPaths.length > 0 ? savedFaviconPaths[0] : undefined;
-            packetData.logos = savedLogoPaths;
-            packetData.favicons = savedFaviconPaths;
-        }
-
-        // Add summary to messages
-        const summary = `Logo Scraper Results for ${config.url}:
-- Primary Brand Color: ${packetData.brandColor || 'None'}
-- Logos Found: ${packetData.logos.length}
-- Favicons Found: ${packetData.favicons.length}
-`;
-        
-        return [{
-            data: packetData,
-            contentParts: [{ type: 'text', text: summary }]
-        }];
-    }
-}
+        messages: OpenAI.Chat.Completions.ChatComp

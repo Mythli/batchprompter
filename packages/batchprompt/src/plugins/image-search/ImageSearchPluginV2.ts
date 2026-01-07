@@ -14,7 +14,7 @@ import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 
 // =============================================================================
-// Config Schema (Single source of truth for defaults)
+// Config Schema
 // =============================================================================
 
 export const ImageSearchConfigSchemaV2 = z.object({
@@ -24,10 +24,12 @@ export const ImageSearchConfigSchemaV2 = z.object({
         mode: 'ignore',
         explode: false
     }).describe("How to save the image results."),
+    
+    // Query source - at least one required
     query: z.string().optional().describe("Static image search query. Supports Handlebars."),
-
-    // Nested model configs
     queryModel: PluginModelConfigSchema.optional().describe("Model configuration for generating search queries."),
+    
+    // Selection
     selectModel: PluginModelConfigSchema.optional().describe("Model configuration for selecting the best images."),
 
     // Search options
@@ -39,7 +41,12 @@ export const ImageSearchConfigSchemaV2 = z.object({
     dedupeStrategy: z.enum(['none', 'domain', 'url']).default('url').describe("Deduplication strategy."),
     gl: z.string().optional().describe("Country code."),
     hl: z.string().optional().describe("Language code.")
-}).describe("Configuration for the Image Search plugin.");
+}).strict().refine(
+    (data) => data.query !== undefined || data.queryModel?.prompt !== undefined,
+    {
+        message: "image-search requires either 'query' or 'queryModel.prompt' to know what to search for."
+    }
+).describe("Configuration for the Image Search plugin.");
 
 export type ImageSearchRawConfigV2 = z.infer<typeof ImageSearchConfigSchemaV2>;
 
