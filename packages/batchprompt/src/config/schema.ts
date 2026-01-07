@@ -17,55 +17,12 @@ import { UrlExpanderStepExtension } from '../plugins/url-expander/UrlExpanderCon
 export { PromptSchema as PromptDefSchema, ModelConfigSchema, OutputConfigSchema };
 
 // =============================================================================
-// Step-Level Schemas
+// Feedback Schema
 // =============================================================================
 
 export const FeedbackConfigSchema = ModelConfigSchema.extend({
     loops: z.number().int().min(0).default(0).describe("Number of feedback iterations to run.")
 }).describe("Configuration for the feedback loop (self-correction).");
-
-/**
- * Core step configuration (shared between Loose and Strict)
- */
-const CoreStepFields = {
-    prompt: PromptSchema.optional().describe("The main instruction for this step."),
-    system: PromptSchema.optional().describe("System instruction for this step."),
-    model: ModelConfigSchema.optional().describe("Model configuration for this step."),
-    output: OutputConfigSchema.default({
-        mode: 'ignore',
-        explode: false
-    }).describe("How to save the result of this step."),
-    outputPath: zHandlebars.optional().describe("Template for saving the result to a file (e.g., 'out/{{id}}.md')."),
-    candidates: z.number().int().positive().default(1).describe("Number of candidate responses to generate."),
-    judge: ModelConfigSchema.optional().describe("Configuration for a judge model to select the best candidate."),
-    feedback: FeedbackConfigSchema.optional().describe("Configuration for a feedback loop to improve the result."),
-    aspectRatio: z.string().optional().describe("Aspect ratio for image generation (e.g., '16:9')."),
-    timeout: z.number().int().positive().optional().describe("Timeout in seconds for this step.")
-};
-
-/**
- * Loose Step Schema - accepts string paths for schema field.
- * Used for input/CLI parsing.
- */
-export const LooseStepConfigSchema = z.object({
-    ...CoreStepFields,
-    schema: z.union([z.string(), zJsonSchemaObject]).optional()
-        .describe("JSON Schema to enforce structured output. Can be inline object or file path."),
-    plugins: z.array(LoosePluginUnionSchema).default([])
-        .describe("List of plugins to execute before the model.")
-}).merge(UrlExpanderStepExtension).describe("Configuration for a single step in the pipeline.");
-
-/**
- * Strict Step Schema - requires object for schema field.
- * Used for runtime validation after normalization.
- */
-export const StepConfigSchema = z.object({
-    ...CoreStepFields,
-    schema: zJsonSchemaObject.optional()
-        .describe("JSON Schema to enforce structured output from the model."),
-    plugins: z.array(PluginUnionSchema).default([])
-        .describe("List of plugins to execute before the model.")
-}).merge(UrlExpanderStepExtension).describe("Configuration for a single step in the pipeline.");
 
 // =============================================================================
 // Global Configuration Schema
@@ -90,8 +47,6 @@ export const GlobalsConfigSchema = z.object({
         .describe("Path to save the final dataset (CSV/JSON)."),
     timeout: z.number().int().positive().default(180)
         .describe("Default timeout in seconds for steps."),
-    
-    // Limit & Offset Configuration
     inputLimit: z.number().int().positive().optional()
         .describe("Max rows to read from source."),
     inputOffset: z.number().int().min(0).optional()
@@ -103,27 +58,99 @@ export const GlobalsConfigSchema = z.object({
 }).describe("Global configuration settings.");
 
 // =============================================================================
-// Pipeline Schemas
+// Step Schema Factory
 // =============================================================================
+
+/**
+ * Creates a step config schema with the given plugin union and schema field type.
+ * This is the single source of truth for step configuration structure.
+ */
+function createStepSchema<TPlugin extends z.ZodTypeAny, TSchema extends z.ZodTypeAny>(
+    pluginUnion: TPlugin,
+    schemaFieldType: TSchema
+) {
+    return z.object({
+        prompt: PromptSchema.optional().describe("The main instruction for this step."),
+        system: PromptSchema.optional().describe("System instruction for this step."),
+        model: ModelConfigSchema.optional().describe("Model configuration for this step."),
+        output: OutputConfigSchema.default({
+            mode: 'ignore',
+            explode: false
+        }).describe("How to save the result of this step."),
+        outputPath: zHandlebars.optional().describe("Template for saving the result to a file."),
+        candidates: z.number().int().positive().default(1).describe("Number of candidate responses to generate."),
+        judge: ModelConfigSchema.optional().describe("Configuration for a judge model to select the best candidate."),
+        feedback: FeedbackConfigSchema.optional().describe("Configuration for a feedback loop to improve the result."),
+        aspectRatio: z.string().optional().describe("Aspect ratio for image generation (e.g., '16:9')."),
+        timeout: z.number().int().positive().optional().describe("Timeout in seconds for this step."),
+        schema: schemaFieldType.optional().describe("JSON Schema to enforce structured output."),
+        plugins: z.array(pluginUnion).default([]).describe("List of plugins to execute before the model.")
+    }).merge(UrlExpanderStepExtension).describe("Configuration for a single step in the pipeline.");
+}
+
+/**
+ * Creates a full pipeline schema with the given plugin union and schema field type.
+ * Used by CLI to generate JSON Schema with all registered plugins.
+ */
+export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema extends z.ZodTypeAny>(
+    pluginUnion: TPlugin,
+    schemaFieldType: TSchema
+) {
+    const StepSchema = createStepSchema(pluginUnion, schemaFieldType);
+    
+    return GlobalsConfigSchema.extend({
+        data: z.array(z.record(z.string(), z.any())).default([{}])
+            .describe("The input data rows."),
+        steps: z.array(StepSchema).min(1)
+            .describe("List of steps to execute.")
+    });
+}
+
+// =============================================================================
+// Pre-built Pipeline Schemas
+// =============================================================================
+
+/**
+ * Loose Step Schema - accepts string paths for schema field.
+ * Used for input/CLI parsing.
+ */
+export const LooseStepConfigSchema = createStepSchema(
+    LoosePluginUnionSchema,
+    z.union([z.string(), zJsonSchemaObject])
+);
+
+/**
+ * Strict Step Schema - requires object for schema field.
+ * Used for runtime validation after normalization.
+ */
+export const StepConfigSchema = createStepSchema(
+    PluginUnionSchema,
+    zJsonSchemaObject
+);
 
 /**
  * Loose Pipeline Schema - accepts string paths.
  * Used for input/CLI parsing.
  */
-export const LoosePipelineConfigSchema = GlobalsConfigSchema.extend({
-    data: z.array(z.record(z.string(), z.any())).default([{}])
-        .describe("The input data rows."),
-    steps: z.array(LooseStepConfigSchema).min(1)
-        .describe("List of steps to execute.")
-});
+export const LoosePipelineConfigSchema = createPipelineSchema(
+    LoosePluginUnionSchema,
+    z.union([z.string(), zJsonSchemaObject])
+);
 
 /**
  * Strict Pipeline Schema - requires objects.
  * Used for runtime validation after normalization.
  */
-export const PipelineConfigSchema = GlobalsConfigSchema.extend({
-    data: z.array(z.record(z.string(), z.any())).default([{}])
-        .describe("The input data rows."),
-    steps: z.array(StepConfigSchema).min(1)
-        .describe("List of steps to execute.")
-});
+export const PipelineConfigSchema = createPipelineSchema(
+    PluginUnionSchema,
+    zJsonSchemaObject
+);
+
+// =============================================================================
+// Inferred Types (Single Source of Truth)
+// =============================================================================
+
+export type LooseStepConfig = z.infer<typeof LooseStepConfigSchema>;
+export type StepConfigParsed = z.infer<typeof StepConfigSchema>;
+export type GlobalsConfigParsed = z.infer<typeof GlobalsConfigSchema>;
+export type PipelineConfigParsed = z.infer<typeof PipelineConfigSchema>;

@@ -39,7 +39,10 @@ export {
     
     // Pipeline
     LoosePipelineConfigSchema,
-    PipelineConfigSchema
+    PipelineConfigSchema,
+    
+    // Factory for custom plugin unions (used by CLI)
+    createPipelineSchema
 } from './schema.js';
 
 // =============================================================================
@@ -76,5 +79,4 @@ export { PromptLoader } from './PromptLoader.js';
 export type { SchemaLoader } from './SchemaLoader.js';
 export { zJsonSchemaObject, zHandlebars } from './validationRules.js';
 export { ConfigNormalizer } from './ConfigNormalizer.js';
-export { createPipelineSchema } from './createPipelineSchema.js';
 export { resolveConfig, type ResolveConfigDependencies } from './resolveConfig.js';

@@ -20,7 +20,8 @@ import {
     DedupePluginV2,
     LogoScraperPluginV2,
     PromptLoader,
-    createPipelineSchema
+    createPipelineSchema,
+    zJsonSchemaObject
 } from 'batchprompt';
 import { getConfig } from './getConfig.js';
 import { StepRegistry } from './StepRegistry.js';
@@ -38,7 +39,7 @@ import { ValidationAdapter } from './adapters/ValidationAdapter.js';
 import { DedupeAdapter } from './adapters/DedupeAdapter.js';
 import { LogoScraperAdapter } from './adapters/LogoScraperAdapter.js';
 import { ShellAdapter } from './adapters/ShellAdapter.js';
-import { ShellPlugin } from './plugins/ShellPlugin.js';
+import { ShellPlugin, ShellConfigSchema } from './plugins/ShellPlugin.js';
 
 const program = new Command();
 
@@ -258,8 +259,20 @@ program.command('init')
 program.command('schema')
     .description('Print the JSON Schema for the configuration file')
     .action(() => {
-        const inputJsonSchemaType = z.union([z.string(), z.record(z.string(), z.any())]);
-        const schema = createPipelineSchema(cliRegistry, inputJsonSchemaType, true);
+        // Get all plugin schemas including CLI-only ShellPlugin
+        const allPluginSchemas = [
+            ...cliRegistry.getAll().map(p => p.configSchema),
+            ShellConfigSchema
+        ];
+        
+        const pluginUnion = allPluginSchemas.length > 0 
+            ? z.discriminatedUnion('type', allPluginSchemas as any)
+            : z.object({ type: z.string() });
+        
+        // Allow string or object for schema field (input mode)
+        const schemaFieldType = z.union([z.string(), zJsonSchemaObject]);
+        
+        const schema = createPipelineSchema(pluginUnion, schemaFieldType);
         const jsonSchema = z.toJSONSchema(schema, {
             unrepresentable: 'any'
         });

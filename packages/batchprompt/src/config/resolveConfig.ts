@@ -1,9 +1,4 @@
-import {
-    RuntimeConfig,
-    ResolvedStepConfig,
-    ModelConfig,
-    ServiceCapabilities
-} from './types.js';
+import { RuntimeConfig, StepConfig, ModelConfig } from './types.js';
 import { LoosePipelineConfigSchema, PipelineConfigSchema } from './schema.js';
 import { ConfigNormalizer } from './ConfigNormalizer.js';
 import { PromptLoader } from './PromptLoader.js';
@@ -13,7 +8,7 @@ import { ContentResolver } from '../core/io/ContentResolver.js';
 import { z } from 'zod';
 
 export interface ResolveConfigDependencies {
-    capabilities: ServiceCapabilities;
+    capabilities: { hasSerper: boolean; hasPuppeteer: boolean };
     pluginRegistry: PluginRegistryV2;
     contentResolver: ContentResolver;
     promptLoader: PromptLoader;
@@ -22,14 +17,6 @@ export interface ResolveConfigDependencies {
 
 /**
  * Single entry point for resolving raw configuration into RuntimeConfig.
- * 
- * This function:
- * 1. Parses with loose schema (allows strings for file paths)
- * 2. Normalizes (loads files, converts to objects)
- * 3. Expands shortcuts (implicit plugins)
- * 4. Parses with strict schema (validates structure)
- * 5. Propagates globals to steps/plugins
- * 6. Returns RuntimeConfig ready for ActionRunner
  */
 export async function resolveConfig(
     rawConfig: unknown,
@@ -51,18 +38,18 @@ export async function resolveConfig(
     // 3. Expand shortcuts (inject implicit plugins, remove shortcut keys)
     const expandedConfig = expandShortcuts(normalizedConfig, deps.pluginRegistry);
 
-    // 4. Validate with Strict Schema
+    // 4. Validate with Strict Schema - this applies all Zod defaults
     const config = PipelineConfigSchema.parse(expandedConfig);
 
     // 5. Validate plugin capabilities
     deps.pluginRegistry.validateCapabilities(config.steps, deps.capabilities);
 
-    // 6. Propagate globals and resolve steps
-    const resolvedSteps: ResolvedStepConfig[] = [];
+    // 6. Resolve steps (merge globals, transform plugins)
+    const resolvedSteps: StepConfig[] = [];
 
     for (let i = 0; i < config.steps.length; i++) {
         const step = config.steps[i];
-        const resolved = resolveStep(step, config, i, deps.pluginRegistry);
+        const resolved = resolveStep(step, config, i);
         resolvedSteps.push(resolved);
     }
 
@@ -74,10 +61,9 @@ export async function resolveConfig(
 
 /**
  * Expands step-level shortcuts into explicit plugin configurations.
- * Also removes the shortcut keys from step to pass strict validation.
  */
 function expandShortcuts(config: any, registry: PluginRegistryV2): any {
-    const expanded = JSON.parse(JSON.stringify(config)); // Deep clone
+    const expanded = JSON.parse(JSON.stringify(config));
 
     if (expanded.steps) {
         for (const step of expanded.steps) {
@@ -87,17 +73,15 @@ function expandShortcuts(config: any, registry: PluginRegistryV2): any {
                 if (plugin.mapStepToConfig) {
                     const pluginConfig = plugin.mapStepToConfig(step);
                     if (pluginConfig) {
-                        // Check if already explicitly configured
                         const isExplicitlyConfigured = step.plugins.some(
                             (p: any) => p.type === pluginConfig.type
                         );
                         
                         if (!isExplicitlyConfigured) {
-                            // Add implicit plugin at the beginning
                             step.plugins.unshift(pluginConfig);
                         }
                         
-                        // Remove the shortcut keys from step to pass strict validation
+                        // Remove shortcut keys from step
                         if (plugin.stepExtensionSchema && plugin.stepExtensionSchema instanceof z.ZodObject) {
                             const keys = Object.keys(plugin.stepExtensionSchema.shape);
                             for (const key of keys) {
@@ -113,51 +97,34 @@ function expandShortcuts(config: any, registry: PluginRegistryV2): any {
 }
 
 /**
- * Resolves a single step, propagating globals and processing plugins.
+ * Resolves a single step, merging with globals and transforming plugins.
  */
-function resolveStep(
-    step: any,
-    globals: any,
-    stepIndex: number,
-    pluginRegistry: PluginRegistryV2
-): ResolvedStepConfig {
-    const stepModelConfig = step.model ?? {};
+function resolveStep(step: any, globals: any, stepIndex: number): StepConfig {
+    const stepModel = step.model ?? {};
 
-    // Merge model settings: Step > Global
+    // Merge model: Step overrides Global
     const mergedModel: ModelConfig = {
-        model: stepModelConfig.model ?? globals.model,
-        temperature: stepModelConfig.temperature ?? globals.temperature,
-        thinkingLevel: stepModelConfig.thinkingLevel ?? globals.thinkingLevel,
-        system: stepModelConfig.system ?? step.system,
-        prompt: stepModelConfig.prompt ?? step.prompt
+        model: stepModel.model ?? globals.model,
+        temperature: stepModel.temperature ?? globals.temperature ?? 0.7,
+        thinkingLevel: stepModel.thinkingLevel ?? globals.thinkingLevel,
+        system: stepModel.system ?? step.system,
+        prompt: stepModel.prompt ?? step.prompt
     };
 
-    // Clone output to avoid mutating original
+    // Clone output and propagate global limits if exploding
     const output = { ...step.output };
-
-    // Propagate limits to step output if exploding
     if (output.explode) {
-        if (output.limit === undefined && globals.limit !== undefined) {
-            output.limit = globals.limit;
-        }
-        if (output.offset === undefined && globals.offset !== undefined) {
-            output.offset = globals.offset;
-        }
+        output.limit ??= globals.limit;
+        output.offset ??= globals.offset;
     }
 
-    // Process plugins: add IDs and propagate limits
+    // Transform plugins to resolved format
     const plugins = (step.plugins || []).map((p: any, idx: number) => {
-        // Clone plugin output to avoid mutating original
         const pluginOutput = p.output ? { ...p.output } : { mode: 'ignore', explode: false };
-
-        // Propagate limits to plugin outputs if exploding
+        
         if (pluginOutput.explode) {
-            if (pluginOutput.limit === undefined && globals.limit !== undefined) {
-                pluginOutput.limit = globals.limit;
-            }
-            if (pluginOutput.offset === undefined && globals.offset !== undefined) {
-                pluginOutput.offset = globals.offset;
-            }
+            pluginOutput.limit ??= globals.limit;
+            pluginOutput.offset ??= globals.offset;
         }
 
         return {
@@ -168,7 +135,7 @@ function resolveStep(
         };
     });
 
-    // Resolve judge model
+    // Resolve judge (inherit model settings)
     let judge: ModelConfig | undefined;
     if (step.judge?.prompt) {
         judge = {
@@ -179,7 +146,7 @@ function resolveStep(
         };
     }
 
-    // Resolve feedback model
+    // Resolve feedback (inherit model settings)
     let feedback: (ModelConfig & { loops: number }) | undefined;
     if (step.feedback?.prompt || step.feedback?.loops) {
         feedback = {
@@ -191,7 +158,6 @@ function resolveStep(
         };
     }
 
-    // Get the output path template
     const outputPathTemplate = step.outputPath ?? globals.outputPath;
 
     return {
@@ -201,7 +167,7 @@ function resolveStep(
         outputPath: outputPathTemplate,
         outputTemplate: outputPathTemplate,
         schema: step.schema,
-        candidates: step.candidates ?? 1,
+        candidates: step.candidates, // Default already applied by Zod
         judge,
         feedback,
         feedbackLoops: feedback?.loops ?? 0,
@@ -210,6 +176,6 @@ function resolveStep(
         verifyCommand: step.verifyCommand,
         skipCandidateCommand: step.skipCandidateCommand,
         tmpDir: globals.tmpDir,
-        timeout: step.timeout ?? globals.timeout
+        timeout: step.timeout ?? globals.timeout // Step inherits from global
     };
 }
