@@ -8,7 +8,6 @@ export * from './StepExecutor.js';
 export * from './config/PromptLoader.js';
 export * from './config/SchemaLoader.js';
 export * from './config/validationRules.js';
-export * from './config/safeSchema.js';
 export * from './config/ConfigNormalizer.js';
 export * from './config/schema.js';
 export * from './config/resolveConfig.js';
