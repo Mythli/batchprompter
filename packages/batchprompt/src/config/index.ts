@@ -1,9 +1,80 @@
-export * from './schema.js';
-export * from './types.js';
-export * from './PromptLoader.js';
-export * from './SchemaLoader.js';
-export * from './validationRules.js';
-export * from './ConfigNormalizer.js';
-export * from './createPipelineSchema.js';
-export * from './schemas/model.js';
-export * from './resolveConfig.js';
+// =============================================================================
+// Schemas - Single Source of Truth
+// =============================================================================
+
+export {
+    // Prompt
+    PromptSchema,
+    type PromptDef,
+    
+    // Output
+    OutputConfigSchema,
+    DEFAULT_PLUGIN_OUTPUT,
+    type OutputConfig,
+    
+    // Model
+    ModelConfigSchema,
+    BaseModelConfigSchema,
+    PluginModelConfigSchema,
+    type ModelConfig,
+    type BaseModelConfig,
+    type PluginModelConfig
+} from './schemas/index.js';
+
+// =============================================================================
+// Pipeline Schemas
+// =============================================================================
+
+export {
+    // Backward compatibility alias
+    PromptDefSchema,
+    
+    // Step
+    FeedbackConfigSchema,
+    LooseStepConfigSchema,
+    StepConfigSchema,
+    
+    // Globals
+    GlobalsConfigSchema,
+    
+    // Pipeline
+    LoosePipelineConfigSchema,
+    PipelineConfigSchema
+} from './schema.js';
+
+// =============================================================================
+// Safe Schemas (for ConfigRefiner)
+// =============================================================================
+
+export {
+    SafeStepConfigSchema,
+    SafePipelineConfigSchema,
+    type SafePipelineConfig
+} from './safeSchema.js';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export type {
+    ResolvedOutputConfig,
+    ResolvedModelConfig,
+    ResolvedPluginBase,
+    ServiceCapabilities,
+    StepConfig,
+    ResolvedStepConfig,
+    GlobalsConfig,
+    RuntimeConfig,
+    ResolvedPipelineConfig
+} from './types.js';
+
+// =============================================================================
+// Loaders & Utilities
+// =============================================================================
+
+export { PromptLoader } from './PromptLoader.js';
+export type { SchemaLoader } from './SchemaLoader.js';
+export { zJsonSchemaObject, zHandlebars } from './validationRules.js';
+export { ConfigNormalizer } from './ConfigNormalizer.js';
+export { createPipelineSchema } from './createPipelineSchema.js';
+export { resolveConfig, type ResolveConfigDependencies } from './resolveConfig.js';

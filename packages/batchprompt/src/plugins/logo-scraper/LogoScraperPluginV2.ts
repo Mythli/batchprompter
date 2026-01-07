@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
-import path from 'path';
 import OpenAI from 'openai';
 import {
     Plugin,
@@ -8,7 +7,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '../../config/types.js';
-import { OutputConfigSchema, PluginModelConfigSchema } from '../../config/common.js';
+import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoScraper.js';
@@ -23,10 +22,7 @@ import { zHandlebars } from '../../config/validationRules.js';
 export const LogoScraperConfigSchemaV2 = z.object({
     type: z.literal('logo-scraper').describe("Identifies this as a Logo Scraper plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default({
-        mode: 'ignore',
-        explode: false
-    }).describe("How to save the scraped logos."),
+    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the scraped logos."),
     
     // Required
     url: zHandlebars.describe("URL to scrape logos from. Supports Handlebars."),

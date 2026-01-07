@@ -7,7 +7,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PluginModelConfigSchema } from '../../config/common.js';
+import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
 import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
@@ -23,10 +23,7 @@ import { PluginScope } from '../PluginScope.js';
 export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent').describe("Identifies this as a Website Agent plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default({
-        mode: 'ignore',
-        explode: false
-    }).describe("How to save the extracted data."),
+    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the extracted data."),
     
     // Required fields
     url: zHandlebars.describe("The starting URL to scrape. Supports Handlebars."),

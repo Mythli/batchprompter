@@ -7,7 +7,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PluginModelConfigSchema } from '../../config/common.js';
+import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
@@ -20,10 +20,7 @@ import { ContentResolver } from '../../core/io/ContentResolver.js';
 export const ImageSearchConfigSchemaV2 = z.object({
     type: z.literal('image-search').describe("Identifies this as an Image Search plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default({
-        mode: 'ignore',
-        explode: false
-    }).describe("How to save the image results."),
+    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the image results."),
     
     // Query source - at least one required
     query: z.string().optional().describe("Static image search query. Supports Handlebars."),

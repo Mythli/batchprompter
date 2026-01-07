@@ -7,7 +7,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema } from '../../config/common.js';
+import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
@@ -19,10 +19,7 @@ import { PluginScope } from '../PluginScope.js';
 export const DedupeConfigSchemaV2 = z.object({
     type: z.literal('dedupe').describe("Identifies this as a Dedupe plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default({
-        mode: 'ignore',
-        explode: false
-    }).describe("How to save deduplication results."),
+    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save deduplication results."),
     
     // Required
     key: zHandlebars.describe("Deduplication key (Handlebars template). Items with the same key are dropped.")

@@ -8,7 +8,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema } from '../../config/common.js';
+import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
@@ -21,10 +21,7 @@ import { zHandlebars } from '../../config/validationRules.js';
 export const StyleScraperConfigSchemaV2 = z.object({
     type: z.literal('style-scraper').describe("Identifies this as a Style Scraper plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default({
-        mode: 'ignore',
-        explode: false
-    }).describe("How to save the scraped style data."),
+    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the scraped style data."),
     
     // Required
     url: zHandlebars.describe("URL to scrape. Supports Handlebars."),

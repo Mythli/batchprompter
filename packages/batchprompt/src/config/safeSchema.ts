@@ -1,10 +1,11 @@
 import { z } from 'zod';
-import {
-    GlobalsConfigSchema,
-    StepConfigSchema
-} from './schema.js';
+import { GlobalsConfigSchema, StepConfigSchema } from './schema.js';
 
-// SafeStepConfigSchema is now identical to StepConfigSchema as command fields were removed
+/**
+ * Safe schemas are identical to regular schemas.
+ * Shell commands are now handled by a plugin, so there's no difference.
+ * These exports are maintained for backward compatibility with ConfigRefiner.
+ */
 export const SafeStepConfigSchema = StepConfigSchema;
 
 export const SafePipelineConfigSchema = GlobalsConfigSchema.extend({

@@ -8,7 +8,7 @@ import {
     PluginExecutionContext
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema } from '../../config/common.js';
+import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
@@ -18,10 +18,7 @@ import { renderSchemaObject } from '../../utils/schemaUtils.js';
 export const LooseValidationConfigSchemaV2 = z.object({
     type: z.literal('validation').describe("Identifies this as a Validation plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default({
-        mode: 'ignore',
-        explode: false
-    }).describe("How to save validation results."),
+    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save validation results."),
     
     // Required
     schema: z.union([z.string(), zJsonSchemaObject]).describe("JSON Schema to validate the data against. Can be inline object or file path."),

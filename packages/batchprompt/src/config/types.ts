@@ -1,13 +1,33 @@
 import { z } from 'zod';
 import OpenAI from 'openai';
-import { ModelConfig } from './schemas/model.js';
-import { OutputConfigSchema } from './common.js';
+import { 
+    OutputConfigSchema, 
+    ModelConfigSchema 
+} from './schemas/index.js';
 
-// Re-export
-export { ModelConfig };
+// =============================================================================
+// Schema-Derived Types
+// =============================================================================
 
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
+export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+
+// Alias for backward compatibility
 export type ResolvedOutputConfig = OutputConfig;
+
+// =============================================================================
+// Prompt Types
+// =============================================================================
+
+export type PromptDef = string | {
+    file?: string;
+    text?: string;
+    parts?: { type: 'text' | 'image' | 'audio'; content: string }[];
+};
+
+// =============================================================================
+// Resolved Types (Runtime-only, have ContentParts)
+// =============================================================================
 
 export interface ResolvedModelConfig {
     model?: string;
@@ -24,12 +44,19 @@ export interface ResolvedPluginBase {
     rawConfig?: any;
 }
 
+// =============================================================================
+// Service Configuration
+// =============================================================================
+
 export interface ServiceCapabilities {
     hasSerper: boolean;
     hasPuppeteer: boolean;
 }
 
-// The Runtime Step Config (Flattened)
+// =============================================================================
+// Step Configuration (Runtime)
+// =============================================================================
+
 export interface StepConfig {
     // Model Object
     model: ModelConfig;
@@ -77,6 +104,10 @@ export interface StepConfig {
 
 export type ResolvedStepConfig = StepConfig;
 
+// =============================================================================
+// Global & Pipeline Configuration
+// =============================================================================
+
 export interface GlobalsConfig {
     model?: string;
     temperature?: number;
@@ -99,9 +130,3 @@ export interface RuntimeConfig extends GlobalsConfig {
 }
 
 export type ResolvedPipelineConfig = RuntimeConfig;
-
-export type PromptDef = string | {
-    file?: string;
-    text?: string;
-    parts?: { type: 'text' | 'image' | 'audio'; content: string }[];
-};
