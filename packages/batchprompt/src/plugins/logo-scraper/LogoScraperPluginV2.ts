@@ -165,4 +165,141 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
     }
 
     async prepareMessages(
-        messages: OpenAI.Chat.Completions.ChatComp
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        config: LogoScraperResolvedConfigV2,
+        context: PluginExecutionContext
+    ): Promise<PluginPacket[]> {
+        const { services, emit } = context;
+        const { puppeteerHelper, fetcher } = services;
+
+        if (!puppeteerHelper) {
+            throw new Error('[LogoScraper] Puppeteer not available');
+        }
+
+        if (!fetcher) {
+            throw new Error('[LogoScraper] Fetcher not available');
+        }
+
+        // Create LLM clients
+        const analyzeLlm = services.createLlm(config.analyzeModel);
+        const extractLlm = services.createLlm(config.extractModel);
+
+        // Create dependencies
+        const imageDownloader = new ImageDownloader(fetcher);
+
+        // Create scraper
+        const scraper = new AiLogoScraper(
+            puppeteerHelper,
+            analyzeLlm,
+            extractLlm,
+            imageDownloader,
+            {
+                maxLogosToAnalyze: config.maxCandidates,
+                brandLogoScoreThreshold: config.minScore
+            }
+        );
+
+        console.log(`[LogoScraper] Scraping logos from: ${config.url}`);
+
+        const result = await scraper.scrape(config.url);
+
+        // Emit artifacts for logos
+        const logos = result.logos || [];
+        const outputData: Record<string, any> = {
+            primaryColor: result.primaryColor,
+            brandColors: result.brandColors,
+            logos: []
+        };
+
+        // Save logos
+        for (let i = 0; i < Math.min(logos.length, config.logoLimit); i++) {
+            const logo = logos[i];
+            if (!logo.isFavicon) {
+                const filename = config.logoPath 
+                    ? (i === 0 ? config.logoPath : config.logoPath.replace(/\.(\w+)$/, `_${i}.$1`))
+                    : `logo_scraper/logos/logo_${i}.png`;
+
+                // Convert base64 data URI to buffer
+                const base64Data = logo.base64PngData.replace(/^data:image\/\w+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+
+                emit('plugin:artifact', {
+                    row: context.row.index,
+                    step: context.stepIndex,
+                    plugin: 'logo-scraper',
+                    type: 'image',
+                    filename,
+                    content: buffer,
+                    tags: ['final', 'logo-scraper', 'logo']
+                });
+
+                outputData.logos.push({
+                    path: filename,
+                    score: logo.brandLogoScore,
+                    width: logo.width,
+                    height: logo.height
+                });
+            }
+        }
+
+        // Save favicons
+        const favicons = logos.filter(l => l.isFavicon);
+        for (let i = 0; i < Math.min(favicons.length, config.faviconLimit); i++) {
+            const favicon = favicons[i];
+            const filename = config.faviconPath
+                ? (i === 0 ? config.faviconPath : config.faviconPath.replace(/\.(\w+)$/, `_${i}.$1`))
+                : `logo_scraper/favicons/favicon_${i}.png`;
+
+            const base64Data = favicon.base64PngData.replace(/^data:image\/\w+;base64,/, '');
+            const buffer = Buffer.from(base64Data, 'base64');
+
+            emit('plugin:artifact', {
+                row: context.row.index,
+                step: context.stepIndex,
+                plugin: 'logo-scraper',
+                type: 'image',
+                filename,
+                content: buffer,
+                tags: ['final', 'logo-scraper', 'favicon']
+            });
+
+            if (!outputData.favicon) {
+                outputData.favicon = {
+                    path: filename,
+                    score: favicon.brandLogoScore,
+                    width: favicon.width,
+                    height: favicon.height
+                };
+            }
+        }
+
+        // Build content parts for LLM context
+        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+
+        if (logos.length > 0) {
+            contentParts.push({
+                type: 'text',
+                text: `\n--- Logo Analysis for ${config.url} ---\nFound ${logos.length} logos. Primary brand color: ${result.primaryColor?.hex || 'unknown'}\n`
+            });
+
+            // Include best logo as image
+            const bestLogo = logos[0];
+            if (bestLogo) {
+                contentParts.push({
+                    type: 'image_url',
+                    image_url: { url: bestLogo.base64PngData }
+                });
+            }
+        } else {
+            contentParts.push({
+                type: 'text',
+                text: `\n--- Logo Analysis for ${config.url} ---\nNo suitable logos found.\n`
+            });
+        }
+
+        return [{
+            data: outputData,
+            contentParts
+        }];
+    }
+}
