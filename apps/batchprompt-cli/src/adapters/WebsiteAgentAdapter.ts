@@ -54,4 +54,36 @@ export class WebsiteAgentAdapter implements CliPluginAdapter {
         const outputColumn = getOpt('websiteAgentOutput');
 
         let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) outputMode =
+        if (outputColumn) outputMode = 'column';
+        else if (exportFlag) outputMode = 'merge';
+
+        const buildModelConfig = (config: any) => {
+            if (!config.prompt && !config.model && !config.temperature && !config.thinkingLevel && !config.system) {
+                return undefined;
+            }
+            return {
+                model: config.model,
+                temperature: config.temperature,
+                thinkingLevel: config.thinkingLevel,
+                prompt: config.prompt,
+                system: config.system
+            };
+        };
+
+        return {
+            type: 'website-agent',
+            url,
+            schema: getOpt('websiteAgentSchema'),
+            budget: getOpt('websiteAgentBudget'),
+            batchSize: getOpt('websiteAgentBatchSize'),
+            navigator: buildModelConfig(navigatorConfig),
+            extract: buildModelConfig(extractConfig),
+            merge: buildModelConfig(mergeConfig),
+            output: {
+                mode: outputMode,
+                column: outputColumn,
+                explode: false
+            }
+        };
+    }
+}
