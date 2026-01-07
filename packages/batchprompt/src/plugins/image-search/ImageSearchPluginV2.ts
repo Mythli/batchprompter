@@ -85,7 +85,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     ): Promise<ResolvedModelConfig | undefined> {
         if (!config?.prompt) return undefined;
 
-        const parts = await this.promptLoader.load(config.prompt);
+        const parts = await this.promptLoader.load(config.prompt as any);
         const renderedParts = parts.map((part: any) => {
             if (part.type === 'text') {
                 const template = Handlebars.compile(part.text, { noEscape: true });
@@ -96,7 +96,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
 
         let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         if (config.system) {
-            systemParts = await this.promptLoader.load(config.system);
+            systemParts = await this.promptLoader.load(config.system as any);
             systemParts = systemParts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });

@@ -22,10 +22,11 @@ export type ResolvedOutputConfig = OutputConfig;
 // Prompt Types
 // =============================================================================
 
-export type PromptDef = string | {
+// PromptDef must match the PromptSchema union which includes any[] for ContentParts
+export type PromptDef = string | any[] | {
     file?: string;
     text?: string;
-    parts?: { type: 'text' | 'image' | 'audio'; content: string }[];
+    parts?: any[];
 };
 
 // =============================================================================
@@ -80,6 +81,12 @@ type StepConfigBase = z.infer<typeof StepConfigSchema>;
 export interface StepConfig extends Omit<StepConfigBase, 'plugins'> {
     // Override plugins with resolved type
     plugins: ResolvedPluginBase[];
+    
+    // Model is required at runtime (with defaults applied)
+    model: ModelConfig;
+    
+    // Timeout is required at runtime (with default applied)
+    timeout: number;
     
     // Derived convenience field
     feedbackLoops?: number;

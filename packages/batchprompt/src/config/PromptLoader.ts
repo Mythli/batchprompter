@@ -10,20 +10,30 @@ export class PromptLoader {
             return [];
         }
 
+        // Handle already-loaded content parts (array)
+        if (Array.isArray(prompt)) {
+            // If it's already an array of content parts, return as-is
+            // This handles the case where prompt is ContentPart[]
+            return prompt as OpenAI.Chat.Completions.ChatCompletionContentPart[];
+        }
+
         if (typeof prompt === 'string') {
             return this.loadString(prompt);
         }
 
-        if (prompt.file) {
-            return this.loadString(prompt.file);
-        }
+        // Handle object form: { file, text, parts }
+        if (typeof prompt === 'object' && prompt !== null) {
+            if (prompt.file) {
+                return this.loadString(prompt.file);
+            }
 
-        if (prompt.text) {
-            return [{ type: 'text', text: prompt.text }];
-        }
+            if (prompt.text) {
+                return [{ type: 'text', text: prompt.text }];
+            }
 
-        if (prompt.parts) {
-            return this.loadParts(prompt.parts);
+            if (prompt.parts) {
+                return this.loadParts(prompt.parts);
+            }
         }
 
         return [];

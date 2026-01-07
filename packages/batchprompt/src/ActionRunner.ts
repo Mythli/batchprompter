@@ -58,6 +58,7 @@ export class ActionRunner {
             const { item, stepIndex } = payload;
             const stepConfig = steps[stepIndex];
             const stepNum = stepIndex + 1;
+            // timeout is guaranteed to be a number after resolveStep
             const timeoutMs = stepConfig.timeout * 1000;
 
             events.emit('step:start', { row: item.originalIndex, step: stepNum });

@@ -105,7 +105,9 @@ export class StepResolver {
 
         // 4. Create Step Context (LLM Clients)
         // Resolve Model Configs (Prompt Templates) using RAW View Context
-        const resolvedModel = await this.resolveModelConfig(resolvedStep.model, viewContext);
+        // model is guaranteed to exist after resolveStep in resolveConfig
+        const modelConfig = resolvedStep.model;
+        const resolvedModel = await this.resolveModelConfig(modelConfig, viewContext);
         const mainLlm = this.llmFactory.create(resolvedModel);
         
         // Store resolved prompts back on step for Orchestrator

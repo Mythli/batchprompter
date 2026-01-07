@@ -160,6 +160,9 @@ function resolveStep(step: any, globals: any, stepIndex: number): StepConfig {
 
     const outputPathTemplate = step.outputPath ?? globals.outputPath;
 
+    // Resolve timeout with global fallback and final default
+    const timeout = step.timeout ?? globals.timeout ?? 180;
+
     return {
         model: mergedModel,
         plugins,
@@ -176,6 +179,7 @@ function resolveStep(step: any, globals: any, stepIndex: number): StepConfig {
         verifyCommand: step.verifyCommand,
         skipCandidateCommand: step.skipCandidateCommand,
         tmpDir: globals.tmpDir,
-        timeout: step.timeout ?? globals.timeout // Step inherits from global
+        timeout,
+        expandUrls: step.expandUrls ?? true
     };
 }

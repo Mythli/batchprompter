@@ -49,9 +49,9 @@ export class StepOrchestrator {
             const plugin = this.pluginRegistry.get(pluginDef.type);
             if (plugin) {
                 const inheritedModel = {
-                    model: resolvedStep.model.model || this.globalContext.defaultModel,
-                    temperature: resolvedStep.model.temperature,
-                    thinkingLevel: resolvedStep.model.thinkingLevel
+                    model: resolvedStep.model?.model || this.globalContext.defaultModel,
+                    temperature: resolvedStep.model?.temperature,
+                    thinkingLevel: resolvedStep.model?.thinkingLevel
                 };
 
                 // Plugins might have rawConfig wrapper or be direct objects depending on how they were loaded
@@ -102,7 +102,7 @@ export class StepOrchestrator {
             // We run if there is an explicit prompt (user or system)
             const hasExplicitPrompt = 
                 (resolvedStep.userPromptParts && resolvedStep.userPromptParts.length > 0) || 
-                (resolvedStep.model.system && (Array.isArray(resolvedStep.model.system) ? resolvedStep.model.system.length > 0 : true));
+                (resolvedStep.model?.system && (Array.isArray(resolvedStep.model.system) ? resolvedStep.model.system.length > 0 : true));
             
             if (hasExplicitPrompt) {
                 // --- EXECUTE MODEL ---
@@ -116,9 +116,9 @@ export class StepOrchestrator {
                 // We pass empty promptParts to MessageBuilder because we manually handle the user message construction
                 // from state.content below.
                 const configForMessageBuilder = {
-                    model: resolvedStep.model.model,
-                    temperature: resolvedStep.model.temperature,
-                    thinkingLevel: resolvedStep.model.thinkingLevel,
+                    model: resolvedStep.model?.model,
+                    temperature: resolvedStep.model?.temperature,
+                    thinkingLevel: resolvedStep.model?.thinkingLevel,
                     systemParts: stepContext.llm.getSystemParts(), // Already resolved in StepResolver
                     promptParts: [] 
                 };
