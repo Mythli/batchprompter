@@ -10,13 +10,13 @@ import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputCon
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
-import { StepExecutionContext } from './plugins/types.js';
+import type { StepExecutionContext } from './plugins/types.js';
 
 // Re-export types from plugins to ensure single source of truth
-export { StepExecutionContext };
+export type { StepExecutionContext };
 
 // Re-export from config/types
-export { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputConfig, StepConfig, ModelConfig, ResolvedPluginBase, RuntimeConfig };
+export type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputConfig, StepConfig, ModelConfig, ResolvedPluginBase, RuntimeConfig };
 
 // --- Definitions ---
 
