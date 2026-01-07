@@ -17,7 +17,6 @@ export function mapToRuntimeConfig(resolvedConfig: ResolvedPipelineConfig): Runt
                 outputTemplate: step.outputTemplate,
                 output: step.output,
                 schema: step.schema,
-                jsonSchema: step.schema,
                 candidates: step.candidates,
                 judge: step.judge,
                 feedback: step.feedback,

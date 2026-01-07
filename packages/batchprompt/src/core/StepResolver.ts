@@ -31,7 +31,7 @@ export class StepResolver {
     ): Promise<ResolvedStepContext> {
         const stepNum = stepIndex + 1;
 
-        // 1. Prepare View Context
+        // 1. Prepare View Context (Raw Data)
         const viewContext = {
             ...item.row,
             ...item.workspace,
@@ -39,16 +39,17 @@ export class StepResolver {
             index: item.originalIndex
         };
 
+        // 2. Prepare Sanitized Context (For File Paths Only)
         const sanitizedRow: Record<string, any> = {};
         for (const [key, val] of Object.entries(viewContext)) {
              const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
              sanitizedRow[key] = aggressiveSanitize(stringVal);
         }
 
-        // 2. Resolve Configuration
+        // 3. Resolve Configuration
         const resolvedStep: StepConfig = { ...stepConfig };
 
-        // Output Paths
+        // Output Paths (Use Sanitized Context)
         if (stepConfig.outputPath) {
             const delegate = Handlebars.compile(stepConfig.outputPath, { noEscape: true });
             resolvedStep.outputPath = delegate(sanitizedRow);
@@ -64,7 +65,7 @@ export class StepResolver {
             resolvedStep.outputExtension = stepConfig.aspectRatio ? '.png' : '.txt';
         }
 
-        // Temp Directory
+        // Temp Directory (Use Sanitized Context)
         const tmpDirDelegate = Handlebars.compile(globalTmpDir, { noEscape: true });
         let resolvedGlobalTmpDir = tmpDirDelegate(sanitizedRow);
         if (path.extname(resolvedGlobalTmpDir)) {
@@ -76,31 +77,33 @@ export class StepResolver {
         resolvedStep.resolvedTempDir = path.join(resolvedGlobalTmpDir, `${rowStr}_${stepStr}`);
         await ensureDir(resolvedStep.resolvedTempDir);
 
-        // Schema Resolution
+        // Schema Resolution (Use Raw View Context)
         if (stepConfig.schema) {
             if (typeof stepConfig.schema === 'string') {
                 // Template string -> Render -> Load
                 try {
                     const template = Handlebars.compile(stepConfig.schema, { noEscape: true });
-                    const resolvedPath = template(sanitizedRow);
+                    const resolvedPath = template(viewContext); // Use raw context for path resolution? Usually paths need sanitization, but schema paths might be static or controlled. Let's use viewContext to allow spaces in paths if needed, or sanitized if it's user input. 
+                    // Actually, for file paths, sanitized is safer, but for logic, raw is better. 
+                    // Let's stick to viewContext for flexibility, assuming the user handles path safety in the template if needed.
                     resolvedStep.schema = await this.schemaLoader.load(resolvedPath);
                 } catch (e) {
                     console.warn(`[Row ${item.originalIndex}] Failed to load schema from template '${stepConfig.schema}':`, e);
                 }
             } else {
                 // Already an object (loaded by CLI)
-                // Render templates inside the schema object
+                // Render templates inside the schema object using RAW context
                 try {
-                    resolvedStep.schema = renderSchemaObject(stepConfig.schema, sanitizedRow);
+                    resolvedStep.schema = renderSchemaObject(stepConfig.schema, viewContext);
                 } catch (e: any) {
                     console.warn(`[Row ${item.originalIndex}] Failed to render schema templates:`, e);
                 }
             }
         }
 
-        // 3. Create Step Context (LLM Clients)
-        // Resolve Model Configs (Prompt Templates)
-        const resolvedModel = await this.resolveModelConfig(resolvedStep.model, sanitizedRow);
+        // 4. Create Step Context (LLM Clients)
+        // Resolve Model Configs (Prompt Templates) using RAW View Context
+        const resolvedModel = await this.resolveModelConfig(resolvedStep.model, viewContext);
         const mainLlm = this.llmFactory.create(resolvedModel);
         
         // Store resolved prompts back on step for Orchestrator
@@ -108,13 +111,13 @@ export class StepResolver {
 
         let judgeLlm: BoundLlmClient | undefined = undefined;
         if (resolvedStep.judge) {
-            const resolvedJudge = await this.resolveModelConfig(resolvedStep.judge, sanitizedRow);
+            const resolvedJudge = await this.resolveModelConfig(resolvedStep.judge, viewContext);
             judgeLlm = this.llmFactory.create(resolvedJudge);
         }
 
         let feedbackLlm: BoundLlmClient | undefined = undefined;
         if (resolvedStep.feedback) {
-            const resolvedFeedback = await this.resolveModelConfig(resolvedStep.feedback, sanitizedRow);
+            const resolvedFeedback = await this.resolveModelConfig(resolvedStep.feedback, viewContext);
             feedbackLlm = this.llmFactory.create(resolvedFeedback);
         }
 

@@ -202,7 +202,6 @@ export class ConfigResolver {
             output: step.output,
             outputTemplate: step.outputPath ?? globals.outputPath,
             schema: step.schema, // Already normalized to object
-            jsonSchema: step.schema, // Alias
             candidates: step.candidates,
             skipCandidateCommand: step.skipCandidateCommand,
             judge,

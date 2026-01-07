@@ -46,7 +46,6 @@ export interface StepConfig {
     // Validation
     schema?: any; // Object or Template String
     schemaPath?: string; // Legacy alias
-    jsonSchema?: any; // Alias for schema
 
     // Plugins
     plugins: ResolvedPluginBase[];

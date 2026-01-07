@@ -140,12 +140,12 @@ export class StandardStrategy implements GenerationStrategy {
         let finalType = 'text';
         let finalContentPayload: string | Buffer = '';
 
-        if (config.jsonSchema) {
+        if (config.schema) {
             // --- Branch A: JSON Schema ---
             
             const validator = async (data: any) => {
                 // 1. Validate Schema
-                const valid = this.ajv.validate(config.jsonSchema, data);
+                const valid = this.ajv.validate(config.schema, data);
                 if (!valid) {
                     const errors = this.ajv.errorsText();
                     
@@ -153,7 +153,7 @@ export class StandardStrategy implements GenerationStrategy {
                         row: index,
                         step: stepIndex,
                         data,
-                        schema: config.jsonSchema,
+                        schema: config.schema,
                         errors: this.ajv.errors
                     });
 
@@ -169,7 +169,7 @@ export class StandardStrategy implements GenerationStrategy {
                 return await this.runPostProcessingPhase(data, syntheticHistory, row, index, stepIndex);
             };
 
-            finalResult = await rawClient.promptJson(finalMessages, config.jsonSchema, {
+            finalResult = await rawClient.promptJson(finalMessages, config.schema, {
                 requestOptions,
                 maxRetries: 3 + (config.feedbackLoops || 0),
                 validator,
