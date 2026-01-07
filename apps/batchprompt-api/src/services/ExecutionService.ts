@@ -1,21 +1,27 @@
 import JSZip from 'jszip';
-import { getDiContainer, InMemoryConfigExecutor, MemoryContentResolver } from 'batchprompt';
+import { 
+    ActionRunner, 
+    PluginRegistryV2, 
+    GlobalContext, 
+    ContentResolver, 
+    InMemoryConfigExecutor 
+} from 'batchprompt';
 
 export class ExecutionService {
+    constructor(
+        private actionRunner: ActionRunner,
+        private pluginRegistry: PluginRegistryV2,
+        private globalContext: GlobalContext,
+        private contentResolver: ContentResolver
+    ) {}
 
     async runConfig(config: any, initialRows?: any[]): Promise<{ results: any[], artifacts: any[], zip: string }> {
-        // Use MemoryContentResolver for API execution
-        const contentResolver = new MemoryContentResolver();
-
-        // Initialize config with the memory resolver
-        const { actionRunner, pluginRegistry, globalContext } = await getDiContainer(process.env, { contentResolver });
-
         // Use InMemoryConfigExecutor to handle config resolution and execution
         const executor = new InMemoryConfigExecutor(
-            actionRunner,
-            pluginRegistry,
-            globalContext.events,
-            contentResolver
+            this.actionRunner,
+            this.pluginRegistry,
+            this.globalContext.events,
+            this.contentResolver
         );
 
         // Execute

@@ -1,32 +1,17 @@
 import { z } from 'zod';
-import { PipelineConfigSchema, getDiContainer, ConfigRefiner } from 'batchprompt';
-import { ExecutionService } from './ExecutionService.js';
+import { PipelineConfigSchema, LlmClientFactory } from 'batchprompt';
+import { ConfigRefiner } from './ConfigRefiner.js';
 
 type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
 
 export class GenerationService {
+    constructor(
+        private llmFactory: LlmClientFactory,
+        private refiner: ConfigRefiner
+    ) {}
 
     async generateConfig(prompt: string, partialConfig?: any, sampleRows?: any[]): Promise<PipelineConfig> {
-        const { llmFactory } = await getDiContainer(process.env);
-        const executionService = new ExecutionService();
-
-        const generatorLlm = llmFactory.create({
-            model: 'google/gemini-3-flash-preview',
-            thinkingLevel: 'high',
-            systemParts: [],
-            promptParts: []
-        }).getRawClient();
-
-        const judgeLlm = llmFactory.create({
-            model: 'google/gemini-3-flash-preview',
-            thinkingLevel: 'high',
-            systemParts: [],
-            promptParts: []
-        }).getRawClient();
-
-        const refiner = new ConfigRefiner(generatorLlm, judgeLlm, executionService, { maxRetries: 3 });
-
-        const result = await refiner.run({
+        const result = await this.refiner.run({
             prompt,
             sampleRows: sampleRows || [],
             partialConfig

@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
-import { ExecutionService } from '../services/ExecutionService.js';
+import { getDiContainer } from '../getDiContainer.js';
 
 const app = new Hono();
-const service = new ExecutionService();
 
 app.post('/run', async (c) => {
     const body = await c.req.json();
@@ -11,7 +10,8 @@ app.post('/run', async (c) => {
     if (!config) return c.json({ error: 'Config is required' }, 400);
 
     try {
-        const result = await service.runConfig(config);
+        const { executionService } = await getDiContainer(process.env);
+        const result = await executionService.runConfig(config);
         return c.json({
             results: result.results,
             zip: result.zip
