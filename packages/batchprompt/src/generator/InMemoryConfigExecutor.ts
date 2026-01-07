@@ -5,9 +5,8 @@ import { ContentResolver } from '../core/io/ContentResolver.js';
 import { BatchPromptEvents } from '../core/events.js';
 import { MemoryArtifactHandler, Artifact } from '../handlers/MemoryArtifactHandler.js';
 import { ConfigExecutor } from './ConfigRefiner.js';
-import { ConfigResolver } from '../config/ConfigResolver.js';
 import { PromptLoader } from '../config/PromptLoader.js';
-import { mapToRuntimeConfig } from '../config/runtimeMapper.js';
+import { resolveConfig } from '../config/resolveConfig.js';
 
 export class InMemoryConfigExecutor implements ConfigExecutor {
     constructor(
@@ -18,7 +17,7 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
     ) {}
 
     async runConfig(config: any, initialRows?: any[]): Promise<{ results: any[], artifacts: Artifact[] }> {
-        // Create dependencies for ConfigResolver
+        // Create dependencies for resolveConfig
         const promptLoader = new PromptLoader(this.contentResolver);
         
         // Schema loader for memory context
@@ -37,24 +36,20 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
             }
         };
 
-        const resolver = new ConfigResolver({
-            capabilities: { hasSerper: true, hasPuppeteer: true }, // Assume full capabilities for generation
+        // Inject initialRows if provided
+        const configWithData = { ...config };
+        if (initialRows && initialRows.length > 0) {
+            configWithData.data = initialRows;
+        }
+
+        // Use unified resolveConfig
+        const runtimeConfig = await resolveConfig(configWithData, {
+            capabilities: { hasSerper: true, hasPuppeteer: true },
             pluginRegistry: this.pluginRegistry,
             contentResolver: this.contentResolver,
             promptLoader: promptLoader,
             schemaLoader: schemaLoader
         });
-
-        // Parse and validate the config
-        const resolvedConfig = await resolver.resolve(config);
-
-        // Inject initialRows if provided
-        if (initialRows && initialRows.length > 0) {
-            resolvedConfig.data = initialRows;
-        }
-        
-        // Convert ResolvedPipelineConfig to RuntimeConfig
-        const runtimeConfig = mapToRuntimeConfig(resolvedConfig);
         
         // Capture artifacts in memory (so we don't write to disk during test runs)
         const memoryHandler = new MemoryArtifactHandler(this.events);

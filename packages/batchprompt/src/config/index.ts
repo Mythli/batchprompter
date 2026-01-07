@@ -3,6 +3,7 @@ export * from './types.js';
 export * from './PromptLoader.js';
 export * from './SchemaLoader.js';
 export * from './validationRules.js';
-export * from './ConfigExpander.js';
+export * from './ConfigNormalizer.js';
 export * from './createPipelineSchema.js';
 export * from './schemas/model.js';
+export * from './resolveConfig.js';

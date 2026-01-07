@@ -227,8 +227,6 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
     // --- New Architecture Components ---
     
     // 1. Plugin Executor
-    // It needs PluginServices. We construct a base one here, but StepOrchestrator might augment it.
-    // However, PluginExecutor constructor needs it.
     const basePluginServices = {
         puppeteerHelper,
         puppeteerQueue,
@@ -239,7 +237,7 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
         createLlm: (config: any) => llmFactory.create(config)
     };
 
-    const pluginExecutor = new PluginExecutor(globalContext.events, basePluginServices, '/tmp'); // Temp dir is overridden per step
+    const pluginExecutor = new PluginExecutor(globalContext.events, basePluginServices, '/tmp');
 
     // 2. Step Executor (Model)
     const stepExecutor = new StepExecutor(globalContext.events);
