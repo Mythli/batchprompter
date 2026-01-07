@@ -14,6 +14,7 @@ export const OutputConfigSchema = z.object({
 // Re-export for compatibility if needed, though we are moving to ModelConfigSchema
 export const PromptDefSchema = z.union([
     z.string(),
+    z.array(z.any()), // ContentPart[] - for already-loaded prompts
     z.object({
         file: z.string().optional(),
         text: z.string().optional(),

@@ -50,8 +50,10 @@ export class StepResolver {
         const resolvedStep: StepConfig = { ...stepConfig };
 
         // Output Paths (Use Sanitized Context)
-        if (stepConfig.outputPath) {
-            const delegate = Handlebars.compile(stepConfig.outputPath, { noEscape: true });
+        // Check both outputPath and outputTemplate for compatibility
+        const outputPathTemplate = stepConfig.outputPath || stepConfig.outputTemplate;
+        if (outputPathTemplate) {
+            const delegate = Handlebars.compile(outputPathTemplate, { noEscape: true });
             resolvedStep.outputPath = delegate(sanitizedRow);
 
             resolvedStep.resolvedOutputDir = path.resolve(path.dirname(resolvedStep.outputPath));

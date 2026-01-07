@@ -191,11 +191,15 @@ function resolveStep(
         };
     }
 
+    // Get the output path template
+    const outputPathTemplate = step.outputPath ?? globals.outputPath;
+
     return {
         model: mergedModel,
         plugins,
         output,
-        outputTemplate: step.outputPath ?? globals.outputPath,
+        outputPath: outputPathTemplate,
+        outputTemplate: outputPathTemplate,
         schema: step.schema,
         candidates: step.candidates,
         skipCandidateCommand: step.skipCandidateCommand,
