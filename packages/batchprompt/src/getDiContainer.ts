@@ -1,4 +1,3 @@
-import * as dotenv from 'dotenv';
 import { z } from 'zod';
 import KeyvSqlite from '@keyv/sqlite';
 import Keyv from 'keyv';
@@ -25,11 +24,9 @@ import { PluginExecutor } from './core/PluginExecutor.js';
 import { StepExecutor } from './StepExecutor.js';
 import {attachQueueLogger} from "./debug/queue.js";
 
-dotenv.config();
-
-function getEnvVar(keys: string[]): string | undefined {
+function getEnvVar(env: Record<string, any>, keys: string[]): string | undefined {
     for (const key of keys) {
-        const value = process.env[key];
+        const value = env[key];
         if (value) return value;
     }
     return undefined;
@@ -93,19 +90,19 @@ export const createDefaultRegistry = (capabilities: ServiceCapabilities, promptL
     return createPluginRegistry(promptLoader);
 };
 
-export const initConfig = async (overrides: ConfigOverrides = {}) => {
+export const initConfig = async (env: Record<string, any>, overrides: ConfigOverrides = {}) => {
     const rawConfig = {
-        ...process.env,
-        AI_API_KEY: getEnvVar(['BATCHPROMPT_OPENAI_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY']),
-        AI_API_URL: getEnvVar(['BATCHPROMPT_OPENAI_BASE_URL', 'OPENAI_BASE_URL', 'AI_API_URL']),
-        MODEL: getEnvVar(['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']),
-        SERPER_API_KEY: getEnvVar(['BATCHPROMPT_SERPER_API_KEY', 'SERPER_API_KEY']),
-        TASK_CONCURRENCY: getEnvVar(['BATCHPROMPT_TASK_CONCURRENCY', 'TASK_CONCURRENCY']),
-        GPT_CONCURRENCY: getEnvVar(['BATCHPROMPT_GPT_CONCURRENCY', 'GPT_CONCURRENCY']),
-        SERPER_CONCURRENCY: getEnvVar(['BATCHPROMPT_SERPER_CONCURRENCY', 'SERPER_CONCURRENCY']),
-        PUPPETEER_CONCURRENCY: getEnvVar(['BATCHPROMPT_PUPPETEER_CONCURRENCY', 'PUPPETEER_CONCURRENCY']),
-        PUPPETEER_MAX_PAGES_BEFORE_RESTART: getEnvVar(['BATCHPROMPT_PUPPETEER_MAX_PAGES_BEFORE_RESTART', 'PUPPETEER_MAX_PAGES_BEFORE_RESTART']),
-        PUPPETEER_RESTART_TIMEOUT: getEnvVar(['BATCHPROMPT_PUPPETEER_RESTART_TIMEOUT', 'PUPPETEER_RESTART_TIMEOUT']),
+        ...env,
+        AI_API_KEY: getEnvVar(env, ['BATCHPROMPT_OPENAI_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY']),
+        AI_API_URL: getEnvVar(env, ['BATCHPROMPT_OPENAI_BASE_URL', 'OPENAI_BASE_URL', 'AI_API_URL']),
+        MODEL: getEnvVar(env, ['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']),
+        SERPER_API_KEY: getEnvVar(env, ['BATCHPROMPT_SERPER_API_KEY', 'SERPER_API_KEY']),
+        TASK_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_TASK_CONCURRENCY', 'TASK_CONCURRENCY']),
+        GPT_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_GPT_CONCURRENCY', 'GPT_CONCURRENCY']),
+        SERPER_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_SERPER_CONCURRENCY', 'SERPER_CONCURRENCY']),
+        PUPPETEER_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_CONCURRENCY', 'PUPPETEER_CONCURRENCY']),
+        PUPPETEER_MAX_PAGES_BEFORE_RESTART: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_MAX_PAGES_BEFORE_RESTART', 'PUPPETEER_MAX_PAGES_BEFORE_RESTART']),
+        PUPPETEER_RESTART_TIMEOUT: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_RESTART_TIMEOUT', 'PUPPETEER_RESTART_TIMEOUT']),
     };
 
     const config = configSchema.parse(rawConfig);
@@ -279,9 +276,9 @@ export const initConfig = async (overrides: ConfigOverrides = {}) => {
 export type TheConfig = Awaited<ReturnType<typeof initConfig>>;
 
 let configInstance: null | TheConfig = null;
-export const getDiContainer = async (overrides?: ConfigOverrides) => {
+export const getDiContainer = async (env: Record<string, any>, overrides?: ConfigOverrides) => {
     if(!configInstance) {
-        configInstance = await initConfig(overrides);
+        configInstance = await initConfig(env, overrides);
     }
     return configInstance;
 }

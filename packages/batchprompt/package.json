@@ -22,7 +22,6 @@
     "commander": "^12.1.0",
     "css-tree": "^2.3.1",
     "csv-parser": "^3.2.0",
-    "dotenv": "^16.6.1",
     "eventemitter3": "^5.0.1",
     "handlebars": "^4.7.8",
     "json-schema-traverse": "^1.0.0",

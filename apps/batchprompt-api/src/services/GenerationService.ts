@@ -7,7 +7,7 @@ type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
 export class GenerationService {
 
     async generateConfig(prompt: string, partialConfig?: any, sampleRows?: any[]): Promise<PipelineConfig> {
-        const { llmFactory } = await getDiContainer();
+        const { llmFactory } = await getDiContainer(process.env);
         const executionService = new ExecutionService();
 
         const generatorLlm = llmFactory.create({

@@ -8,7 +8,7 @@ export class ExecutionService {
         const contentResolver = new MemoryContentResolver();
 
         // Initialize config with the memory resolver
-        const { actionRunner, pluginRegistry, globalContext } = await getDiContainer({ contentResolver });
+        const { actionRunner, pluginRegistry, globalContext } = await getDiContainer(process.env, { contentResolver });
 
         // Use InMemoryConfigExecutor to handle config resolution and execution
         const executor = new InMemoryConfigExecutor(

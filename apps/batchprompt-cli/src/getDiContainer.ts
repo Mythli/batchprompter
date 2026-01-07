@@ -7,7 +7,7 @@ export const getDiContainer = async () => {
     const promptLoader = new PromptLoader(contentResolver);
     const schemaLoader = new SchemaLoader(contentResolver);
 
-    return getCoreConfig({
+    return getCoreConfig(process.env, {
         contentResolver,
         promptLoader,
         schemaLoader
