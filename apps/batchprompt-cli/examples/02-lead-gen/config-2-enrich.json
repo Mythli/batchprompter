@@ -101,7 +101,9 @@
       ]
     },
     {
-      "prompt": "You are a data extraction engine. Extract the LinkedIn URL for {{decisionMaker.firstName}} {{decisionMaker.lastName}} from the search results.\n\nOutput Rules:\n\n1. Return ONLY the URL (starting with https://).\n\n2. If no valid personal profile is found, return an empty string.\n\n3. Do NOT return JSON, Markdown, quotes, or explanations.\n",
+      "model": {
+        "prompt": "You are a data extraction engine. Extract the LinkedIn URL for {{decisionMaker.firstName}} {{decisionMaker.lastName}} from the search results.\n\nOutput Rules:\n\n1. Return ONLY the URL (starting with https://).\n\n2. If no valid personal profile is found, return an empty string.\n\n3. Do NOT return JSON, Markdown, quotes, or explanations.\n"
+      },
       "output": {
         "mode": "column",
         "column": "linkedinUrl"
