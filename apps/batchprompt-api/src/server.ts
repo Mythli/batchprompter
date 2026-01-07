@@ -13,7 +13,7 @@ app.route('/api', runRoutes);
 
 // Web UI Routes (Mounted at root)
 app.route('/', webRoutes);
-
+/
 // Export for use or run directly
 if (import.meta.url === `file://${process.argv[1]}`) {
     const port = 3000;
