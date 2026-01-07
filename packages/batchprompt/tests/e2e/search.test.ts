@@ -102,8 +102,12 @@ describe('E2E Search Plugins', () => {
                     plugins: [
                         {
                             type: "web-search",
-                            queryPrompt: "Generate queries for {{company}}",
-                            selectPrompt: "Select the official investor relations page",
+                            queryModel: {
+                                prompt: "Generate queries for {{company}}"
+                            },
+                            selectModel: {
+                                prompt: "Select the official investor relations page"
+                            },
                             mode: "markdown",
                             limit: 1
                         }
@@ -149,8 +153,12 @@ describe('E2E Search Plugins', () => {
                     plugins: [
                         {
                             type: "image-search",
-                            queryPrompt: "Generate queries for {{product}}",
-                            selectPrompt: "Select the best image of {{product}}",
+                            queryModel: {
+                                prompt: "Generate queries for {{product}}"
+                            },
+                            selectModel: {
+                                prompt: "Select the best image of {{product}}"
+                            },
                             select: 1
                         }
                     ],

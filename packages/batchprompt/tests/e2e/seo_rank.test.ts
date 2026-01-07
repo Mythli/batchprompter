@@ -40,7 +40,7 @@ describe('E2E SEO Rank', () => {
         });
 
         const config = {
-            globals: { model: "gpt-mock" },
+            model: "gpt-mock",
             steps: [
                 {
                     plugins: [
@@ -51,7 +51,9 @@ describe('E2E SEO Rank', () => {
                             maxPages: 1, // simplified for test
                             limit: 30,
                             mode: "none",
-                            selectPrompt: "Select links for Butlerapp",
+                            selectModel: {
+                                prompt: "Select links for Butlerapp"
+                            },
                             output: {
                                 mode: "merge",
                                 explode: true
