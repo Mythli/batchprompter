@@ -1,15 +1,15 @@
 import JSZip from 'jszip';
-import { getConfig, InMemoryConfigExecutor, MemoryContentResolver } from 'batchprompt';
+import { getDiContainer, InMemoryConfigExecutor, MemoryContentResolver } from 'batchprompt';
 
 export class ExecutionService {
 
     async runConfig(config: any, initialRows?: any[]): Promise<{ results: any[], artifacts: any[], zip: string }> {
         // Use MemoryContentResolver for API execution
         const contentResolver = new MemoryContentResolver();
-        
+
         // Initialize config with the memory resolver
-        const { actionRunner, pluginRegistry, globalContext } = await getConfig({ contentResolver });
-        
+        const { actionRunner, pluginRegistry, globalContext } = await getDiContainer({ contentResolver });
+
         // Use InMemoryConfigExecutor to handle config resolution and execution
         const executor = new InMemoryConfigExecutor(
             actionRunner,
@@ -23,11 +23,11 @@ export class ExecutionService {
 
         // Create Zip of artifacts
         const zip = new JSZip();
-        
+
         // Add config and results
         zip.file('config.json', JSON.stringify(config, null, 2));
         zip.file('results.json', JSON.stringify(results, null, 2));
-        
+
         // Add artifacts
         for (const artifact of artifacts) {
             // Ensure unique paths or handle directories

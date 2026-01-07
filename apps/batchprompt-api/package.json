@@ -4,7 +4,8 @@
   "description": "Web interface for BatchPrompt",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "aa": "node -v",
+    "dev": "tsx --watch src/server.ts",
     "build": "tsc -b",
     "watch": "tsc -b -w",
     "start": "node dist/server.js"
@@ -24,5 +25,8 @@
     "openai": "^6.15.0",
     "tsx": "^4.7.1",
     "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
