@@ -1,8 +1,7 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { 
-    OutputConfigSchema, 
-    RawModelConfigSchema,
+import {
+    OutputConfigSchema,
     ResolvedModelConfig
 } from './schemas/index.js';
 import { GlobalsConfigSchema, StepConfigSchema } from './schema.js';
@@ -53,24 +52,24 @@ type StepConfigBase = z.infer<typeof StepConfigSchema>;
 export interface StepConfig extends Omit<StepConfigBase, 'plugins' | 'model' | 'judge' | 'feedback'> {
     // Resolved Plugins
     plugins: ResolvedPluginBase[];
-    
+
     // Resolved Models
     model: ResolvedModelConfig;
     judge?: ResolvedModelConfig;
     feedback?: ResolvedModelConfig & { loops: number };
-    
+
     // Runtime paths
     resolvedOutputDir?: string;
     resolvedTempDir?: string;
     outputBasename?: string;
     outputExtension?: string;
     outputTemplate?: string;
-    
+
     // Shell commands
     verifyCommand?: string;
     command?: string;
     skipCandidateCommand?: boolean;
-    
+
     tmpDir?: string;
 }
 
