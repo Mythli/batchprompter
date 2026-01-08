@@ -17,7 +17,6 @@ import { ContentResolver } from './core/io/ContentResolver.js';
 import { MemoryContentResolver } from './core/io/MemoryContentResolver.js';
 import { PromptLoader } from './config/PromptLoader.js';
 import { SchemaLoader } from './config/SchemaLoader.js';
-import { StepExecutor } from './StepExecutor.js';
 import { attachQueueLogger } from "./debug/queue.js";
 import { LlmFactory } from './plugins/types.js';
 
@@ -244,9 +243,6 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
 
     const messageBuilder = new MessageBuilder();
 
-    // 2. Step Executor (Model)
-    const stepExecutor = new StepExecutor(globalContext.events);
-
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         globalContext
@@ -262,8 +258,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         llmFactory,
         messageBuilder,
         promptLoader,
-        schemaLoader,
-        stepExecutor
+        schemaLoader
     };
 }
 
