@@ -14,11 +14,17 @@ export interface ConversationState {
     /** Adds a raw message parameter to the history */
     add(message: OpenAI.Chat.Completions.ChatCompletionMessageParam): void;
 
-    /** Shorthand to add a user message */
-    addUserMessage(content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[]): void;
+    /** Normalizes and adds a full completion to the history as an assistant message */
+    addCompletion(completion: OpenAI.Chat.Completions.ChatCompletion): void;
 
-    /** Shorthand to add an assistant message */
-    addAssistantMessage(content: string | null): void;
+    /** Shorthand to add a user message. Supports strings, parts, or completions (forced to user role). */
+    addUserMessage(content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] | OpenAI.Chat.Completions.ChatCompletion): void;
+
+    /** Shorthand to add an assistant message. Supports strings, null, or completions. */
+    addAssistantMessage(content: string | null | OpenAI.Chat.Completions.ChatCompletion): void;
+
+    /** Adds binary content to the history. */
+    addBinary(type: 'image' | 'audio', buffer: Buffer, role?: 'user' | 'assistant', mimeType?: string): void;
 
     /** Removes the last N messages from the history */
     pop(count?: number): OpenAI.Chat.Completions.ChatCompletionMessageParam[];
@@ -33,11 +39,56 @@ export interface ConversationState {
 export function createConversationState(initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []): ConversationState {
     let messages = [...initialMessages];
 
+    const add = (m: OpenAI.Chat.Completions.ChatCompletionMessageParam) => messages.push(m);
+
+    const addCompletion = (completion: OpenAI.Chat.Completions.ChatCompletion) => {
+        add(completionToMessage(completion));
+    };
+
+    const addUserMessage = (content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] | OpenAI.Chat.Completions.ChatCompletion) => {
+        if (content && typeof content === 'object' && 'choices' in (content as any)) {
+            const msg = completionToMessage(content as OpenAI.Chat.Completions.ChatCompletion);
+            add({ ...msg, role: 'user' } as any);
+        } else {
+            add({ role: 'user', content: content as any });
+        }
+    };
+
+    const addAssistantMessage = (content: string | null | OpenAI.Chat.Completions.ChatCompletion) => {
+        if (content && typeof content === 'object' && 'choices' in (content as any)) {
+            addCompletion(content as OpenAI.Chat.Completions.ChatCompletion);
+        } else {
+            add({ role: 'assistant', content: content as any });
+        }
+    };
+
+    const addBinary = (type: 'image' | 'audio', buffer: Buffer, role: 'user' | 'assistant' = 'user', mimeType?: string) => {
+        const content: any[] = [];
+        if (type === 'image') {
+            const mime = mimeType || 'image/png';
+            content.push({
+                type: 'image_url',
+                image_url: { url: `data:${mime};base64,${buffer.toString('base64')}` }
+            });
+        } else {
+            content.push({
+                type: 'input_audio',
+                input_audio: {
+                    data: buffer.toString('base64'),
+                    format: (mimeType as any) || 'wav'
+                }
+            });
+        }
+        add({ role, content } as any);
+    };
+
     return {
         getMessages: () => [...messages],
-        add: (m) => messages.push(m),
-        addUserMessage: (content) => messages.push({ role: 'user', content }),
-        addAssistantMessage: (content) => messages.push({ role: 'assistant', content }),
+        add,
+        addCompletion,
+        addUserMessage,
+        addAssistantMessage,
+        addBinary,
         pop: (count = 1) => messages.splice(-count),
         clear: () => { messages = []; }
     };
@@ -53,6 +104,20 @@ export function createConversationState(initialMessages: OpenAI.Chat.Completions
 export function wrapAsStateful<T extends Record<string, any>>(client: T, state: ConversationState): T & ConversationState {
     const wrapped: any = {
         ...state
+    };
+
+    const ingestResult = (methodName: string, result: any) => {
+        if (result && typeof result === 'object' && 'choices' in result) {
+            state.addCompletion(result);
+        } else if (typeof result === 'string') {
+            state.addAssistantMessage(result);
+        } else if (Buffer.isBuffer(result)) {
+            const isImage = methodName.toLowerCase().includes('image');
+            state.addBinary(isImage ? 'image' : 'audio', result, 'assistant');
+        } else if (result !== undefined && result !== null) {
+            // Likely JSON/Zod result or other object
+            state.addAssistantMessage(typeof result === 'object' ? JSON.stringify(result) : String(result));
+        }
     };
 
     // Wrap standard prompt methods
@@ -71,15 +136,7 @@ export function wrapAsStateful<T extends Record<string, any>>(client: T, state: 
                     messages: state.getMessages()
                 });
 
-                // Add result to state
-                if (methodName.includes('Text')) {
-                    state.addAssistantMessage(result as string);
-                } else if (methodName.includes('Image') || methodName.includes('Audio')) {
-                    state.addAssistantMessage(`[Binary Content: ${methodName.includes('Image') ? 'Image' : 'Audio'}]`);
-                } else {
-                    // For raw prompt/promptRetry, result is ChatCompletion
-                    state.add(completionToMessage(result as OpenAI.Chat.Completions.ChatCompletion));
-                }
+                ingestResult(methodName, result);
 
                 return result;
             };
@@ -106,7 +163,7 @@ export function wrapAsStateful<T extends Record<string, any>>(client: T, state: 
             for (const m of finalMessages) state.add(m);
 
             const result = await client.promptJson(state.getMessages(), schema, callOptions);
-            state.addAssistantMessage(JSON.stringify(result));
+            ingestResult('promptJson', result);
             return result;
         };
     }
@@ -118,7 +175,7 @@ export function wrapAsStateful<T extends Record<string, any>>(client: T, state: 
             for (const m of messages) state.add(m);
 
             const result = await client.promptZod(state.getMessages(), dataExtractionSchema, options);
-            state.addAssistantMessage(JSON.stringify(result));
+            ingestResult('promptZod', result);
             return result;
         };
     }
