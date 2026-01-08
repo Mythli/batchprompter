@@ -62,8 +62,13 @@ export class StepRow {
         // --- Stage 3: Model Setup ---
         const modelConfig = this.step.config.model;
         
-        // Check if we have messages or content to send
-        const hasMessages = modelConfig.messages.length > 0 || this.content.length > 0;
+        // Check if we have explicit messages to send (Prompt/System)
+        // We do NOT count this.content (plugin content) as a trigger for the model 
+        // if there is no prompt. This allows "Pass-through" of plugin results.
+        const hasMessages = modelConfig.messages.length > 0;
+
+        let result: any = null;
+        let historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined;
 
         if (hasMessages) {
             // Resolve Schema (Dynamic)
@@ -93,7 +98,6 @@ export class StepRow {
             const llm = this.getBoundClient(modelConfig);
             
             // Get the hydrated messages from the client
-            // The client now holds the rendered messages
             this.preparedMessages = llm.getMessages();
 
             // Append dynamic content from plugins (this.content)
@@ -114,75 +118,71 @@ export class StepRow {
 
             const executionResult = await strategy.execute();
 
-            let result = executionResult.raw !== undefined ? executionResult.raw : executionResult.columnValue;
-            const historyMessage = executionResult.historyMessage;
+            result = executionResult.raw !== undefined ? executionResult.raw : executionResult.columnValue;
+            historyMessage = executionResult.historyMessage;
+        }
 
-            // --- Stage 5: Plugin Post-Processing ---
-            for (const { instance, config } of this.step.plugins) {
-                if (instance.postProcess) {
-                    result = await instance.postProcess(this, config, result);
-                }
+        // --- Stage 5: Plugin Post-Processing ---
+        // We run this even if model didn't run, to allow plugins to return their data
+        for (const { instance, config } of this.step.plugins) {
+            if (instance.postProcess) {
+                result = await instance.postProcess(this, config, result);
             }
-            
-            // --- Stage 6: Output Handling (Explode/Merge) ---
-            const outputConfig = this.step.config.output;
-            const nextItems: PipelineItem[] = [];
+        }
+        
+        // --- Stage 6: Output Handling (Explode/Merge) ---
+        const outputConfig = this.step.config.output;
+        const nextItems: PipelineItem[] = [];
 
-            if (outputConfig.explode && Array.isArray(result)) {
-                // Apply limit/offset
-                let itemsToProcess = result;
-                if (outputConfig.offset && outputConfig.offset > 0) {
-                    itemsToProcess = itemsToProcess.slice(outputConfig.offset);
-                }
-                if (outputConfig.limit && outputConfig.limit > 0) {
-                    itemsToProcess = itemsToProcess.slice(0, outputConfig.limit);
-                }
+        if (outputConfig.explode && Array.isArray(result)) {
+            // Apply limit/offset
+            let itemsToProcess = result;
+            if (outputConfig.offset && outputConfig.offset > 0) {
+                itemsToProcess = itemsToProcess.slice(outputConfig.offset);
+            }
+            if (outputConfig.limit && outputConfig.limit > 0) {
+                itemsToProcess = itemsToProcess.slice(0, outputConfig.limit);
+            }
 
-                // Log explosion
-                this.getEvents().emit('step:progress', {
-                    row: this.item.originalIndex,
-                    step: this.step.stepIndex + 1,
-                    type: 'explode',
-                    message: `Exploding ${result.length} items into ${itemsToProcess.length}`,
-                    data: { total: result.length, count: itemsToProcess.length, limit: outputConfig.limit, offset: outputConfig.offset }
-                });
+            // Log explosion
+            this.getEvents().emit('step:progress', {
+                row: this.item.originalIndex,
+                step: this.step.stepIndex + 1,
+                type: 'explode',
+                message: `Exploding ${result.length} items into ${itemsToProcess.length}`,
+                data: { total: result.length, count: itemsToProcess.length, limit: outputConfig.limit, offset: outputConfig.offset }
+            });
 
-                itemsToProcess.forEach((itemData, idx) => {
-                    const newRow = { ...this.context };
-                    this.applyOutput(newRow, itemData, outputConfig);
-
-                    nextItems.push({
-                        row: newRow,
-                        workspace: this.item.workspace,
-                        stepHistory: [...this.item.stepHistory, result],
-                        history: [...this.history, historyMessage],
-                        originalIndex: this.item.originalIndex,
-                        variationIndex: idx
-                    });
-                });
-            } else {
+            itemsToProcess.forEach((itemData, idx) => {
                 const newRow = { ...this.context };
-                this.applyOutput(newRow, result, outputConfig);
+                this.applyOutput(newRow, itemData, outputConfig);
 
                 nextItems.push({
                     row: newRow,
                     workspace: this.item.workspace,
                     stepHistory: [...this.item.stepHistory, result],
-                    history: [...this.history, historyMessage],
+                    history: historyMessage ? [...this.history, historyMessage] : [...this.history],
                     originalIndex: this.item.originalIndex,
-                    variationIndex: 0
+                    variationIndex: idx
                 });
-            }
-            
-            return nextItems;
-
+            });
         } else {
-            // Pass-through
-            return [{
-                ...this.item,
-                history: this.history
-            }];
+            const newRow = { ...this.context };
+            if (result !== null && result !== undefined) {
+                this.applyOutput(newRow, result, outputConfig);
+            }
+
+            nextItems.push({
+                row: newRow,
+                workspace: this.item.workspace,
+                stepHistory: [...this.item.stepHistory, result],
+                history: historyMessage ? [...this.history, historyMessage] : [...this.history],
+                originalIndex: this.item.originalIndex,
+                variationIndex: 0
+            });
         }
+        
+        return nextItems;
     }
 
     private applyOutput(row: Record<string, any>, data: any, config: OutputConfig) {
