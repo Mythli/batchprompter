@@ -3,11 +3,11 @@ import {
     PromptFunction, 
     LlmCommonOptions, 
     LlmPromptOptions, 
-    LlmPromptParams,
     normalizeOptions,
     LlmFatalError
 } from "./createLlmClient.js";
 import { completionToMessage } from './completionToAssistantMessage.js';
+import { ConversationState } from './createConversation.js';
 
 export class LlmRetryError extends Error {
     constructor(
@@ -58,7 +58,9 @@ export interface LlmRetryResponseInfo {
  */
 export interface LlmRetryOptions<T = any> extends LlmCommonOptions {
     maxRetries?: number;
-    validate?: (response: any, info: LlmRetryResponseInfo) => Promise<T>;
+    validate?: (response: OpenAI.Chat.Completions.ChatCompletion, info: LlmRetryResponseInfo) => Promise<T>;
+    /** Optional conversation state to maintain history across retries */
+    state?: ConversationState;
 }
 
 /**
@@ -116,12 +118,23 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
     const { prompt, fallbackPrompt, retryBaseDelay: factoryRetryBaseDelay = 0 } = params;
 
     async function runPromptLoop<T>(
-        retryParams: LlmRetryParams<T>,
-        responseType: 'raw' | 'text' | 'image' | 'audio'
+        retryParams: LlmRetryParams<T>
     ): Promise<T> {
-        const { maxRetries = 3, validate, messages: initialMessages, retryBaseDelay = factoryRetryBaseDelay, ...restOptions } = retryParams;
+        const { 
+            maxRetries = 3, 
+            validate, 
+            messages: initialMessages, 
+            retryBaseDelay = factoryRetryBaseDelay, 
+            state,
+            ...restOptions 
+        } = retryParams;
 
         let lastError: LlmRetryAttemptError | undefined;
+
+        // If state is provided, initialize it with initial messages if it's empty
+        if (state && state.getMessages().length === 0) {
+            for (const m of initialMessages) state.add(m);
+        }
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             if (attempt > 0 && retryBaseDelay > 0) {
@@ -135,11 +148,14 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
             const currentPrompt = useFallback ? fallbackPrompt! : prompt;
             const mode = useFallback ? 'fallback' : 'main';
 
-            const currentMessages = constructLlmMessages(
-                initialMessages,
-                attempt,
-                lastError
-            );
+            // If we have state, we add the previous error message to it
+            if (attempt > 0 && state && lastError) {
+                state.add({ role: 'user', content: lastError.error.message });
+            }
+
+            const currentMessages = state 
+                ? state.getMessages() 
+                : constructLlmMessages(initialMessages, attempt, lastError);
 
             // Capture raw response for error context
             let rawResponseForError: string | null = null;
@@ -156,69 +172,11 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
                 // Normalize the message using the shared utility
                 const assistantMessage = completionToMessage(completion);
                 
-                let dataToProcess: any = completion;
-                
-                if (responseType === 'text') {
-                    const content = assistantMessage.content;
-                    if (content === null || content === undefined) {
-                        throw new LlmRetryError("LLM returned no text content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
-                    }
-                    
-                    if (typeof content === 'string') {
-                        dataToProcess = content;
-                    } else if (Array.isArray(content)) {
-                        // Extract text parts
-                        dataToProcess = content
-                            .filter(p => p.type === 'text')
-                            .map(p => p.text)
-                            .join('');
-                        
-                        if (!dataToProcess) {
-                             throw new LlmRetryError("LLM returned no text content in parts.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
-                        }
-                    }
-                } else if (responseType === 'image') {
-                    const content = assistantMessage.content;
-                    if (Array.isArray(content)) {
-                        const imagePart = content.find(p => p.type === 'image_url');
-                        if (imagePart && imagePart.type === 'image_url') {
-                             const imageUrl = imagePart.image_url.url;
-                             if (typeof imageUrl === 'string') {
-                                if (imageUrl.startsWith('http')) {
-                                    const imgRes = await fetch(imageUrl);
-                                    const arrayBuffer = await imgRes.arrayBuffer();
-                                    dataToProcess = Buffer.from(arrayBuffer);
-                                } else {
-                                    const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-                                    dataToProcess = Buffer.from(base64Data, 'base64');
-                                }
-                            } else {
-                                throw new LlmRetryError("LLM returned invalid image URL.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
-                            }
-                        } else {
-                             throw new LlmRetryError("LLM returned no image.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
-                        }
-                    } else {
-                         throw new LlmRetryError("LLM returned no image content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
-                    }
-                } else if (responseType === 'audio') {
-                    const content = assistantMessage.content;
-                    if (Array.isArray(content)) {
-                        const audioPart = content.find(p => p.type === 'input_audio');
-                        if (audioPart && audioPart.type === 'input_audio') {
-                             dataToProcess = Buffer.from(audioPart.input_audio.data, 'base64');
-                        } else {
-                             throw new LlmRetryError("LLM returned no audio.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
-                        }
-                    } else {
-                         throw new LlmRetryError("LLM returned no audio content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
-                    }
+                if (state) {
+                    state.add(assistantMessage);
                 }
 
-                const finalConversation = [...currentMessages];
-                if (assistantMessage) {
-                    finalConversation.push(assistantMessage);
-                }
+                const finalConversation = state ? state.getMessages() : [...currentMessages, assistantMessage];
 
                 const info: LlmRetryResponseInfo = {
                     mode,
@@ -227,20 +185,21 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
                 };
 
                 if (validate) {
-                    const result = await validate(dataToProcess, info);
-                    return result;
+                    return await validate(completion, info);
                 }
 
-                return dataToProcess as T;
+                return completion as unknown as T;
 
             } catch (error: any) {
                 if (error instanceof LlmRetryError) {
-                    const conversationForError = [...currentMessages];
+                    const conversationForError = state ? state.getMessages() : [...currentMessages];
                     
-                    if (error.rawResponse) {
-                        conversationForError.push({ role: 'assistant', content: error.rawResponse });
-                    } else if (rawResponseForError) {
-                        conversationForError.push({ role: 'assistant', content: rawResponseForError });
+                    if (!state) {
+                        if (error.rawResponse) {
+                            conversationForError.push({ role: 'assistant', content: error.rawResponse });
+                        } else if (rawResponseForError) {
+                            conversationForError.push({ role: 'assistant', content: rawResponseForError });
+                        }
                     }
 
                     lastError = new LlmRetryAttemptError(
@@ -253,21 +212,14 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
                         { cause: lastError }
                     );
                 } else {
-                    // For any other error (ZodError, SchemaValidationError that wasn't fixed, network error, etc.)
-                    // We wrap it in LlmFatalError to ensure context is preserved.
-                    
                     const fatalMessage = error.message || 'An unexpected error occurred during LLM execution';
-                    
-                    // If it's already a fatal error, use its cause, otherwise use the error itself
                     const cause = error instanceof LlmFatalError ? error.cause : error;
-                    
-                    // Use the raw response we captured, or if the error has one (e.g. LlmFatalError from lower client)
                     const responseContent = rawResponseForError || (error as any).rawResponse || null;
 
                     throw new LlmFatalError(
                         fatalMessage,
                         cause,
-                        currentMessages, // This contains the full history of retries
+                        currentMessages,
                         responseContent
                     );
                 }
@@ -292,7 +244,7 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
         arg2?: LlmRetryOptions<T>
     ): Promise<T> {
         const retryParams = normalizeRetryOptions<T>(arg1, arg2);
-        return runPromptLoop(retryParams, 'raw');
+        return runPromptLoop(retryParams);
     }
 
     async function promptTextRetry<T = string>(
@@ -307,7 +259,22 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
         arg2?: LlmRetryOptions<T>
     ): Promise<T> {
         const retryParams = normalizeRetryOptions<T>(arg1, arg2);
-        return runPromptLoop(retryParams, 'text');
+        const userValidate = retryParams.validate;
+
+        retryParams.validate = async (completion, info) => {
+            const content = completion.choices[0]?.message?.content;
+            if (content === null || content === undefined) {
+                throw new LlmRetryError("LLM returned no text content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+            }
+            
+            if (userValidate) {
+                return await userValidate(completion, info);
+            }
+            
+            return content as unknown as T;
+        };
+
+        return runPromptLoop(retryParams);
     }
 
     async function promptImageRetry<T = Buffer>(
@@ -322,7 +289,38 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
         arg2?: LlmRetryOptions<T>
     ): Promise<T> {
         const retryParams = normalizeRetryOptions<T>(arg1, arg2);
-        return runPromptLoop(retryParams, 'image');
+        const userValidate = retryParams.validate;
+
+        retryParams.validate = async (completion, info) => {
+            const message = completion.choices[0]?.message as any;
+            let buffer: Buffer | null = null;
+
+            if (message.images && Array.isArray(message.images) && message.images.length > 0) {
+                const imageUrl = message.images[0].image_url.url;
+                if (typeof imageUrl === 'string') {
+                    if (imageUrl.startsWith('http')) {
+                        const imgRes = await fetch(imageUrl);
+                        const arrayBuffer = await imgRes.arrayBuffer();
+                        buffer = Buffer.from(arrayBuffer);
+                    } else {
+                        const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
+                        buffer = Buffer.from(base64Data, 'base64');
+                    }
+                }
+            }
+
+            if (!buffer) {
+                throw new LlmRetryError("LLM returned no image content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+            }
+
+            if (userValidate) {
+                return await userValidate(completion, info);
+            }
+
+            return buffer as unknown as T;
+        };
+
+        return runPromptLoop(retryParams);
     }
 
     async function promptAudioRetry<T = Buffer>(
@@ -337,7 +335,28 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
         arg2?: LlmRetryOptions<T>
     ): Promise<T> {
         const retryParams = normalizeRetryOptions<T>(arg1, arg2);
-        return runPromptLoop(retryParams, 'audio');
+        const userValidate = retryParams.validate;
+
+        retryParams.validate = async (completion, info) => {
+            const message = completion.choices[0]?.message;
+            let buffer: Buffer | null = null;
+
+            if (message.audio && message.audio.data) {
+                buffer = Buffer.from(message.audio.data, 'base64');
+            }
+
+            if (!buffer) {
+                throw new LlmRetryError("LLM returned no audio content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+            }
+
+            if (userValidate) {
+                return await userValidate(completion, info);
+            }
+
+            return buffer as unknown as T;
+        };
+
+        return runPromptLoop(retryParams);
     }
 
     return { promptRetry, promptTextRetry, promptImageRetry, promptAudioRetry };

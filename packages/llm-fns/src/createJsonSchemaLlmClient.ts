@@ -265,7 +265,12 @@ ${schemaJsonString}`;
             options
         );
 
-        const processResponse = async (llmResponseString: string): Promise<T> => {
+        const processResponse = async (completion: OpenAI.Chat.Completions.ChatCompletion): Promise<T> => {
+            const llmResponseString = completion.choices[0]?.message?.content;
+            if (!llmResponseString) {
+                 throw new LlmRetryError("LLM returned no text content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
+            }
+
             let jsonData: any;
             try {
                 jsonData = await _parseOrFixJson(llmResponseString, schemaJsonString, options);

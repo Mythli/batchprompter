@@ -9,4 +9,5 @@ export * from './createIterativeRefiner.js';
 export * from './completionToAssistantMessage.js';
 export * from './createCandidateSelector.js';
 export * from './util.js';
-export * from './createAiLoggingFetcher.js'
+export * from './createAiLoggingFetcher.js';
+export * from './createConversation.js';
