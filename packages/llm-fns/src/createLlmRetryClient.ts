@@ -10,6 +10,7 @@ import { completionToMessage } from './completionToAssistantMessage.js';
 import { ConversationState } from './createConversation.js';
 import { extractImageBuffer, extractAudioBuffer } from './extractBinary.js';
 import { createDnsFetcher } from './createDnsFetcher.js';
+import { concatSystemContent } from './util.js';
 
 export class LlmRetryError extends Error {
     constructor(
@@ -144,7 +145,7 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
             for (const m of initialMessages) state.add(m);
         }
 
-        const systemMessage = initialMessages.find(m => m.role === 'system');
+        const systemMessages = initialMessages.filter(m => m.role === 'system');
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             if (attempt > 0 && retryBaseDelay > 0) {
@@ -167,10 +168,15 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
                 ? state.getMessages() 
                 : constructLlmMessages(initialMessages, attempt, lastError);
 
-            // The "conversation" (currentMessages) never has the system message.
-            // We add it back only for the actual LLM call.
-            const messagesForCall = systemMessage 
-                ? [systemMessage, ...currentMessages]
+            // Combine all system messages from initialMessages
+            const finalSystemContent = concatSystemContent(systemMessages.map(m => m.content));
+            let finalSystemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined;
+            if (finalSystemContent) {
+                finalSystemMessage = { role: 'system', content: finalSystemContent as any };
+            }
+
+            const messagesForCall = finalSystemMessage 
+                ? [finalSystemMessage, ...currentMessages]
                 : currentMessages;
 
             // Capture raw response for error context

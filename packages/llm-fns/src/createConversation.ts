@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { completionToMessage } from './completionToAssistantMessage.js';
 import { CreateLlmClientParams } from './createLlmClient.js';
 import { createLlm, LlmClient } from './llmFactory.js';
+import { concatSystemContent } from './util.js';
 
 /**
  * Abstract interface for managing conversation history.
@@ -10,6 +11,9 @@ import { createLlm, LlmClient } from './llmFactory.js';
 export interface ConversationState {
     /** Returns a read-only copy of the current message history (excluding system messages) */
     getMessages(): OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+
+    /** Returns the initial system messages */
+    getSystemMessages(): OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 
     /** Adds a raw message parameter to the history. System messages are ignored. */
     add(message: OpenAI.Chat.Completions.ChatCompletionMessageParam): void;
@@ -35,6 +39,7 @@ export interface ConversationState {
  * Filters out system messages from initial input and prevents them from being added.
  */
 export function createConversationState(initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []): ConversationState {
+    const systemMessages = initialMessages.filter(m => m.role === 'system');
     let messages = initialMessages.filter(m => m.role !== 'system');
 
     const add = (m: OpenAI.Chat.Completions.ChatCompletionMessageParam) => {
@@ -57,6 +62,7 @@ export function createConversationState(initialMessages: OpenAI.Chat.Completions
 
     return {
         getMessages: () => [...messages],
+        getSystemMessages: () => [...systemMessages],
         add,
         addCompletion,
         addUserMessage,
@@ -103,14 +109,25 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
                     }
 
                     const historyMessages = state.getMessages();
+                    const baseSystemMessages = state.getSystemMessages();
                     
-                    // System message only comes from the current call (e.g. injected by promptZod)
-                    const systemToUse = incomingMessages.find(m => m.role === 'system');
+                    const callSystemMessages = incomingMessages.filter(m => m.role === 'system');
                     const currentWithoutSystem = incomingMessages.filter(m => m.role !== 'system');
 
+                    // Combine all system messages (initial + call-specific)
+                    const finalSystemContent = concatSystemContent([
+                        ...baseSystemMessages.map(m => m.content),
+                        ...callSystemMessages.map(m => m.content)
+                    ]);
+
+                    let finalSystemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined;
+                    if (finalSystemContent) {
+                        finalSystemMessage = { role: 'system', content: finalSystemContent as any };
+                    }
+
                     // Rebuild the full message array for the actual SDK call
-                    const finalMessages = systemToUse 
-                        ? [systemToUse, ...historyMessages, ...currentWithoutSystem]
+                    const finalMessages = finalSystemMessage 
+                        ? [finalSystemMessage, ...historyMessages, ...currentWithoutSystem]
                         : [...historyMessages, ...currentWithoutSystem];
 
                     const result = await params.openai.chat.completions.create({

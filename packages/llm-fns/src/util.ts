@@ -211,3 +211,23 @@ export function getPromptSummary(messages: OpenAI.Chat.Completions.ChatCompletio
 
     return `${start}...${middle}...${end}`;
 }
+
+/**
+ * Concatenates multiple system message contents into a single content field.
+ * Supports both strings and content part arrays.
+ */
+export function concatSystemContent(contents: (string | OpenAI.Chat.Completions.ChatCompletionContentPart[] | null | undefined)[]): string | OpenAI.Chat.Completions.ChatCompletionContentPart[] {
+    const validContents = contents.filter((c): c is string | OpenAI.Chat.Completions.ChatCompletionContentPart[] => !!c);
+    
+    if (validContents.length === 0) return "";
+
+    if (validContents.every(c => typeof c === 'string')) {
+        return validContents.join('\n\n');
+    }
+
+    return validContents.flatMap(c => 
+        typeof c === 'string' 
+            ? [{ type: 'text', text: c } as OpenAI.Chat.Completions.ChatCompletionContentPart] 
+            : c
+    );
+}

@@ -69,4 +69,42 @@ describe('Conversation Integration', () => {
         expect(messages[3].role).toBe('assistant');
         expect(messages[3].content).toBe("{\"age\": 20}");
     });
+
+    it('should support initial system messages and concatenate them with call-specific ones', async () => {
+        const mockOpenAI = createMockOpenAI(["Response"]);
+        const llm = createLlm({ openai: mockOpenAI, defaultModel: 'test' });
+
+        const conv = llm.createConversation([
+            { role: 'system', content: 'Base System' }
+        ]);
+
+        await conv.promptText("Hello");
+
+        // Check what was sent to OpenAI
+        const lastCall = mockOpenAI.chat.completions.create.mock.calls[0][0];
+        const sentMessages = lastCall.messages;
+
+        expect(sentMessages[0].role).toBe('system');
+        expect(sentMessages[0].content).toBe('Base System');
+        expect(sentMessages[1].role).toBe('user');
+        expect(sentMessages[1].content).toBe('Hello');
+
+        // Now check concatenation with promptZod
+        mockOpenAI.chat.completions.create.mockClear();
+        mockOpenAI.addResponse("{\"age\": 20}");
+
+        await conv.promptZod("How old?", z.object({ age: z.number() }));
+
+        const secondCall = mockOpenAI.chat.completions.create.mock.calls[0][0];
+        const sentMessages2 = secondCall.messages;
+
+        expect(sentMessages2[0].role).toBe('system');
+        // Base System + promptZod's system message
+        expect(sentMessages2[0].content).toContain('Base System');
+        expect(sentMessages2[0].content).toContain('You are a helpful assistant');
+        
+        // History should still exclude system messages
+        const history = conv.getMessages();
+        expect(history.some(m => m.role === 'system')).toBe(false);
+    });
 });
