@@ -3,13 +3,11 @@ import OpenAI from 'openai';
 import PQueue from 'p-queue';
 import { EventEmitter } from 'eventemitter3';
 import { GlobalContext } from '../../src/types.js';
-import { MemoryContentResolver } from '../../src/core/io/MemoryContentResolver.js';
 import { LlmClientFactory } from '../../src/core/LlmClientFactory.js';
 import { MessageBuilder } from '../../src/core/MessageBuilder.js';
 import { Plugin, createPluginRegistry } from '../../src/plugins/index.js';
 import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
-import { PromptLoader } from '../../src/config/PromptLoader.js';
 import {createMockOpenAI, getPromptSummary, LlmFatalError} from 'llm-fns';
 import { DebugLogger } from "../../src/index.js";
 
@@ -25,7 +23,6 @@ export function createTestContext(options: TestContextOptions = {}) {
     const { responses = [], webSearch, imageSearch } = options;
     const openai = createMockOpenAI(responses);
     const events = new EventEmitter();
-    const contentResolver = new MemoryContentResolver();
 
     const globalContext: GlobalContext = {
         openai,
@@ -52,12 +49,11 @@ export function createTestContext(options: TestContextOptions = {}) {
             hasPuppeteer: true
         },
         defaultModel: 'gpt-mock',
-        contentResolver,
         webSearch,
         imageSearch
     } as any; // Cast to any because we construct the rest below
 
-    return { globalContext, openai, events, contentResolver };
+    return { globalContext, openai, events };
 }
 
 export interface TestEnvOptions {
@@ -77,7 +73,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         imageSearch
     } = options;
 
-    const { globalContext, openai, events, contentResolver } = createTestContext({
+    const { globalContext, openai, events } = createTestContext({
         responses: mockResponses,
         webSearch,
         imageSearch
@@ -116,8 +112,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     const executor = new InMemoryConfigExecutor(
         actionRunner,
         pluginRegistry,
-        events,
-        contentResolver
+        events
     );
 
     return {
@@ -125,7 +120,6 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         openai,
         events,
         registry: pluginRegistry,
-        globalContext,
-        contentResolver
+        globalContext
     };
 }
