@@ -29,13 +29,12 @@ export function isAudioResponse(completion: OpenAI.Chat.Completions.ChatCompleti
  * Supports both hosted URLs (via fetch) and base64 data URIs.
  * 
  * @param completion The ChatCompletion object.
- * @param customFetch Optional custom fetch implementation.
+ * @param fetchImpl Mandatory fetch implementation for remote resource extraction.
  */
 export async function extractImageBuffer(
     completion: OpenAI.Chat.Completions.ChatCompletion,
-    customFetch?: typeof globalThis.fetch
+    fetchImpl: typeof globalThis.fetch
 ): Promise<Buffer> {
-    const fetchImpl = customFetch ?? globalThis.fetch;
     const message = completion.choices[0]?.message as any;
     let imageUrl: string | undefined;
 

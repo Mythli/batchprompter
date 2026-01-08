@@ -4,6 +4,7 @@ import type PQueue from 'p-queue';
 import { executeWithRetry } from './retryUtils.js';
 import { truncateMessages, getPromptSummary } from './util.js';
 import { extractImageBuffer, extractAudioBuffer } from './extractBinary.js';
+import { createDnsFetcher } from './createDnsFetcher.js';
 
 export class LlmFatalError extends Error {
     constructor(
@@ -166,7 +167,7 @@ export function createLlmClient(params: CreateLlmClientParams) {
         fetch: factoryFetch
     } = params;
 
-    const fetchImpl = factoryFetch ?? globalThis.fetch;
+    const fetchImpl = factoryFetch ?? createDnsFetcher();
 
     const getCompletionParams = (promptParams: LlmPromptParams) => {
         const {

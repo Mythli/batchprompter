@@ -3,18 +3,22 @@ import https from 'https';
 import http from 'http';
 
 /**
- * Creates a fetch-like function that uses Google's DNS servers (8.8.8.8, 8.8.4.4)
- * for hostname resolution.
+ * Creates a fetch-like function that uses specific DNS servers for hostname resolution.
+ * Defaults to Google's DNS servers (8.8.8.8, 8.8.4.4).
  *
  * This implementation uses Node.js's http/https agents with a custom lookup function.
  * It is primarily compatible with fetch implementations that respect the `agent` option
- * (like node-fetch).
+ * (like node-fetch or the built-in fetch in Node.js 18+).
  *
+ * @param dnsServers Array of DNS server IP addresses. Defaults to Google DNS.
  * @param innerFetch Optional fetch implementation to wrap. Defaults to global fetch.
  */
-export function createDnsFetcher(innerFetch?: typeof fetch) {
+export function createDnsFetcher(
+    dnsServers: string[] = ['8.8.8.8', '8.8.4.4'],
+    innerFetch?: typeof fetch
+) {
     const resolver = new dns.Resolver();
-    resolver.setServers(['8.8.8.8', '8.8.4.4']);
+    resolver.setServers(dnsServers);
 
     const lookup = (
         hostname: string,
@@ -29,10 +33,10 @@ export function createDnsFetcher(innerFetch?: typeof fetch) {
             return dns.lookup(hostname, opts, cb);
         }
 
-        // Attempt to resolve IPv4 via Google DNS
+        // Attempt to resolve IPv4 via configured DNS servers
         resolver.resolve4(hostname, (err, addresses) => {
             if (err || !addresses || addresses.length === 0) {
-                // Fallback to system DNS lookup if Google DNS fails or doesn't return IPv4
+                // Fallback to system DNS lookup if custom DNS fails or doesn't return IPv4
                 return dns.lookup(hostname, opts, cb);
             }
             // Return the first resolved address

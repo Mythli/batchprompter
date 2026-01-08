@@ -9,6 +9,7 @@ import {
 import { completionToMessage } from './completionToAssistantMessage.js';
 import { ConversationState } from './createConversation.js';
 import { extractImageBuffer, extractAudioBuffer } from './extractBinary.js';
+import { createDnsFetcher } from './createDnsFetcher.js';
 
 export class LlmRetryError extends Error {
     constructor(
@@ -120,7 +121,7 @@ function constructLlmMessages(
 export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
     const { prompt, fallbackPrompt, retryBaseDelay: factoryRetryBaseDelay = 0, fetch: factoryFetch } = params;
 
-    const fetchImpl = factoryFetch ?? globalThis.fetch;
+    const fetchImpl = factoryFetch ?? createDnsFetcher();
 
     async function runPromptLoop<T>(
         retryParams: LlmRetryParams<T>
