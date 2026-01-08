@@ -87,15 +87,11 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     new DebugLogger(events as any);
 
     const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock', 0);
-    const messageBuilder = new MessageBuilder();
-
-    const promptLoader = new PromptLoader(contentResolver);
 
     // Create registry with injected dependencies
     const createLlm = (config: any) => llmFactory.create(config).getRawClient();
 
     const pluginRegistry = createPluginRegistry({
-        promptLoader,
         createLlm: createLlm as any,
         webSearch: globalContext.webSearch,
         imageSearch: globalContext.imageSearch,
