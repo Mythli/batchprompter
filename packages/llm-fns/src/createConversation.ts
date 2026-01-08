@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { completionToMessage } from './completionToAssistantMessage.js';
-import { createLlmClient, PromptFunction, CreateLlmClientParams } from './createLlmClient.js';
+import { createLlmClient, PromptFunction, CreateLlmClientParams, normalizeOptions } from './createLlmClient.js';
 import { createLlmRetryClient } from './createLlmRetryClient.js';
 import { createJsonSchemaLlmClient } from './createJsonSchemaLlmClient.js';
 import { createZodLlmClient } from './createZodLlmClient.js';
@@ -115,8 +115,7 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
             let lastCompletion: OpenAI.Chat.Completions.ChatCompletion | undefined;
 
             const spyPrompt: PromptFunction = async (arg1: any, arg2?: any) => {
-                // Sub-clients call prompt({ messages, ... })
-                const options = typeof arg1 === 'string' ? { messages: [{role: 'user', content: arg1}], ...arg2 } : arg1;
+                const options = normalizeOptions(arg1, arg2);
                 
                 const history = state.getMessages();
                 if (firstCall) {
