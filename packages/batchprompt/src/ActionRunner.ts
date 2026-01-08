@@ -1,5 +1,5 @@
 import { RuntimeConfig, PipelineItem, GlobalContext } from './types.js';
-import { Step } from './core/Step.js';
+import { Pipeline } from './core/Pipeline.js';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -21,15 +21,11 @@ export class ActionRunner {
         this.globalContext.taskQueue.concurrency = taskConcurrency;
         this.globalContext.gptQueue.concurrency = concurrency;
 
-        // --- Phase 1: Initialization (The Step Level) ---
-        const initializedSteps: Step[] = [];
-        for (let i = 0; i < steps.length; i++) {
-            const stepConfig = steps[i];
-            const step = new Step(stepConfig, this.globalContext, i);
-            await step.init();
-            initializedSteps.push(step);
-        }
-        events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initialized ${initializedSteps.length} steps.` });
+        // --- Phase 1: Compilation (The Pipeline Level) ---
+        const pipeline = new Pipeline(steps, this.globalContext);
+        await pipeline.init();
+        
+        events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initialized ${pipeline.steps.length} steps.` });
 
         const endIndex = limit ? offset + limit : undefined;
         const dataToProcess = data.slice(offset, endIndex);
@@ -39,7 +35,7 @@ export class ActionRunner {
         const queue = this.globalContext.taskQueue;
 
         const enqueueNext = (items: PipelineItem[], nextStepIndex: number) => {
-            if (nextStepIndex >= steps.length) {
+            if (nextStepIndex >= pipeline.steps.length) {
                 for (const item of items) {
                     events.emit('row:end', { index: item.originalIndex, result: item.row });
                 }
@@ -52,7 +48,7 @@ export class ActionRunner {
 
         const processTask = async (payload: TaskPayload) => {
             const { item, stepIndex } = payload;
-            const step = initializedSteps[stepIndex];
+            const step = pipeline.steps[stepIndex];
             const stepNum = stepIndex + 1;
             const timeoutMs = step.config.timeout * 1000;
 
