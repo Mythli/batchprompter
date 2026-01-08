@@ -115,10 +115,12 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
                     const currentWithoutSystem = incomingMessages.filter(m => m.role !== 'system');
 
                     // Combine all system messages (initial + call-specific)
+                    // We cast to the expected type because TS infers a wider type for content (including Refusal parts)
+                    // from the generic ChatCompletionMessageParam, but we know system messages are compatible.
                     const finalSystemContent = concatSystemContent([
                         ...baseSystemMessages.map(m => m.content),
                         ...callSystemMessages.map(m => m.content)
-                    ]);
+                    ] as (string | OpenAI.Chat.Completions.ChatCompletionContentPart[] | null | undefined)[]);
 
                     let finalSystemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined;
                     if (finalSystemContent) {
