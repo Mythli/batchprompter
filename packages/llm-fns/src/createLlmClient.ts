@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import type PQueue from 'p-queue';
 import { executeWithRetry } from './retryUtils.js';
 import { truncateMessages, getPromptSummary } from './util.js';
+import { extractImageBuffer, extractAudioBuffer } from './extractBinary.js';
 
 export class LlmFatalError extends Error {
     constructor(
@@ -281,22 +282,7 @@ export function createLlmClient(params: CreateLlmClientParams) {
     async function promptImage(arg1: string | LlmPromptOptions, arg2?: LlmCommonOptions): Promise<Buffer> {
         const promptParams = normalizeOptions(arg1, arg2);
         const response = await prompt(promptParams);
-        const message = response.choices[0]?.message as any;
-
-        if (message.images && Array.isArray(message.images) && message.images.length > 0) {
-            const imageUrl = message.images[0].image_url.url;
-            if (typeof imageUrl === 'string') {
-                if (imageUrl.startsWith('http')) {
-                    const imgRes = await fetch(imageUrl);
-                    const arrayBuffer = await imgRes.arrayBuffer();
-                    return Buffer.from(arrayBuffer);
-                } else {
-                    const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-                    return Buffer.from(base64Data, 'base64');
-                }
-            }
-        }
-        throw new Error("LLM returned no image content.");
+        return extractImageBuffer(response);
     }
 
     async function promptAudio(content: string, options?: LlmCommonOptions): Promise<Buffer>;
@@ -308,12 +294,7 @@ export function createLlmClient(params: CreateLlmClientParams) {
         // We won't force it here to avoid overriding user intent, but promptAudio implies audio output.
 
         const response = await prompt(promptParams);
-        const message = response.choices[0]?.message;
-
-        if (message.audio && message.audio.data) {
-            return Buffer.from(message.audio.data, 'base64');
-        }
-        throw new Error("LLM returned no audio content.");
+        return extractAudioBuffer(response);
     }
 
     return { prompt, promptText, promptImage, promptAudio };

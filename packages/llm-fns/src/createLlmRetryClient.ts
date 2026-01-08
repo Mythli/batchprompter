@@ -8,6 +8,7 @@ import {
 } from "./createLlmClient.js";
 import { completionToMessage } from './completionToAssistantMessage.js';
 import { ConversationState } from './createConversation.js';
+import { extractImageBuffer, extractAudioBuffer } from './extractBinary.js';
 
 export class LlmRetryError extends Error {
     constructor(
@@ -292,32 +293,15 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
         const userValidate = retryParams.validate;
 
         retryParams.validate = async (completion, info) => {
-            const message = completion.choices[0]?.message as any;
-            let buffer: Buffer | null = null;
-
-            if (message.images && Array.isArray(message.images) && message.images.length > 0) {
-                const imageUrl = message.images[0].image_url.url;
-                if (typeof imageUrl === 'string') {
-                    if (imageUrl.startsWith('http')) {
-                        const imgRes = await fetch(imageUrl);
-                        const arrayBuffer = await imgRes.arrayBuffer();
-                        buffer = Buffer.from(arrayBuffer);
-                    } else {
-                        const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, "");
-                        buffer = Buffer.from(base64Data, 'base64');
-                    }
+            try {
+                const buffer = await extractImageBuffer(completion);
+                if (userValidate) {
+                    return await userValidate(completion, info);
                 }
+                return buffer as unknown as T;
+            } catch (e: any) {
+                throw new LlmRetryError(e.message || "LLM returned no image content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
             }
-
-            if (!buffer) {
-                throw new LlmRetryError("LLM returned no image content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
-            }
-
-            if (userValidate) {
-                return await userValidate(completion, info);
-            }
-
-            return buffer as unknown as T;
         };
 
         return runPromptLoop(retryParams);
@@ -338,22 +322,15 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
         const userValidate = retryParams.validate;
 
         retryParams.validate = async (completion, info) => {
-            const message = completion.choices[0]?.message;
-            let buffer: Buffer | null = null;
-
-            if (message.audio && message.audio.data) {
-                buffer = Buffer.from(message.audio.data, 'base64');
+            try {
+                const buffer = extractAudioBuffer(completion);
+                if (userValidate) {
+                    return await userValidate(completion, info);
+                }
+                return buffer as unknown as T;
+            } catch (e: any) {
+                throw new LlmRetryError(e.message || "LLM returned no audio content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
             }
-
-            if (!buffer) {
-                throw new LlmRetryError("LLM returned no audio content.", 'CUSTOM_ERROR', undefined, JSON.stringify(completion));
-            }
-
-            if (userValidate) {
-                return await userValidate(completion, info);
-            }
-
-            return buffer as unknown as T;
         };
 
         return runPromptLoop(retryParams);

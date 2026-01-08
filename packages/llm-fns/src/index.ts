@@ -11,3 +11,4 @@ export * from './createCandidateSelector.js';
 export * from './util.js';
 export * from './createAiLoggingFetcher.js';
 export * from './createConversation.js';
+export * from './extractBinary.js';
