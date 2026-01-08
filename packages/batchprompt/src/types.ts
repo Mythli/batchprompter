@@ -9,10 +9,10 @@ import { BoundLlmClient } from './core/BoundLlmClient.js';
 import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputConfig, StepConfig, ModelConfig, ResolvedPluginBase, RuntimeConfig } from './config/types.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
-import type { StepExecutionContext, PluginRegistryV2 } from './plugins/types.js';
+import type { PluginExecutionContext, PluginRegistryV2 } from './plugins/types.js';
 import { LlmClientFactory } from './core/LlmClientFactory.js';
 
-export type { StepExecutionContext };
+export type { PluginExecutionContext as StepExecutionContext };
 export type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputConfig, StepConfig, ModelConfig, ResolvedPluginBase, RuntimeConfig };
 
 export type OutputStrategy = OutputConfig;

@@ -8,8 +8,10 @@ export { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT, type OutputConfig } from './
 export { 
     ModelConfigSchema, 
     BaseModelConfigSchema,
-    BaseModelConfigSchema,
+    RawModelConfigSchema,
     type ModelConfig,
     type BaseModelConfig,
-    type PluginModelConfig
+    type PluginModelConfig,
+    type ResolvedModelConfig,
+    transformModelConfig
 } from './model.js';

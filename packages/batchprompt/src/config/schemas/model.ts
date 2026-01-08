@@ -21,6 +21,10 @@ export const RawModelConfigSchema = z.object({
     prompt: PromptSchema.optional()
 });
 
+export type ModelConfig = z.infer<typeof RawModelConfigSchema>;
+export type BaseModelConfig = ModelConfig;
+export type PluginModelConfig = ModelConfig;
+
 /**
  * The final resolved model configuration used at runtime.
  */
@@ -39,10 +43,6 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
 
     if (config.system) {
         const parts = normalizePromptToParts(config.system);
-        // System messages in OpenAI are typically text. 
-        // If parts contains images, this might be invalid for 'system' role in some APIs, 
-        // but we'll flatten text parts for now or pass as is if the API supports it.
-        // For safety, we join text parts.
         const text = parts.map(p => p.type === 'text' ? p.text : '').join('\n');
         if (text) {
             messages.push({ role: 'system', content: text });
@@ -64,6 +64,6 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
     };
 }
 
-// For backward compatibility with imports, though we are changing usage
+// For backward compatibility with imports
 export const BaseModelConfigSchema = RawModelConfigSchema;
-export const ModelConfigSchema = RawModelConfigSchema; // Defaults handled in inheritance logic
+export const ModelConfigSchema = RawModelConfigSchema;

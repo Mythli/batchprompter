@@ -67,12 +67,13 @@ export class PluginRegistryV2 {
             return z.object({ type: z.string() });
         }
 
-        const schemas = plugins.map(p => p.configSchema) as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]];
+        const schemas = plugins.map(p => p.configSchema);
         
         if (schemas.length === 1) {
             return schemas[0];
         }
 
+        // @ts-ignore - Zod types are complex for dynamic arrays
         return z.discriminatedUnion('type', schemas);
     }
 }

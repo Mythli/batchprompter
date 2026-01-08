@@ -4,10 +4,7 @@ export * from './getDiContainer.js';
 export * from './ActionRunner.js';
 
 // Config Utils
-export * from './config/PromptLoader.js';
-export * from './config/SchemaLoader.js';
 export * from './config/validationRules.js';
-export * from './config/ConfigNormalizer.js';
 export * from './config/schema.js';
 export * from './config/resolveConfig.js';
 
@@ -22,10 +19,6 @@ export * from './core/LlmClientFactory.js';
 export * from './core/BoundLlmClient.js';
 export * from './core/MessageBuilder.js';
 export * from './core/ResultProcessor.js';
-
-// IO
-export * from './core/io/ContentResolver.js';
-export * from './core/io/MemoryContentResolver.js';
 
 // Plugins
 export * from './plugins/index.js';

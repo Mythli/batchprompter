@@ -69,6 +69,7 @@ export function createStepSchema<TPlugin extends z.ZodTypeAny, TSchema extends z
 }
 
 export const StepConfigSchema = createStepSchema(z.any(), z.any()); // Placeholder for type inference
+export const LooseStepConfigSchema = StepConfigSchema; // Alias for now if they are the same structure in this context
 
 // =============================================================================
 // Pipeline Schema with Inheritance Logic
@@ -177,11 +178,6 @@ export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema exten
             // 6. Resolve Timeout
             const timeout = step.timeout ?? pipeline.timeout;
 
-            // 7. Expand Urls Shortcut (if not handled by plugin registry logic, but here we assume plugins are already objects)
-            // Note: The shortcut expansion usually happens before validation. 
-            // If we assume the input `step.plugins` already contains the expanded URL plugin if needed, we are good.
-            // If not, we might need a preprocess step. For now, we assume standard structure.
-
             return {
                 ...step,
                 model: resolvedModel,
@@ -204,3 +200,5 @@ export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema exten
         };
     });
 }
+
+export const PipelineConfigSchema = createPipelineSchema(z.any(), z.any());

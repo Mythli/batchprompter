@@ -2,7 +2,8 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import {
     OutputConfigSchema,
-    ResolvedModelConfig
+    ResolvedModelConfig,
+    RawModelConfigSchema
 } from './schemas/index.js';
 import { GlobalsConfigSchema, StepConfigSchema } from './schema.js';
 
@@ -13,6 +14,7 @@ import { GlobalsConfigSchema, StepConfigSchema } from './schema.js';
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
 export type ModelConfig = z.infer<typeof RawModelConfigSchema>;
 export type BaseModelConfig = ModelConfig;
+export type ResolvedOutputConfig = OutputConfig;
 
 // =============================================================================
 // Prompt Types
