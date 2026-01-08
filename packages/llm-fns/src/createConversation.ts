@@ -5,12 +5,13 @@ import { createLlm, LlmClient } from './llmFactory.js';
 
 /**
  * Abstract interface for managing conversation history.
+ * System messages are explicitly excluded from the conversation history.
  */
 export interface ConversationState {
-    /** Returns a read-only copy of the current message history */
+    /** Returns a read-only copy of the current message history (excluding system messages) */
     getMessages(): OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 
-    /** Adds a raw message parameter to the history */
+    /** Adds a raw message parameter to the history. System messages are ignored. */
     add(message: OpenAI.Chat.Completions.ChatCompletionMessageParam): void;
 
     /** Normalizes and adds a full completion to the history as an assistant message */
@@ -31,11 +32,16 @@ export interface ConversationState {
 
 /**
  * Creates a simple in-memory implementation of ConversationState.
+ * Filters out system messages from initial input and prevents them from being added.
  */
 export function createConversationState(initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []): ConversationState {
-    let messages = [...initialMessages];
+    let messages = initialMessages.filter(m => m.role !== 'system');
 
-    const add = (m: OpenAI.Chat.Completions.ChatCompletionMessageParam) => messages.push(m);
+    const add = (m: OpenAI.Chat.Completions.ChatCompletionMessageParam) => {
+        if (m.role !== 'system') {
+            messages.push(m);
+        }
+    };
 
     const addCompletion = (completion: OpenAI.Chat.Completions.ChatCompletion) => {
         add(completionToMessage(completion));
@@ -66,6 +72,8 @@ export function createConversationState(initialMessages: OpenAI.Chat.Completions
  * 1. Capture the normalized user message(s) from the first call of the turn.
  * 2. Execute the call using the full history from the state.
  * 3. Capture the final assistant response and append it to the state.
+ * 
+ * System messages are used for the duration of a call but are never stored in history.
  */
 export function createConversation(params: CreateLlmClientParams, initialMessages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) {
     const state = createConversationState(initialMessages);
@@ -73,7 +81,6 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
     // Turn-specific tracking state
     let isFirstCallInTurn = true;
     let turnInitialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-    let turnSystemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined;
     let lastCompletionInTurn: OpenAI.Chat.Completions.ChatCompletion | undefined;
 
     /**
@@ -90,25 +97,21 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
                     const incomingMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = createParams.messages;
 
                     if (isFirstCallInTurn) {
-                        // Capture the "clean" prompt messages from the start of the turn
-                        turnSystemMessage = incomingMessages.find(m => m.role === 'system');
+                        // Capture the "clean" prompt messages from the start of the turn (excluding system)
                         turnInitialMessages = incomingMessages.filter(m => m.role !== 'system');
                         isFirstCallInTurn = false;
                     }
 
                     const historyMessages = state.getMessages();
                     
-                    // Determine which system message to use (new one overrides old one)
-                    const systemToUse = incomingMessages.find(m => m.role === 'system') 
-                                     || historyMessages.find(m => m.role === 'system');
-                    
-                    const historyWithoutSystem = historyMessages.filter(m => m.role !== 'system');
+                    // System message only comes from the current call (e.g. injected by promptZod)
+                    const systemToUse = incomingMessages.find(m => m.role === 'system');
                     const currentWithoutSystem = incomingMessages.filter(m => m.role !== 'system');
 
                     // Rebuild the full message array for the actual SDK call
                     const finalMessages = systemToUse 
-                        ? [systemToUse, ...historyWithoutSystem, ...currentWithoutSystem]
-                        : [...historyWithoutSystem, ...currentWithoutSystem];
+                        ? [systemToUse, ...historyMessages, ...currentWithoutSystem]
+                        : [...historyMessages, ...currentWithoutSystem];
 
                     const result = await params.openai.chat.completions.create({
                         ...createParams,
@@ -140,21 +143,11 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
             // Reset turn context
             isFirstCallInTurn = true;
             turnInitialMessages = [];
-            turnSystemMessage = undefined;
             lastCompletionInTurn = undefined;
 
             const result = await originalMethod.apply(client, args);
 
             // Turn finished successfully. Commit the turn to the long-term history.
-            
-            if (turnSystemMessage) {
-                // Replace system message in state and keep it at the top
-                const history = state.getMessages().filter(m => m.role !== 'system');
-                state.clear();
-                state.add(turnSystemMessage);
-                for (const m of history) state.add(m);
-            }
-
             for (const m of turnInitialMessages) {
                 state.add(m);
             }

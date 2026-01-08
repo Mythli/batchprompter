@@ -47,15 +47,15 @@ describe('Conversation Integration', () => {
         // 1: Assistant: The capital of France is Paris.
         
         // Turn 2 messages:
-        // 2: System: (Zod system prompt)
-        // 3: User: How old am I?
-        // 4: Assistant: {"age": 20}
+        // 2: User: How old am I?
+        // 3: Assistant: {"age": 20}
         
-        // Note: Intermediate retry messages (the broken "I am twenty years old" and the error feedback)
+        // Note: System messages (like the one injected by promptZod) are NOT in history.
+        // Intermediate retry messages (the broken "I am twenty years old" and the error feedback)
         // are not captured in the state by createConversation's wrapMethod because it focuses 
         // on the successful turn outcome.
         
-        expect(messages.length).toBe(5);
+        expect(messages.length).toBe(4);
         
         expect(messages[0].role).toBe('user');
         expect(messages[0].content).toBe("What is the capital of France?");
@@ -63,13 +63,10 @@ describe('Conversation Integration', () => {
         expect(messages[1].role).toBe('assistant');
         expect(messages[1].content).toBe("The capital of France is Paris.");
 
-        expect(messages[2].role).toBe('system');
-        expect(messages[2].content).toContain("outputs JSON matching the provided schema");
+        expect(messages[2].role).toBe('user');
+        expect(messages[2].content).toBe("How old am I?");
 
-        expect(messages[3].role).toBe('user');
-        expect(messages[3].content).toBe("How old am I?");
-
-        expect(messages[4].role).toBe('assistant');
-        expect(messages[4].content).toBe("{\"age\": 20}");
+        expect(messages[3].role).toBe('assistant');
+        expect(messages[3].content).toBe("{\"age\": 20}");
     });
 });

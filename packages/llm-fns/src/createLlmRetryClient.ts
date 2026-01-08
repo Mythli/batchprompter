@@ -97,8 +97,10 @@ function constructLlmMessages(
     attemptNumber: number,
     previousError?: LlmRetryAttemptError
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+    const initialWithoutSystem = initialMessages.filter(m => m.role !== 'system');
+
     if (attemptNumber === 0) {
-        return initialMessages;
+        return initialWithoutSystem;
     }
 
     if (!previousError) {
@@ -142,6 +144,8 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
             for (const m of initialMessages) state.add(m);
         }
 
+        const systemMessage = initialMessages.find(m => m.role === 'system');
+
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             if (attempt > 0 && retryBaseDelay > 0) {
                 const backoffTime = retryBaseDelay * Math.pow(2, attempt - 1);
@@ -163,12 +167,18 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
                 ? state.getMessages() 
                 : constructLlmMessages(initialMessages, attempt, lastError);
 
+            // The "conversation" (currentMessages) never has the system message.
+            // We add it back only for the actual LLM call.
+            const messagesForCall = systemMessage 
+                ? [systemMessage, ...currentMessages]
+                : currentMessages;
+
             // Capture raw response for error context
             let rawResponseForError: string | null = null;
 
             try {
                 const completion = await currentPrompt({
-                    messages: currentMessages,
+                    messages: messagesForCall,
                     ...restOptions,
                 });
 
@@ -225,7 +235,7 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
                     throw new LlmFatalError(
                         fatalMessage,
                         cause,
-                        currentMessages,
+                        messagesForCall,
                         responseContent
                     );
                 }
