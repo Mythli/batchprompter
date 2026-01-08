@@ -10,12 +10,12 @@ import { MessageBuilder } from '../../src/core/MessageBuilder.js';
 import { Plugin, createPluginRegistry } from '../../src/plugins/index.js';
 import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
-import { DebugLogger } from '../../src/core/DebugLogger.js';
 import { PromptLoader } from '../../src/config/PromptLoader.js';
 import { getPromptSummary, LlmFatalError } from 'llm-fns';
 import { StepOrchestrator } from '../../src/core/StepOrchestrator.js';
 import { PluginExecutor } from '../../src/core/PluginExecutor.js';
 import { StepExecutor } from '../../src/StepExecutor.js';
+import {DebugLogger} from "../../src/index.js";
 
 export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
 
