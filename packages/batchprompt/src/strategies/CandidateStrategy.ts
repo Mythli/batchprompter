@@ -3,9 +3,6 @@ import { z } from 'zod';
 import { createCandidateSelector } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
-import { StepContext } from '../types.js';
-import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from '../core/events.js';
 import { StepRow } from '../core/StepRow.js';
 
 type CandidateType = GenerationResult & { candidateIndex: number };
@@ -13,16 +10,19 @@ type CandidateType = GenerationResult & { candidateIndex: number };
 export class CandidateStrategy implements GenerationStrategy {
     constructor(
         private standardStrategy: StandardStrategy,
-        private stepContext: StepContext,
-        private events: EventEmitter<BatchPromptEvents>,
         private stepRow: StepRow
     ) {}
+
+    private get events() {
+        return this.stepRow.getEvents();
+    }
 
     async execute(cacheSalt?: string | number): Promise<GenerationResult> {
         const config = this.stepRow.step.config;
         const index = this.stepRow.item.originalIndex;
         const stepIndex = this.stepRow.step.stepIndex;
         const candidateCount = config.candidates;
+        const judgeConfig = config.judge;
 
         this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Generating ${candidateCount} candidates...` });
 
@@ -33,7 +33,7 @@ export class CandidateStrategy implements GenerationStrategy {
                 return { ...res, candidateIndex: i };
             },
             judge: async (_, candidates) => {
-                if (!this.stepContext.judge) {
+                if (!judgeConfig) {
                     // No judge configured, return dummy selection (we will use all candidates anyway)
                     return { bestCandidateIndex: 0, reason: "No judge configured" };
                 }
@@ -57,7 +57,7 @@ export class CandidateStrategy implements GenerationStrategy {
 
         const selection = await selector.run(undefined, cacheSalt);
 
-        if (this.stepContext.judge) {
+        if (judgeConfig) {
             if (!selection.skippedJudge) {
                 this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Judge selected candidate #${selection.winner.candidateIndex + 1}` });
                 this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Judge Reason: ${selection.reason}` });
@@ -91,8 +91,10 @@ export class CandidateStrategy implements GenerationStrategy {
     private async performJudging(
         candidates: CandidateType[]
     ): Promise<{ best_candidate_index: number; reason: string }> {
+        const judgeConfig = this.stepRow.step.config.judge;
+        if (!judgeConfig) throw new Error("No judge configuration found");
 
-        if (!this.stepContext.judge) throw new Error("No judge configuration found");
+        const judgeClient = this.stepRow.getBoundClient(judgeConfig);
 
         // Prepare Candidate Presentation
         const candidatePresentationParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
@@ -134,7 +136,7 @@ export class CandidateStrategy implements GenerationStrategy {
             reason: z.string().describe("The reason for selecting this candidate"),
         });
 
-        return await this.stepContext.judge.promptZod(
+        return await judgeClient.promptZod(
             {
                 prefix: contextParts,
                 suffix: candidatePresentationParts

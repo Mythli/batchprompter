@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
 import { Step } from './Step.js';
-import { PipelineItem, StepContext } from '../types.js';
+import { PipelineItem } from '../types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 import { ensureDir, aggressiveSanitize } from '../utils/fileUtils.js';
 import { renderSchemaObject } from '../utils/schemaUtils.js';
@@ -106,18 +106,10 @@ export class StepRow {
 
             // --- Stage 4: Execution Strategy ---
             
-            const stepContext: StepContext = {
-                global: this.step.globalContext,
-                llm: llm,
-                judge: this.step.config.judge ? this.getBoundClient(this.step.config.judge) : undefined,
-                feedback: this.step.config.feedback ? this.getBoundClient(this.step.config.feedback) : undefined,
-                createLlm: (cfg: ResolvedModelConfig) => this.getBoundClient(cfg)
-            };
-
             let strategy: GenerationStrategy = new StandardStrategy(this);
 
             if (this.step.config.candidates > 1) {
-                strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext, this.step.globalContext.events, this);
+                strategy = new CandidateStrategy(strategy as StandardStrategy, this);
             }
 
             const executionResult = await strategy.execute();
