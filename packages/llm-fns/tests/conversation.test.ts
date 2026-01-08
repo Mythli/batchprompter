@@ -1,7 +1,34 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { createLlm } from '../src/llmFactory.js';
-import { createMockOpenAI } from '../src/createMockOpenAI.js';
+
+function createMockOpenAI(initialResponses: string[]) {
+    const responses = [...initialResponses];
+    const create = vi.fn(async (params: any) => {
+        const content = responses.shift() || "";
+        return {
+            id: 'mock-id',
+            object: 'chat.completion',
+            created: Date.now(),
+            model: 'mock-model',
+            choices: [{
+                message: { role: 'assistant', content },
+                finish_reason: 'stop',
+                index: 0
+            }],
+            usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+        } as any;
+    });
+
+    return {
+        chat: {
+            completions: {
+                create
+            }
+        },
+        addResponse: (r: string) => responses.push(r)
+    } as any;
+}
 
 describe('Conversation Integration', () => {
     it('should maintain history across multiple turns including retries', async () => {
