@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import Ajv from 'ajv';
-import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import {
     Plugin
@@ -14,22 +13,16 @@ import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js'
 import { PluginScope } from '../PluginScope.js';
 import { renderSchemaObject } from '../../utils/schemaUtils.js';
 
-// Loose Schema (String or Object for schema field) - defined first as base
 export const LooseValidationConfigSchemaV2 = z.object({
-    type: z.literal('validation').describe("Identifies this as a Validation plugin."),
-    id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save validation results."),
-    
-    // Required
-    schema: z.union([z.string(), zJsonSchemaObject]).describe("JSON Schema to validate the data against. Can be inline object or file path."),
-    
-    // Optional
-    target: zHandlebars.optional().describe("Data to validate (Handlebars template). Defaults to the current row.")
-}).describe("Configuration for the Validation plugin.");
+    type: z.literal('validation'),
+    id: z.string().optional(),
+    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT),
+    schema: z.union([z.string(), zJsonSchemaObject]),
+    target: zHandlebars.optional()
+});
 
-// Strict Schema (Object only) - derived by narrowing the schema field
 export const ValidationConfigSchemaV2 = LooseValidationConfigSchemaV2.extend({
-    schema: zJsonSchemaObject.describe("JSON Schema to validate the data against.")
+    schema: zJsonSchemaObject
 }).strict();
 
 export type ValidationRawConfigV2 = z.infer<typeof LooseValidationConfigSchemaV2>;
@@ -64,12 +57,15 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             if (schema.includes('{{')) {
                 // It will be resolved in prepare/postProcess
             } else {
+                // We no longer support file loading here. 
+                // If it's a string and not a template, it must be a JSON string or we fail.
                 try {
-                    const content = await step.globalContext.contentResolver.readText(schema);
-                    schema = JSON.parse(content);
+                    schema = JSON.parse(schema);
                     schemaSource = rawConfig.schema as string;
                 } catch (e: any) {
-                    throw new Error(`Failed to load schema from '${schema}': ${e.message}`);
+                    // If it's not JSON, we assume it's a template that doesn't look like one, or invalid.
+                    // But since we removed file loading, we can't resolve paths.
+                    // We'll leave it as string if it fails parse, assuming it might be a template.
                 }
             }
         }
@@ -77,11 +73,7 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         return {
             type: 'validation',
             id: rawConfig.id ?? `validation-${Date.now()}`,
-            output: {
-                mode: rawConfig.output.mode,
-                column: rawConfig.output.column,
-                explode: rawConfig.output.explode
-            },
+            output: rawConfig.output,
             schema,
             target: rawConfig.target,
             schemaSource
@@ -89,8 +81,6 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
     }
 
     async prepare(stepRow: StepRow, config: ValidationResolvedConfigV2): Promise<void> {
-        // Validation happens in postProcess, but we might need to resolve dynamic schema here if we wanted to fail early.
-        // However, validation usually checks the OUTPUT of the model, so we wait for postProcess.
     }
 
     async postProcess(
@@ -109,16 +99,14 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             emit: emit
         }, this.type);
 
-        // Resolve schema if it's still a template string
         let schema = config.schema;
         if (typeof schema === 'string') {
              try {
                  const template = Handlebars.compile(schema, { noEscape: true });
-                 const resolvedPath = template(context);
-                 const content = await stepRow.step.globalContext.contentResolver.readText(resolvedPath);
-                 schema = JSON.parse(content);
+                 const resolvedSchema = template(context);
+                 schema = JSON.parse(resolvedSchema);
              } catch (e: any) {
-                 throw new Error(`Failed to load schema from template: ${e.message}`);
+                 throw new Error(`Failed to parse schema template: ${e.message}`);
              }
         } else {
             schema = renderSchemaObject(schema, context);
@@ -128,7 +116,6 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
 
         if (config.target) {
             const template = Handlebars.compile(config.target, { noEscape: true });
-            // We merge result into row for template context so we can validate response fields
             const templateContext = { ...context, response: result };
             const jsonString = template(templateContext);
 
@@ -142,12 +129,10 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
                 dataToValidate = jsonString;
             }
         } else {
-            // Default behavior: Validate the response object directly
             if (typeof result === 'string') {
                 try {
                     dataToValidate = JSON.parse(result);
                 } catch (e) {
-                    // Keep as string if parsing fails
                 }
             }
         }
@@ -172,7 +157,6 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
                 tags: ['debug', 'validation', 'error']
             });
 
-            // Throw error to trigger retry in StandardStrategy
             throw new Error(`Validation failed: ${errors}`);
         }
 

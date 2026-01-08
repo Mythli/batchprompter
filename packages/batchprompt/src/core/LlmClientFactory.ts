@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
-import { ResolvedModelConfig } from '../config/types.js';
+import { ResolvedModelConfig } from '../config/schemas/model.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 
 export class LlmClientFactory {
@@ -13,9 +13,14 @@ export class LlmClientFactory {
     ) {}
 
     /**
-     * Creates a BoundLlmClient from a ResolvedModelConfig.
+     * Creates a BoundLlmClient.
+     * @param config The resolved model config (model, temp, etc)
+     * @param messages The fully hydrated messages to bind
      */
-    create(config: ResolvedModelConfig): BoundLlmClient {
+    create(
+        config: ResolvedModelConfig, 
+        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+    ): BoundLlmClient {
         const modelConfig: Record<string, any> = {
             model: config.model || this.defaultModel
         };
@@ -35,10 +40,6 @@ export class LlmClientFactory {
             retryBaseDelay: this.retryBaseDelay,
         });
 
-        return new BoundLlmClient(
-            rawClient,
-            config.systemParts || [],
-            config.promptParts || []
-        );
+        return new BoundLlmClient(rawClient, messages);
     }
 }

@@ -3,94 +3,77 @@ import os from 'os';
 import path from 'path';
 import { 
     PromptSchema,
-    ModelConfigSchema, 
-    OutputConfigSchema 
+    RawModelConfigSchema, 
+    OutputConfigSchema,
+    transformModelConfig
 } from './schemas/index.js';
 import { zJsonSchemaObject, zHandlebars } from './validationRules.js';
 import { UrlExpanderStepExtension } from '../plugins/url-expander/UrlExpanderConfig.js';
 
 // =============================================================================
-// Re-exports for backward compatibility
+// Re-exports
 // =============================================================================
 
-export { PromptSchema as PromptDefSchema, ModelConfigSchema, OutputConfigSchema };
+export { PromptSchema as PromptDefSchema, RawModelConfigSchema as ModelConfigSchema, OutputConfigSchema };
 
 // =============================================================================
 // Feedback Schema
 // =============================================================================
 
-export const FeedbackConfigSchema = ModelConfigSchema.extend({
+export const FeedbackConfigSchema = RawModelConfigSchema.extend({
     loops: z.number().int().min(0).default(0).describe("Number of feedback iterations to run.")
-}).describe("Configuration for the feedback loop (self-correction).");
+});
 
 // =============================================================================
 // Global Configuration Schema
 // =============================================================================
 
 export const GlobalsConfigSchema = z.object({
-    model: z.string().default('google/gemini-3-flash-preview')
-        .describe("Default model to use if not specified in a step."),
-    temperature: z.number().min(0).max(2).optional()
-        .describe("Default temperature."),
-    thinkingLevel: z.enum(['low', 'medium', 'high']).optional()
-        .describe("Default thinking level."),
-    concurrency: z.number().int().positive().default(50)
-        .describe("Max concurrent LLM requests."),
-    taskConcurrency: z.number().int().positive().default(100)
-        .describe("Max concurrent row processing tasks."),
-    tmpDir: zHandlebars.default(path.join(os.tmpdir(), 'batchprompt'))
-        .describe("Directory for temporary files."),
-    outputPath: zHandlebars.optional()
-        .describe("Default output path template."),
-    dataOutputPath: z.string().optional()
-        .describe("Path to save the final dataset (CSV/JSON)."),
-    timeout: z.number().int().positive().default(180)
-        .describe("Default timeout in seconds for steps."),
-    inputLimit: z.number().int().positive().optional()
-        .describe("Max rows to read from source."),
-    inputOffset: z.number().int().min(0).optional()
-        .describe("Starting row index from source."),
-    limit: z.number().int().positive().optional()
-        .describe("Default max items to keep when exploding."),
+    model: z.string().default('google/gemini-3-flash-preview'),
+    temperature: z.number().min(0).max(2).optional(),
+    thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    concurrency: z.number().int().positive().default(50),
+    taskConcurrency: z.number().int().positive().default(100),
+    tmpDir: zHandlebars.default(path.join(os.tmpdir(), 'batchprompt')),
+    outputPath: zHandlebars.optional(),
+    dataOutputPath: z.string().optional(),
+    timeout: z.number().int().positive().default(180),
+    inputLimit: z.number().int().positive().optional(),
+    inputOffset: z.number().int().min(0).optional(),
+    limit: z.number().int().positive().optional(),
     offset: z.number().int().min(0).optional()
-        .describe("Default starting index when exploding.")
-}).describe("Global configuration settings.");
+});
 
 // =============================================================================
-// Step Schema Factory
+// Step Schema
 // =============================================================================
 
-/**
- * Creates a step config schema with the given plugin union and schema field type.
- * This is the single source of truth for step configuration structure.
- */
 export function createStepSchema<TPlugin extends z.ZodTypeAny, TSchema extends z.ZodTypeAny>(
     pluginUnion: TPlugin,
     schemaFieldType: TSchema
 ) {
     return z.object({
-        prompt: PromptSchema.optional().describe("The main instruction for this step."),
-        system: PromptSchema.optional().describe("System instruction for this step."),
-        model: ModelConfigSchema.optional().describe("Model configuration for this step."),
-        output: OutputConfigSchema.default({
-            mode: 'ignore',
-            explode: false
-        }).describe("How to save the result of this step."),
-        outputPath: zHandlebars.optional().describe("Template for saving the result to a file."),
-        candidates: z.number().int().positive().default(1).describe("Number of candidate responses to generate."),
-        judge: ModelConfigSchema.optional().describe("Configuration for a judge model to select the best candidate."),
-        feedback: FeedbackConfigSchema.optional().describe("Configuration for a feedback loop to improve the result."),
-        aspectRatio: z.string().optional().describe("Aspect ratio for image generation (e.g., '16:9')."),
-        timeout: z.number().int().positive().optional().describe("Timeout in seconds for this step."),
-        schema: schemaFieldType.optional().describe("JSON Schema to enforce structured output."),
-        plugins: z.array(pluginUnion).default([]).describe("List of plugins to execute before the model.")
-    }).merge(UrlExpanderStepExtension).describe("Configuration for a single step in the pipeline.");
+        prompt: PromptSchema.optional(),
+        system: PromptSchema.optional(),
+        model: RawModelConfigSchema.optional(),
+        output: OutputConfigSchema.default({ mode: 'ignore', explode: false }),
+        outputPath: zHandlebars.optional(),
+        candidates: z.number().int().positive().default(1),
+        judge: RawModelConfigSchema.optional(),
+        feedback: FeedbackConfigSchema.optional(),
+        aspectRatio: z.string().optional(),
+        timeout: z.number().int().positive().optional(),
+        schema: schemaFieldType.optional(),
+        plugins: z.array(pluginUnion).default([])
+    }).merge(UrlExpanderStepExtension);
 }
 
-/**
- * Creates a full pipeline schema with the given plugin union and schema field type.
- * Used by CLI to generate JSON Schema with all registered plugins.
- */
+export const StepConfigSchema = createStepSchema(z.any(), z.any()); // Placeholder for type inference
+
+// =============================================================================
+// Pipeline Schema with Inheritance Logic
+// =============================================================================
+
 export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema extends z.ZodTypeAny>(
     pluginUnion: TPlugin,
     schemaFieldType: TSchema
@@ -98,17 +81,126 @@ export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema exten
     const StepSchema = createStepSchema(pluginUnion, schemaFieldType);
     
     return GlobalsConfigSchema.extend({
-        data: z.array(z.record(z.string(), z.any())).default([{}])
-            .describe("The input data rows."),
+        data: z.array(z.record(z.string(), z.any())).default([{}]),
         steps: z.array(StepSchema).min(1)
-            .describe("List of steps to execute.")
+    }).transform(pipeline => {
+        // --- Inheritance Logic ---
+        
+        const globalModelDefaults = {
+            model: pipeline.model,
+            temperature: pipeline.temperature,
+            thinkingLevel: pipeline.thinkingLevel
+        };
+
+        const resolvedSteps = pipeline.steps.map((step, stepIndex) => {
+            // 1. Merge Global -> Step Model
+            // Step-level 'prompt' and 'system' are shortcuts for 'model.prompt' and 'model.system'
+            const rawStepModel = step.model || {};
+            
+            const mergedStepModel = {
+                model: rawStepModel.model ?? globalModelDefaults.model,
+                temperature: rawStepModel.temperature ?? globalModelDefaults.temperature,
+                thinkingLevel: rawStepModel.thinkingLevel ?? globalModelDefaults.thinkingLevel,
+                system: rawStepModel.system ?? step.system,
+                prompt: rawStepModel.prompt ?? step.prompt
+            };
+
+            // 2. Transform Step Model to Messages
+            const resolvedModel = transformModelConfig(mergedStepModel);
+
+            // 3. Resolve Judge & Feedback
+            let resolvedJudge;
+            if (step.judge) {
+                resolvedJudge = transformModelConfig({
+                    model: step.judge.model ?? mergedStepModel.model,
+                    temperature: step.judge.temperature ?? mergedStepModel.temperature,
+                    thinkingLevel: step.judge.thinkingLevel ?? mergedStepModel.thinkingLevel,
+                    system: step.judge.system,
+                    prompt: step.judge.prompt
+                });
+            }
+
+            let resolvedFeedback;
+            if (step.feedback) {
+                const fbConfig = transformModelConfig({
+                    model: step.feedback.model ?? mergedStepModel.model,
+                    temperature: step.feedback.temperature ?? mergedStepModel.temperature,
+                    thinkingLevel: step.feedback.thinkingLevel ?? mergedStepModel.thinkingLevel,
+                    system: step.feedback.system,
+                    prompt: step.feedback.prompt
+                });
+                resolvedFeedback = { ...fbConfig, loops: step.feedback.loops };
+            }
+
+            // 4. Process Plugins (Push-down inheritance)
+            const resolvedPlugins = step.plugins.map((plugin: any, pluginIdx: number) => {
+                const pluginOutput = plugin.output || { mode: 'ignore', explode: false };
+                
+                // Propagate global limits if exploding
+                if (pluginOutput.explode) {
+                    pluginOutput.limit ??= pipeline.limit;
+                    pluginOutput.offset ??= pipeline.offset;
+                }
+
+                // Merge Step Model into Plugin Models
+                // We iterate over keys to find model configs (heuristic: ends with 'Model')
+                const rawConfig = plugin.rawConfig || plugin; // Handle pre-parsed or raw
+                const mergedPluginConfig = { ...rawConfig };
+
+                for (const key of Object.keys(mergedPluginConfig)) {
+                    if (key.endsWith('Model') && typeof mergedPluginConfig[key] === 'object') {
+                        const pModel = mergedPluginConfig[key];
+                        // Merge step defaults
+                        const mergedPModel = {
+                            model: pModel.model ?? mergedStepModel.model,
+                            temperature: pModel.temperature ?? mergedStepModel.temperature,
+                            thinkingLevel: pModel.thinkingLevel ?? mergedStepModel.thinkingLevel,
+                            system: pModel.system,
+                            prompt: pModel.prompt
+                        };
+                        // Transform to messages immediately
+                        mergedPluginConfig[key] = transformModelConfig(mergedPModel);
+                    }
+                }
+
+                return {
+                    type: plugin.type,
+                    id: plugin.id ?? `${plugin.type}-${stepIndex}-${pluginIdx}`,
+                    output: pluginOutput,
+                    rawConfig: mergedPluginConfig
+                };
+            });
+
+            // 5. Resolve Output Path
+            const outputPathTemplate = step.outputPath ?? pipeline.outputPath;
+            
+            // 6. Resolve Timeout
+            const timeout = step.timeout ?? pipeline.timeout;
+
+            // 7. Expand Urls Shortcut (if not handled by plugin registry logic, but here we assume plugins are already objects)
+            // Note: The shortcut expansion usually happens before validation. 
+            // If we assume the input `step.plugins` already contains the expanded URL plugin if needed, we are good.
+            // If not, we might need a preprocess step. For now, we assume standard structure.
+
+            return {
+                ...step,
+                model: resolvedModel,
+                judge: resolvedJudge,
+                feedback: resolvedFeedback,
+                plugins: resolvedPlugins,
+                outputPath: outputPathTemplate,
+                outputTemplate: outputPathTemplate,
+                timeout,
+                tmpDir: pipeline.tmpDir,
+                // Clean up shortcuts
+                prompt: undefined,
+                system: undefined
+            };
+        });
+
+        return {
+            ...pipeline,
+            steps: resolvedSteps
+        };
     });
 }
-
-// =============================================================================
-// Pre-built Pipeline Schemas
-// =============================================================================
-
-// Note: We no longer export static schemas like LoosePipelineConfigSchema here
-// because the plugin union is dynamic. Consumers should use createPipelineSchema
-// with the schema from the PluginRegistry.

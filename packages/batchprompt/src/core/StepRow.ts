@@ -9,6 +9,7 @@ import { renderSchemaObject } from '../utils/schemaUtils.js';
 import { StandardStrategy } from '../strategies/StandardStrategy.js';
 import { CandidateStrategy } from '../strategies/CandidateStrategy.js';
 import { GenerationStrategy } from '../strategies/GenerationStrategy.js';
+import { ResolvedModelConfig } from '../config/schemas/model.js';
 
 export class StepRow {
     public readonly context: Record<string, any>;
@@ -60,30 +61,25 @@ export class StepRow {
 
         // --- Stage 3: Model Setup ---
         const modelConfig = this.step.config.model;
-        const hasExplicitPrompt = 
-            (modelConfig?.prompt && (Array.isArray(modelConfig.prompt) ? modelConfig.prompt.length > 0 : true)) ||
-            (this.content.length > 0);
+        
+        // Check if we have messages or content to send
+        const hasMessages = modelConfig.messages.length > 0 || this.content.length > 0;
 
-        if (hasExplicitPrompt) {
-            // Hydrate main prompt
-            const promptParts = await this.resolvePrompt(modelConfig.prompt);
-            const systemParts = await this.resolvePrompt(modelConfig.system);
-
+        if (hasMessages) {
             // Resolve Schema (Dynamic)
             let schema = this.step.config.schema;
             if (schema) {
                 if (typeof schema === 'string') {
-                    // Template string -> Render -> Load
+                    // Template string -> Render -> Parse
                     try {
                         const template = Handlebars.compile(schema, { noEscape: true });
-                        const resolvedPath = template(this.context);
-                        const content = await this.step.globalContext.contentResolver.readText(resolvedPath);
-                        schema = JSON.parse(content);
+                        const renderedSchema = template(this.context);
+                        schema = JSON.parse(renderedSchema);
                     } catch (e) {
-                        console.warn(`[Row ${this.item.originalIndex}] Failed to load schema from template '${schema}':`, e);
+                        console.warn(`[Row ${this.item.originalIndex}] Failed to parse schema template:`, e);
                     }
                 } else {
-                    // Render templates inside the schema object using RAW context
+                    // Render templates inside the schema object
                     try {
                         schema = renderSchemaObject(schema, this.context);
                     } catch (e: any) {
@@ -93,46 +89,37 @@ export class StepRow {
             }
             this.resolvedSchema = schema;
 
-            // Create LLM Client
-            const llm = this.createLlm({
-                ...modelConfig,
-                promptParts: [], // We handle prompt parts manually via content stream
-                systemParts
-            });
+            // Create LLM Client & Hydrate Messages
+            const llm = this.getBoundClient(modelConfig);
+            
+            // Get the hydrated messages from the client
+            // The client now holds the rendered messages
+            this.preparedMessages = llm.getMessages();
 
-            // Build Messages
-            const userContent = [...promptParts, ...this.content];
-            const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [...this.history];
-            
-            if (systemParts.length > 0) {
-                const systemText = systemParts.map(p => p.type === 'text' ? p.text : '').join('\n');
-                messages.push({ role: 'system', content: systemText });
+            // Append dynamic content from plugins (this.content)
+            if (this.content.length > 0) {
+                this.preparedMessages.push({ role: 'user', content: this.content });
             }
-            
-            if (userContent.length > 0) {
-                messages.push({ role: 'user', content: userContent });
-            }
-            this.preparedMessages = messages;
+
+            // Prepend History
+            this.preparedMessages = [...this.history, ...this.preparedMessages];
 
             // --- Stage 4: Execution Strategy ---
             
-            // Build StepContext for strategies
             const stepContext: StepContext = {
                 global: this.step.globalContext,
                 llm: llm,
-                judge: this.step.config.judge ? this.createLlm(this.step.config.judge) : undefined,
-                feedback: this.step.config.feedback ? this.createLlm(this.step.config.feedback) : undefined,
-                createLlm: (cfg: any) => this.createLlm(cfg)
+                judge: this.step.config.judge ? this.getBoundClient(this.step.config.judge) : undefined,
+                feedback: this.step.config.feedback ? this.getBoundClient(this.step.config.feedback) : undefined,
+                createLlm: (cfg: ResolvedModelConfig) => this.getBoundClient(cfg)
             };
 
-            // Select Strategy
             let strategy: GenerationStrategy = new StandardStrategy(this);
 
             if (this.step.config.candidates > 1) {
                 strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext, this.step.globalContext.events, this);
             }
 
-            // Execute Strategy
             const executionResult = await strategy.execute();
 
             let result = executionResult.raw !== undefined ? executionResult.raw : executionResult.columnValue;
@@ -169,7 +156,7 @@ export class StepRow {
             return [newItem];
 
         } else {
-            // Pass-through (no model execution)
+            // Pass-through
             return [{
                 ...this.item,
                 history: this.history
@@ -181,35 +168,38 @@ export class StepRow {
         this.content.push(...parts);
     }
 
-    createLlm(config: any): BoundLlmClient {
-        const systemParts = this.renderParts(config.systemParts || []);
-        const promptParts = this.renderParts(config.promptParts || []);
-        
-        return this.step.globalContext.llmFactory.create({
-            ...config,
-            systemParts,
-            promptParts
-        });
-    }
-
-    async resolvePrompt(prompt: any): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
-        if (Array.isArray(prompt)) {
-            return this.renderParts(prompt);
-        }
-        return [];
-    }
-
-    renderParts(parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
-        return parts.map(part => {
-            if (part.type === 'text') {
-                return { type: 'text', text: this.render(part.text) };
+    /**
+     * Creates a BoundLlmClient by hydrating the messages in the config.
+     */
+    getBoundClient(config: ResolvedModelConfig): BoundLlmClient {
+        // Hydrate messages
+        const hydratedMessages = config.messages.map(msg => {
+            if (typeof msg.content === 'string') {
+                return { ...msg, content: this.render(msg.content) };
+            } else if (Array.isArray(msg.content)) {
+                const hydratedContent = msg.content.map(part => {
+                    if (part.type === 'text') {
+                        return { ...part, text: this.render(part.text) };
+                    }
+                    return part;
+                });
+                return { ...msg, content: hydratedContent };
             }
-            return part;
+            return msg;
         });
+
+        return this.step.globalContext.llmFactory.create(config, hydratedMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[]);
+    }
+
+    // Alias for plugins that might still call createLlm
+    createLlm(config: ResolvedModelConfig): BoundLlmClient {
+        return this.getBoundClient(config);
     }
 
     render(template: string, context: Record<string, any> = this.context): string {
         if (!template) return '';
+        // Handlebars throws on undefined helpers/properties sometimes, safe wrap?
+        // Assuming standard usage.
         const t = Handlebars.compile(template, { noEscape: true });
         return t(context);
     }
@@ -218,7 +208,6 @@ export class StepRow {
         const { config, stepIndex } = this.step;
         const stepNum = stepIndex + 1;
 
-        // Create sanitized context for file paths
         const sanitizedContext: Record<string, any> = {};
         for (const [key, val] of Object.entries(this.context)) {
              const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');

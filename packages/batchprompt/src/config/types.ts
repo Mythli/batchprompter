@@ -2,32 +2,24 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { 
     OutputConfigSchema, 
-    ModelConfigSchema,
-    BaseModelConfigSchema
+    RawModelConfigSchema,
+    ResolvedModelConfig
 } from './schemas/index.js';
 import { GlobalsConfigSchema, StepConfigSchema } from './schema.js';
 
 // =============================================================================
-// Schema-Derived Types (Re-export from schemas)
+// Schema-Derived Types
 // =============================================================================
 
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
-export type ModelConfig = z.infer<typeof ModelConfigSchema>;
-export type BaseModelConfig = z.infer<typeof BaseModelConfigSchema>;
-
-// Alias for backward compatibility
-export type ResolvedOutputConfig = OutputConfig;
+export type ModelConfig = z.infer<typeof RawModelConfigSchema>;
+export type BaseModelConfig = ModelConfig;
 
 // =============================================================================
 // Prompt Types
 // =============================================================================
 
-// PromptDef must match the PromptSchema union which includes any[] for ContentParts
-export type PromptDef = string | any[] | {
-    file?: string;
-    text?: string;
-    parts?: any[];
-};
+export type PromptDef = string | any[];
 
 // =============================================================================
 // Service Configuration
@@ -39,25 +31,11 @@ export interface ServiceCapabilities {
 }
 
 // =============================================================================
-// Resolved Types (Runtime-only, created by StepResolver)
+// Resolved Types (Runtime)
 // =============================================================================
 
-/**
- * Model config after prompts are loaded into ContentParts.
- * This is a RUNTIME type, not a schema type.
- */
-export interface ResolvedModelConfig {
-    model?: string;
-    temperature?: number;
-    thinkingLevel?: 'low' | 'medium' | 'high';
-    systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-    promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-}
+export { ResolvedModelConfig };
 
-/**
- * Plugin config after resolution.
- * This is a RUNTIME type with resolved ID and raw config preserved.
- */
 export interface ResolvedPluginBase {
     type: string;
     id: string;
@@ -72,43 +50,27 @@ export interface ResolvedPluginBase {
 // Base type from Zod schema
 type StepConfigBase = z.infer<typeof StepConfigSchema>;
 
-/**
- * Step configuration at runtime.
- * Extends the parsed schema with:
- * - Resolved plugins (instead of raw plugin configs)
- * - Runtime-resolved paths and prompts
- */
-export interface StepConfig extends Omit<StepConfigBase, 'plugins'> {
-    // Override plugins with resolved type
+export interface StepConfig extends Omit<StepConfigBase, 'plugins' | 'model' | 'judge' | 'feedback'> {
+    // Resolved Plugins
     plugins: ResolvedPluginBase[];
     
-    // Model is required at runtime (with defaults applied)
-    model: ModelConfig;
+    // Resolved Models
+    model: ResolvedModelConfig;
+    judge?: ResolvedModelConfig;
+    feedback?: ResolvedModelConfig & { loops: number };
     
-    // Timeout is required at runtime (with default applied)
-    timeout: number;
-    
-    // Derived convenience field
-    feedbackLoops?: number;
-    
-    // Resolved paths (set by StepResolver)
+    // Runtime paths
     resolvedOutputDir?: string;
     resolvedTempDir?: string;
     outputBasename?: string;
     outputExtension?: string;
-    
-    // Alias for outputPath
     outputTemplate?: string;
     
-    // Resolved prompts (set by StepResolver)
-    userPromptParts?: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-    
-    // Shell commands (from ShellPlugin mapping)
+    // Shell commands
     verifyCommand?: string;
     command?: string;
     skipCandidateCommand?: boolean;
     
-    // Step-specific temp dir
     tmpDir?: string;
 }
 
@@ -118,7 +80,6 @@ export type ResolvedStepConfig = StepConfig;
 // Global & Pipeline Configuration (Runtime)
 // =============================================================================
 
-// Base type from Zod schema
 type GlobalsConfigBase = z.infer<typeof GlobalsConfigSchema>;
 
 export interface GlobalsConfig extends GlobalsConfigBase {}

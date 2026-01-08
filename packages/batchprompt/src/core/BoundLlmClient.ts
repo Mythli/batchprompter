@@ -3,9 +3,9 @@ import { LlmClient, concatMessageText } from 'llm-fns';
 import { z } from 'zod';
 
 export interface PromptOptions {
-    /** Content added BEFORE the stored promptParts */
+    /** Content added BEFORE the stored messages */
     prefix?: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-    /** Content added AFTER the stored promptParts */
+    /** Content added AFTER the stored messages */
     suffix?: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
@@ -16,59 +16,36 @@ export interface RequestOptions {
 }
 
 /**
- * An LLM client with pre-bound system and prompt parts.
- * This ensures prompts are never forgotten when calling the LLM.
+ * An LLM client with pre-bound messages.
  */
 export class BoundLlmClient {
     constructor(
         private client: LlmClient,
-        private systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[],
-        private promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]
+        private messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
     ) {}
 
     /**
-     * Builds the messages array from stored parts and optional prefix/suffix.
+     * Combines stored messages with optional prefix/suffix.
+     * Note: Prefix/Suffix are appended to the LAST user message if possible, or added as new user messages.
+     * For simplicity here, we append them as new user messages.
      */
     private buildMessages(options?: PromptOptions): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
-        const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-
-        // 1. System message
-        if (this.systemParts.length > 0) {
-            const content = concatMessageText([{ role: 'user', content: this.systemParts }]);
-            messages.push({ role: 'system', content: content as any });
-        }
-
-        // 2. User message: prefix + promptParts + suffix
-        const userParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+        const finalMessages = [...this.messages];
 
         if (options?.prefix && options.prefix.length > 0) {
-            userParts.push(...options.prefix);
-        }
-
-        if (this.promptParts.length > 0) {
-            if (userParts.length > 0) {
-                userParts.push({ type: 'text', text: '\n\n' });
-            }
-            userParts.push(...this.promptParts);
+            // Insert prefix before the last message if it's a user message? 
+            // Or just append? Usually suffix is what matters for "context + prompt".
+            // Let's append prefix then suffix.
+            finalMessages.push({ role: 'user', content: options.prefix });
         }
 
         if (options?.suffix && options.suffix.length > 0) {
-            if (userParts.length > 0) {
-                userParts.push({ type: 'text', text: '\n\n' });
-            }
-            userParts.push(...options.suffix);
+            finalMessages.push({ role: 'user', content: options.suffix });
         }
 
-        if (userParts.length > 0) {
-            messages.push({ role: 'user', content: userParts });
-        }
-
-        return messages;
+        return finalMessages;
     }
 
-    /**
-     * Call with Zod schema validation.
-     */
     async promptZod<T>(schema: z.ZodType<T>): Promise<T>;
     async promptZod<T>(options: PromptOptions, schema: z.ZodType<T>): Promise<T>;
     async promptZod<T>(arg1: z.ZodType<T> | PromptOptions, arg2?: z.ZodType<T>): Promise<T> {
@@ -86,9 +63,6 @@ export class BoundLlmClient {
         return this.client.promptZod(messages, schema);
     }
 
-    /**
-     * Call with JSON schema validation.
-     */
     async promptJson(schema: any): Promise<any>;
     async promptJson(options: PromptOptions, schema: any): Promise<any>;
     async promptJson(arg1: any, arg2?: any): Promise<any> {
@@ -106,9 +80,6 @@ export class BoundLlmClient {
         return this.client.promptJson(messages, schema);
     }
 
-    /**
-     * Call for plain text response.
-     */
     async promptText(): Promise<string>;
     async promptText(options: PromptOptions): Promise<string>;
     async promptText(options?: PromptOptions): Promise<string> {
@@ -116,10 +87,6 @@ export class BoundLlmClient {
         return this.client.promptText({ messages });
     }
 
-    /**
-     * Raw prompt call with full control over messages.
-     * Useful for strategies that need to manage conversation history.
-     */
     async prompt(params: {
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
         requestOptions?: RequestOptions;
@@ -128,24 +95,11 @@ export class BoundLlmClient {
         return this.client.prompt(params);
     }
 
-    /**
-     * Get the underlying raw LlmClient for advanced use cases.
-     */
     getRawClient(): LlmClient {
         return this.client;
     }
 
-    /**
-     * Get the stored system parts.
-     */
-    getSystemParts(): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
-        return this.systemParts;
-    }
-
-    /**
-     * Get the stored prompt parts.
-     */
-    getPromptParts(): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
-        return this.promptParts;
+    getMessages(): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+        return this.messages;
     }
 }

@@ -11,13 +11,11 @@ import { UrlHandlerRegistry } from './url-expander/utils/UrlHandlerRegistry.js';
 import { GenericFetchHandler } from './url-expander/utils/GenericFetchHandler.js';
 import { GenericPuppeteerHandler } from './url-expander/utils/GenericPuppeteerHandler.js';
 import { WikipediaHandler } from './url-expander/utils/sites/WikipediaHandler.js';
-import { PromptLoader } from '../config/PromptLoader.js';
 import { WebSearch } from './web-search/WebSearch.js';
 import { ImageSearch } from './image-search/ImageSearch.js';
 import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
 import { Fetcher } from 'llm-fns';
 import { GenericHandler } from './url-expander/utils/types.js';
-import PQueue from 'p-queue';
 
 // Re-export types
 export * from './types.js';
@@ -33,7 +31,6 @@ export { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
 export { UrlExpanderPlugin } from './url-expander/UrlExpanderPlugin.js';
 
 export interface PluginDependencies {
-    promptLoader: PromptLoader;
     createLlm: LlmFactory;
     webSearch?: WebSearch;
     imageSearch?: ImageSearch;
@@ -41,6 +38,8 @@ export interface PluginDependencies {
     puppeteerQueue?: PQueue;
     fetcher?: Fetcher;
 }
+
+import PQueue from 'p-queue';
 
 /**
  * Create a plugin registry with all built-in plugins registered and dependencies injected.
@@ -51,7 +50,6 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     // 1. Web Search (Requires Serper)
     if (deps.webSearch) {
         registry.register(new WebSearchPluginV2({
-            promptLoader: deps.promptLoader,
             webSearch: deps.webSearch,
             createLlm: deps.createLlm
         }));
@@ -60,7 +58,6 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     // 2. Image Search (Requires Serper)
     if (deps.imageSearch) {
         registry.register(new ImageSearchPluginV2({
-            promptLoader: deps.promptLoader,
             imageSearch: deps.imageSearch,
             createLlm: deps.createLlm
         }));
@@ -69,7 +66,6 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     // 3. Website Agent (Requires Puppeteer)
     if (deps.puppeteerHelper && deps.puppeteerQueue) {
         registry.register(new WebsiteAgentPluginV2({
-            promptLoader: deps.promptLoader,
             puppeteerHelper: deps.puppeteerHelper,
             puppeteerQueue: deps.puppeteerQueue,
             createLlm: deps.createLlm
@@ -86,7 +82,6 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     // 5. Logo Scraper (Requires Puppeteer + Fetcher)
     if (deps.puppeteerHelper && deps.fetcher) {
         registry.register(new LogoScraperPluginV2({
-            promptLoader: deps.promptLoader,
             puppeteerHelper: deps.puppeteerHelper,
             fetcher: deps.fetcher,
             createLlm: deps.createLlm

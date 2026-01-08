@@ -8,15 +8,11 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import { createPluginRegistry } from './plugins/index.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { createAiLoggingFetcher, createCachedFetcher, createLlm, LlmClient } from "llm-fns";
+import { createAiLoggingFetcher, createCachedFetcher, createLlm } from "llm-fns";
 import { GlobalContext } from './types.js';
 import { ServiceCapabilities, ModelConfig } from './config/types.js';
 import { LlmClientFactory } from './core/LlmClientFactory.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
-import { ContentResolver } from './core/io/ContentResolver.js';
-import { MemoryContentResolver } from './core/io/MemoryContentResolver.js';
-import { PromptLoader } from './config/PromptLoader.js';
-import { SchemaLoader } from './config/SchemaLoader.js';
 import { attachQueueLogger } from "./debug/queue.js";
 import { LlmFactory } from './plugins/types.js';
 
@@ -46,35 +42,18 @@ export const configSchema = z.object({
 
 export type ConfigOverrides = {
     concurrency?: number;
-    contentResolver?: ContentResolver;
-    promptLoader?: PromptLoader;
-    schemaLoader?: SchemaLoader;
     imageSearch?: ImageSearch;
     webSearch?: WebSearch;
     openai?: OpenAI;
     retryBaseDelay?: number;
 };
 
-// Adapter to make Keyv compatible with cache-manager Cache interface
 class KeyvCacheAdapter {
     constructor(private keyv: Keyv) {}
-
-    async get<T>(key: string): Promise<T | undefined> {
-        return this.keyv.get(key);
-    }
-
-    async set(key: string, value: any, ttl?: number): Promise<void> {
-        await this.keyv.set(key, value, ttl);
-    }
-
-    async del(key: string): Promise<void> {
-        await this.keyv.delete(key);
-    }
-
-    async reset(): Promise<void> {
-        await this.keyv.clear();
-    }
-
+    async get<T>(key: string): Promise<T | undefined> { return this.keyv.get(key); }
+    async set(key: string, value: any, ttl?: number): Promise<void> { await this.keyv.set(key, value, ttl); }
+    async del(key: string): Promise<void> { await this.keyv.delete(key); }
+    async reset(): Promise<void> { await this.keyv.clear(); }
     async mget(...keys: string[]): Promise<any[]> { return []; }
     async mset(args: [string, any][], ttl?: number): Promise<void> { return; }
     async mdel(...keys: string[]): Promise<void> { return; }
@@ -99,13 +78,11 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
 
     const config = configSchema.parse(rawConfig);
 
-    // Compute Service Capabilities
     const capabilities: ServiceCapabilities = {
         hasSerper: !!config.SERPER_API_KEY || !!overrides.imageSearch || !!overrides.webSearch,
-        hasPuppeteer: true // Puppeteer is always available (bundled)
+        hasPuppeteer: true
     };
 
-    // Setup Cache
     let cache: any;
     if (config.CACHE_ENABLED) {
         const keyv = new Keyv({
@@ -116,7 +93,6 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         cache = new KeyvCacheAdapter(keyv);
     }
 
-    // Setup Fetcher (Global)
     const fetcher = createCachedFetcher({
         cache,
         fetch: createAiLoggingFetcher(),
@@ -126,14 +102,12 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     });
 
-    // Setup OpenAI Client
     const openai = overrides.openai || new OpenAI({
         baseURL: config.AI_API_URL,
         apiKey: config.AI_API_KEY,
         fetch: fetcher as any
     });
 
-    // Setup Queues
     const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? config.GPT_CONCURRENCY });
     attachQueueLogger(gptQueue, 'GPT');
 
@@ -146,10 +120,8 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     const puppeteerQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
     attachQueueLogger(puppeteerQueue, 'Puppeteer');
 
-    // Default Model
     const defaultModel = config.MODEL || 'google/gemini-3-flash-preview';
 
-    // Setup Optional Services (based on capabilities)
     let imageSearch: ImageSearch | undefined = overrides.imageSearch;
     let webSearch: WebSearch | undefined = overrides.webSearch;
 
@@ -162,7 +134,6 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         }
     }
 
-    // Initialize PuppeteerHelper
     const puppeteerHelper = new PuppeteerHelper({
         cache,
         fetcher,
@@ -170,23 +141,6 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         restartTimeout: config.PUPPETEER_RESTART_TIMEOUT
     });
 
-    // Content Resolver
-    const contentResolver = overrides.contentResolver || new MemoryContentResolver();
-
-    // Loaders
-    const promptLoader = overrides.promptLoader || new PromptLoader(contentResolver);
-
-    const schemaLoader = overrides.schemaLoader || {
-        load: async (source: string) => {
-            try {
-                return JSON.parse(source);
-            } catch {
-                throw new Error("SchemaLoader not provided and source is not valid JSON.");
-            }
-        }
-    };
-
-    // Create Factories
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
 
     // The "Upgraded" createLlm factory for plugins
@@ -211,19 +165,19 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         });
     };
 
-    // Initialize Registries with Constructor Injection
+    const promptLoader = {} as any; // Mock/Empty as it's removed
+
     const pluginRegistry = createPluginRegistry({
-        promptLoader,
         webSearch,
         imageSearch,
         puppeteerHelper,
         createLlm: createTheLlm
     });
 
-    // Build GlobalContext
     const { EventEmitter } = await import('eventemitter3');
     const globalContext: GlobalContext = {
         openai,
+        events: new EventEmitter(),
         cache,
         gptQueue,
         taskQueue,
@@ -235,15 +189,12 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         webSearch,
         capabilities,
         defaultModel,
-        contentResolver,
-        events: new EventEmitter(),
         pluginRegistry,
         llmFactory
     };
 
     const messageBuilder = new MessageBuilder();
 
-    // Initialize ActionRunner
     const actionRunner = new ActionRunner(
         globalContext
     );
@@ -256,9 +207,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         puppeteerHelper,
         capabilities,
         llmFactory,
-        messageBuilder,
-        promptLoader,
-        schemaLoader
+        messageBuilder
     };
 }
 

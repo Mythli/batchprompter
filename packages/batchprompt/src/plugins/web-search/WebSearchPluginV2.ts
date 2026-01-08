@@ -1,6 +1,4 @@
 import { z } from 'zod';
-import Handlebars from 'handlebars';
-import OpenAI from 'openai';
 import {
     Plugin,
     LlmFactory
@@ -8,51 +6,29 @@ import {
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
-import { PromptLoader } from '../../config/PromptLoader.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { AiWebSearch } from './AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { WebSearch } from './WebSearch.js';
 
-// =============================================================================
-// Raw Config Schema
-// =============================================================================
-
 export const WebSearchConfigSchemaV2 = z.object({
-    type: z.literal('web-search').describe("Identifies this as a Web Search plugin."),
-    id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the search results."),
-
-    // Query source - at least one required
-    query: z.string().optional().describe("Static search query. Supports Handlebars (e.g., '{{keyword}}')."),
-    queryModel: BaseModelConfigSchema.optional().describe("Model configuration for generating search queries."),
-
-    // Selection/filtering
-    selectModel: BaseModelConfigSchema.optional().describe("Model configuration for selecting/filtering results."),
-
-    // Content compression
-    compressModel: BaseModelConfigSchema.optional().describe("Model configuration for summarizing page content."),
-
-    // Search options
-    limit: z.number().int().positive().default(5).describe("Max total results to return."),
-    mode: z.enum(['none', 'markdown', 'html']).default('none').describe("Content fetching mode."),
-    queryCount: z.number().int().positive().default(3).describe("Number of queries to generate (if using queryModel)."),
-    maxPages: z.number().int().positive().default(1).describe("Max pages of search results to fetch per query."),
-    dedupeStrategy: z.enum(['none', 'domain', 'url']).default('none').describe("Deduplication strategy."),
-    gl: z.string().optional().describe("Google Search country code (e.g. 'de', 'us')."),
-    hl: z.string().optional().describe("Google Search language code (e.g. 'de', 'en').")
-}).strict().refine(
-    (data) => data.query !== undefined || data.queryModel?.prompt !== undefined,
-    {
-        message: "web-search requires either 'query' or 'queryModel.prompt' to know what to search for."
-    }
-).describe("Configuration for the Web Search plugin.");
+    type: z.literal('web-search'),
+    id: z.string().optional(),
+    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT),
+    query: z.string().optional(),
+    queryModel: RawModelConfigSchema.optional(),
+    selectModel: RawModelConfigSchema.optional(),
+    compressModel: RawModelConfigSchema.optional(),
+    limit: z.number().int().positive().default(5),
+    mode: z.enum(['none', 'markdown', 'html']).default('none'),
+    queryCount: z.number().int().positive().default(3),
+    maxPages: z.number().int().positive().default(1),
+    dedupeStrategy: z.enum(['none', 'domain', 'url']).default('none'),
+    gl: z.string().optional(),
+    hl: z.string().optional()
+}).strict();
 
 export type WebSearchRawConfigV2 = z.infer<typeof WebSearchConfigSchemaV2>;
-
-// =============================================================================
-// Resolved Config
-// =============================================================================
 
 export interface WebSearchResolvedConfigV2 {
     type: 'web-search';
@@ -71,54 +47,27 @@ export interface WebSearchResolvedConfigV2 {
     hl?: string;
 }
 
-// =============================================================================
-// Plugin Implementation
-// =============================================================================
-
 export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearchResolvedConfigV2> {
     readonly type = 'web-search';
     readonly configSchema = WebSearchConfigSchemaV2;
 
     constructor(
         private deps: {
-            promptLoader: PromptLoader;
             webSearch: WebSearch;
             createLlm: LlmFactory;
         }
     ) {}
 
-    private async resolvePluginModel(
-        step: Step,
-        config: z.infer<typeof BaseModelConfigSchema> | undefined
-    ): Promise<ResolvedModelConfig | undefined> {
-        if (!config?.prompt) return undefined;
-
-        // Load prompts statically
-        const promptParts = await step.loadPrompt(config.prompt);
-        const systemParts = config.system ? await step.loadPrompt(config.system) : [];
-
-        return {
-            model: config.model,
-            temperature: config.temperature,
-            thinkingLevel: config.thinkingLevel,
-            systemParts,
-            promptParts
-        };
-    }
-
-    async init(step: Step, rawConfig: WebSearchRawConfigV2): Promise<WebSearchResolvedConfigV2> {
+    async init(step: Step, rawConfig: any): Promise<WebSearchResolvedConfigV2> {
+        // rawConfig here is already the merged/transformed config from the pipeline schema
         return {
             type: 'web-search',
             id: rawConfig.id ?? `web-search-${Date.now()}`,
-            output: {
-                mode: rawConfig.output.mode,
-                column: rawConfig.output.column,
-                explode: rawConfig.output.explode
-            },
+            output: rawConfig.output,
             query: rawConfig.query,
-            queryModel: await this.resolvePluginModel(step, rawConfig.queryModel),
-            selectModel: await this.resolvePluginModel(step, rawConfig.selectModel),
-            compressModel: await this.resolvePluginModel(step, rawConfig.compressModel),
+            queryModel: rawConfig.queryModel,
+            selectModel: rawConfig.selectModel,
+            compressModel: rawConfig.compressModel,
             limit: rawConfig.limit,
             mode: rawConfig.mode,
             queryCount: rawConfig.queryCount,
@@ -134,24 +83,19 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const webSearch = this.deps.webSearch;
 
-        // Render query template
         let query: string | undefined;
         if (config.query) {
             query = stepRow.render(config.query);
         }
 
-        // Create LLM clients
         const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;
         const selectLlm = config.selectModel ? stepRow.createLlm(config.selectModel) : undefined;
         const compressLlm = config.compressModel ? stepRow.createLlm(config.compressModel) : undefined;
 
-        // Create Selector
         const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;
 
-        // Use AiWebSearch utility for Map-Reduce execution
         const aiWebSearch = new AiWebSearch(webSearch, queryLlm, selector, compressLlm);
 
-        // Wire up events
         aiWebSearch.events.on('query:generated', (data) => {
             emit('plugin:artifact', {
                 row: context.index,
@@ -225,7 +169,6 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             hl: config.hl
         });
 
-        // Append content to the prompt
         stepRow.appendContent(result.contentParts);
         
         stepRow.context._webSearch_results = result.data;

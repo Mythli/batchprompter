@@ -29,37 +29,13 @@ export interface ResolvedPlugin {
 }
 
 export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
-    /**
-     * Unique plugin type identifier (e.g., 'web-search', 'image-search')
-     */
     readonly type: string;
-
-    /**
-     * Zod schema for validating raw plugin configuration
-     */
     readonly configSchema: z.ZodType<TRawConfig>;
 
-    /**
-     * Initialization phase (Static).
-     * Called once per step definition during pipeline initialization.
-     * Use this to load files, validate config, and prepare resources that don't depend on row data.
-     */
     init(step: Step, config: TRawConfig): Promise<TResolvedConfig>;
 
-    /**
-     * Execution phase (Dynamic).
-     * Called for every row before the model runs.
-     * Use stepRow.createLlm() to get clients.
-     * Use stepRow.appendContent() to add to the prompt.
-     * Use stepRow.context to read/write data.
-     */
     prepare?(stepRow: StepRow, config: TResolvedConfig): Promise<void>;
 
-    /**
-     * Post-processing phase.
-     * Called after the model generation.
-     * Use this to validate results, transform output, or trigger side effects based on the model's response.
-     */
     postProcess?(stepRow: StepRow, config: TResolvedConfig, result: any): Promise<any>;
 }
 
@@ -73,10 +49,6 @@ export class PluginRegistryV2 {
         this.plugins.set(plugin.type, plugin);
     }
 
-    /**
-     * Overrides an existing plugin or registers a new one.
-     * Useful for testing.
-     */
     override(plugin: Plugin): void {
         this.plugins.set(plugin.type, plugin);
     }
@@ -89,9 +61,6 @@ export class PluginRegistryV2 {
         return Array.from(this.plugins.values());
     }
 
-    /**
-     * Dynamically generates a Zod discriminated union schema for all registered plugins.
-     */
     getSchema(): z.ZodTypeAny {
         const plugins = this.getAll();
         if (plugins.length === 0) {

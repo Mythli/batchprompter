@@ -1,36 +1,69 @@
 import { z } from 'zod';
 import { PromptSchema } from './prompt.js';
+import OpenAI from 'openai';
+
+// Helper to normalize prompt to array of content parts
+export function normalizePromptToParts(prompt: any): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
+    if (!prompt) return [];
+    if (Array.isArray(prompt)) return prompt;
+    return [{ type: 'text', text: prompt }];
+}
 
 /**
- * Base model configuration without defaults.
- * Used for plugin sub-components that inherit from parent.
+ * Base model configuration.
+ * Used for inheritance and merging before transformation.
  */
-export const BaseModelConfigSchema = z.object({
-    model: z.string().optional().describe("Model to use. Inherits from parent if not set."),
-    temperature: z.number().min(0).max(2).optional().describe("Temperature for generation."),
-    thinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Reasoning effort level."),
-    system: PromptSchema.optional().describe("System prompt."),
-    prompt: PromptSchema.optional().describe("User prompt/instructions.")
-}).describe("Base model configuration (all fields optional).");
+export const RawModelConfigSchema = z.object({
+    model: z.string().optional(),
+    temperature: z.number().min(0).max(2).optional(),
+    thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    system: PromptSchema.optional(),
+    prompt: PromptSchema.optional()
+});
 
 /**
- * Model configuration with defaults.
- * Used for step-level configuration.
+ * The final resolved model configuration used at runtime.
  */
-export const ModelConfigSchema = z.object({
-    model: z.string().default('google/gemini-3-flash-preview').describe("Model to use."),
-    temperature: z.number().min(0).max(2).default(0.7).describe("Temperature for generation."),
-    thinkingLevel: z.enum(['low', 'medium', 'high']).optional().describe("Reasoning effort level."),
-    system: PromptSchema.optional().describe("System prompt."),
-    prompt: PromptSchema.optional().describe("User prompt/instructions.")
-}).describe("Model configuration for a step.");
+export interface ResolvedModelConfig {
+    model?: string;
+    temperature?: number;
+    thinkingLevel?: 'low' | 'medium' | 'high';
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+}
 
 /**
- * Alias for backward compatibility.
- * Plugins use this for nested model configurations.
+ * Transforms a raw model config into a resolved one with messages.
  */
-export const BaseModelConfigSchema = BaseModelConfigSchema;
+export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema>): ResolvedModelConfig {
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
-export type BaseModelConfig = z.infer<typeof BaseModelConfigSchema>;
-export type ModelConfig = z.infer<typeof ModelConfigSchema>;
-export type PluginModelConfig = z.infer<typeof BaseModelConfigSchema>;
+    if (config.system) {
+        const parts = normalizePromptToParts(config.system);
+        // System messages in OpenAI are typically text. 
+        // If parts contains images, this might be invalid for 'system' role in some APIs, 
+        // but we'll flatten text parts for now or pass as is if the API supports it.
+        // For safety, we join text parts.
+        const text = parts.map(p => p.type === 'text' ? p.text : '').join('\n');
+        if (text) {
+            messages.push({ role: 'system', content: text });
+        }
+    }
+
+    if (config.prompt) {
+        const parts = normalizePromptToParts(config.prompt);
+        if (parts.length > 0) {
+            messages.push({ role: 'user', content: parts });
+        }
+    }
+
+    return {
+        model: config.model,
+        temperature: config.temperature,
+        thinkingLevel: config.thinkingLevel,
+        messages
+    };
+}
+
+// For backward compatibility with imports, though we are changing usage
+export const BaseModelConfigSchema = RawModelConfigSchema;
+export const ModelConfigSchema = RawModelConfigSchema; // Defaults handled in inheritance logic

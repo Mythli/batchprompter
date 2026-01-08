@@ -1,6 +1,4 @@
 import { z } from 'zod';
-import Handlebars from 'handlebars';
-import OpenAI from 'openai';
 import {
     Plugin,
     LlmFactory
@@ -8,43 +6,27 @@ import {
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
-import { PromptLoader } from '../../config/PromptLoader.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ImageSearch } from './ImageSearch.js';
 
-// =============================================================================
-// Config Schema
-// =============================================================================
-
 export const ImageSearchConfigSchemaV2 = z.object({
-    type: z.literal('image-search').describe("Identifies this as an Image Search plugin."),
-    id: z.string().optional().describe("Unique ID for this plugin instance."),
-    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the image results."),
-
-    // Query source - at least one required
-    query: z.string().optional().describe("Static image search query. Supports Handlebars."),
-    queryModel: BaseModelConfigSchema.optional().describe("Model configuration for generating search queries."),
-
-    // Selection
-    selectModel: BaseModelConfigSchema.optional().describe("Model configuration for selecting the best images."),
-
-    // Search options
-    limit: z.number().int().positive().default(12).describe("Images to fetch per query."),
-    select: z.number().int().positive().default(1).describe("Number of images to select/keep."),
-    queryCount: z.number().int().positive().default(3).describe("Number of queries to generate."),
-    spriteSize: z.number().int().positive().default(4).describe("Number of images to stitch into a sprite for selection."),
-    maxPages: z.number().int().positive().default(1).describe("Max pages of results to fetch per query."),
-    dedupeStrategy: z.enum(['none', 'domain', 'url']).default('url').describe("Deduplication strategy."),
-    gl: z.string().optional().describe("Country code."),
-    hl: z.string().optional().describe("Language code.")
-}).strict().refine(
-    (data) => data.query !== undefined || data.queryModel?.prompt !== undefined,
-    {
-        message: "image-search requires either 'query' or 'queryModel.prompt' to know what to search for."
-    }
-).describe("Configuration for the Image Search plugin.");
+    type: z.literal('image-search'),
+    id: z.string().optional(),
+    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT),
+    query: z.string().optional(),
+    queryModel: RawModelConfigSchema.optional(),
+    selectModel: RawModelConfigSchema.optional(),
+    limit: z.number().int().positive().default(12),
+    select: z.number().int().positive().default(1),
+    queryCount: z.number().int().positive().default(3),
+    spriteSize: z.number().int().positive().default(4),
+    maxPages: z.number().int().positive().default(1),
+    dedupeStrategy: z.enum(['none', 'domain', 'url']).default('url'),
+    gl: z.string().optional(),
+    hl: z.string().optional()
+}).strict();
 
 export type ImageSearchRawConfigV2 = z.infer<typeof ImageSearchConfigSchemaV2>;
 
@@ -65,52 +47,25 @@ export interface ImageSearchResolvedConfigV2 {
     hl?: string;
 }
 
-// =============================================================================
-// Plugin
-// =============================================================================
-
 export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, ImageSearchResolvedConfigV2> {
     readonly type = 'image-search';
     readonly configSchema = ImageSearchConfigSchemaV2;
 
     constructor(
         private deps: {
-            promptLoader: PromptLoader;
             imageSearch: ImageSearch;
             createLlm: LlmFactory;
         }
     ) {}
 
-    private async resolvePluginModel(
-        step: Step,
-        config: z.infer<typeof BaseModelConfigSchema> | undefined
-    ): Promise<ResolvedModelConfig | undefined> {
-        if (!config?.prompt) return undefined;
-
-        const promptParts = await step.loadPrompt(config.prompt);
-        const systemParts = config.system ? await step.loadPrompt(config.system) : [];
-
-        return {
-            model: config.model,
-            temperature: config.temperature,
-            thinkingLevel: config.thinkingLevel,
-            systemParts,
-            promptParts
-        };
-    }
-
-    async init(step: Step, rawConfig: ImageSearchRawConfigV2): Promise<ImageSearchResolvedConfigV2> {
+    async init(step: Step, rawConfig: any): Promise<ImageSearchResolvedConfigV2> {
         return {
             type: 'image-search',
             id: rawConfig.id ?? `image-search-${Date.now()}`,
-            output: {
-                mode: rawConfig.output.mode,
-                column: rawConfig.output.column,
-                explode: rawConfig.output.explode
-            },
+            output: rawConfig.output,
             query: rawConfig.query,
-            queryModel: await this.resolvePluginModel(step, rawConfig.queryModel),
-            selectModel: await this.resolvePluginModel(step, rawConfig.selectModel),
+            queryModel: rawConfig.queryModel,
+            selectModel: rawConfig.selectModel,
             limit: rawConfig.limit,
             select: rawConfig.select,
             queryCount: rawConfig.queryCount,
@@ -127,23 +82,18 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const imageSearch = this.deps.imageSearch;
 
-        // Render query
         let query: string | undefined;
         if (config.query) {
             query = stepRow.render(config.query);
         }
 
-        // Create LLM clients
         const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;
         const selectLlm = config.selectModel ? stepRow.createLlm(config.selectModel) : undefined;
 
-        // Create Selector
         const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;
 
-        // Use AiImageSearch utility
         const aiImageSearch = new AiImageSearch(imageSearch, queryLlm, selector, config.spriteSize);
 
-        // Wire up events
         aiImageSearch.events.on('search:result', (data) => {
             const safeQuery = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
             emit('plugin:artifact', {
@@ -215,7 +165,6 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             return;
         }
 
-        // Process final images in parallel
         const sharp = (await import('sharp')).default;
         const baseName = stepRow.outputBasename || 'image';
 
@@ -228,7 +177,6 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                     .jpeg({ quality: 80 })
                     .toBuffer();
 
-                // Emit final artifact
                 emit('plugin:artifact', {
                     row: context.index,
                     step: stepRow.step.stepIndex,
@@ -240,7 +188,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                 });
 
                 const base64 = processed.toString('base64');
-                const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [{
+                const contentParts = [{
                     type: 'image_url',
                     image_url: { url: `data:image/jpeg;base64,${base64}` }
                 }];
@@ -258,12 +206,10 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
 
         const validPackets = processedPackets.filter((p): p is { data: any, contentParts: any[] } => p !== null);
 
-        // Append content to prompt
         for (const packet of validPackets) {
             stepRow.appendContent(packet.contentParts);
         }
 
-        // Store results for postProcess
         stepRow.context._imageSearch_results = validPackets.map(p => p.data);
     }
 
