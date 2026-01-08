@@ -175,14 +175,15 @@ export class StandardStrategy implements GenerationStrategy {
         }
 
         // Emit Artifact
-        const effectiveBasename = config.outputBasename || 'output';
+        // Use resolved paths from StepRow
+        const effectiveBasename = this.stepRow.outputBasename || 'output';
         let filename = `${effectiveBasename}.${finalExtension}`;
 
         if (variationIndex !== undefined) {
             filename = `${effectiveBasename}_${variationIndex}.${finalExtension}`;
         }
 
-        const targetDir = config.resolvedOutputDir || this.stepRow.getTempDir();
+        const targetDir = this.stepRow.resolvedOutputDir || this.stepRow.getTempDir();
         if (targetDir) {
             filename = path.join(targetDir, filename);
         }

@@ -33,6 +33,11 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
     async prepare(stepRow: StepRow, config: UrlExpanderResolvedConfig): Promise<void> {
         const { mode, maxChars } = config;
         const messages = stepRow.history;
+        
+        // Also check current step messages (which might contain the prompt with the URL)
+        const currentMessages = stepRow.step.config.model.messages || [];
+        
+        const allMessages = [...messages, ...currentMessages];
 
         // Resolve the generic handler based on mode
         const fallbackHandler = this.registry.getFallback(mode);
@@ -47,7 +52,7 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         const expandedData: Record<string, string> = {};
 
         // Scan ONLY the last message for URLs to expand
-        const lastMessage = messages[messages.length - 1];
+        const lastMessage = allMessages[allMessages.length - 1];
         
         if (!lastMessage) {
             return;

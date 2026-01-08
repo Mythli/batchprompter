@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
 import { Step } from './Step.js';
-import { PipelineItem } from '../types.js';
+import { PipelineItem, OutputConfig } from '../types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 import { ensureDir, aggressiveSanitize } from '../utils/fileUtils.js';
 import { renderSchemaObject } from '../utils/schemaUtils.js';
@@ -124,28 +124,57 @@ export class StepRow {
                 }
             }
             
-            // --- Stage 6: Output Handling ---
+            // --- Stage 6: Output Handling (Explode/Merge) ---
             const outputConfig = this.step.config.output;
-            const newRow = { ...this.context };
-            
-            if (outputConfig.mode === 'merge') {
-                if (typeof result === 'object' && result !== null && !Array.isArray(result)) {
-                    Object.assign(newRow, result);
-                }
-            } else if (outputConfig.mode === 'column' && outputConfig.column) {
-                newRow[outputConfig.column] = result;
-            }
+            const nextItems: PipelineItem[] = [];
 
-            const newItem: PipelineItem = {
-                row: newRow,
-                workspace: this.item.workspace,
-                stepHistory: [...this.item.stepHistory, result],
-                history: [...this.history, historyMessage],
-                originalIndex: this.item.originalIndex,
-                variationIndex: this.item.variationIndex
-            };
+            if (outputConfig.explode && Array.isArray(result)) {
+                // Apply limit/offset
+                let itemsToProcess = result;
+                if (outputConfig.offset && outputConfig.offset > 0) {
+                    itemsToProcess = itemsToProcess.slice(outputConfig.offset);
+                }
+                if (outputConfig.limit && outputConfig.limit > 0) {
+                    itemsToProcess = itemsToProcess.slice(0, outputConfig.limit);
+                }
+
+                // Log explosion
+                this.getEvents().emit('step:progress', {
+                    row: this.item.originalIndex,
+                    step: this.step.stepIndex + 1,
+                    type: 'explode',
+                    message: `Exploding ${result.length} items into ${itemsToProcess.length}`,
+                    data: { total: result.length, count: itemsToProcess.length, limit: outputConfig.limit, offset: outputConfig.offset }
+                });
+
+                itemsToProcess.forEach((itemData, idx) => {
+                    const newRow = { ...this.context };
+                    this.applyOutput(newRow, itemData, outputConfig);
+
+                    nextItems.push({
+                        row: newRow,
+                        workspace: this.item.workspace,
+                        stepHistory: [...this.item.stepHistory, result],
+                        history: [...this.history, historyMessage],
+                        originalIndex: this.item.originalIndex,
+                        variationIndex: idx
+                    });
+                });
+            } else {
+                const newRow = { ...this.context };
+                this.applyOutput(newRow, result, outputConfig);
+
+                nextItems.push({
+                    row: newRow,
+                    workspace: this.item.workspace,
+                    stepHistory: [...this.item.stepHistory, result],
+                    history: [...this.history, historyMessage],
+                    originalIndex: this.item.originalIndex,
+                    variationIndex: 0
+                });
+            }
             
-            return [newItem];
+            return nextItems;
 
         } else {
             // Pass-through
@@ -153,6 +182,16 @@ export class StepRow {
                 ...this.item,
                 history: this.history
             }];
+        }
+    }
+
+    private applyOutput(row: Record<string, any>, data: any, config: OutputConfig) {
+        if (config.mode === 'merge') {
+             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+                 Object.assign(row, data);
+             }
+        } else if (config.mode === 'column' && config.column) {
+            row[config.column] = data;
         }
     }
 
