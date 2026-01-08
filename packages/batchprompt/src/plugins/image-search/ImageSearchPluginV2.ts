@@ -77,7 +77,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     constructor(
         private deps: {
             promptLoader: PromptLoader;
-            imageSearch?: ImageSearch;
+            imageSearch: ImageSearch;
             createLlm: LlmFactory;
         }
     ) {}
@@ -165,10 +165,6 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     ): Promise<PluginPacket[]> {
         const { row, outputBasename, emit } = context;
         const imageSearch = this.deps.imageSearch;
-
-        if (!imageSearch) {
-            throw new Error('[ImageSearch] ImageSearch service not available');
-        }
 
         // Create LLM clients
         const queryLlm = config.queryModel ? this.deps.createLlm(config.queryModel) : undefined;

@@ -9,17 +9,13 @@ export class GenericPuppeteerHandler implements GenericHandler {
     name = 'generic-puppeteer';
 
     constructor(
-        private puppeteerHelper?: PuppeteerHelper,
+        private puppeteerHelper: PuppeteerHelper,
         private puppeteerQueue?: PQueue
     ) {}
 
     async handle(url: string, services: PluginServices): Promise<string | null> {
-        if (!this.puppeteerHelper) {
-            throw new Error("[GenericPuppeteerHandler] PuppeteerHelper not available.");
-        }
-
         const task = async () => {
-            const pageHelper = await this.puppeteerHelper!.getPageHelper();
+            const pageHelper = await this.puppeteerHelper.getPageHelper();
             try {
                 // We use navigateAndCache to leverage existing caching logic if available
                 const html = await pageHelper.navigateAndCache<string>(

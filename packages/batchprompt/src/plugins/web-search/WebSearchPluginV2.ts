@@ -83,7 +83,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     constructor(
         private deps: {
             promptLoader: PromptLoader;
-            webSearch?: WebSearch;
+            webSearch: WebSearch;
             createLlm: LlmFactory;
         }
     ) {}
@@ -172,10 +172,6 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     ): Promise<PluginPacket[]> {
         const { row, emit } = context;
         const webSearch = this.deps.webSearch;
-
-        if (!webSearch) {
-            throw new Error('[WebSearch] WebSearch service not available');
-        }
 
         // Create LLM clients
         const queryLlm = config.queryModel ? this.deps.createLlm(config.queryModel) : undefined;

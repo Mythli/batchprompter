@@ -56,7 +56,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
 
     constructor(
         private deps: {
-            puppeteerHelper?: PuppeteerHelper;
+            puppeteerHelper: PuppeteerHelper;
         }
     ) {}
 
@@ -97,10 +97,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
     ): Promise<PluginPacket[]> {
         const { outputBasename, emit } = context;
         const puppeteerHelper = this.deps.puppeteerHelper;
-
-        if (!puppeteerHelper) {
-            throw new Error('[StyleScraper] Puppeteer not available');
-        }
 
         const pageHelper = await puppeteerHelper.getPageHelper();
 

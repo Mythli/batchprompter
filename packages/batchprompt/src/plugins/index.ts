@@ -16,6 +16,7 @@ import { WebSearch } from './web-search/WebSearch.js';
 import { ImageSearch } from './image-search/ImageSearch.js';
 import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
 import { Fetcher } from 'llm-fns';
+import { GenericHandler } from './url-expander/utils/types.js';
 import PQueue from 'p-queue';
 
 // Re-export types
@@ -47,50 +48,64 @@ export interface PluginDependencies {
 export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2 {
     const registry = new PluginRegistryV2();
 
-    // 1. Web Search
-    registry.register(new WebSearchPluginV2({
-        promptLoader: deps.promptLoader,
-        webSearch: deps.webSearch,
-        createLlm: deps.createLlm
-    }));
+    // 1. Web Search (Requires Serper)
+    if (deps.webSearch) {
+        registry.register(new WebSearchPluginV2({
+            promptLoader: deps.promptLoader,
+            webSearch: deps.webSearch,
+            createLlm: deps.createLlm
+        }));
+    }
 
-    // 2. Image Search
-    registry.register(new ImageSearchPluginV2({
-        promptLoader: deps.promptLoader,
-        imageSearch: deps.imageSearch,
-        createLlm: deps.createLlm
-    }));
+    // 2. Image Search (Requires Serper)
+    if (deps.imageSearch) {
+        registry.register(new ImageSearchPluginV2({
+            promptLoader: deps.promptLoader,
+            imageSearch: deps.imageSearch,
+            createLlm: deps.createLlm
+        }));
+    }
 
-    // 3. Website Agent
-    registry.register(new WebsiteAgentPluginV2({
-        promptLoader: deps.promptLoader,
-        puppeteerHelper: deps.puppeteerHelper,
-        puppeteerQueue: deps.puppeteerQueue,
-        createLlm: deps.createLlm
-    }));
+    // 3. Website Agent (Requires Puppeteer)
+    if (deps.puppeteerHelper && deps.puppeteerQueue) {
+        registry.register(new WebsiteAgentPluginV2({
+            promptLoader: deps.promptLoader,
+            puppeteerHelper: deps.puppeteerHelper,
+            puppeteerQueue: deps.puppeteerQueue,
+            createLlm: deps.createLlm
+        }));
+    }
 
-    // 4. Style Scraper
-    registry.register(new StyleScraperPluginV2({
-        puppeteerHelper: deps.puppeteerHelper
-    }));
+    // 4. Style Scraper (Requires Puppeteer)
+    if (deps.puppeteerHelper) {
+        registry.register(new StyleScraperPluginV2({
+            puppeteerHelper: deps.puppeteerHelper
+        }));
+    }
 
-    // 5. Logo Scraper
-    registry.register(new LogoScraperPluginV2({
-        promptLoader: deps.promptLoader,
-        puppeteerHelper: deps.puppeteerHelper,
-        fetcher: deps.fetcher,
-        createLlm: deps.createLlm
-    }));
+    // 5. Logo Scraper (Requires Puppeteer + Fetcher)
+    if (deps.puppeteerHelper && deps.fetcher) {
+        registry.register(new LogoScraperPluginV2({
+            promptLoader: deps.promptLoader,
+            puppeteerHelper: deps.puppeteerHelper,
+            fetcher: deps.fetcher,
+            createLlm: deps.createLlm
+        }));
+    }
 
-    // 6. URL Expander
-    // Inject dependencies into handlers
-    const fetchHandler = new GenericFetchHandler(deps.fetcher);
-    const puppeteerHandler = new GenericPuppeteerHandler(deps.puppeteerHelper, deps.puppeteerQueue);
-    
-    const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, puppeteerHandler);
-    urlHandlerRegistry.registerSpecific(new WikipediaHandler());
-    
-    registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
+    // 6. URL Expander (Requires Fetcher for basic functionality)
+    if (deps.fetcher) {
+        const fetchHandler = new GenericFetchHandler(deps.fetcher);
+        
+        const pHandler = deps.puppeteerHelper 
+            ? new GenericPuppeteerHandler(deps.puppeteerHelper, deps.puppeteerQueue)
+            : { name: 'puppeteer-disabled', handle: async () => null } as GenericHandler;
+
+        const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, pHandler);
+        urlHandlerRegistry.registerSpecific(new WikipediaHandler());
+        
+        registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
+    }
 
     // 7. Logic Plugins (No external deps)
     registry.register(new ValidationPluginV2());

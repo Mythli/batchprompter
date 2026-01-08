@@ -1,13 +1,11 @@
 import { SiteHandler, GenericHandler } from './types.js';
-import { GenericFetchHandler } from './GenericFetchHandler.js';
-import { GenericPuppeteerHandler } from './GenericPuppeteerHandler.js';
 
 export class UrlHandlerRegistry {
     private specificHandlers: SiteHandler[] = [];
 
     constructor(
-        private fetchFallback: GenericFetchHandler,
-        private puppeteerFallback: GenericPuppeteerHandler
+        private fetchFallback: GenericHandler,
+        private puppeteerFallback: GenericHandler
     ) {}
 
     registerSpecific(handler: SiteHandler) {

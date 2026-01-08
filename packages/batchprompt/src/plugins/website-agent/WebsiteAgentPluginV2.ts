@@ -79,8 +79,8 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
     constructor(
         private deps: {
             promptLoader: PromptLoader;
-            puppeteerHelper?: PuppeteerHelper;
-            puppeteerQueue?: PQueue;
+            puppeteerHelper: PuppeteerHelper;
+            puppeteerQueue: PQueue;
             createLlm: LlmFactory;
         }
     ) {}
@@ -203,14 +203,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         const { row, emit } = context;
         const puppeteerHelper = this.deps.puppeteerHelper;
         const puppeteerQueue = this.deps.puppeteerQueue;
-
-        if (!puppeteerHelper) {
-            throw new Error('[WebsiteAgent] Puppeteer not available');
-        }
-
-        if (!puppeteerQueue) {
-            throw new Error('[WebsiteAgent] Puppeteer queue not available');
-        }
 
         const scope = new PluginScope(context, this.type);
 

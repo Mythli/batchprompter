@@ -7,14 +7,14 @@ import {
     PluginPacket,
     LlmFactory
 } from '../types.js';
-import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '../../config/types.js';
+import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
-import { zHandlebars } from '../../config/validationRules.js';
+import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import { Fetcher } from 'llm-fns';
 
@@ -73,8 +73,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
     constructor(
         private deps: {
             promptLoader: PromptLoader;
-            puppeteerHelper?: PuppeteerHelper;
-            fetcher?: Fetcher;
+            puppeteerHelper: PuppeteerHelper;
+            fetcher: Fetcher;
             createLlm: LlmFactory;
         }
     ) {}
@@ -178,14 +178,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         const { emit } = context;
         const puppeteerHelper = this.deps.puppeteerHelper;
         const fetcher = this.deps.fetcher;
-
-        if (!puppeteerHelper) {
-            throw new Error('[LogoScraper] Puppeteer not available');
-        }
-
-        if (!fetcher) {
-            throw new Error('[LogoScraper] Fetcher not available');
-        }
 
         // Create LLM clients
         const analyzeLlm = this.deps.createLlm(config.analyzeModel);
