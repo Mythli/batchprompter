@@ -9,7 +9,6 @@ import { renderSchemaObject } from '../utils/schemaUtils.js';
 import { StandardStrategy } from '../strategies/StandardStrategy.js';
 import { CandidateStrategy } from '../strategies/CandidateStrategy.js';
 import { GenerationStrategy } from '../strategies/GenerationStrategy.js';
-import { PluginServices } from '../plugins/types.js';
 
 export class StepRow {
     public readonly context: Record<string, any>;
@@ -28,6 +27,18 @@ export class StepRow {
     ) {
         this.context = { ...item.row, ...item.workspace };
         this.history = [...item.history];
+    }
+
+    getEvents() {
+        return this.step.globalContext.events;
+    }
+
+    getPlugins() {
+        return this.step.plugins;
+    }
+
+    getTempDir() {
+        return this.resolvedTempDir || '/tmp';
     }
 
     async run(): Promise<PipelineItem[]> {
@@ -108,25 +119,11 @@ export class StepRow {
                 createLlm: (cfg: any) => this.createLlm(cfg)
             };
 
-            // Build PluginServices for strategies (legacy support mostly, but useful for standard strategy)
-            const pluginServices: PluginServices = {
-                webSearch: this.step.globalContext.webSearch,
-                imageSearch: this.step.globalContext.imageSearch,
-                puppeteerHelper: this.step.globalContext.puppeteerHelper,
-                createLlm: (cfg: any) => this.createLlm(cfg).getRawClient()
-            };
-
             // Inject resolved schema into config for Strategy
             const configForStrategy = { ...this.step.config, schema };
 
             // Select Strategy
-            let strategy: GenerationStrategy = new StandardStrategy(
-                this,
-                this.step.globalContext.events,
-                this.step.plugins.map(p => ({ instance: p.instance, config: p.config, def: { type: p.instance.type, id: 'legacy', output: { mode: 'ignore' as const, explode: false } } })),
-                pluginServices,
-                this.resolvedTempDir || '/tmp'
-            );
+            let strategy: GenerationStrategy = new StandardStrategy(this);
 
             if (configForStrategy.candidates > 1) {
                 strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext, this.step.globalContext.events);

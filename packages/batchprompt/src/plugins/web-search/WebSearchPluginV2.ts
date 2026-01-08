@@ -7,7 +7,7 @@ import {
 } from '../types.js';
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
-import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
+import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiWebSearch } from './AiWebSearch.js';
@@ -86,10 +86,6 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             createLlm: LlmFactory;
         }
     ) {}
-
-    getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
-        return ['hasSerper'];
-    }
 
     private async resolvePluginModel(
         step: Step,
@@ -232,83 +228,10 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         // Append content to the prompt
         stepRow.appendContent(result.contentParts);
         
-        // Store data in context (ResultProcessor will handle merging/exploding later if needed, 
-        // but for now we just make it available to the prompt)
-        // Note: ResultProcessor logic for plugins is handled in StepRow.run() via `result` return.
-        // But `prepare` is for setting up the prompt.
-        // If we want the data to be available for explosion, we should return it from `prepare`?
-        // No, `prepare` returns void.
-        // The `StepRow.run` logic iterates plugins and calls `postProcess`.
-        // Wait, `WebSearch` results are usually needed BEFORE the model runs (to inform the prompt).
-        // So `prepare` is the right place to fetch them.
-        // But if we want to explode based on search results, we need to pass them out.
-        // The current architecture in `StepRow.run` doesn't seem to capture data from `prepare` for explosion.
-        // It captures `result` from `postProcess`.
-        // However, `WebSearch` is often used as a source.
-        // If `output.explode` is true, we want to explode the search results.
-        // But `StepRow` only explodes the *final* result of the step.
-        // If the step has a model, the model output is the final result.
-        // If the step has NO model, the pass-through result is used.
-        // But `WebSearch` adds content to the prompt.
-        
-        // If we want to support "Search -> Explode" without a model:
-        // The `StepRow.run` logic says: `if (hasExplicitPrompt) { ... } else { return pass-through }`.
-        // If we have `WebSearch` but no `prompt`, `hasExplicitPrompt` might be false?
-        // `hasExplicitPrompt` checks `this.content.length > 0`.
-        // `WebSearch` adds to `this.content`. So `hasExplicitPrompt` becomes true.
-        // Then it runs the model (empty prompt + search results).
-        // If `model` is not configured, `createLlm` uses default model.
-        // This means "Search -> Explode" requires a model execution in the current logic?
-        // That seems wrong if we just want to explode the search results directly.
-        
-        // In the previous `StepExecutor`, plugins returned packets.
-        // `ResultProcessor` handled them.
-        // Now `prepare` returns void.
-        
-        // We need a way for `prepare` to signal "Here is data to be used as the step result if no model runs".
-        // Or we attach it to `stepRow` and `StepRow.run` checks it.
-        // Let's add `pluginData` to `StepRow`.
-        
-        // For now, I will attach the results to `stepRow.context['webSearch']` (or similar) so it's available.
-        // And if we want to explode, we might need to handle that in `postProcess` or modify `StepRow` to support it.
-        // Let's stick to the pattern: `prepare` enriches the prompt.
-        // If the user wants to explode search results, they usually do:
-        // Step 1: Search (output: merge)
-        // Step 2: Explode (using data from Step 1)
-        // OR
-        // Step 1: Search (output: explode) -> This implies the step result IS the search result.
-        
-        // To support "Step Result = Plugin Result", we can use `postProcess`.
-        // `WebSearch` can store its results in a private map or on `stepRow` and return them in `postProcess`.
-        
-        // Let's store the results in a WeakMap keyed by StepRow? Or just attach to StepRow context with a hidden key?
-        // I'll use a symbol or just a specific key on context that `postProcess` reads.
-        // Actually, `prepare` can just return void, but we can store state in the plugin instance? No, plugin instance is shared.
-        // We must store state on `StepRow`.
-        
-        // I will add `pluginData` to `StepRow` in the next file update if needed, or just use `context._internal`.
-        // Let's use `context._webSearch_results`.
-        
         stepRow.context._webSearch_results = result.data;
     }
 
     async postProcess(stepRow: StepRow, config: WebSearchResolvedConfigV2, modelResult: any): Promise<any> {
-        // If the model ran, `modelResult` is the model output.
-        // If we want to return the search results instead (e.g. if no model prompt was given),
-        // we need to know if the model actually did anything useful or if we should override.
-        
-        // If the user configured `output.explode`, they likely want the search results if the model was just a pass-through.
-        // But `StepRow` runs the model if content is present.
-        
-        // For now, let's return the search results if they exist and `modelResult` is empty/null,
-        // OR if we want to explicitly expose them.
-        // Actually, the previous implementation returned packets.
-        // If we want to support the "Search and Explode" use case without a model,
-        // we might need to revisit `StepRow` logic to allow plugins to provide the primary result.
-        
-        // For this refactor, I will return `modelResult` by default.
-        // But if `modelResult` is null (pass-through), I return search results.
-        
         const searchResults = stepRow.context._webSearch_results;
         if (searchResults && (modelResult === null || modelResult === undefined)) {
             return searchResults;

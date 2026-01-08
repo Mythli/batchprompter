@@ -15,11 +15,6 @@ export interface PluginExecutionContext {
     outputBasename?: string;
     outputExtension?: string;
     emit: <K extends keyof BatchPromptEvents>(event: K, ...args: Parameters<BatchPromptEvents[K]>) => void;
-    services?: PluginServices;
-}
-
-export interface PluginServices {
-    [key: string]: any;
 }
 
 export interface PluginPacket {

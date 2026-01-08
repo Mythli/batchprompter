@@ -4,7 +4,6 @@ import { Plugin } from '../types.js';
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
 import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
-import { ServiceCapabilities } from '../../config/types.js';
 import { 
     UrlExpanderConfig, 
     UrlExpanderResolvedConfig, 
@@ -16,10 +15,6 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
     readonly configSchema = UrlExpanderConfigSchema;
 
     constructor(private registry: UrlHandlerRegistry) {}
-
-    getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
-        return [];
-    }
 
     async init(step: Step, rawConfig: UrlExpanderConfig): Promise<UrlExpanderResolvedConfig> {
         return {
@@ -117,11 +112,11 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                     const specificHandler = this.registry.getSpecificHandler(url);
                     if (specificHandler) {
                         handlerName = specificHandler.name;
-                        content = await specificHandler.handle(url, {} as any, fallbackHandler);
+                        content = await specificHandler.handle(url, fallbackHandler);
                     } else {
                         // 2. Fallback based on mode
                         handlerName = fallbackHandler.name;
-                        const rawHtml = await fallbackHandler.handle(url, {} as any);
+                        const rawHtml = await fallbackHandler.handle(url);
                         if (rawHtml) {
                             content = turndownService.turndown(rawHtml);
                         }

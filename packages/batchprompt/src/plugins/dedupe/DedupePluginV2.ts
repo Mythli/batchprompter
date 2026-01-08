@@ -6,7 +6,7 @@ import {
 } from '../types.js';
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
-import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
+import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
@@ -51,10 +51,6 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
     readonly type = 'dedupe';
     readonly configSchema = DedupeConfigSchemaV2;
     public readonly events = new EventEmitter();
-
-    getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
-        return [];
-    }
 
     async init(step: Step, rawConfig: DedupeRawConfigV2): Promise<DedupeResolvedConfigV2> {
         return {

@@ -8,7 +8,7 @@ import {
 } from '../types.js';
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
-import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
+import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
@@ -53,10 +53,6 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
     constructor() {
         // @ts-ignore
         this.ajv = new Ajv.default ? new Ajv.default() : new Ajv();
-    }
-
-    getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
-        return [];
     }
 
     async init(step: Step, rawConfig: ValidationRawConfigV2): Promise<ValidationResolvedConfigV2> {

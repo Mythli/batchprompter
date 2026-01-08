@@ -7,7 +7,7 @@ import {
 } from '../types.js';
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
-import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
+import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoScraper.js';
@@ -75,10 +75,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             createLlm: LlmFactory;
         }
     ) {}
-
-    getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
-        return ['hasPuppeteer'];
-    }
 
     private async resolvePluginModel(
         step: Step,

@@ -7,7 +7,7 @@ import {
 } from '../types.js';
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
-import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
+import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiImageSearch } from './AiImageSearch.js';
@@ -80,10 +80,6 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             createLlm: LlmFactory;
         }
     ) {}
-
-    getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
-        return ['hasSerper'];
-    }
 
     private async resolvePluginModel(
         step: Step,

@@ -1,7 +1,6 @@
 import * as cheerio from 'cheerio';
 import TurndownService from 'turndown';
 import { SiteHandler, GenericHandler } from '../types.js';
-import { PluginServices } from '../../../types.js';
 
 export class WikipediaHandler implements SiteHandler {
     name = 'wikipedia';
@@ -10,11 +9,11 @@ export class WikipediaHandler implements SiteHandler {
         return /wikipedia\.org\/wiki\//i.test(url);
     }
 
-    async handle(url: string, services: PluginServices, genericHandler: GenericHandler): Promise<string | null> {
+    async handle(url: string, genericHandler: GenericHandler): Promise<string | null> {
         console.log(`[WikipediaHandler] Processing ${url} using ${genericHandler.name}`);
 
         // Delegate fetching to the injected generic handler
-        const html = await genericHandler.handle(url, services);
+        const html = await genericHandler.handle(url);
         if (!html) {
             throw new Error(`[WikipediaHandler] No content returned for ${url}`);
         }

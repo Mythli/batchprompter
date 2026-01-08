@@ -7,7 +7,7 @@ import {
 } from '../types.js';
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
-import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
+import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
@@ -79,10 +79,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             createLlm: LlmFactory;
         }
     ) {}
-
-    getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
-        return ['hasPuppeteer'];
-    }
 
     private async resolvePluginModel(
         step: Step,

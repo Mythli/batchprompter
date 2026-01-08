@@ -7,7 +7,7 @@ import {
 } from '../types.js';
 import { Step } from '../../core/Step.js';
 import { StepRow } from '../../core/StepRow.js';
-import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
+import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
@@ -58,10 +58,6 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
             puppeteerHelper: PuppeteerHelper;
         }
     ) {}
-
-    getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
-        return ['hasPuppeteer'];
-    }
 
     async init(step: Step, rawConfig: StyleScraperRawConfigV2): Promise<StyleScraperResolvedConfigV2> {
         const [w, h] = rawConfig.resolution.split('x').map(Number);

@@ -4,10 +4,6 @@ import Ajv from 'ajv';
 import { completionToMessage, LlmRetryError, LlmRetryResponseInfo, SchemaValidationError, concatMessageText } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StepConfig } from '../types.js';
-import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from '../core/events.js';
-import { Plugin, PluginServices } from '../plugins/types.js';
-import { ResolvedPluginBase } from '../config/types.js';
 import { StepRow } from '../core/StepRow.js';
 
 type ExtractedContent = {
@@ -21,9 +17,7 @@ export class StandardStrategy implements GenerationStrategy {
     private ajv: any;
 
     constructor(
-        private stepRow: StepRow,
-        private events: EventEmitter<BatchPromptEvents>,
-        private plugins: { instance: Plugin; config: any; def: ResolvedPluginBase }[],
+        private stepRow: StepRow
     ) {
         // @ts-ignore
         this.ajv = new Ajv.default ? new Ajv.default({ strict: false }) : new Ajv({ strict: false });
@@ -60,9 +54,10 @@ export class StandardStrategy implements GenerationStrategy {
         initialData: any
     ): Promise<any> {
         let currentData = initialData;
+        const plugins = this.stepRow.getPlugins();
 
-        for (let i = 0; i < this.plugins.length; i++) {
-            const { instance, config: pluginConfig } = this.plugins[i];
+        for (let i = 0; i < plugins.length; i++) {
+            const { instance, config: pluginConfig } = plugins[i];
             if (instance.postProcess) {
                 try {
                     currentData = await instance.postProcess(this.stepRow, pluginConfig, currentData);
@@ -76,11 +71,14 @@ export class StandardStrategy implements GenerationStrategy {
     }
 
     async execute(
+        row: Record<string, any>,
         index: number,
         stepIndex: number,
         config: StepConfig,
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
+        outputPathOverride?: string,
+        skipCommands?: boolean,
         variationIndex?: number
     ): Promise<GenerationResult> {
 
@@ -97,11 +95,7 @@ export class StandardStrategy implements GenerationStrategy {
              additionalParams.image_config = { aspect_ratio: config.aspectRatio };
         }
 
-        // Use the LLM created in StepRow (passed via StepContext in StepRow, but here we access it via stepRow.createLlm if needed,
-        // or we assume the caller passed the right client.
-        // Actually StandardStrategy constructor takes StepRow, but execute takes config/messages.
-        // We should use the LLM from StepRow context if possible, but StandardStrategy was designed to be generic.
-        // However, we can access stepRow.createLlm to get the raw client for the main model.
+        // Use the LLM created in StepRow
         const rawClient = this.stepRow.createLlm(config.model).getRawClient();
 
         let finalResult: any;
@@ -120,7 +114,7 @@ export class StandardStrategy implements GenerationStrategy {
                 if (!valid) {
                     const errors = this.ajv.errorsText();
 
-                    this.events.emit('validation:failed', {
+                    this.stepRow.getEvents().emit('validation:failed', {
                         row: index,
                         step: stepIndex,
                         data,
@@ -196,7 +190,7 @@ export class StandardStrategy implements GenerationStrategy {
             filename = `${effectiveBasename}_${variationIndex}.${finalExtension}`;
         }
 
-        const targetDir = config.resolvedOutputDir || config.resolvedTempDir;
+        const targetDir = config.resolvedOutputDir || this.stepRow.getTempDir();
         if (targetDir) {
             filename = path.join(targetDir, filename);
         }
@@ -207,7 +201,7 @@ export class StandardStrategy implements GenerationStrategy {
             : String(finalContentPayload).trim().length > 0;
 
         if (hasContent) {
-            this.events.emit('plugin:artifact', {
+            this.stepRow.getEvents().emit('plugin:artifact', {
                 row: index,
                 step: stepIndex,
                 plugin: 'model',

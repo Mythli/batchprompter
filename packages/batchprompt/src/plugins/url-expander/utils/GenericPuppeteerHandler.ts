@@ -1,5 +1,4 @@
 import { GenericHandler } from './types.js';
-import { PluginServices } from '../../types.js';
 import { compressHtml } from '../../../utils/compressHtml.js';
 import { PuppeteerPageHelper } from '../../../utils/puppeteer/PuppeteerPageHelper.js';
 import { PuppeteerHelper } from '../../../utils/puppeteer/PuppeteerHelper.js';
@@ -13,7 +12,7 @@ export class GenericPuppeteerHandler implements GenericHandler {
         private puppeteerQueue?: PQueue
     ) {}
 
-    async handle(url: string, services: PluginServices): Promise<string | null> {
+    async handle(url: string): Promise<string | null> {
         const task = async () => {
             const pageHelper = await this.puppeteerHelper.getPageHelper();
             try {
