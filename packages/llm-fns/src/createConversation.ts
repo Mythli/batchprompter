@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { completionToMessage } from './completionToAssistantMessage.js';
 import { CreateLlmClientParams } from './createLlmClient.js';
-import { createLlm } from './llmFactory.js';
+import { createLlm, LlmClient } from './llmFactory.js';
 
 /**
  * Abstract interface for managing conversation history.
@@ -132,8 +132,9 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
      * High-level Turn Wrapper.
      * Defines the boundaries of a single user interaction.
      */
-    const wrapMethod = (methodName: keyof typeof client) => {
-        const originalMethod = client[methodName] as Function;
+    const wrapMethod = (methodName: string) => {
+        const originalMethod = (client as any)[methodName];
+        if (typeof originalMethod !== 'function') return originalMethod;
         
         return async (...args: any[]) => {
             // Reset turn context
@@ -167,18 +168,11 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
     };
 
     // Wrap all high-level methods to ensure they are treated as stateful turns
-    const wrappedMethods = {
-        prompt: wrapMethod('prompt'),
-        promptText: wrapMethod('promptText'),
-        promptImage: wrapMethod('promptImage'),
-        promptAudio: wrapMethod('promptAudio'),
-        promptRetry: wrapMethod('promptRetry'),
-        promptTextRetry: wrapMethod('promptTextRetry'),
-        promptImageRetry: wrapMethod('promptImageRetry'),
-        promptAudioRetry: wrapMethod('promptAudioRetry'),
-        promptJson: wrapMethod('promptJson'),
-        promptZod: wrapMethod('promptZod'),
-    };
+    const wrappedMethods = Object.fromEntries(
+        Object.keys(client)
+            .filter(key => key !== 'createConversation')
+            .map(key => [key, wrapMethod(key)])
+    );
 
     return {
         ...state,
