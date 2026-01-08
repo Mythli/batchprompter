@@ -21,6 +21,10 @@ export class StepRow {
     public outputBasename?: string;
     public outputExtension?: string;
 
+    // Prepared state for strategies
+    public preparedMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+    public resolvedSchema: any;
+
     constructor(
         public readonly step: Step,
         public readonly item: PipelineItem
@@ -87,6 +91,7 @@ export class StepRow {
                     }
                 }
             }
+            this.resolvedSchema = schema;
 
             // Create LLM Client
             const llm = this.createLlm({
@@ -107,6 +112,7 @@ export class StepRow {
             if (userContent.length > 0) {
                 messages.push({ role: 'user', content: userContent });
             }
+            this.preparedMessages = messages;
 
             // --- Stage 4: Execution Strategy ---
             
@@ -119,28 +125,15 @@ export class StepRow {
                 createLlm: (cfg: any) => this.createLlm(cfg)
             };
 
-            // Inject resolved schema into config for Strategy
-            const configForStrategy = { ...this.step.config, schema };
-
             // Select Strategy
             let strategy: GenerationStrategy = new StandardStrategy(this);
 
-            if (configForStrategy.candidates > 1) {
-                strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext, this.step.globalContext.events);
+            if (this.step.config.candidates > 1) {
+                strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext, this.step.globalContext.events, this);
             }
 
             // Execute Strategy
-            const executionResult = await strategy.execute(
-                this.context,
-                this.item.originalIndex,
-                this.step.stepIndex,
-                configForStrategy,
-                messages,
-                undefined, // cacheSalt
-                undefined, // outputPathOverride
-                false, // skipCommands
-                this.item.variationIndex
-            );
+            const executionResult = await strategy.execute();
 
             let result = executionResult.raw !== undefined ? executionResult.raw : executionResult.columnValue;
             const historyMessage = executionResult.historyMessage;

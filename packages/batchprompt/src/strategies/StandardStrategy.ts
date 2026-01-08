@@ -3,7 +3,6 @@ import path from 'path';
 import Ajv from 'ajv';
 import { completionToMessage, LlmRetryError, LlmRetryResponseInfo, SchemaValidationError, concatMessageText } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
-import { StepConfig } from '../types.js';
 import { StepRow } from '../core/StepRow.js';
 
 type ExtractedContent = {
@@ -70,20 +69,13 @@ export class StandardStrategy implements GenerationStrategy {
         return currentData;
     }
 
-    async execute(
-        row: Record<string, any>,
-        index: number,
-        stepIndex: number,
-        config: StepConfig,
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        cacheSalt?: string | number,
-        outputPathOverride?: string,
-        skipCommands?: boolean,
-        variationIndex?: number
-    ): Promise<GenerationResult> {
-
-        // 1. Messages are now passed in (already prepared by StepRow)
-        const finalMessages = messages;
+    async execute(cacheSalt?: string | number): Promise<GenerationResult> {
+        const config = this.stepRow.step.config;
+        const index = this.stepRow.item.originalIndex;
+        const stepIndex = this.stepRow.step.stepIndex;
+        const variationIndex = this.stepRow.item.variationIndex;
+        const finalMessages = this.stepRow.preparedMessages;
+        const schema = this.stepRow.resolvedSchema;
 
         // 2. Generation Loop
         const requestOptions = cacheSalt ? {
@@ -105,12 +97,12 @@ export class StandardStrategy implements GenerationStrategy {
         let finalType = 'text';
         let finalContentPayload: string | Buffer = '';
 
-        if (config.schema) {
+        if (schema) {
             // --- Branch A: JSON Schema ---
 
             const validator = async (data: any) => {
                 // 1. Validate Schema
-                const valid = this.ajv.validate(config.schema, data);
+                const valid = this.ajv.validate(schema, data);
                 if (!valid) {
                     const errors = this.ajv.errorsText();
 
@@ -118,7 +110,7 @@ export class StandardStrategy implements GenerationStrategy {
                         row: index,
                         step: stepIndex,
                         data,
-                        schema: config.schema,
+                        schema: schema,
                         errors: this.ajv.errors
                     });
 
@@ -129,7 +121,7 @@ export class StandardStrategy implements GenerationStrategy {
                 return await this.runPostProcessingPhase(data);
             };
 
-            finalResult = await rawClient.promptJson(finalMessages, config.schema, {
+            finalResult = await rawClient.promptJson(finalMessages, schema, {
                 requestOptions,
                 maxRetries: 3 + (config.feedbackLoops || 0),
                 validator,

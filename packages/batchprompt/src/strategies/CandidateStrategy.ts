@@ -3,9 +3,10 @@ import { z } from 'zod';
 import { createCandidateSelector } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
-import { StepConfig, StepContext } from '../types.js';
+import { StepContext } from '../types.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from '../core/events.js';
+import { StepRow } from '../core/StepRow.js';
 
 type CandidateType = GenerationResult & { candidateIndex: number };
 
@@ -13,20 +14,14 @@ export class CandidateStrategy implements GenerationStrategy {
     constructor(
         private standardStrategy: StandardStrategy,
         private stepContext: StepContext,
-        private events: EventEmitter<BatchPromptEvents>
+        private events: EventEmitter<BatchPromptEvents>,
+        private stepRow: StepRow
     ) {}
 
-    async execute(
-        row: Record<string, any>,
-        index: number,
-        stepIndex: number,
-        config: StepConfig,
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        cacheSalt?: string | number,
-        outputPathOverride?: string,
-        skipCommands?: boolean,
-        variationIndex?: number
-    ): Promise<GenerationResult> {
+    async execute(cacheSalt?: string | number): Promise<GenerationResult> {
+        const config = this.stepRow.step.config;
+        const index = this.stepRow.item.originalIndex;
+        const stepIndex = this.stepRow.step.stepIndex;
         const candidateCount = config.candidates;
 
         this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Generating ${candidateCount} candidates...` });
@@ -34,9 +29,7 @@ export class CandidateStrategy implements GenerationStrategy {
         const selector = createCandidateSelector<void, CandidateType>({
             candidateCount,
             generate: async (_, i, salt) => {
-                const res = await this.standardStrategy.execute(
-                    row, index, stepIndex, config, messages, salt, undefined, skipCommands, variationIndex
-                );
+                const res = await this.standardStrategy.execute(salt);
                 return { ...res, candidateIndex: i };
             },
             judge: async (_, candidates) => {
@@ -47,7 +40,7 @@ export class CandidateStrategy implements GenerationStrategy {
 
                 this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `Judging ${candidates.length} candidates...` });
                 try {
-                    const decision = await this.performJudging(candidates, messages);
+                    const decision = await this.performJudging(candidates);
                     return {
                         bestCandidateIndex: decision.best_candidate_index,
                         reason: decision.reason
@@ -96,8 +89,7 @@ export class CandidateStrategy implements GenerationStrategy {
     }
 
     private async performJudging(
-        candidates: CandidateType[],
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+        candidates: CandidateType[]
     ): Promise<{ best_candidate_index: number; reason: string }> {
 
         if (!this.stepContext.judge) throw new Error("No judge configuration found");
@@ -125,13 +117,7 @@ export class CandidateStrategy implements GenerationStrategy {
         }
 
         // Add context about the original request
-        // We extract the user prompt parts from the messages if possible, or just pass the whole history?
-        // The judge needs context. Passing the last user message is usually enough.
-        // But `messages` contains System + History + User.
-        // We can pass the whole conversation as context?
-        // BoundLlmClient.promptZod takes prefix/suffix.
-        
-        // Let's try to extract the last user message content
+        const messages = this.stepRow.preparedMessages;
         const lastUserMsg = messages.slice().reverse().find(m => m.role === 'user');
         const contextParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
             { type: 'text', text: "Original request context:\n" }
