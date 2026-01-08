@@ -169,7 +169,7 @@ export class StandardStrategy implements GenerationStrategy {
                 return await this.runPostProcessingPhase(data, syntheticHistory, row, index, stepIndex);
             };
 
-            finalResult = await rawClient.promptJson(finalMessages, config.schema, {
+            finalResult = await rawClient.promptJson({ messages: finalMessages }, config.schema, {
                 requestOptions,
                 maxRetries: 3 + (config.feedbackLoops || 0),
                 validator,

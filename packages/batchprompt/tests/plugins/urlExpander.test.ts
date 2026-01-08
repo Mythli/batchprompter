@@ -24,7 +24,8 @@ describe('UrlExpanderPlugin', () => {
 
         // 3. Setup Env with Custom Plugin
         const { executor, openai } = setupTestEnvironment({
-            plugins: [plugin]
+            plugins: [plugin],
+            mockResponses: ["Mock response"]
         });
 
         // 4. Execute Config

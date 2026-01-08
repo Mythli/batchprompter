@@ -83,7 +83,7 @@ export class BoundLlmClient {
         }
 
         const messages = this.buildMessages(options);
-        return this.client.promptZod(messages, schema);
+        return this.client.promptZod({ messages }, schema);
     }
 
     /**
@@ -103,7 +103,7 @@ export class BoundLlmClient {
         }
 
         const messages = this.buildMessages(options);
-        return this.client.promptJson(messages, schema);
+        return this.client.promptJson({ messages }, schema);
     }
 
     /**
