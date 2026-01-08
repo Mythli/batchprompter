@@ -31,7 +31,6 @@ export interface StepExecutionContext {
  * Services available to plugins via dependency injection
  */
 export interface PluginServices {
-    createLlm: (config: ResolvedModelConfig) => BoundLlmClient;
     puppeteerHelper?: PuppeteerHelper;
     fetcher: Fetcher;
     cache?: Cache;
@@ -113,7 +112,7 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     /**
      * Prepare messages before the LLM generation loop.
      * This is where data gathering (search, scrape) happens.
-     * 
+     *
      * @param messages The current accumulated messages (system + user).
      * @param config The resolved configuration.
      * @param context The execution context.
@@ -128,7 +127,7 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     /**
      * Process the LLM response (or previous plugin output) inside the retry loop.
      * This is where validation and extraction happen.
-     * 
+     *
      * @param response The LLM response (or previous plugin output).
      * @param history The conversation history so far.
      * @param config The resolved configuration.
