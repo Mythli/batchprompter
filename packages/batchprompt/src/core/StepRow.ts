@@ -4,8 +4,9 @@ import path from 'path';
 import { Step } from './Step.js';
 import { PipelineItem } from '../types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
-import { ensureDir } from '../utils/fileUtils.js';
+import { ensureDir, aggressiveSanitize } from '../utils/fileUtils.js';
 import { StepExecutor } from '../StepExecutor.js';
+import { renderSchemaObject } from '../utils/schemaUtils.js';
 
 export class StepRow {
     public readonly context: Record<string, any>;
@@ -73,6 +74,32 @@ export class StepRow {
             const promptParts = await this.resolvePrompt(modelConfig.prompt);
             const systemParts = await this.resolvePrompt(modelConfig.system);
 
+            // Resolve Schema (Dynamic)
+            let schema = this.step.config.schema;
+            if (schema) {
+                if (typeof schema === 'string') {
+                    // Template string -> Render -> Load
+                    try {
+                        const template = Handlebars.compile(schema, { noEscape: true });
+                        const resolvedPath = template(this.context);
+                        // We assume schemaLoader is available on globalContext or we use contentResolver
+                        // Since schemaLoader is not on GlobalContext, we use a simple JSON parse of readText
+                        const content = await this.step.globalContext.contentResolver.readText(resolvedPath);
+                        schema = JSON.parse(content);
+                    } catch (e) {
+                        console.warn(`[Row ${this.item.originalIndex}] Failed to load schema from template '${schema}':`, e);
+                    }
+                } else {
+                    // Already an object (loaded by CLI)
+                    // Render templates inside the schema object using RAW context
+                    try {
+                        schema = renderSchemaObject(schema, this.context);
+                    } catch (e: any) {
+                        console.warn(`[Row ${this.item.originalIndex}] Failed to render schema templates:`, e);
+                    }
+                }
+            }
+
             // Create LLM Client
             const llm = this.createLlm({
                 ...modelConfig,
@@ -125,11 +152,14 @@ export class StepRow {
                 def: { type: p.instance.type, id: 'legacy', output: { mode: 'ignore' as const, explode: false } }
             }));
 
+            // Inject resolved schema into config for StepExecutor
+            const configForExecutor = { ...this.step.config, schema };
+
             const executionResult = await stepExecutor.executeModel(
                 stepContext,
                 this.item.originalIndex,
                 this.step.stepIndex,
-                this.step.config,
+                configForExecutor,
                 messages,
                 this.item.variationIndex,
                 legacyPlugins,
@@ -181,6 +211,10 @@ export class StepRow {
         }
     }
 
+    appendContent(parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]) {
+        this.content.push(...parts);
+    }
+
     createLlm(config: any): BoundLlmClient {
         const systemParts = this.renderParts(config.systemParts || []);
         const promptParts = this.renderParts(config.promptParts || []);
@@ -208,18 +242,25 @@ export class StepRow {
         });
     }
 
-    render(template: string): string {
+    render(template: string, context: Record<string, any> = this.context): string {
         if (!template) return '';
         const t = Handlebars.compile(template, { noEscape: true });
-        return t(this.context);
+        return t(context);
     }
 
     private async resolvePaths() {
         const { config, stepIndex } = this.step;
         const stepNum = stepIndex + 1;
 
+        // Create sanitized context for file paths
+        const sanitizedContext: Record<string, any> = {};
+        for (const [key, val] of Object.entries(this.context)) {
+             const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
+             sanitizedContext[key] = aggressiveSanitize(stringVal);
+        }
+
         if (config.outputPath) {
-            const rendered = this.render(config.outputPath);
+            const rendered = this.render(config.outputPath, sanitizedContext);
             this.resolvedOutputDir = path.resolve(path.dirname(rendered));
             await ensureDir(this.resolvedOutputDir);
             
@@ -232,7 +273,7 @@ export class StepRow {
         }
 
         if (config.tmpDir) {
-            const rendered = this.render(config.tmpDir);
+            const rendered = this.render(config.tmpDir, sanitizedContext);
             this.resolvedTempDir = path.resolve(rendered);
             await ensureDir(this.resolvedTempDir);
         }

@@ -12,14 +12,11 @@ import { createAiLoggingFetcher, createCachedFetcher, createLlm, LlmClient } fro
 import { GlobalContext } from './types.js';
 import { ServiceCapabilities, ModelConfig } from './config/types.js';
 import { LlmClientFactory } from './core/LlmClientFactory.js';
-import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
 import { MemoryContentResolver } from './core/io/MemoryContentResolver.js';
 import { PromptLoader } from './config/PromptLoader.js';
 import { SchemaLoader } from './config/SchemaLoader.js';
-import { StepOrchestrator } from './core/StepOrchestrator.js';
-import { PluginExecutor } from './core/PluginExecutor.js';
 import { StepExecutor } from './StepExecutor.js';
 import { attachQueueLogger } from "./debug/queue.js";
 import { LlmFactory } from './plugins/types.js';
@@ -245,31 +242,14 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         llmFactory
     };
 
-    const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
     const messageBuilder = new MessageBuilder();
-
-    // --- New Architecture Components ---
-
-    // 1. Plugin Executor
-    const pluginExecutor = new PluginExecutor(globalContext.events, '/tmp');
 
     // 2. Step Executor (Model)
     const stepExecutor = new StepExecutor(globalContext.events);
 
-    // 3. Step Orchestrator
-    const stepOrchestrator = new StepOrchestrator(
-        globalContext,
-        pluginRegistry,
-        stepResolver,
-        messageBuilder,
-        pluginExecutor,
-        stepExecutor
-    );
-
     // Initialize ActionRunner
     const actionRunner = new ActionRunner(
-        globalContext,
-        stepOrchestrator
+        globalContext
     );
 
     return {
@@ -280,12 +260,9 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         puppeteerHelper,
         capabilities,
         llmFactory,
-        stepResolver,
         messageBuilder,
         promptLoader,
         schemaLoader,
-        stepOrchestrator,
-        pluginExecutor,
         stepExecutor
     };
 }

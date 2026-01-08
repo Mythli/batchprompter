@@ -5,8 +5,7 @@ import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy, GenerationResult } from './strategies/GenerationStrategy.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
-import { PluginServices } from './plugins/types.js';
-import { ResolvedPlugin } from './core/PluginExecutor.js';
+import { PluginServices, ResolvedPlugin } from './plugins/types.js';
 
 export interface StepExecutionResult {
     historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;

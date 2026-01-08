@@ -5,15 +5,12 @@ import { EventEmitter } from 'eventemitter3';
 import { GlobalContext } from '../../src/types.js';
 import { MemoryContentResolver } from '../../src/core/io/MemoryContentResolver.js';
 import { LlmClientFactory } from '../../src/core/LlmClientFactory.js';
-import { StepResolver } from '../../src/core/StepResolver.js';
 import { MessageBuilder } from '../../src/core/MessageBuilder.js';
 import { Plugin, createPluginRegistry } from '../../src/plugins/index.js';
 import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
 import { PromptLoader } from '../../src/config/PromptLoader.js';
 import {createMockOpenAI, getPromptSummary, LlmFatalError} from 'llm-fns';
-import { StepOrchestrator } from '../../src/core/StepOrchestrator.js';
-import { PluginExecutor } from '../../src/core/PluginExecutor.js';
 import { StepExecutor } from '../../src/StepExecutor.js';
 import { DebugLogger } from "../../src/index.js";
 
@@ -91,7 +88,6 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     new DebugLogger(events as any);
 
     const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock', 0);
-    const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
     const messageBuilder = new MessageBuilder();
 
     const promptLoader = new PromptLoader(contentResolver);
@@ -114,21 +110,10 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         pluginRegistry.override(plugin);
     }
 
-    const pluginExecutor = new PluginExecutor(events as any, '/tmp');
     const stepExecutor = new StepExecutor(events as any);
 
-    const stepOrchestrator = new StepOrchestrator(
-        globalContext,
-        pluginRegistry,
-        stepResolver,
-        messageBuilder,
-        pluginExecutor,
-        stepExecutor
-    );
-
     const actionRunner = new ActionRunner(
-        globalContext,
-        stepOrchestrator
+        globalContext
     );
 
     const executor = new InMemoryConfigExecutor(

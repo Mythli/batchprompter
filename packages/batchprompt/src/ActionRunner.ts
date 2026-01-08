@@ -1,5 +1,4 @@
 import { RuntimeConfig, PipelineItem, GlobalContext } from './types.js';
-import { StepOrchestrator } from './core/StepOrchestrator.js';
 import { Step } from './core/Step.js';
 
 interface TaskPayload {
@@ -9,8 +8,7 @@ interface TaskPayload {
 
 export class ActionRunner {
     constructor(
-        private globalContext: GlobalContext,
-        private stepOrchestrator: StepOrchestrator // Kept for now if needed, but we are replacing logic
+        private globalContext: GlobalContext
     ) {}
 
     async run(config: RuntimeConfig) {

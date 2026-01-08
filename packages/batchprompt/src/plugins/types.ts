@@ -6,6 +6,7 @@ import { ModelConfig } from '../config/schemas/model.js';
 import { LlmClient } from 'llm-fns';
 import { Step } from '../core/Step.js';
 import { StepRow } from '../core/StepRow.js';
+import { ResolvedPluginBase } from '../config/types.js';
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -16,11 +17,22 @@ export interface PluginExecutionContext {
     outputBasename?: string;
     outputExtension?: string;
     emit: <K extends keyof BatchPromptEvents>(event: K, ...args: Parameters<BatchPromptEvents[K]>) => void;
+    services?: PluginServices;
+}
+
+export interface PluginServices {
+    [key: string]: any;
 }
 
 export interface PluginPacket {
     contentParts: any[];
     data: any;
+}
+
+export interface ResolvedPlugin {
+    instance: Plugin;
+    config: any;
+    def: ResolvedPluginBase;
 }
 
 export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
