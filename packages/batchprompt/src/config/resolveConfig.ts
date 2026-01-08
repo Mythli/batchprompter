@@ -1,14 +1,14 @@
 import { RuntimeConfig, StepConfig, ModelConfig } from './types.js';
-import { LoosePipelineConfigSchema, PipelineConfigSchema } from './schema.js';
+import { createPipelineSchema } from './schema.js';
 import { ConfigNormalizer } from './ConfigNormalizer.js';
 import { PromptLoader } from './PromptLoader.js';
 import { SchemaLoader } from './SchemaLoader.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
 import { z } from 'zod';
+import { zJsonSchemaObject } from './validationRules.js';
 
 export interface ResolveConfigDependencies {
-    capabilities: { hasSerper: boolean; hasPuppeteer: boolean };
     pluginRegistry: PluginRegistryV2;
     contentResolver: ContentResolver;
     promptLoader: PromptLoader;
@@ -29,7 +29,15 @@ export async function resolveConfig(
         deps.promptLoader
     );
 
+    // 0. Get Dynamic Plugin Schema
+    const pluginUnion = deps.pluginRegistry.getSchema();
+
     // 1. Parse with Loose Schema (allows strings for schemas/prompts)
+    const LoosePipelineConfigSchema = createPipelineSchema(
+        pluginUnion,
+        z.union([z.string(), zJsonSchemaObject])
+    );
+    
     const looseConfig = LoosePipelineConfigSchema.parse(rawConfig);
 
     // 2. Normalize (Resolve file paths to objects)
@@ -39,12 +47,14 @@ export async function resolveConfig(
     const expandedConfig = expandShortcuts(normalizedConfig, deps.pluginRegistry);
 
     // 4. Validate with Strict Schema - this applies all Zod defaults
+    const PipelineConfigSchema = createPipelineSchema(
+        pluginUnion,
+        zJsonSchemaObject
+    );
+    
     const config = PipelineConfigSchema.parse(expandedConfig);
 
-    // 5. Validate plugin capabilities
-    deps.pluginRegistry.validateCapabilities(config.steps, deps.capabilities);
-
-    // 6. Resolve steps (merge globals, transform plugins)
+    // 5. Resolve steps (merge globals, transform plugins)
     const resolvedSteps: StepConfig[] = [];
 
     for (let i = 0; i < config.steps.length; i++) {
@@ -82,11 +92,12 @@ function expandShortcuts(config: any, registry: PluginRegistryV2): any {
                         }
                         
                         // Remove shortcut keys from step
-                        if (plugin.stepExtensionSchema && plugin.stepExtensionSchema instanceof z.ZodObject) {
-                            const keys = Object.keys(plugin.stepExtensionSchema.shape);
-                            for (const key of keys) {
-                                delete step[key];
-                            }
+                        if (plugin.configSchema instanceof z.ZodObject) {
+                            // Note: We can't easily know which keys to remove without the specific extension schema.
+                            // But mapStepToConfig implies the plugin knows what keys it handles.
+                            // For now, we rely on the plugin logic or just leave them (Zod .strict() might complain if we don't strip).
+                            // Ideally, plugins should expose what keys they consume.
+                            // For UrlExpander, it's handled via UrlExpanderStepExtension in the schema.
                         }
                     }
                 }
@@ -127,11 +138,22 @@ function resolveStep(step: any, globals: any, stepIndex: number): StepConfig {
             pluginOutput.offset ??= globals.offset;
         }
 
+        // Deep merge model configs inside plugins
+        // We iterate over keys and if we find a model-like object, we merge it
+        const rawConfig = p.rawConfig || p;
+        const mergedConfig = { ...rawConfig };
+        
+        for (const key of Object.keys(mergedConfig)) {
+            if (key.endsWith('Model') && typeof mergedConfig[key] === 'object') {
+                mergedConfig[key] = mergeModelConfigs(mergedConfig[key], mergedModel);
+            }
+        }
+
         return {
             type: p.type as string,
             id: p.id ?? `${p.type}-${stepIndex}-${idx}`,
             output: pluginOutput,
-            rawConfig: p.rawConfig || p
+            rawConfig: mergedConfig
         };
     });
 
@@ -181,5 +203,15 @@ function resolveStep(step: any, globals: any, stepIndex: number): StepConfig {
         tmpDir: globals.tmpDir,
         timeout,
         expandUrls: step.expandUrls ?? true
+    };
+}
+
+function mergeModelConfigs(pluginModel: any, parentModel: ModelConfig): ModelConfig {
+    return {
+        model: pluginModel?.model ?? parentModel.model,
+        temperature: pluginModel?.temperature ?? parentModel.temperature,
+        thinkingLevel: pluginModel?.thinkingLevel ?? parentModel.thinkingLevel,
+        system: pluginModel?.system, // System/Prompt usually don't inherit content
+        prompt: pluginModel?.prompt
     };
 }

@@ -8,9 +8,9 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import { createPluginRegistry, PluginRegistryV2 } from './plugins/index.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import {createAiLoggingFetcher, createCachedFetcher} from "llm-fns";
+import { createAiLoggingFetcher, createCachedFetcher, createLlm, LlmClient } from "llm-fns";
 import { GlobalContext } from './types.js';
-import { ServiceCapabilities } from './config/types.js';
+import { ServiceCapabilities, ModelConfig } from './config/types.js';
 import { LlmClientFactory } from './core/LlmClientFactory.js';
 import { StepResolver } from './core/StepResolver.js';
 import { MessageBuilder } from './core/MessageBuilder.js';
@@ -21,7 +21,8 @@ import { SchemaLoader } from './config/SchemaLoader.js';
 import { StepOrchestrator } from './core/StepOrchestrator.js';
 import { PluginExecutor } from './core/PluginExecutor.js';
 import { StepExecutor } from './StepExecutor.js';
-import {attachQueueLogger} from "./debug/queue.js";
+import { attachQueueLogger } from "./debug/queue.js";
+import { LlmFactory } from './plugins/types.js';
 
 function getEnvVar(env: Record<string, any>, keys: string[]): string | undefined {
     for (const key of keys) {
@@ -84,10 +85,6 @@ class KeyvCacheAdapter {
     async wrap<T>(key: string, fn: () => Promise<T>, ttl?: number): Promise<T> { return fn(); }
     store: any = {};
 }
-
-export const createDefaultRegistry = (capabilities: ServiceCapabilities, promptLoader: PromptLoader): PluginRegistryV2 => {
-    return createPluginRegistry(promptLoader);
-};
 
 export const initConfig = async (env: Record<string, any>, overrides: ConfigOverrides = {}) => {
     const rawConfig = {
@@ -214,26 +211,45 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
 
     // Create Factories
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
+    
+    // The "Upgraded" createLlm factory for plugins
+    const createLlm: LlmFactory = (config: Partial<ModelConfig>) => {
+        const modelConfig: Record<string, any> = {
+            model: config.model || defaultModel
+        };
+
+        if (config.temperature !== undefined) {
+            modelConfig.temperature = config.temperature;
+        }
+
+        if (config.thinkingLevel) {
+            modelConfig.reasoning_effort = config.thinkingLevel;
+        }
+
+        return createLlm({
+            openai: openai as any,
+            defaultModel: modelConfig,
+            queue: gptQueue,
+            retryBaseDelay: overrides.retryBaseDelay,
+        });
+    };
+
     const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
     const messageBuilder = new MessageBuilder();
 
-    // Initialize Registries
-    const pluginRegistry = createDefaultRegistry(capabilities, promptLoader);
+    // Initialize Registries with Constructor Injection
+    const pluginRegistry = createPluginRegistry({
+        promptLoader,
+        webSearch,
+        imageSearch,
+        puppeteerHelper,
+        createLlm
+    });
 
     // --- New Architecture Components ---
 
     // 1. Plugin Executor
-    const basePluginServices = {
-        puppeteerHelper,
-        puppeteerQueue,
-        fetcher,
-        cache,
-        imageSearch,
-        webSearch,
-        createLlm: (config: any) => llmFactory.create(config)
-    };
-
-    const pluginExecutor = new PluginExecutor(globalContext.events, basePluginServices, '/tmp');
+    const pluginExecutor = new PluginExecutor(globalContext.events, '/tmp');
 
     // 2. Step Executor (Model)
     const stepExecutor = new StepExecutor(globalContext.events);

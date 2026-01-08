@@ -6,7 +6,6 @@ import {
     ModelConfigSchema, 
     OutputConfigSchema 
 } from './schemas/index.js';
-import { PluginUnionSchema, LoosePluginUnionSchema } from './pluginUnion.js';
 import { zJsonSchemaObject, zHandlebars } from './validationRules.js';
 import { UrlExpanderStepExtension } from '../plugins/url-expander/UrlExpanderConfig.js';
 
@@ -65,7 +64,7 @@ export const GlobalsConfigSchema = z.object({
  * Creates a step config schema with the given plugin union and schema field type.
  * This is the single source of truth for step configuration structure.
  */
-function createStepSchema<TPlugin extends z.ZodTypeAny, TSchema extends z.ZodTypeAny>(
+export function createStepSchema<TPlugin extends z.ZodTypeAny, TSchema extends z.ZodTypeAny>(
     pluginUnion: TPlugin,
     schemaFieldType: TSchema
 ) {
@@ -110,47 +109,6 @@ export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema exten
 // Pre-built Pipeline Schemas
 // =============================================================================
 
-/**
- * Loose Step Schema - accepts string paths for schema field.
- * Used for input/CLI parsing.
- */
-export const LooseStepConfigSchema = createStepSchema(
-    LoosePluginUnionSchema,
-    z.union([z.string(), zJsonSchemaObject])
-);
-
-/**
- * Strict Step Schema - requires object for schema field.
- * Used for runtime validation after normalization.
- */
-export const StepConfigSchema = createStepSchema(
-    PluginUnionSchema,
-    zJsonSchemaObject
-);
-
-/**
- * Loose Pipeline Schema - accepts string paths.
- * Used for input/CLI parsing.
- */
-export const LoosePipelineConfigSchema = createPipelineSchema(
-    LoosePluginUnionSchema,
-    z.union([z.string(), zJsonSchemaObject])
-);
-
-/**
- * Strict Pipeline Schema - requires objects.
- * Used for runtime validation after normalization.
- */
-export const PipelineConfigSchema = createPipelineSchema(
-    PluginUnionSchema,
-    zJsonSchemaObject
-);
-
-// =============================================================================
-// Inferred Types (Single Source of Truth)
-// =============================================================================
-
-export type LooseStepConfig = z.infer<typeof LooseStepConfigSchema>;
-export type StepConfigParsed = z.infer<typeof StepConfigSchema>;
-export type GlobalsConfigParsed = z.infer<typeof GlobalsConfigSchema>;
-export type PipelineConfigParsed = z.infer<typeof PipelineConfigSchema>;
+// Note: We no longer export static schemas like LoosePipelineConfigSchema here
+// because the plugin union is dynamic. Consumers should use createPipelineSchema
+// with the schema from the PluginRegistry.

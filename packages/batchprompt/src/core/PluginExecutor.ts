@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import path from 'path';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './events.js';
-import { Plugin, PluginExecutionContext, PluginServices, PluginPacket } from '../plugins/types.js';
+import { Plugin, PluginExecutionContext, PluginPacket } from '../plugins/types.js';
 import { ResolvedPluginBase } from '../config/types.js';
 import { StepExecutionState } from '../types.js';
 import { ResultProcessor } from './ResultProcessor.js';
@@ -16,7 +16,6 @@ export interface ResolvedPlugin {
 export class PluginExecutor {
     constructor(
         private events: EventEmitter<BatchPromptEvents>,
-        private pluginServices: PluginServices,
         private tempDir: string
     ) {}
 
@@ -25,7 +24,6 @@ export class PluginExecutor {
             row,
             stepIndex,
             pluginIndex,
-            services: this.pluginServices,
             tempDirectory: this.tempDir,
             emit: (event, ...args) => {
                 if (event === 'plugin:artifact') {

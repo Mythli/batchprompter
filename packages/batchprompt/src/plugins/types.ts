@@ -1,76 +1,26 @@
-import OpenAI from 'openai';
 import { z } from 'zod';
-import { ServiceCapabilities, ResolvedModelConfig } from '../config/types.js';
-import { BoundLlmClient } from '../core/BoundLlmClient.js';
+import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from '../core/events.js';
-import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
-import { Fetcher } from 'llm-fns';
-import { Cache } from 'cache-manager';
-import { ImageSearch } from './image-search/ImageSearch.js';
-import { WebSearch } from './web-search/WebSearch.js';
-import PQueue from 'p-queue';
 import { ContentResolver } from '../core/io/ContentResolver.js';
+import { ModelConfig } from '../config/schemas/model.js';
+import { LlmClient } from 'llm-fns';
 
-// =============================================================================
-// Execution Contexts
-// =============================================================================
-
-export interface StepExecutionContext {
-    row: Record<string, any>;
-    workspace: Record<string, any>;
-    stepIndex: number;
-    rowIndex: number;
-    history: any[];
-}
-
-// =============================================================================
-// Plugin Services (Dependency Injection)
-// =============================================================================
-
-/**
- * Services available to plugins via dependency injection
- */
-export interface PluginServices {
-    puppeteerHelper?: PuppeteerHelper;
-    fetcher: Fetcher;
-    cache?: Cache;
-    imageSearch?: ImageSearch;
-    webSearch?: WebSearch;
-    puppeteerQueue?: PQueue;
-}
-
-/**
- * Context provided to plugin execute method
- */
 export interface PluginExecutionContext {
     row: Record<string, any>;
     stepIndex: number;
     pluginIndex: number;
-    services: PluginServices;
     tempDirectory: string;
     outputDirectory?: string;
     outputBasename?: string;
     outputExtension?: string;
-
-    // Event emitter for artifacts and logs
-    emit: (event: keyof BatchPromptEvents, ...args: any[]) => void;
+    emit: <K extends keyof BatchPromptEvents>(event: K, ...args: Parameters<BatchPromptEvents[K]>) => void;
 }
 
-/**
- * Standard output packet from a plugin
- */
 export interface PluginPacket {
+    contentParts: any[];
     data: any;
-    contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
-// =============================================================================
-// Plugin Interface
-// =============================================================================
-
-/**
- * Plugin interface for content providers and processors
- */
 export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     /**
      * Unique plugin type identifier (e.g., 'web-search', 'image-search')
@@ -83,85 +33,50 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     readonly configSchema: z.ZodType<TRawConfig>;
 
     /**
-     * Check if this plugin requires specific capabilities
-     * @returns Array of required capability keys
-     */
-    getRequiredCapabilities(): (keyof ServiceCapabilities)[];
-
-    /**
-     * Optional: Normalize configuration during the loading phase.
-     * Useful for resolving static file paths (like schemas) before validation.
-     * This runs ONCE during config loading, not per-row.
-     */
-    normalizeConfig?(
-        config: TRawConfig,
-        contentResolver: ContentResolver
-    ): Promise<TRawConfig>;
-
-    /**
-     * Resolve raw config (load files, render templates, etc.)
-     * Called once per row before execution
+     * Resolves raw configuration into a runtime-ready format.
+     * This is where Handlebars templates in the config are rendered.
      */
     resolveConfig(
         rawConfig: TRawConfig,
         row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
+        inheritedModel: any,
         contentResolver: ContentResolver
     ): Promise<TResolvedConfig>;
 
     /**
-     * Prepare messages before the LLM generation loop.
-     * This is where data gathering (search, scrape) happens.
-     *
-     * @param messages The current accumulated messages (system + user).
-     * @param config The resolved configuration.
-     * @param context The execution context.
-     * @returns The modified messages array (or an array of message arrays for explosion).
+     * Optional: Normalizes config during the initial loading phase.
+     * Used to hydrate static file paths into ContentParts.
      */
-    prepareMessages?(
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        config: TResolvedConfig,
-        context: PluginExecutionContext
-    ): Promise<PluginPacket[] | null>;
+    normalizeConfig?(config: TRawConfig, contentResolver: ContentResolver): Promise<TRawConfig>;
 
     /**
-     * Process the LLM response (or previous plugin output) inside the retry loop.
-     * This is where validation and extraction happen.
-     *
-     * @param response The LLM response (or previous plugin output).
-     * @param history The conversation history so far.
-     * @param config The resolved configuration.
-     * @param context The execution context.
-     * @returns The processed result (passed to next plugin).
-     * @throws Error if validation fails (triggers retry).
+     * Optional: Maps top-level step keys to this plugin's configuration.
+     * Used for "shortcut" syntax (e.g., expandUrls: true).
+     */
+    mapStepToConfig?(step: any): TRawConfig | null;
+
+    /**
+     * Executed before the main model generation.
+     * Can modify the prompt content or inject data into the row context.
+     */
+    prepareMessages?(
+        messages: any[],
+        config: TResolvedConfig,
+        context: PluginExecutionContext
+    ): Promise<PluginPacket[] | PluginPacket | void>;
+
+    /**
+     * Executed after the main model generation.
+     * Can be used for validation, cleanup, or further enrichment.
      */
     postProcessMessages?(
         response: any,
-        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        history: any[],
         config: TResolvedConfig,
         context: PluginExecutionContext
     ): Promise<any>;
-
-    /**
-     * Optional Zod schema to extend the StepConfig.
-     * Fields defined here will be merged into the main StepConfigSchema.
-     */
-    stepExtensionSchema?: z.ZodType<any>;
-
-    /**
-     * Optional function to map step-level configuration to a plugin configuration.
-     * If this returns a config object, the plugin will be implicitly added to the step.
-     */
-    mapStepToConfig?(stepConfig: any): TRawConfig | null;
 }
 
-// =============================================================================
-// Plugin Registry
-// =============================================================================
-
-/**
- * Registry for plugins
- */
 export class PluginRegistryV2 {
     private plugins = new Map<string, Plugin>();
 
@@ -169,10 +84,6 @@ export class PluginRegistryV2 {
         if (this.plugins.has(plugin.type)) {
             throw new Error(`Plugin '${plugin.type}' is already registered`);
         }
-        this.plugins.set(plugin.type, plugin);
-    }
-
-    override(plugin: Plugin): void {
         this.plugins.set(plugin.type, plugin);
     }
 
@@ -185,29 +96,22 @@ export class PluginRegistryV2 {
     }
 
     /**
-     * Validate that required capabilities are available for all plugins in config
+     * Dynamically generates a Zod discriminated union schema for all registered plugins.
      */
-    validateCapabilities(
-        stepConfigs: Array<{ plugins: Array<{ type: string }> }>,
-        capabilities: ServiceCapabilities
-    ): void {
-        for (let stepIdx = 0; stepIdx < stepConfigs.length; stepIdx++) {
-            const step = stepConfigs[stepIdx];
-            for (const pluginConfig of step.plugins) {
-                const plugin = this.get(pluginConfig.type);
-                if (!plugin) {
-                    throw new Error(`Unknown plugin type: ${pluginConfig.type}`);
-                }
-
-                const required = plugin.getRequiredCapabilities();
-                for (const cap of required) {
-                    if (!capabilities[cap]) {
-                        throw new Error(
-                            `Step ${stepIdx + 1}: Plugin '${pluginConfig.type}' requires '${String(cap)}' which is not available.`
-                        );
-                    }
-                }
-            }
+    getSchema(): z.ZodTypeAny {
+        const plugins = this.getAll();
+        if (plugins.length === 0) {
+            return z.object({ type: z.string() });
         }
+
+        const schemas = plugins.map(p => p.configSchema) as [z.ZodTypeAny, z.ZodTypeAny, ...z.ZodTypeAny[]];
+        
+        if (schemas.length === 1) {
+            return schemas[0];
+        }
+
+        return z.discriminatedUnion('type', schemas);
     }
 }
+
+export type LlmFactory = (config: Partial<ModelConfig>) => LlmClient;

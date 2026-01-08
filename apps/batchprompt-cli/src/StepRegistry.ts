@@ -71,24 +71,15 @@ export class StepRegistry {
         }
 
         // Register Plugin Options via Adapters
+        // Only register adapters for plugins that are actually present in the registry
+        const activePlugins = new Set(registry.getAll().map(p => p.type));
+        
         for (const adapter of this.adapters) {
-            adapter.registerOptions(program);
-            for (let i = 1; i <= 10; i++) {
-                adapter.registerOptionsForStep(program, i);
-            }
-        }
-
-        // Register UrlExpander Adapter explicitly if not already in adapters list
-        const hasUrlExpander = this.adapters.some(a => a.plugin.type === 'url-expander');
-        if (!hasUrlExpander) {
-            const urlExpanderPlugin = registry.get('url-expander');
-            if (urlExpanderPlugin) {
-                const adapter = new UrlExpanderAdapter(urlExpanderPlugin as UrlExpanderPlugin);
+            if (activePlugins.has(adapter.plugin.type)) {
                 adapter.registerOptions(program);
                 for (let i = 1; i <= 10; i++) {
                     adapter.registerOptionsForStep(program, i);
                 }
-                this.adapters.push(adapter);
             }
         }
     }

@@ -3,7 +3,7 @@ import { StepResolver } from './StepResolver.js';
 import { PluginExecutor, ResolvedPlugin } from './PluginExecutor.js';
 import { StepExecutor } from '../StepExecutor.js';
 import { MessageBuilder } from './MessageBuilder.js';
-import { PluginRegistryV2, PluginServices } from '../plugins/types.js';
+import { PluginRegistryV2 } from '../plugins/types.js';
 import { GlobalContext, PipelineItem, StepExecutionState } from '../types.js';
 import { ResultProcessor } from './ResultProcessor.js';
 import { ResolvedPluginBase } from '../config/types.js';
@@ -22,8 +22,7 @@ export class StepOrchestrator {
         item: PipelineItem,
         stepIndex: number,
         stepConfig: any, // Raw config from RuntimeConfig
-        configTmpDir: string,
-        pluginServices: PluginServices
+        configTmpDir: string
     ): Promise<PipelineItem[]> {
         const stepNum = stepIndex + 1;
         const events = this.globalContext.events;
@@ -142,7 +141,6 @@ export class StepOrchestrator {
                     messages,
                     state.variationIndex,
                     resolvedPlugins,
-                    pluginServices,
                     resolvedStep.resolvedTempDir || configTmpDir,
                     state.context
                 );

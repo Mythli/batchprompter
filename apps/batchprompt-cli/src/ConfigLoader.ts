@@ -38,7 +38,6 @@ export class ConfigLoader {
 
         // 4. Use unified resolveConfig
         const runtimeConfig = await resolveConfig(rawConfig, {
-            capabilities: { hasSerper: true, hasPuppeteer: true },
             pluginRegistry: this.registry,
             contentResolver: contentResolver,
             promptLoader: promptLoader,
