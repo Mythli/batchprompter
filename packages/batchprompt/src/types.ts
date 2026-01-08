@@ -10,7 +10,8 @@ import type { GlobalsConfig, ResolvedModelConfig, ServiceCapabilities, OutputCon
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './core/events.js';
 import { ContentResolver } from './core/io/ContentResolver.js';
-import type { StepExecutionContext } from './plugins/types.js';
+import type { StepExecutionContext, PluginRegistryV2 } from './plugins/types.js';
+import { LlmClientFactory } from './core/LlmClientFactory.js';
 
 // Re-export types from plugins to ensure single source of truth
 export type { StepExecutionContext };
@@ -101,6 +102,10 @@ export interface GlobalContext {
     defaultModel: string;
 
     contentResolver: ContentResolver;
+    
+    // Added for Step/StepRow architecture
+    pluginRegistry: PluginRegistryV2;
+    llmFactory: LlmClientFactory;
 }
 
 export interface StepContext {

@@ -1,6 +1,6 @@
 import { RuntimeConfig, PipelineItem, GlobalContext } from './types.js';
 import { StepOrchestrator } from './core/StepOrchestrator.js';
-import { PluginServices } from './plugins/types.js';
+import { Step } from './core/Step.js';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -10,7 +10,7 @@ interface TaskPayload {
 export class ActionRunner {
     constructor(
         private globalContext: GlobalContext,
-        private stepOrchestrator: StepOrchestrator
+        private stepOrchestrator: StepOrchestrator // Kept for now if needed, but we are replacing logic
     ) {}
 
     async run(config: RuntimeConfig) {
@@ -22,6 +22,16 @@ export class ActionRunner {
 
         this.globalContext.taskQueue.concurrency = taskConcurrency;
         this.globalContext.gptQueue.concurrency = concurrency;
+
+        // --- Phase 1: Initialization (The Step Level) ---
+        const initializedSteps: Step[] = [];
+        for (let i = 0; i < steps.length; i++) {
+            const stepConfig = steps[i];
+            const step = new Step(stepConfig, this.globalContext, i);
+            await step.init();
+            initializedSteps.push(step);
+        }
+        events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initialized ${initializedSteps.length} steps.` });
 
         const endIndex = limit ? offset + limit : undefined;
         const dataToProcess = data.slice(offset, endIndex);
@@ -44,10 +54,9 @@ export class ActionRunner {
 
         const processTask = async (payload: TaskPayload) => {
             const { item, stepIndex } = payload;
-            const stepConfig = steps[stepIndex];
+            const step = initializedSteps[stepIndex];
             const stepNum = stepIndex + 1;
-            // timeout is guaranteed to be a number after resolveStep
-            const timeoutMs = stepConfig.timeout * 1000;
+            const timeoutMs = step.config.timeout * 1000;
 
             events.emit('step:start', { row: item.originalIndex, step: stepNum });
 
@@ -55,15 +64,12 @@ export class ActionRunner {
                 // Execute with Timeout
                 let timer: NodeJS.Timeout;
                 const timeoutPromise = new Promise<never>((_, reject) => {
-                    timer = setTimeout(() => reject(new Error(`Step timed out after ${stepConfig.timeout}s`)), timeoutMs);
+                    timer = setTimeout(() => reject(new Error(`Step timed out after ${step.config.timeout}s`)), timeoutMs);
                 });
 
-                const executionPromise = this.stepOrchestrator.processStep(
-                    item,
-                    stepIndex,
-                    stepConfig,
-                    config.tmpDir,
-                );
+                // --- Phase 2: Processing (The StepRow Level) ---
+                const stepRow = step.createRow(item);
+                const executionPromise = stepRow.run();
 
                 const nextItems = await Promise.race([executionPromise, timeoutPromise]);
                 clearTimeout(timer!);

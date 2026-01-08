@@ -4,6 +4,8 @@ import { BatchPromptEvents } from '../core/events.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
 import { ModelConfig } from '../config/schemas/model.js';
 import { LlmClient } from 'llm-fns';
+import { Step } from '../core/Step.js';
+import { StepRow } from '../core/StepRow.js';
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -33,42 +35,45 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     readonly configSchema: z.ZodType<TRawConfig>;
 
     /**
-     * Resolves raw configuration into a runtime-ready format.
-     * This is where Handlebars templates in the config are rendered.
+     * Initialization phase (Static).
+     * Called once per step definition.
+     * Use this to load files, validate config, and prepare resources.
      */
-    resolveConfig(
+    init?(step: Step, config: TRawConfig): Promise<TResolvedConfig>;
+
+    /**
+     * Execution phase (Dynamic).
+     * Called for every row.
+     * Use stepRow.createLlm() to get clients.
+     * Use stepRow.appendContent() to add to the prompt.
+     * Use stepRow.context to read/write data.
+     */
+    prepare?(stepRow: StepRow, config: TResolvedConfig): Promise<void>;
+
+    /**
+     * Post-processing phase.
+     * Called after the model generation.
+     */
+    postProcess?(stepRow: StepRow, config: TResolvedConfig, result: any): Promise<any>;
+
+    // Legacy methods to be removed or adapted
+    resolveConfig?(
         rawConfig: TRawConfig,
         row: Record<string, any>,
         inheritedModel: any,
         contentResolver: ContentResolver
     ): Promise<TResolvedConfig>;
 
-    /**
-     * Optional: Normalizes config during the initial loading phase.
-     * Used to hydrate static file paths into ContentParts.
-     */
     normalizeConfig?(config: TRawConfig, contentResolver: ContentResolver): Promise<TRawConfig>;
 
-    /**
-     * Optional: Maps top-level step keys to this plugin's configuration.
-     * Used for "shortcut" syntax (e.g., expandUrls: true).
-     */
     mapStepToConfig?(step: any): TRawConfig | null;
 
-    /**
-     * Executed before the main model generation.
-     * Can modify the prompt content or inject data into the row context.
-     */
     prepareMessages?(
         messages: any[],
         config: TResolvedConfig,
         context: PluginExecutionContext
     ): Promise<PluginPacket[] | PluginPacket | void>;
 
-    /**
-     * Executed after the main model generation.
-     * Can be used for validation, cleanup, or further enrichment.
-     */
     postProcessMessages?(
         response: any,
         history: any[],

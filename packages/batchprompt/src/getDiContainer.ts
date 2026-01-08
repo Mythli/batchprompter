@@ -190,25 +190,6 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         }
     };
 
-    // Build GlobalContext
-    const { EventEmitter } = await import('eventemitter3');
-    const globalContext: GlobalContext = {
-        openai,
-        cache,
-        gptQueue,
-        taskQueue,
-        serperQueue,
-        puppeteerQueue,
-        puppeteerHelper,
-        fetcher,
-        imageSearch,
-        webSearch,
-        capabilities,
-        defaultModel,
-        contentResolver,
-        events: new EventEmitter()
-    };
-
     // Create Factories
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
 
@@ -234,9 +215,6 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         });
     };
 
-    const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
-    const messageBuilder = new MessageBuilder();
-
     // Initialize Registries with Constructor Injection
     const pluginRegistry = createPluginRegistry({
         promptLoader,
@@ -245,6 +223,30 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         puppeteerHelper,
         createLlm: createTheLlm
     });
+
+    // Build GlobalContext
+    const { EventEmitter } = await import('eventemitter3');
+    const globalContext: GlobalContext = {
+        openai,
+        cache,
+        gptQueue,
+        taskQueue,
+        serperQueue,
+        puppeteerQueue,
+        puppeteerHelper,
+        fetcher,
+        imageSearch,
+        webSearch,
+        capabilities,
+        defaultModel,
+        contentResolver,
+        events: new EventEmitter(),
+        pluginRegistry,
+        llmFactory
+    };
+
+    const stepResolver = new StepResolver(llmFactory, globalContext, schemaLoader);
+    const messageBuilder = new MessageBuilder();
 
     // --- New Architecture Components ---
 
