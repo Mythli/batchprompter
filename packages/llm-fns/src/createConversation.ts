@@ -4,8 +4,6 @@ import { createLlmClient, PromptFunction, CreateLlmClientParams, normalizeOption
 import { createLlmRetryClient } from './createLlmRetryClient.js';
 import { createJsonSchemaLlmClient } from './createJsonSchemaLlmClient.js';
 import { createZodLlmClient } from './createZodLlmClient.js';
-import { extractImageBuffer, extractAudioBuffer } from './extractBinary.js';
-import { createDnsFetcher } from './createDnsFetcher.js';
 
 /**
  * Abstract interface for managing conversation history.
@@ -74,7 +72,6 @@ export function createConversationState(initialMessages: OpenAI.Chat.Completions
 export function createConversation(params: CreateLlmClientParams, initialMessages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) {
     const state = createConversationState(initialMessages);
     const baseClient = createLlmClient(params);
-    const fetchImpl = params.fetch ?? createDnsFetcher();
 
     /**
      * Assembles a full suite of LLM methods around a specific prompt function.
@@ -108,59 +105,35 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
         return async (...args: any[]) => {
             let firstCall = true;
             let turnInitialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+            let turnSystemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined;
             let lastCompletion: OpenAI.Chat.Completions.ChatCompletion | undefined;
 
             const spyPrompt: PromptFunction = async (arg1: any, arg2?: any) => {
                 const options = normalizeOptions(arg1, arg2);
 
                 if (firstCall) {
+                    // Capture the "clean" prompt messages from the start of the turn
+                    turnSystemMessage = options.messages.find(m => m.role === 'system');
+                    turnInitialMessages = options.messages.filter(m => m.role !== 'system');
                     firstCall = false;
-                    turnInitialMessages = [...options.messages];
-
-                    // Extract system message from the current turn's options
-                    const systemMsg = options.messages.find(m => m.role === 'system');
-                    const otherMsgs = options.messages.filter(m => m.role !== 'system');
-
-                    const existingMessages = state.getMessages();
-                    const oldSystem = existingMessages.find(m => m.role === 'system');
-                    const historyWithoutSystem = existingMessages.filter(m => m.role !== 'system');
-
-                    // Rebuild state to ensure system message is at the start
-                    state.clear();
-                    
-                    // Use new system message if provided, otherwise keep the old one
-                    const systemToUse = systemMsg || oldSystem;
-                    if (systemToUse) {
-                        state.add(systemToUse);
-                    }
-
-                    // Add previous history (excluding old system message)
-                    for (const m of historyWithoutSystem) {
-                        state.add(m);
-                    }
-
-                    // Add new turn messages (excluding new system message)
-                    for (const m of otherMsgs) {
-                        state.add(m);
-                    }
-
-                    // Execute with the full state (System + PreviousTurns + CurrentTurnStart)
-                    const result = await baseClient.prompt({
-                        ...options,
-                        messages: state.getMessages()
-                    });
-
-                    lastCompletion = result;
-                    return result;
                 }
 
-                // Retry logic: ignore adding intermediate messages to state, but include them in the prompt.
-                // options.messages in a retry contains the turn's conversation so far (Initial + Assistant Fail + Feedback).
-                const retryMessages = options.messages.slice(turnInitialMessages.length);
+                const historyMessages = state.getMessages();
+                
+                // Determine which system message to use (new one overrides old one)
+                const systemToUse = turnSystemMessage || historyMessages.find(m => m.role === 'system');
+                
+                const historyWithoutSystem = historyMessages.filter(m => m.role !== 'system');
+                const turnMessagesWithoutSystem = options.messages.filter(m => m.role !== 'system');
+
+                // Rebuild the full message array for the LLM call
+                const finalMessages = systemToUse 
+                    ? [systemToUse, ...historyWithoutSystem, ...turnMessagesWithoutSystem]
+                    : [...historyWithoutSystem, ...turnMessagesWithoutSystem];
 
                 const result = await baseClient.prompt({
                     ...options,
-                    messages: [...state.getMessages(), ...retryMessages]
+                    messages: finalMessages
                 });
 
                 lastCompletion = result;
@@ -170,7 +143,19 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
             const tempClient: any = assembleStatefulTurnClient(spyPrompt);
             const result = await tempClient[methodName](...args);
 
-            // Commit the last completion to history
+            // Turn finished successfully. Commit the turn to the long-term history.
+            if (turnSystemMessage) {
+                // Replace system message in state and keep it at the top
+                const history = state.getMessages().filter(m => m.role !== 'system');
+                state.clear();
+                state.add(turnSystemMessage);
+                for (const m of history) state.add(m);
+            }
+
+            for (const m of turnInitialMessages) {
+                state.add(m);
+            }
+
             if (lastCompletion) {
                 state.addCompletion(lastCompletion);
             }
