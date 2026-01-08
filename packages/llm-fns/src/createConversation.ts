@@ -107,22 +107,35 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
     const wrapMethod = (methodName: string) => {
         return async (...args: any[]) => {
             let firstCall = true;
+            let initialHistoryLength = state.getMessages().length;
             let lastCompletion: OpenAI.Chat.Completions.ChatCompletion | undefined;
 
             const spyPrompt: PromptFunction = async (arg1: any, arg2?: any) => {
                 const options = normalizeOptions(arg1, arg2);
-                const history = state.getMessages();
+                const currentHistory = state.getMessages();
 
                 if (firstCall) {
                     // Capture new messages from the high-level caller (e.g. normalized Zod prompts)
                     for (const m of options.messages) state.add(m);
                     firstCall = false;
+
+                    // Execute with the full state (PreviousTurns + CurrentTurnStart)
+                    const result = await baseClient.prompt({
+                        ...options,
+                        messages: state.getMessages()
+                    });
+
+                    lastCompletion = result;
+                    return result;
                 }
 
-                // Execute with history injected
+                // It's a retry. options.messages contains the turn's conversation so far.
+                // We need to prepend history from BEFORE this turn.
+                const previousHistory = currentHistory.slice(0, initialHistoryLength);
+
                 const result = await baseClient.prompt({
                     ...options,
-                    messages: [...history, ...options.messages]
+                    messages: [...previousHistory, ...options.messages]
                 });
 
                 lastCompletion = result;
