@@ -26,9 +26,6 @@ export interface ConversationState {
     /** Shorthand to add an assistant message. Supports strings, null, or completions. */
     addAssistantMessage(content: string | null | OpenAI.Chat.Completions.ChatCompletion): void;
 
-    /** Adds binary content to the history. */
-    addBinary(type: 'image' | 'audio', buffer: Buffer, role?: 'user' | 'assistant', mimeType?: string): void;
-
     /** Removes the last N messages from the history */
     pop(count?: number): OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 
@@ -65,33 +62,12 @@ export function createConversationState(initialMessages: OpenAI.Chat.Completions
         }
     };
 
-    const addBinary = (type: 'image' | 'audio', buffer: Buffer, role: 'user' | 'assistant' = 'user', mimeType?: string) => {
-        const content: any[] = [];
-        if (type === 'image') {
-            const mime = mimeType || 'image/png';
-            content.push({
-                type: 'image_url',
-                image_url: { url: `data:${mime};base64,${buffer.toString('base64')}` }
-            });
-        } else {
-            content.push({
-                type: 'input_audio',
-                input_audio: {
-                    data: buffer.toString('base64'),
-                    format: (mimeType as any) || 'wav'
-                }
-            });
-        }
-        add({ role, content } as any);
-    };
-
     return {
         getMessages: () => [...messages],
         add,
         addCompletion,
         addUserMessage,
         addAssistantMessage,
-        addBinary,
         pop: (count = 1) => messages.splice(-count),
         clear: () => { messages = []; }
     };
@@ -109,6 +85,49 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
     const baseClient = createLlmClient(params);
     const fetchImpl = params.fetch ?? createDnsFetcher();
 
+    /**
+     * Assembles a full suite of LLM methods around a specific prompt function.
+     */
+    const assembleStatefulTurnClient = (prompt: PromptFunction) => {
+        const retryClient = createLlmRetryClient({
+            prompt,
+            retryBaseDelay: params.retryBaseDelay,
+            fetch: params.fetch
+        });
+
+        const jsonSchemaClient = createJsonSchemaLlmClient({
+            prompt,
+            retryBaseDelay: params.retryBaseDelay
+        });
+
+        const zodClient = createZodLlmClient({
+            jsonSchemaClient
+        });
+
+        return {
+            prompt,
+            promptText: async (arg1: any, arg2?: any) => {
+                const res = await prompt(arg1, arg2);
+                const content = res.choices[0]?.message?.content;
+                if (content === null || content === undefined) {
+                    throw new Error("LLM returned no text content.");
+                }
+                return content;
+            },
+            promptImage: async (arg1: any, arg2?: any) => {
+                const res = await prompt(arg1, arg2);
+                return extractImageBuffer(res, fetchImpl);
+            },
+            promptAudio: async (arg1: any, arg2?: any) => {
+                const res = await prompt(arg1, arg2);
+                return extractAudioBuffer(res);
+            },
+            ...retryClient,
+            ...jsonSchemaClient,
+            ...zodClient
+        };
+    };
+
     const wrapMethod = (methodName: string) => {
         return async (...args: any[]) => {
             let firstCall = true;
@@ -116,8 +135,8 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
 
             const spyPrompt: PromptFunction = async (arg1: any, arg2?: any) => {
                 const options = normalizeOptions(arg1, arg2);
-                
                 const history = state.getMessages();
+
                 if (firstCall) {
                     // Capture new messages from the high-level caller (e.g. normalized Zod prompts)
                     for (const m of options.messages) state.add(m);
@@ -134,42 +153,7 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
                 return result;
             };
 
-            // Re-assemble a temporary client using the spyPrompt
-            const retryClient = createLlmRetryClient({
-                prompt: spyPrompt,
-                retryBaseDelay: params.retryBaseDelay,
-                fetch: params.fetch
-            });
-
-            const jsonSchemaClient = createJsonSchemaLlmClient({
-                prompt: spyPrompt,
-                retryBaseDelay: params.retryBaseDelay
-            });
-
-            const zodClient = createZodLlmClient({
-                jsonSchemaClient
-            });
-
-            const tempClient: any = {
-                prompt: spyPrompt,
-                promptText: async (arg1: any, arg2?: any) => {
-                    const res = await spyPrompt(arg1, arg2);
-                    return res.choices[0]?.message?.content!;
-                },
-                promptImage: async (arg1: any, arg2?: any) => {
-                    const res = await spyPrompt(arg1, arg2);
-                    return extractImageBuffer(res, fetchImpl);
-                },
-                promptAudio: async (arg1: any, arg2?: any) => {
-                    const res = await spyPrompt(arg1, arg2);
-                    return extractAudioBuffer(res);
-                },
-                ...retryClient,
-                ...jsonSchemaClient,
-                ...zodClient
-            };
-
-            // Execute the requested method on the temp client
+            const tempClient: any = assembleStatefulTurnClient(spyPrompt);
             const result = await tempClient[methodName](...args);
 
             // Commit the last completion to history
@@ -181,17 +165,15 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
         };
     };
 
+    // Dynamically wrap all methods from the turn client
+    const dummyPrompt: any = () => {};
+    const turnClientMethods = assembleStatefulTurnClient(dummyPrompt);
+    const wrappedMethods = Object.fromEntries(
+        Object.keys(turnClientMethods).map(name => [name, wrapMethod(name)])
+    );
+
     return {
         ...state,
-        prompt: wrapMethod('prompt'),
-        promptText: wrapMethod('promptText'),
-        promptImage: wrapMethod('promptImage'),
-        promptAudio: wrapMethod('promptAudio'),
-        promptRetry: wrapMethod('promptRetry'),
-        promptTextRetry: wrapMethod('promptTextRetry'),
-        promptImageRetry: wrapMethod('promptImageRetry'),
-        promptAudioRetry: wrapMethod('promptAudioRetry'),
-        promptJson: wrapMethod('promptJson'),
-        promptZod: wrapMethod('promptZod'),
-    };
+        ...wrappedMethods
+    } as ConversationState & typeof turnClientMethods;
 }
