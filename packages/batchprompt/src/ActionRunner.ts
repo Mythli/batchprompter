@@ -30,15 +30,6 @@ export class ActionRunner {
 
         const queue = this.globalContext.taskQueue;
 
-        const pluginServices: PluginServices = {
-            puppeteerHelper: this.globalContext.puppeteerHelper,
-            puppeteerQueue: this.globalContext.puppeteerQueue,
-            fetcher: this.globalContext.fetcher,
-            cache: this.globalContext.cache,
-            imageSearch: this.globalContext.imageSearch,
-            webSearch: this.globalContext.webSearch,
-        };
-
         const enqueueNext = (items: PipelineItem[], nextStepIndex: number) => {
             if (nextStepIndex >= steps.length) {
                 for (const item of items) {
@@ -72,7 +63,6 @@ export class ActionRunner {
                     stepIndex,
                     stepConfig,
                     config.tmpDir,
-                    pluginServices
                 );
 
                 const nextItems = await Promise.race([executionPromise, timeoutPromise]);
