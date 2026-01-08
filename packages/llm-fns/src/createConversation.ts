@@ -1,9 +1,7 @@
 import OpenAI from 'openai';
 import { completionToMessage } from './completionToAssistantMessage.js';
-import { createLlmClient, PromptFunction, CreateLlmClientParams, normalizeOptions } from './createLlmClient.js';
-import { createLlmRetryClient } from './createLlmRetryClient.js';
-import { createJsonSchemaLlmClient } from './createJsonSchemaLlmClient.js';
-import { createZodLlmClient } from './createZodLlmClient.js';
+import { CreateLlmClientParams } from './createLlmClient.js';
+import { createLlm } from './llmFactory.js';
 
 /**
  * Abstract interface for managing conversation history.
@@ -71,79 +69,83 @@ export function createConversationState(initialMessages: OpenAI.Chat.Completions
  */
 export function createConversation(params: CreateLlmClientParams, initialMessages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) {
     const state = createConversationState(initialMessages);
-    const baseClient = createLlmClient(params);
+
+    // Turn-specific tracking state
+    let isFirstCallInTurn = true;
+    let turnInitialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
+    let turnSystemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined;
+    let lastCompletionInTurn: OpenAI.Chat.Completions.ChatCompletion | undefined;
 
     /**
-     * Assembles a full suite of LLM methods around a specific prompt function.
+     * Low-level SDK Spy.
+     * Intercepts every call to OpenAI to inject history and manage system messages.
      */
-    const assembleStatefulTurnClient = (prompt: PromptFunction) => {
-        const retryClient = createLlmRetryClient({
-            prompt,
-            retryBaseDelay: params.retryBaseDelay,
-            fetch: params.fetch
-        });
+    const spiedOpenAi = {
+        ...params.openai,
+        chat: {
+            ...params.openai.chat,
+            completions: {
+                ...params.openai.chat.completions,
+                create: async (createParams: any, createOptions: any) => {
+                    const incomingMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = createParams.messages;
 
-        const jsonSchemaClient = createJsonSchemaLlmClient({
-            prompt,
-            retryBaseDelay: params.retryBaseDelay
-        });
+                    if (isFirstCallInTurn) {
+                        // Capture the "clean" prompt messages from the start of the turn
+                        turnSystemMessage = incomingMessages.find(m => m.role === 'system');
+                        turnInitialMessages = incomingMessages.filter(m => m.role !== 'system');
+                        isFirstCallInTurn = false;
+                    }
 
-        const zodClient = createZodLlmClient({
-            jsonSchemaClient
-        });
+                    const historyMessages = state.getMessages();
+                    
+                    // Determine which system message to use (new one overrides old one)
+                    const systemToUse = incomingMessages.find(m => m.role === 'system') 
+                                     || historyMessages.find(m => m.role === 'system');
+                    
+                    const historyWithoutSystem = historyMessages.filter(m => m.role !== 'system');
+                    const currentWithoutSystem = incomingMessages.filter(m => m.role !== 'system');
 
-        return {
-            ...baseClient,
-            ...retryClient,
-            ...jsonSchemaClient,
-            ...zodClient,
-            prompt,
-        };
-    };
+                    // Rebuild the full message array for the actual SDK call
+                    const finalMessages = systemToUse 
+                        ? [systemToUse, ...historyWithoutSystem, ...currentWithoutSystem]
+                        : [...historyWithoutSystem, ...currentWithoutSystem];
 
-    const wrapMethod = (methodName: string) => {
-        return async (...args: any[]) => {
-            let firstCall = true;
-            let turnInitialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-            let turnSystemMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined;
-            let lastCompletion: OpenAI.Chat.Completions.ChatCompletion | undefined;
+                    const result = await params.openai.chat.completions.create({
+                        ...createParams,
+                        messages: finalMessages
+                    }, createOptions);
 
-            const spyPrompt: PromptFunction = async (arg1: any, arg2?: any) => {
-                const options = normalizeOptions(arg1, arg2);
-
-                if (firstCall) {
-                    // Capture the "clean" prompt messages from the start of the turn
-                    turnSystemMessage = options.messages.find(m => m.role === 'system');
-                    turnInitialMessages = options.messages.filter(m => m.role !== 'system');
-                    firstCall = false;
+                    lastCompletionInTurn = result as any;
+                    return result;
                 }
+            }
+        }
+    } as unknown as OpenAI;
 
-                const historyMessages = state.getMessages();
-                
-                // Determine which system message to use (new one overrides old one)
-                const systemToUse = turnSystemMessage || historyMessages.find(m => m.role === 'system');
-                
-                const historyWithoutSystem = historyMessages.filter(m => m.role !== 'system');
-                const turnMessagesWithoutSystem = options.messages.filter(m => m.role !== 'system');
+    // Create a standard LLM client using the spied OpenAI instance
+    const client = createLlm({
+        ...params,
+        openai: spiedOpenAi
+    });
 
-                // Rebuild the full message array for the LLM call
-                const finalMessages = systemToUse 
-                    ? [systemToUse, ...historyWithoutSystem, ...turnMessagesWithoutSystem]
-                    : [...historyWithoutSystem, ...turnMessagesWithoutSystem];
+    /**
+     * High-level Turn Wrapper.
+     * Defines the boundaries of a single user interaction.
+     */
+    const wrapMethod = (methodName: keyof typeof client) => {
+        const originalMethod = client[methodName] as Function;
+        
+        return async (...args: any[]) => {
+            // Reset turn context
+            isFirstCallInTurn = true;
+            turnInitialMessages = [];
+            turnSystemMessage = undefined;
+            lastCompletionInTurn = undefined;
 
-                const result = await baseClient.prompt({
-                    ...options,
-                    messages: finalMessages
-                });
-
-                lastCompletion = result;
-                return result;
-            };
-
-            const tempClient: any = assembleStatefulTurnClient(spyPrompt);
-            const result = await tempClient[methodName](...args);
+            const result = await originalMethod.apply(client, args);
 
             // Turn finished successfully. Commit the turn to the long-term history.
+            
             if (turnSystemMessage) {
                 // Replace system message in state and keep it at the top
                 const history = state.getMessages().filter(m => m.role !== 'system');
@@ -156,23 +158,30 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
                 state.add(m);
             }
 
-            if (lastCompletion) {
-                state.addCompletion(lastCompletion);
+            if (lastCompletionInTurn) {
+                state.addCompletion(lastCompletionInTurn);
             }
 
             return result;
         };
     };
 
-    // Dynamically wrap all methods from the turn client
-    const dummyPrompt: any = () => {};
-    const turnClientMethods = assembleStatefulTurnClient(dummyPrompt);
-    const wrappedMethods = Object.fromEntries(
-        Object.keys(turnClientMethods).map(name => [name, wrapMethod(name)])
-    );
+    // Wrap all high-level methods to ensure they are treated as stateful turns
+    const wrappedMethods = {
+        prompt: wrapMethod('prompt'),
+        promptText: wrapMethod('promptText'),
+        promptImage: wrapMethod('promptImage'),
+        promptAudio: wrapMethod('promptAudio'),
+        promptRetry: wrapMethod('promptRetry'),
+        promptTextRetry: wrapMethod('promptTextRetry'),
+        promptImageRetry: wrapMethod('promptImageRetry'),
+        promptAudioRetry: wrapMethod('promptAudioRetry'),
+        promptJson: wrapMethod('promptJson'),
+        promptZod: wrapMethod('promptZod'),
+    };
 
     return {
         ...state,
         ...wrappedMethods
-    } as ConversationState & typeof turnClientMethods;
+    } as ConversationState & typeof wrappedMethods;
 }
