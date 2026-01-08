@@ -8,7 +8,7 @@ import {
     LlmFactory
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoScraper.js';
@@ -31,8 +31,8 @@ export const LogoScraperConfigSchemaV2 = z.object({
     url: zHandlebars.describe("URL to scrape logos from. Supports Handlebars."),
 
     // Nested model configs
-    analyze: PluginModelConfigSchema.optional().describe("Model configuration for analyzing screenshots and scoring logos (vision capable)."),
-    extract: PluginModelConfigSchema.optional().describe("Model configuration for finding inline SVGs and image URLs."),
+    analyze: BaseModelConfigSchema.optional().describe("Model configuration for analyzing screenshots and scoring logos (vision capable)."),
+    extract: BaseModelConfigSchema.optional().describe("Model configuration for finding inline SVGs and image URLs."),
 
     // Options
     maxCandidates: z.number().int().positive().default(10).describe("Max logo candidates to download and analyze."),
@@ -84,7 +84,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
     }
 
     private async resolvePluginModel(
-        config: z.infer<typeof PluginModelConfigSchema> | undefined,
+        config: z.infer<typeof BaseModelConfigSchema> | undefined,
         row: Record<string, any>,
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
     ): Promise<ResolvedModelConfig> {

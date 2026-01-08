@@ -3,10 +3,10 @@ import PQueue from 'p-queue';
 import TurndownService from 'turndown';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
-import { BoundLlmClient } from '../core/BoundLlmClient.js';
-import { PuppeteerHelper } from './puppeteer/PuppeteerHelper.js';
-import { LinkData } from './puppeteer/PuppeteerPageHelper.js';
-import { compressHtml } from './compressHtml.js';
+import { BoundLlmClient } from '../../core/BoundLlmClient.js';
+import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
+import { LinkData } from '../../utils/puppeteer/PuppeteerPageHelper.js';
+import { compressHtml } from '../../utils/compressHtml.js';
 import { truncateSingleMessage } from 'llm-fns';
 
 export interface AiWebsiteAgentOptions {
@@ -81,8 +81,8 @@ export class AiWebsiteAgent {
         };
         const truncatedMessage = truncateSingleMessage(message, 20000);
         const content = truncatedMessage.content;
-        const contentParts = Array.isArray(content) 
-            ? content 
+        const contentParts = Array.isArray(content)
+            ? content
             : [{ type: 'text', text: content || '' }];
 
         const data = await this.extractLlm.promptJson({ suffix: contentParts as any }, schema);

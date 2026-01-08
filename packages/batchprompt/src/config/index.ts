@@ -15,7 +15,7 @@ export {
     // Model
     ModelConfigSchema,
     BaseModelConfigSchema,
-    PluginModelConfigSchema,
+    BaseModelConfigSchema,
     type ModelConfig,
     type BaseModelConfig,
     type PluginModelConfig

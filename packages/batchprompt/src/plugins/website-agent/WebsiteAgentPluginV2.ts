@@ -8,10 +8,10 @@ import {
     LlmFactory
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
-import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
+import { AiWebsiteAgent } from './AiWebsiteAgent.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
@@ -27,19 +27,19 @@ export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent').describe("Identifies this as a Website Agent plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the extracted data."),
-    
+
     // Required fields
     url: zHandlebars.describe("The starting URL to scrape. Supports Handlebars."),
     schema: z.union([z.string(), zJsonSchemaObject]).describe("The JSON Schema defining the data to extract. Can be inline object or file path."),
-    
+
     // Options
     budget: z.number().int().positive().default(10).describe("Maximum number of pages to visit per website."),
     batchSize: z.number().int().positive().default(3).describe("Number of pages to visit in parallel during each iteration."),
 
     // Nested model configs
-    navigator: PluginModelConfigSchema.optional().describe("Model configuration for the Navigator agent (decides which links to click)."),
-    extract: PluginModelConfigSchema.optional().describe("Model configuration for the Extractor agent (reads page content)."),
-    merge: PluginModelConfigSchema.optional().describe("Model configuration for the Merger agent (consolidates data).")
+    navigator: BaseModelConfigSchema.optional().describe("Model configuration for the Navigator agent (decides which links to click)."),
+    extract: BaseModelConfigSchema.optional().describe("Model configuration for the Extractor agent (reads page content)."),
+    merge: BaseModelConfigSchema.optional().describe("Model configuration for the Merger agent (consolidates data).")
 }).describe("Configuration for the Website Agent plugin.");
 
 // Strict Schema (Object only) - derived by narrowing the schema field
@@ -113,7 +113,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
     }
 
     private async resolvePluginModel(
-        config: z.infer<typeof PluginModelConfigSchema> | undefined,
+        config: z.infer<typeof BaseModelConfigSchema> | undefined,
         defaultPrompt: string,
         row: Record<string, any>,
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }

@@ -1,10 +1,10 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { EventEmitter } from 'eventemitter3';
-import { BoundLlmClient } from '../core/BoundLlmClient.js';
-import { ImageSearch, ImageSearchResult } from '../plugins/image-search/ImageSearch.js';
-import { SpriteGenerator } from './SpriteGenerator.js';
-import { LlmListSelector } from './LlmListSelector.js';
+import { BoundLlmClient } from '../../core/BoundLlmClient.js';
+import { ImageSearch, ImageSearchResult } from './ImageSearch.js';
+import { SpriteGenerator } from '../../utils/SpriteGenerator.js';
+import { LlmListSelector } from '../../utils/LlmListSelector.js';
 
 export class AiImageSearch {
     public readonly events = new EventEmitter();

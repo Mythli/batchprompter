@@ -8,7 +8,7 @@ export { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT, type OutputConfig } from './
 export { 
     ModelConfigSchema, 
     BaseModelConfigSchema,
-    PluginModelConfigSchema,
+    BaseModelConfigSchema,
     type ModelConfig,
     type BaseModelConfig,
     type PluginModelConfig

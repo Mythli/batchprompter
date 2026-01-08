@@ -7,7 +7,7 @@ export {
     DEFAULT_PLUGIN_OUTPUT,
     ModelConfigSchema,
     BaseModelConfigSchema,
-    PluginModelConfigSchema
+    BaseModelConfigSchema
 } from './schemas/index.js';
 
 export type { 

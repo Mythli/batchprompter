@@ -29,8 +29,8 @@ export const ModelConfigSchema = z.object({
  * Alias for backward compatibility.
  * Plugins use this for nested model configurations.
  */
-export const PluginModelConfigSchema = BaseModelConfigSchema;
+export const BaseModelConfigSchema = BaseModelConfigSchema;
 
 export type BaseModelConfig = z.infer<typeof BaseModelConfigSchema>;
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
-export type PluginModelConfig = z.infer<typeof PluginModelConfigSchema>;
+export type PluginModelConfig = z.infer<typeof BaseModelConfigSchema>;

@@ -8,9 +8,9 @@ import {
     LlmFactory
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { AiImageSearch } from '../../utils/AiImageSearch.js';
+import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { ImageSearch } from './ImageSearch.js';
@@ -23,13 +23,13 @@ export const ImageSearchConfigSchemaV2 = z.object({
     type: z.literal('image-search').describe("Identifies this as an Image Search plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the image results."),
-    
+
     // Query source - at least one required
     query: z.string().optional().describe("Static image search query. Supports Handlebars."),
-    queryModel: PluginModelConfigSchema.optional().describe("Model configuration for generating search queries."),
-    
+    queryModel: BaseModelConfigSchema.optional().describe("Model configuration for generating search queries."),
+
     // Selection
-    selectModel: PluginModelConfigSchema.optional().describe("Model configuration for selecting the best images."),
+    selectModel: BaseModelConfigSchema.optional().describe("Model configuration for selecting the best images."),
 
     // Search options
     limit: z.number().int().positive().default(12).describe("Images to fetch per query."),
@@ -87,7 +87,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     }
 
     private async resolvePluginModel(
-        config: z.infer<typeof PluginModelConfigSchema> | undefined,
+        config: z.infer<typeof BaseModelConfigSchema> | undefined,
         row: Record<string, any>,
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
     ): Promise<ResolvedModelConfig | undefined> {
@@ -129,7 +129,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
         contentResolver: ContentResolver
     ): Promise<ImageSearchResolvedConfigV2> {
-        
+
         let query: string | undefined;
         if (rawConfig.query) {
             const template = Handlebars.compile(rawConfig.query, { noEscape: true });
@@ -251,7 +251,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         // Process final images in parallel and build packets
         const sharp = (await import('sharp')).default;
         const baseName = outputBasename || 'image';
-        
+
         const processedPackets = await Promise.all(selectedImages.map(async (img, i) => {
             const filename = `image_search/selected/${baseName}_selected_${i}.jpg`;
 

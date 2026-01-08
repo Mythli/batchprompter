@@ -8,9 +8,9 @@ import {
     LlmFactory
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
-import { AiWebSearch } from '../../utils/AiWebSearch.js';
+import { AiWebSearch } from './AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { WebSearch } from './WebSearch.js';
@@ -23,16 +23,16 @@ export const WebSearchConfigSchemaV2 = z.object({
     type: z.literal('web-search').describe("Identifies this as a Web Search plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the search results."),
-    
+
     // Query source - at least one required
     query: z.string().optional().describe("Static search query. Supports Handlebars (e.g., '{{keyword}}')."),
-    queryModel: PluginModelConfigSchema.optional().describe("Model configuration for generating search queries."),
-    
+    queryModel: BaseModelConfigSchema.optional().describe("Model configuration for generating search queries."),
+
     // Selection/filtering
-    selectModel: PluginModelConfigSchema.optional().describe("Model configuration for selecting/filtering results."),
-    
+    selectModel: BaseModelConfigSchema.optional().describe("Model configuration for selecting/filtering results."),
+
     // Content compression
-    compressModel: PluginModelConfigSchema.optional().describe("Model configuration for summarizing page content."),
+    compressModel: BaseModelConfigSchema.optional().describe("Model configuration for summarizing page content."),
 
     // Search options
     limit: z.number().int().positive().default(5).describe("Max total results to return."),
@@ -93,7 +93,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     }
 
     private async resolvePluginModel(
-        config: z.infer<typeof PluginModelConfigSchema> | undefined,
+        config: z.infer<typeof BaseModelConfigSchema> | undefined,
         row: Record<string, any>,
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
     ): Promise<ResolvedModelConfig | undefined> {
@@ -110,7 +110,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
 
         let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         if (config.system) {
-            systemParts = await this.deps.promptLoader.load(config.system as any);
+            systemParts = await this.deps.promptLoader.load(config.system);
             systemParts = systemParts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });
@@ -135,7 +135,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
         contentResolver: ContentResolver
     ): Promise<WebSearchResolvedConfigV2> {
-        
+
         // Render query template
         let query: string | undefined;
         if (rawConfig.query) {

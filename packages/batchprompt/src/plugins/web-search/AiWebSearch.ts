@@ -1,9 +1,9 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { EventEmitter } from 'eventemitter3';
-import { BoundLlmClient } from '../core/BoundLlmClient.js';
-import { WebSearch, WebSearchResult, WebSearchMode } from '../plugins/web-search/WebSearch.js';
-import { LlmListSelector } from './LlmListSelector.js';
+import { BoundLlmClient } from '../../core/BoundLlmClient.js';
+import { WebSearch, WebSearchResult, WebSearchMode } from './WebSearch.js';
+import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { truncateSingleMessage } from 'llm-fns';
 
 export class AiWebSearch {
