@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import OpenAI from 'openai';
 import {
     Plugin,
     LlmFactory
@@ -183,7 +184,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             }
         }
 
-        const contentParts = [];
+        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 
         if (logos.length > 0) {
             contentParts.push({

@@ -67,7 +67,10 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
 
     async prepare(stepRow: StepRow, config: DedupeResolvedConfigV2): Promise<void> {
         const { context } = stepRow;
-        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
+        
+        const emit = (event: any, ...args: any[]) => {
+            stepRow.step.globalContext.events.emit(event, ...args);
+        };
         
         const scope = new PluginScope({
             row: context,

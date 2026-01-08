@@ -75,16 +75,23 @@ export const LooseStepConfigSchema = StepConfigSchema; // Alias for now if they 
 // Pipeline Schema with Inheritance Logic
 // =============================================================================
 
+export const PipelineConfigInputSchema = GlobalsConfigSchema.extend({
+    data: z.array(z.record(z.string(), z.any())).default([{}]),
+    steps: z.array(StepConfigSchema).min(1)
+});
+
 export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema extends z.ZodTypeAny>(
     pluginUnion: TPlugin,
     schemaFieldType: TSchema
 ) {
     const StepSchema = createStepSchema(pluginUnion, schemaFieldType);
     
-    return GlobalsConfigSchema.extend({
+    const Base = GlobalsConfigSchema.extend({
         data: z.array(z.record(z.string(), z.any())).default([{}]),
         steps: z.array(StepSchema).min(1)
-    }).transform(pipeline => {
+    });
+
+    return Base.transform(pipeline => {
         // --- Inheritance Logic ---
         
         const globalModelDefaults = {

@@ -50,7 +50,7 @@ export class ActionRunner {
             const { item, stepIndex } = payload;
             const step = pipeline.steps[stepIndex];
             const stepNum = stepIndex + 1;
-            const timeoutMs = step.config.timeout * 1000;
+            const timeoutMs = (step.config.timeout || 180) * 1000;
 
             events.emit('step:start', { row: item.originalIndex, step: stepNum });
 
@@ -58,7 +58,7 @@ export class ActionRunner {
                 // Execute with Timeout
                 let timer: NodeJS.Timeout;
                 const timeoutPromise = new Promise<never>((_, reject) => {
-                    timer = setTimeout(() => reject(new Error(`Step timed out after ${step.config.timeout}s`)), timeoutMs);
+                    timer = setTimeout(() => reject(new Error(`Step timed out after ${step.config.timeout || 180}s`)), timeoutMs);
                 });
 
                 // --- Phase 2: Processing (The StepRow Level) ---

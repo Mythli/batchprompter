@@ -89,7 +89,10 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         result: any
     ): Promise<any> {
         const { context } = stepRow;
-        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
+        
+        const emit = (event: any, ...args: any[]) => {
+            stepRow.step.globalContext.events.emit(event, ...args);
+        };
         
         const scope = new PluginScope({
             row: context,

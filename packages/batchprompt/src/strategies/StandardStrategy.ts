@@ -123,7 +123,7 @@ export class StandardStrategy implements GenerationStrategy {
 
             finalResult = await rawClient.promptJson(finalMessages, schema, {
                 requestOptions,
-                maxRetries: 3 + (config.feedbackLoops || 0),
+                maxRetries: 3 + (config.feedback?.loops || 0),
                 validator,
                 ...additionalParams
             });
@@ -154,7 +154,7 @@ export class StandardStrategy implements GenerationStrategy {
             finalResult = await rawClient.promptRetry({
                 messages: finalMessages,
                 requestOptions,
-                maxRetries: 3 + (config.feedbackLoops || 0),
+                maxRetries: 3 + (config.feedback?.loops || 0),
                 validate: validateCallback,
                 ...additionalParams
             });

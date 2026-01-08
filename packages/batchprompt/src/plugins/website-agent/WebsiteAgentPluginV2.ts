@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
+import OpenAI from 'openai';
 import {
     Plugin,
     LlmFactory
@@ -77,7 +78,11 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
 
     async prepare(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2): Promise<void> {
         const { context } = stepRow;
-        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
+        
+        const emit = (event: any, ...args: any[]) => {
+            stepRow.step.globalContext.events.emit(event, ...args);
+        };
+
         const puppeteerHelper = this.deps.puppeteerHelper;
         const puppeteerQueue = this.deps.puppeteerQueue;
 
@@ -141,7 +146,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             tags: ['final', 'website-agent', 'result']
         });
 
-        const contentParts = [];
+        const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         if (result && Object.keys(result).length > 0) {
             contentParts.push({
                 type: 'text',

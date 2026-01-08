@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type OpenAI from 'openai';
 import { createIterativeRefiner, EvaluationResult, LlmClient } from 'llm-fns';
-import { PipelineConfigSchema } from '../config/schema.js';
+import { PipelineConfigInputSchema } from '../config/schema.js';
 import { CONFIG_DOCUMENTATION } from '../generated/ConfigDocumentation.js';
 
 export interface ConfigRefinerInput {
@@ -14,7 +14,7 @@ export interface ConfigExecutor {
     runConfig(config: any, initialRows?: any[]): Promise<{ results: any[] }>;
 }
 
-type PipelineConfig = z.infer<typeof PipelineConfigSchema>;
+type PipelineConfig = z.infer<typeof PipelineConfigInputSchema>;
 
 const EvaluationSchema = z.object({
     success: z.boolean().describe("Whether the configuration output satisfies the user request."),
@@ -82,11 +82,11 @@ export class ConfigRefiner {
         messages.push(...history);
 
         // Determine schema to use
-        let schema: z.ZodType<any> = PipelineConfigSchema;
+        let schema: z.ZodType<any> = PipelineConfigInputSchema;
         let isDataOmitted = false;
 
         if (input.sampleRows && input.sampleRows.length > 0) {
-            schema = PipelineConfigSchema.omit({ data: true });
+            schema = PipelineConfigInputSchema.omit({ data: true });
             isDataOmitted = true;
         }
 
@@ -94,7 +94,7 @@ export class ConfigRefiner {
 
         if (isDataOmitted) {
             // Re-hydrate the result with default data config
-            return PipelineConfigSchema.parse(result);
+            return PipelineConfigInputSchema.parse(result);
         }
 
         return result as PipelineConfig;
