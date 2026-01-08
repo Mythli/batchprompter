@@ -12,3 +12,4 @@ export * from './util.js';
 export * from './createAiLoggingFetcher.js';
 export * from './createConversation.js';
 export * from './extractBinary.js';
+export * from './createGoogleDnsFetcher.js';
