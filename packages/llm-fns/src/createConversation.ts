@@ -96,26 +96,11 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
         });
 
         return {
-            prompt,
-            promptText: async (arg1: any, arg2?: any) => {
-                const res = await prompt(arg1, arg2);
-                const content = res.choices[0]?.message?.content;
-                if (content === null || content === undefined) {
-                    throw new Error("LLM returned no text content.");
-                }
-                return content;
-            },
-            promptImage: async (arg1: any, arg2?: any) => {
-                const res = await prompt(arg1, arg2);
-                return extractImageBuffer(res, fetchImpl);
-            },
-            promptAudio: async (arg1: any, arg2?: any) => {
-                const res = await prompt(arg1, arg2);
-                return extractAudioBuffer(res);
-            },
+            ...baseClient,
             ...retryClient,
             ...jsonSchemaClient,
-            ...zodClient
+            ...zodClient,
+            prompt,
         };
     };
 
