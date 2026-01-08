@@ -20,11 +20,11 @@ export interface ConversationState {
     /** Normalizes and adds a full completion to the history as an assistant message */
     addCompletion(completion: OpenAI.Chat.Completions.ChatCompletion): void;
 
-    /** Shorthand to add a user message. Supports strings, parts, or completions (forced to user role). */
-    addUserMessage(content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] | OpenAI.Chat.Completions.ChatCompletion): void;
+    /** Shorthand to add a user message. Supports strings or content parts. */
+    addUserMessage(content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[]): void;
 
-    /** Shorthand to add an assistant message. Supports strings, null, or completions. */
-    addAssistantMessage(content: string | null | OpenAI.Chat.Completions.ChatCompletion): void;
+    /** Shorthand to add an assistant message. Supports strings or null. */
+    addAssistantMessage(content: string | null): void;
 
     /** Removes the last N messages from the history */
     pop(count?: number): OpenAI.Chat.Completions.ChatCompletionMessageParam[];
@@ -45,21 +45,12 @@ export function createConversationState(initialMessages: OpenAI.Chat.Completions
         add(completionToMessage(completion));
     };
 
-    const addUserMessage = (content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] | OpenAI.Chat.Completions.ChatCompletion) => {
-        if (content && typeof content === 'object' && 'choices' in (content as any)) {
-            const msg = completionToMessage(content as OpenAI.Chat.Completions.ChatCompletion);
-            add({ ...msg, role: 'user' } as any);
-        } else {
-            add({ role: 'user', content: content as any });
-        }
+    const addUserMessage = (content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[]) => {
+        add({ role: 'user', content: content as any });
     };
 
-    const addAssistantMessage = (content: string | null | OpenAI.Chat.Completions.ChatCompletion) => {
-        if (content && typeof content === 'object' && 'choices' in (content as any)) {
-            addCompletion(content as OpenAI.Chat.Completions.ChatCompletion);
-        } else {
-            add({ role: 'assistant', content: content as any });
-        }
+    const addAssistantMessage = (content: string | null) => {
+        add({ role: 'assistant', content: content as any });
     };
 
     return {
