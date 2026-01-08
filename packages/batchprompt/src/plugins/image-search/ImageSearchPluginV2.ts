@@ -4,7 +4,8 @@ import OpenAI from 'openai';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginPacket
+    PluginPacket,
+    LlmFactory
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
@@ -12,6 +13,7 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiImageSearch } from '../../utils/AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
+import { ImageSearch } from './ImageSearch.js';
 
 // =============================================================================
 // Config Schema
@@ -72,7 +74,13 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     readonly type = 'image-search';
     readonly configSchema = ImageSearchConfigSchemaV2;
 
-    constructor(private promptLoader: PromptLoader) {}
+    constructor(
+        private deps: {
+            promptLoader: PromptLoader;
+            imageSearch?: ImageSearch;
+            createLlm: LlmFactory;
+        }
+    ) {}
 
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasSerper'];
@@ -85,7 +93,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     ): Promise<ResolvedModelConfig | undefined> {
         if (!config?.prompt) return undefined;
 
-        const parts = await this.promptLoader.load(config.prompt as any);
+        const parts = await this.deps.promptLoader.load(config.prompt as any);
         const renderedParts = parts.map((part: any) => {
             if (part.type === 'text') {
                 const template = Handlebars.compile(part.text, { noEscape: true });
@@ -96,7 +104,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
 
         let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         if (config.system) {
-            systemParts = await this.promptLoader.load(config.system as any);
+            systemParts = await this.deps.promptLoader.load(config.system as any);
             systemParts = systemParts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });
@@ -155,16 +163,16 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         config: ImageSearchResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginPacket[]> {
-        const { services, row, outputBasename, emit } = context;
-        const imageSearch = services.imageSearch;
+        const { row, outputBasename, emit } = context;
+        const imageSearch = this.deps.imageSearch;
 
         if (!imageSearch) {
             throw new Error('[ImageSearch] ImageSearch service not available');
         }
 
         // Create LLM clients
-        const queryLlm = config.queryModel ? services.createLlm(config.queryModel) : undefined;
-        const selectLlm = config.selectModel ? services.createLlm(config.selectModel) : undefined;
+        const queryLlm = config.queryModel ? this.deps.createLlm(config.queryModel) : undefined;
+        const selectLlm = config.selectModel ? this.deps.createLlm(config.selectModel) : undefined;
 
         // Create Selector
         const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;

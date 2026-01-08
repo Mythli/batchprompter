@@ -4,7 +4,8 @@ import OpenAI from 'openai';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginPacket
+    PluginPacket,
+    LlmFactory
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
@@ -12,6 +13,7 @@ import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiWebSearch } from '../../utils/AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
+import { WebSearch } from './WebSearch.js';
 
 // =============================================================================
 // Raw Config Schema
@@ -78,7 +80,13 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     readonly type = 'web-search';
     readonly configSchema = WebSearchConfigSchemaV2;
 
-    constructor(private promptLoader: PromptLoader) {}
+    constructor(
+        private deps: {
+            promptLoader: PromptLoader;
+            webSearch?: WebSearch;
+            createLlm: LlmFactory;
+        }
+    ) {}
 
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasSerper'];
@@ -91,7 +99,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     ): Promise<ResolvedModelConfig | undefined> {
         if (!config?.prompt) return undefined;
 
-        const parts = await this.promptLoader.load(config.prompt as any);
+        const parts = await this.deps.promptLoader.load(config.prompt as any);
         const renderedParts = parts.map((part: any) => {
             if (part.type === 'text') {
                 const template = Handlebars.compile(part.text, { noEscape: true });
@@ -102,7 +110,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
 
         let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         if (config.system) {
-            systemParts = await this.promptLoader.load(config.system as any);
+            systemParts = await this.deps.promptLoader.load(config.system as any);
             systemParts = systemParts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });
@@ -162,17 +170,17 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         config: WebSearchResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginPacket[]> {
-        const { services, row, emit } = context;
-        const webSearch = services.webSearch;
+        const { row, emit } = context;
+        const webSearch = this.deps.webSearch;
 
         if (!webSearch) {
             throw new Error('[WebSearch] WebSearch service not available');
         }
 
         // Create LLM clients
-        const queryLlm = config.queryModel ? services.createLlm(config.queryModel) : undefined;
-        const selectLlm = config.selectModel ? services.createLlm(config.selectModel) : undefined;
-        const compressLlm = config.compressModel ? services.createLlm(config.compressModel) : undefined;
+        const queryLlm = config.queryModel ? this.deps.createLlm(config.queryModel) : undefined;
+        const selectLlm = config.selectModel ? this.deps.createLlm(config.selectModel) : undefined;
+        const compressLlm = config.compressModel ? this.deps.createLlm(config.compressModel) : undefined;
 
         // Create Selector
         const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;

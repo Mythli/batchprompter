@@ -13,6 +13,7 @@ import { InteractiveElementScreenshoter } from '../../utils/puppeteer/Interactiv
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
+import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 
 // =============================================================================
 // Config Schema
@@ -53,6 +54,12 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
     readonly configSchema = StyleScraperConfigSchemaV2;
     public readonly events = new EventEmitter();
 
+    constructor(
+        private deps: {
+            puppeteerHelper?: PuppeteerHelper;
+        }
+    ) {}
+
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasPuppeteer'];
     }
@@ -88,8 +95,8 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         config: StyleScraperResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginPacket[]> {
-        const { services, outputBasename, emit } = context;
-        const { puppeteerHelper } = services;
+        const { outputBasename, emit } = context;
+        const puppeteerHelper = this.deps.puppeteerHelper;
 
         if (!puppeteerHelper) {
             throw new Error('[StyleScraper] Puppeteer not available');

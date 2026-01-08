@@ -4,7 +4,8 @@ import OpenAI from 'openai';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginPacket
+    PluginPacket,
+    LlmFactory
 } from '../types.js';
 import { ServiceCapabilities, ResolvedOutputConfig, ResolvedModelConfig } from '../../config/types.js';
 import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
@@ -14,6 +15,8 @@ import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoSc
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
+import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
+import { Fetcher } from 'llm-fns';
 
 // =============================================================================
 // Config Schema
@@ -67,7 +70,14 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
     readonly type = 'logo-scraper';
     readonly configSchema = LogoScraperConfigSchemaV2;
 
-    constructor(private promptLoader: PromptLoader) {}
+    constructor(
+        private deps: {
+            promptLoader: PromptLoader;
+            puppeteerHelper?: PuppeteerHelper;
+            fetcher?: Fetcher;
+            createLlm: LlmFactory;
+        }
+    ) {}
 
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasPuppeteer'];
@@ -82,7 +92,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 
         if (config?.prompt) {
-            promptParts = await this.promptLoader.load(config.prompt);
+            promptParts = await this.deps.promptLoader.load(config.prompt);
             promptParts = promptParts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });
@@ -93,7 +103,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         }
 
         if (config?.system) {
-            systemParts = await this.promptLoader.load(config.system);
+            systemParts = await this.deps.promptLoader.load(config.system);
             systemParts = systemParts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });
@@ -165,8 +175,9 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         config: LogoScraperResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginPacket[]> {
-        const { services, emit } = context;
-        const { puppeteerHelper, fetcher } = services;
+        const { emit } = context;
+        const puppeteerHelper = this.deps.puppeteerHelper;
+        const fetcher = this.deps.fetcher;
 
         if (!puppeteerHelper) {
             throw new Error('[LogoScraper] Puppeteer not available');
@@ -177,8 +188,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         }
 
         // Create LLM clients
-        const analyzeLlm = services.createLlm(config.analyzeModel);
-        const extractLlm = services.createLlm(config.extractModel);
+        const analyzeLlm = this.deps.createLlm(config.analyzeModel);
+        const extractLlm = this.deps.createLlm(config.extractModel);
 
         // Create dependencies
         const imageDownloader = new ImageDownloader(fetcher);

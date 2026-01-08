@@ -15,7 +15,7 @@ import { getPromptSummary, LlmFatalError } from 'llm-fns';
 import { StepOrchestrator } from '../../src/core/StepOrchestrator.js';
 import { PluginExecutor } from '../../src/core/PluginExecutor.js';
 import { StepExecutor } from '../../src/StepExecutor.js';
-import {DebugLogger} from "../../src/index.js";
+import { DebugLogger } from "../../src/index.js";
 
 export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
 
@@ -172,24 +172,26 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     const messageBuilder = new MessageBuilder();
 
     const promptLoader = new PromptLoader(contentResolver);
-    const pluginRegistry = createPluginRegistry(promptLoader);
+    
+    // Create registry with injected dependencies
+    const createLlm = (config: any) => llmFactory.create(config).getRawClient();
+    
+    const pluginRegistry = createPluginRegistry({
+        promptLoader,
+        createLlm: createLlm as any,
+        webSearch: globalContext.webSearch,
+        imageSearch: globalContext.imageSearch,
+        puppeteerHelper: globalContext.puppeteerHelper,
+        puppeteerQueue: globalContext.puppeteerQueue,
+        fetcher: globalContext.fetcher
+    });
 
+    // Apply overrides
     for (const plugin of plugins) {
         pluginRegistry.override(plugin);
     }
 
-    // --- New Architecture Setup ---
-    const basePluginServices = {
-        puppeteerHelper: globalContext.puppeteerHelper,
-        puppeteerQueue: globalContext.puppeteerQueue,
-        fetcher: globalContext.fetcher,
-        cache: globalContext.cache,
-        imageSearch: globalContext.imageSearch,
-        webSearch: globalContext.webSearch,
-        createLlm: (config: any) => llmFactory.create(config)
-    };
-
-    const pluginExecutor = new PluginExecutor(events as any, basePluginServices, '/tmp');
+    const pluginExecutor = new PluginExecutor(events as any, '/tmp');
     const stepExecutor = new StepExecutor(events as any);
 
     const stepOrchestrator = new StepOrchestrator(

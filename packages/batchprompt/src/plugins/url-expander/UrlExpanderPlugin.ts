@@ -154,11 +154,12 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                     const specificHandler = this.registry.getSpecificHandler(url);
                     if (specificHandler) {
                         handlerName = specificHandler.name;
-                        content = await specificHandler.handle(url, context.services, fallbackHandler);
+                        // Note: We pass empty services object because handlers now have injected deps
+                        content = await specificHandler.handle(url, {} as any, fallbackHandler);
                     } else {
                         // 2. Fallback based on mode
                         handlerName = fallbackHandler.name;
-                        const rawHtml = await fallbackHandler.handle(url, context.services);
+                        const rawHtml = await fallbackHandler.handle(url, {} as any);
                         if (rawHtml) {
                             content = turndownService.turndown(rawHtml);
                         }

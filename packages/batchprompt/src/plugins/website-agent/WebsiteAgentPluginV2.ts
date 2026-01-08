@@ -4,7 +4,8 @@ import OpenAI from 'openai';
 import {
     Plugin,
     PluginExecutionContext,
-    PluginPacket
+    PluginPacket,
+    LlmFactory
 } from '../types.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, PluginModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
@@ -14,6 +15,8 @@ import { AiWebsiteAgent } from '../../utils/AiWebsiteAgent.js';
 import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
+import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
+import PQueue from 'p-queue';
 
 // =============================================================================
 // Config Schema
@@ -73,7 +76,14 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
     // We use the Loose schema for the plugin interface to allow CLI/File inputs
     readonly configSchema = LooseWebsiteAgentConfigSchemaV2;
 
-    constructor(private promptLoader: PromptLoader) {}
+    constructor(
+        private deps: {
+            promptLoader: PromptLoader;
+            puppeteerHelper?: PuppeteerHelper;
+            puppeteerQueue?: PQueue;
+            createLlm: LlmFactory;
+        }
+    ) {}
 
     getRequiredCapabilities(): (keyof ServiceCapabilities)[] {
         return ['hasPuppeteer'];
@@ -111,7 +121,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         let promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 
         if (config?.prompt) {
-            promptParts = await this.promptLoader.load(config.prompt as any);
+            promptParts = await this.deps.promptLoader.load(config.prompt as any);
             promptParts = promptParts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });
@@ -125,7 +135,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
 
         let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         if (config?.system) {
-            systemParts = await this.promptLoader.load(config.system as any);
+            systemParts = await this.deps.promptLoader.load(config.system as any);
             systemParts = systemParts.map((part: any) => {
                 if (part.type === 'text') {
                     const template = Handlebars.compile(part.text, { noEscape: true });
@@ -190,8 +200,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         config: WebsiteAgentResolvedConfigV2,
         context: PluginExecutionContext
     ): Promise<PluginPacket[]> {
-        const { services, row, emit } = context;
-        const { puppeteerHelper, puppeteerQueue } = services;
+        const { row, emit } = context;
+        const puppeteerHelper = this.deps.puppeteerHelper;
+        const puppeteerQueue = this.deps.puppeteerQueue;
 
         if (!puppeteerHelper) {
             throw new Error('[WebsiteAgent] Puppeteer not available');
@@ -204,9 +215,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         const scope = new PluginScope(context, this.type);
 
         // Create LLM clients
-        const navigatorLlm = services.createLlm(config.navigatorModel);
-        const extractLlm = services.createLlm(config.extractModel);
-        const mergeLlm = services.createLlm(config.mergeModel);
+        const navigatorLlm = this.deps.createLlm(config.navigatorModel);
+        const extractLlm = this.deps.createLlm(config.extractModel);
+        const mergeLlm = this.deps.createLlm(config.mergeModel);
 
         // Create the agent
         const agent = new AiWebsiteAgent(

@@ -2,17 +2,24 @@ import { GenericHandler } from './types.js';
 import { PluginServices } from '../../types.js';
 import { compressHtml } from '../../../utils/compressHtml.js';
 import { PuppeteerPageHelper } from '../../../utils/puppeteer/PuppeteerPageHelper.js';
+import { PuppeteerHelper } from '../../../utils/puppeteer/PuppeteerHelper.js';
+import PQueue from 'p-queue';
 
 export class GenericPuppeteerHandler implements GenericHandler {
     name = 'generic-puppeteer';
 
+    constructor(
+        private puppeteerHelper?: PuppeteerHelper,
+        private puppeteerQueue?: PQueue
+    ) {}
+
     async handle(url: string, services: PluginServices): Promise<string | null> {
-        if (!services.puppeteerHelper) {
+        if (!this.puppeteerHelper) {
             throw new Error("[GenericPuppeteerHandler] PuppeteerHelper not available.");
         }
 
         const task = async () => {
-            const pageHelper = await services.puppeteerHelper!.getPageHelper();
+            const pageHelper = await this.puppeteerHelper!.getPageHelper();
             try {
                 // We use navigateAndCache to leverage existing caching logic if available
                 const html = await pageHelper.navigateAndCache<string>(
@@ -33,8 +40,8 @@ export class GenericPuppeteerHandler implements GenericHandler {
             }
         };
 
-        if (services.puppeteerQueue) {
-            return services.puppeteerQueue.add(task) as Promise<string | null>;
+        if (this.puppeteerQueue) {
+            return this.puppeteerQueue.add(task) as Promise<string | null>;
         }
 
         return task();

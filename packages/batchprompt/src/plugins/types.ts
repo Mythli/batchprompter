@@ -87,6 +87,14 @@ export class PluginRegistryV2 {
         this.plugins.set(plugin.type, plugin);
     }
 
+    /**
+     * Overrides an existing plugin or registers a new one.
+     * Useful for testing.
+     */
+    override(plugin: Plugin): void {
+        this.plugins.set(plugin.type, plugin);
+    }
+
     get(type: string): Plugin | undefined {
         return this.plugins.get(type);
     }
