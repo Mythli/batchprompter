@@ -24,8 +24,6 @@ export class StandardStrategy implements GenerationStrategy {
         private stepRow: StepRow,
         private events: EventEmitter<BatchPromptEvents>,
         private plugins: { instance: Plugin; config: any; def: ResolvedPluginBase }[],
-        private pluginServices: PluginServices,
-        private tempDir: string
     ) {
         // @ts-ignore
         this.ajv = new Ajv.default ? new Ajv.default({ strict: false }) : new Ajv({ strict: false });
@@ -51,7 +49,7 @@ export class StandardStrategy implements GenerationStrategy {
 
             // Fallback to text parts
             const text = concatMessageText([message]);
-            
+
             return { type: 'text', data: text, extension: 'md' };
         }
 
@@ -78,14 +76,11 @@ export class StandardStrategy implements GenerationStrategy {
     }
 
     async execute(
-        row: Record<string, any>,
         index: number,
         stepIndex: number,
         config: StepConfig,
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         cacheSalt?: string | number,
-        outputPathOverride?: string,
-        skipCommands: boolean = false,
         variationIndex?: number
     ): Promise<GenerationResult> {
 
@@ -102,13 +97,13 @@ export class StandardStrategy implements GenerationStrategy {
              additionalParams.image_config = { aspect_ratio: config.aspectRatio };
         }
 
-        // Use the LLM created in StepRow (passed via StepContext in StepRow, but here we access it via stepRow.createLlm if needed, 
-        // or we assume the caller passed the right client. 
+        // Use the LLM created in StepRow (passed via StepContext in StepRow, but here we access it via stepRow.createLlm if needed,
+        // or we assume the caller passed the right client.
         // Actually StandardStrategy constructor takes StepRow, but execute takes config/messages.
         // We should use the LLM from StepRow context if possible, but StandardStrategy was designed to be generic.
         // However, we can access stepRow.createLlm to get the raw client for the main model.
         const rawClient = this.stepRow.createLlm(config.model).getRawClient();
-        
+
         let finalResult: any;
         let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
         let columnValue: string | null;
@@ -118,13 +113,13 @@ export class StandardStrategy implements GenerationStrategy {
 
         if (config.schema) {
             // --- Branch A: JSON Schema ---
-            
+
             const validator = async (data: any) => {
                 // 1. Validate Schema
                 const valid = this.ajv.validate(config.schema, data);
                 if (!valid) {
                     const errors = this.ajv.errorsText();
-                    
+
                     this.events.emit('validation:failed', {
                         row: index,
                         step: stepIndex,
@@ -185,7 +180,7 @@ export class StandardStrategy implements GenerationStrategy {
             columnValue = content.data;
             finalExtension = content.extension;
             finalType = content.type;
-            
+
             if (finalType === 'audio') {
                 finalContentPayload = Buffer.from(content.data, 'base64');
             } else {
@@ -207,8 +202,8 @@ export class StandardStrategy implements GenerationStrategy {
         }
 
         // Check for empty content before emitting
-        const hasContent = Buffer.isBuffer(finalContentPayload) 
-            ? finalContentPayload.length > 0 
+        const hasContent = Buffer.isBuffer(finalContentPayload)
+            ? finalContentPayload.length > 0
             : String(finalContentPayload).trim().length > 0;
 
         if (hasContent) {
