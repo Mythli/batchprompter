@@ -3,11 +3,9 @@ import { createLlmClient, CreateLlmClientParams } from "./createLlmClient.js";
 import { createLlmRetryClient } from "./createLlmRetryClient.js";
 import { createZodLlmClient } from "./createZodLlmClient.js";
 import { createJsonSchemaLlmClient } from "./createJsonSchemaLlmClient.js";
-import { wrapAsStateful } from "./createConversation.js";
+import { createConversation } from "./createConversation.js";
 
-export interface CreateLlmFactoryParams extends CreateLlmClientParams {
-    // Optional overrides for specific sub-clients if needed, but usually just base params
-}
+export type CreateLlmFactoryParams = CreateLlmClientParams;
 
 export function createLlm(params: CreateLlmFactoryParams) {
     const baseClient = createLlmClient(params);
@@ -40,7 +38,7 @@ export function createLlm(params: CreateLlmFactoryParams) {
          * Creates a stateful conversation client that automatically maintains history.
          */
         createConversation: (initialMessages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => {
-            return wrapAsStateful(base, initialMessages);
+            return createConversation(params, initialMessages);
         }
     };
 }

@@ -1,8 +1,11 @@
 import OpenAI from 'openai';
 import { completionToMessage } from './completionToAssistantMessage.js';
-import { normalizeOptions, LlmPromptOptions, LlmCommonOptions } from './createLlmClient.js';
-import { normalizeZodArgs, ZodLlmClientOptions } from './createZodLlmClient.js';
-import { ZodTypeAny, z } from 'zod';
+import { createLlmClient, PromptFunction, CreateLlmClientParams } from './createLlmClient.js';
+import { createLlmRetryClient } from './createLlmRetryClient.js';
+import { createJsonSchemaLlmClient } from './createJsonSchemaLlmClient.js';
+import { createZodLlmClient } from './createZodLlmClient.js';
+import { extractImageBuffer, extractAudioBuffer } from './extractBinary.js';
+import { createDnsFetcher } from './createDnsFetcher.js';
 
 /**
  * Abstract interface for managing conversation history.
@@ -95,90 +98,101 @@ export function createConversationState(initialMessages: OpenAI.Chat.Completions
 }
 
 /**
- * Wraps a stateless LLM client to make it stateful.
+ * Creates a stateful conversation client.
  * Every call to a prompt method will:
- * 1. Append the new user message(s) to the state.
+ * 1. Capture the normalized user message(s) from the first call of the turn.
  * 2. Execute the call using the full history from the state.
- * 3. Append the assistant's response to the state.
+ * 3. Capture the final assistant response and append it to the state.
  */
-export function wrapAsStateful<T extends Record<string, any>>(client: T, state: ConversationState): T & ConversationState {
-    const wrapped: any = {
-        ...state
-    };
+export function createConversation(params: CreateLlmClientParams, initialMessages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) {
+    const state = createConversationState(initialMessages);
+    const baseClient = createLlmClient(params);
+    const fetchImpl = params.fetch ?? createDnsFetcher();
 
-    const ingestResult = (methodName: string, result: any) => {
-        if (result && typeof result === 'object' && 'choices' in result) {
-            state.addCompletion(result);
-        } else if (typeof result === 'string') {
-            state.addAssistantMessage(result);
-        } else if (Buffer.isBuffer(result)) {
-            const isImage = methodName.toLowerCase().includes('image');
-            state.addBinary(isImage ? 'image' : 'audio', result, 'assistant');
-        } else if (result !== undefined && result !== null) {
-            // Likely JSON/Zod result or other object
-            state.addAssistantMessage(typeof result === 'object' ? JSON.stringify(result) : String(result));
-        }
-    };
+    const wrapMethod = (methodName: string) => {
+        return async (...args: any[]) => {
+            let firstCall = true;
+            let lastCompletion: OpenAI.Chat.Completions.ChatCompletion | undefined;
 
-    // Wrap standard prompt methods
-    const standardMethods = ['prompt', 'promptText', 'promptImage', 'promptAudio', 'promptRetry', 'promptTextRetry', 'promptImageRetry', 'promptAudioRetry'];
-    
-    for (const methodName of standardMethods) {
-        if (typeof client[methodName] === 'function') {
-            wrapped[methodName] = async (arg1: any, arg2: any) => {
-                const params = normalizeOptions(arg1, arg2);
+            const spyPrompt: PromptFunction = async (arg1: any, arg2?: any) => {
+                // Sub-clients call prompt({ messages, ... })
+                const options = typeof arg1 === 'string' ? { messages: [{role: 'user', content: arg1}], ...arg2 } : arg1;
                 
-                // Add new messages to state
-                for (const m of params.messages) state.add(m);
+                const history = state.getMessages();
+                if (firstCall) {
+                    // Capture new messages from the high-level caller (e.g. normalized Zod prompts)
+                    for (const m of options.messages) state.add(m);
+                    firstCall = false;
+                }
 
-                const result = await client[methodName]({
-                    ...params,
-                    messages: state.getMessages()
+                // Execute with history injected
+                const result = await baseClient.prompt({
+                    ...options,
+                    messages: [...history, ...options.messages]
                 });
 
-                ingestResult(methodName, result);
-
+                lastCompletion = result;
                 return result;
             };
-        }
-    }
 
-    // Wrap Structured Output methods
-    if (typeof client.promptJson === 'function') {
-        wrapped.promptJson = async (messagesOrSchema: any, schemaOrOptions: any, options?: any) => {
-            let finalMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-            let schema: Record<string, any>;
-            let callOptions: any;
+            // Re-assemble a temporary client using the spyPrompt
+            const retryClient = createLlmRetryClient({
+                prompt: spyPrompt,
+                retryBaseDelay: params.retryBaseDelay,
+                fetch: params.fetch
+            });
 
-            if (Array.isArray(messagesOrSchema)) {
-                finalMessages = messagesOrSchema;
-                schema = schemaOrOptions;
-                callOptions = options;
-            } else {
-                finalMessages = [{ role: 'user', content: 'Generate structured data.' }];
-                schema = messagesOrSchema;
-                callOptions = schemaOrOptions;
+            const jsonSchemaClient = createJsonSchemaLlmClient({
+                prompt: spyPrompt,
+                retryBaseDelay: params.retryBaseDelay
+            });
+
+            const zodClient = createZodLlmClient({
+                jsonSchemaClient
+            });
+
+            const tempClient: any = {
+                prompt: spyPrompt,
+                promptText: async (arg1: any, arg2?: any) => {
+                    const res = await spyPrompt(arg1, arg2);
+                    return res.choices[0]?.message?.content!;
+                },
+                promptImage: async (arg1: any, arg2?: any) => {
+                    const res = await spyPrompt(arg1, arg2);
+                    return extractImageBuffer(res, fetchImpl);
+                },
+                promptAudio: async (arg1: any, arg2?: any) => {
+                    const res = await spyPrompt(arg1, arg2);
+                    return extractAudioBuffer(res);
+                },
+                ...retryClient,
+                ...jsonSchemaClient,
+                ...zodClient
+            };
+
+            // Execute the requested method on the temp client
+            const result = await tempClient[methodName](...args);
+
+            // Commit the last completion to history
+            if (lastCompletion) {
+                state.addCompletion(lastCompletion);
             }
 
-            for (const m of finalMessages) state.add(m);
-
-            const result = await client.promptJson(state.getMessages(), schema, callOptions);
-            ingestResult('promptJson', result);
             return result;
         };
-    }
+    };
 
-    if (typeof client.promptZod === 'function') {
-        wrapped.promptZod = async (arg1: any, arg2?: any, arg3?: any, arg4?: any) => {
-            const { messages, dataExtractionSchema, options } = normalizeZodArgs(arg1, arg2, arg3, arg4);
-            
-            for (const m of messages) state.add(m);
-
-            const result = await client.promptZod(state.getMessages(), dataExtractionSchema, options);
-            ingestResult('promptZod', result);
-            return result;
-        };
-    }
-
-    return wrapped as T & ConversationState;
+    return {
+        ...state,
+        prompt: wrapMethod('prompt'),
+        promptText: wrapMethod('promptText'),
+        promptImage: wrapMethod('promptImage'),
+        promptAudio: wrapMethod('promptAudio'),
+        promptRetry: wrapMethod('promptRetry'),
+        promptTextRetry: wrapMethod('promptTextRetry'),
+        promptImageRetry: wrapMethod('promptImageRetry'),
+        promptAudioRetry: wrapMethod('promptAudioRetry'),
+        promptJson: wrapMethod('promptJson'),
+        promptZod: wrapMethod('promptZod'),
+    };
 }
