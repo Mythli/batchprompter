@@ -46,7 +46,7 @@ let instance: ApiConfig | null = null;
  * Returns the API Dependency Injection container.
  * This is a singleton that wraps the core batchprompt container.
  */
-export const getDiContainer = async (env: Record<string, any>) => {
+export const getApiContainer = async (env: Record<string, any>) => {
     if (!instance) {
         instance = await initApiContainer(env);
     }

@@ -85,8 +85,8 @@ export class StepResolver {
                 // Template string -> Render -> Load
                 try {
                     const template = Handlebars.compile(stepConfig.schema, { noEscape: true });
-                    const resolvedPath = template(viewContext); // Use raw context for path resolution? Usually paths need sanitization, but schema paths might be static or controlled. Let's use viewContext to allow spaces in paths if needed, or sanitized if it's user input. 
-                    // Actually, for file paths, sanitized is safer, but for logic, raw is better. 
+                    const resolvedPath = template(viewContext); // Use raw context for path resolution? Usually paths need sanitization, but schema paths might be static or controlled. Let's use viewContext to allow spaces in paths if needed, or sanitized if it's user input.
+                    // Actually, for file paths, sanitized is safer, but for logic, raw is better.
                     // Let's stick to viewContext for flexibility, assuming the user handles path safety in the template if needed.
                     resolvedStep.schema = await this.schemaLoader.load(resolvedPath);
                 } catch (e) {
@@ -109,7 +109,7 @@ export class StepResolver {
         const modelConfig = resolvedStep.model;
         const resolvedModel = await this.resolveModelConfig(modelConfig, viewContext);
         const mainLlm = this.llmFactory.create(resolvedModel);
-        
+
         // Store resolved prompts back on step for Orchestrator
         resolvedStep.userPromptParts = resolvedModel.promptParts;
 
@@ -157,13 +157,13 @@ export class StepResolver {
 
     private async resolvePrompt(prompt: any, row: any): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
         if (!prompt) return [];
-        
+
         if (Array.isArray(prompt)) {
             // Already loaded content parts (from CLI hydration)
             // Just render templates inside parts
             return this.renderParts(prompt, row);
         }
-        
+
         if (typeof prompt === 'string') {
             // It's a template string (CLI skipped it because of {{)
             const template = Handlebars.compile(prompt);
@@ -171,7 +171,7 @@ export class StepResolver {
             // Now resolve it (it might be a file path now, or raw text)
             return this.globalContext.contentResolver.resolve(rendered);
         }
-        
+
         return [];
     }
 
@@ -186,9 +186,5 @@ export class StepResolver {
             }
             return part;
         });
-    }
-
-    createLlm(config: ResolvedModelConfig): BoundLlmClient {
-        return this.llmFactory.create(config);
     }
 }

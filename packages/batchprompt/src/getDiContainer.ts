@@ -5,7 +5,7 @@ import OpenAI from "openai";
 import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
-import { createPluginRegistry, PluginRegistryV2 } from './plugins/index.js';
+import { createPluginRegistry } from './plugins/index.js';
 import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import { createAiLoggingFetcher, createCachedFetcher, createLlm, LlmClient } from "llm-fns";
@@ -211,9 +211,9 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
 
     // Create Factories
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
-    
+
     // The "Upgraded" createLlm factory for plugins
-    const createLlm: LlmFactory = (config: Partial<ModelConfig>) => {
+    const createTheLlm: LlmFactory = (config: Partial<ModelConfig>) => {
         const modelConfig: Record<string, any> = {
             model: config.model || defaultModel
         };
@@ -243,7 +243,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         webSearch,
         imageSearch,
         puppeteerHelper,
-        createLlm
+        createLlm: createTheLlm
     });
 
     // --- New Architecture Components ---

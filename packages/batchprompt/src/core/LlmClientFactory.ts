@@ -32,7 +32,7 @@ export class LlmClientFactory {
             openai: this.openai as any,
             defaultModel: modelConfig,
             queue: this.queue,
-            retryBaseDelay: this.retryBaseDelay
+            retryBaseDelay: this.retryBaseDelay,
         });
 
         return new BoundLlmClient(

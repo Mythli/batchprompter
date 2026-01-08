@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { getDiContainer } from '../getDiContainer.js';
+import { getApiContainer } from '../getApiContainer.js';
 
 const app = new Hono();
 
@@ -10,7 +10,7 @@ app.post('/generate', async (c) => {
     if (!prompt) return c.json({ error: 'Prompt is required' }, 400);
 
     try {
-        const { generationService } = await getDiContainer(process.env);
+        const { generationService } = await getApiContainer(process.env);
         const config = await generationService.generateConfig(prompt, partialConfig);
         return c.json(config);
     } catch (e: any) {

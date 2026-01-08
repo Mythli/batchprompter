@@ -37,11 +37,8 @@ export class ActionRunner {
             cache: this.globalContext.cache,
             imageSearch: this.globalContext.imageSearch,
             webSearch: this.globalContext.webSearch,
-            createLlm: (config) => {
-                throw new Error("Direct createLlm in PluginServices via ActionRunner is deprecated. Plugins should use provided context.");
-            }
         };
-        
+
         const enqueueNext = (items: PipelineItem[], nextStepIndex: number) => {
             if (nextStepIndex >= steps.length) {
                 for (const item of items) {
