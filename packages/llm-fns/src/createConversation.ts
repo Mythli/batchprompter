@@ -129,13 +129,9 @@ export function createConversation(params: CreateLlmClientParams, initialMessage
                     return result;
                 }
 
-                // It's a retry. options.messages contains the turn's conversation so far.
-                // We need to prepend history from BEFORE this turn.
-                const previousHistory = currentHistory.slice(0, initialHistoryLength);
-
                 const result = await baseClient.prompt({
                     ...options,
-                    messages: [...previousHistory, ...options.messages]
+                    messages: [...currentHistory, ...options.messages]
                 });
 
                 lastCompletion = result;
