@@ -2,11 +2,14 @@ import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
 import { Step } from './Step.js';
-import { PipelineItem } from '../types.js';
+import { PipelineItem, StepContext } from '../types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 import { ensureDir, aggressiveSanitize } from '../utils/fileUtils.js';
-import { StepExecutor } from '../StepExecutor.js';
 import { renderSchemaObject } from '../utils/schemaUtils.js';
+import { StandardStrategy } from '../strategies/StandardStrategy.js';
+import { CandidateStrategy } from '../strategies/CandidateStrategy.js';
+import { GenerationStrategy } from '../strategies/GenerationStrategy.js';
+import { PluginServices } from '../plugins/types.js';
 
 export class StepRow {
     public readonly context: Record<string, any>;
@@ -28,42 +31,19 @@ export class StepRow {
     }
 
     async run(): Promise<PipelineItem[]> {
-        const events = this.step.globalContext.events;
         const stepNum = this.step.stepIndex + 1;
 
-        // 1. Path Resolution
+        // --- Stage 1: Path Resolution ---
         await this.resolvePaths();
 
-        // 2. Plugin Preparation
+        // --- Stage 2: Plugin Preparation ---
         for (const { instance, config } of this.step.plugins) {
             if (instance.prepare) {
                 await instance.prepare(this, config);
-            } else if (instance.prepareMessages) {
-                // Legacy adapter: call prepareMessages and handle packets
-                const context = {
-                    row: { index: this.item.originalIndex, ...this.context },
-                    stepIndex: this.step.stepIndex,
-                    pluginIndex: 0, // Approximation
-                    tempDirectory: this.resolvedTempDir || '/tmp',
-                    emit: (event: any, ...args: any[]) => events.emit(event, ...args)
-                };
-                
-                const result = await instance.prepareMessages(this.history, config, context as any);
-                
-                if (result) {
-                    const packets = Array.isArray(result) ? result : [result];
-                    for (const packet of packets) {
-                        if (packet.contentParts) this.appendContent(packet.contentParts);
-                        if (packet.data) {
-                            // Simple merge for legacy support
-                            Object.assign(this.context, packet.data);
-                        }
-                    }
-                }
             }
         }
 
-        // 3. Model Execution
+        // --- Stage 3: Model Setup ---
         const modelConfig = this.step.config.model;
         const hasExplicitPrompt = 
             (modelConfig?.prompt && (Array.isArray(modelConfig.prompt) ? modelConfig.prompt.length > 0 : true)) ||
@@ -82,15 +62,12 @@ export class StepRow {
                     try {
                         const template = Handlebars.compile(schema, { noEscape: true });
                         const resolvedPath = template(this.context);
-                        // We assume schemaLoader is available on globalContext or we use contentResolver
-                        // Since schemaLoader is not on GlobalContext, we use a simple JSON parse of readText
                         const content = await this.step.globalContext.contentResolver.readText(resolvedPath);
                         schema = JSON.parse(content);
                     } catch (e) {
                         console.warn(`[Row ${this.item.originalIndex}] Failed to load schema from template '${schema}':`, e);
                     }
                 } else {
-                    // Already an object (loaded by CLI)
                     // Render templates inside the schema object using RAW context
                     try {
                         schema = renderSchemaObject(schema, this.context);
@@ -120,10 +97,10 @@ export class StepRow {
                 messages.push({ role: 'user', content: userContent });
             }
 
-            // Execute using StepExecutor (reusing existing logic for retry/candidates/judge)
-            const stepExecutor = new StepExecutor(events);
+            // --- Stage 4: Execution Strategy ---
             
-            const stepContext = {
+            // Build StepContext for strategies
+            const stepContext: StepContext = {
                 global: this.step.globalContext,
                 llm: llm,
                 judge: this.step.config.judge ? this.createLlm(this.step.config.judge) : undefined,
@@ -131,55 +108,54 @@ export class StepRow {
                 createLlm: (cfg: any) => this.createLlm(cfg)
             };
 
-            // We need to pass plugin services for legacy support in StandardStrategy
-            const pluginServices = {
-                promptLoader: {} as any, // Not needed at runtime
+            // Build PluginServices for strategies (legacy support mostly, but useful for standard strategy)
+            const pluginServices: PluginServices = {
                 webSearch: this.step.globalContext.webSearch,
                 imageSearch: this.step.globalContext.imageSearch,
                 puppeteerHelper: this.step.globalContext.puppeteerHelper,
                 createLlm: (cfg: any) => this.createLlm(cfg).getRawClient()
             };
 
-            // We pass empty plugins array to StepExecutor because we already ran plugins.
-            // However, StandardStrategy uses plugins for post-processing.
-            // We should handle post-processing here in StepRow if possible, but StepExecutor is monolithic.
-            // For now, let's pass the plugins to StepExecutor so it can run postProcessMessages (legacy).
-            // New plugins using `postProcess` will be handled manually below.
-            
-            const legacyPlugins = this.step.plugins.map(p => ({
-                instance: p.instance,
-                config: p.config,
-                def: { type: p.instance.type, id: 'legacy', output: { mode: 'ignore' as const, explode: false } }
-            }));
+            // Inject resolved schema into config for Strategy
+            const configForStrategy = { ...this.step.config, schema };
 
-            // Inject resolved schema into config for StepExecutor
-            const configForExecutor = { ...this.step.config, schema };
-
-            const executionResult = await stepExecutor.executeModel(
-                stepContext,
-                this.item.originalIndex,
-                this.step.stepIndex,
-                configForExecutor,
-                messages,
-                this.item.variationIndex,
-                legacyPlugins,
+            // Select Strategy
+            let strategy: GenerationStrategy = new StandardStrategy(
+                this,
+                this.step.globalContext.events,
+                this.step.plugins.map(p => ({ instance: p.instance, config: p.config, def: { type: p.instance.type, id: 'legacy', output: { mode: 'ignore' as const, explode: false } } })),
                 pluginServices,
-                this.resolvedTempDir || '/tmp',
-                this.context
+                this.resolvedTempDir || '/tmp'
             );
 
-            let result = executionResult.modelResult;
+            if (configForStrategy.candidates > 1) {
+                strategy = new CandidateStrategy(strategy as StandardStrategy, stepContext, this.step.globalContext.events);
+            }
+
+            // Execute Strategy
+            const executionResult = await strategy.execute(
+                this.context,
+                this.item.originalIndex,
+                this.step.stepIndex,
+                configForStrategy,
+                messages,
+                undefined, // cacheSalt
+                undefined, // outputPathOverride
+                false, // skipCommands
+                this.item.variationIndex
+            );
+
+            let result = executionResult.raw !== undefined ? executionResult.raw : executionResult.columnValue;
             const historyMessage = executionResult.historyMessage;
 
-            // 4. Post Processing (New API)
+            // --- Stage 5: Plugin Post-Processing ---
             for (const { instance, config } of this.step.plugins) {
                 if (instance.postProcess) {
                     result = await instance.postProcess(this, config, result);
                 }
             }
             
-            // 5. Result Processing
-            // Handle output mode (merge/column)
+            // --- Stage 6: Output Handling ---
             const outputConfig = this.step.config.output;
             const newRow = { ...this.context };
             
@@ -203,7 +179,7 @@ export class StepRow {
             return [newItem];
 
         } else {
-            // Pass-through
+            // Pass-through (no model execution)
             return [{
                 ...this.item,
                 history: this.history

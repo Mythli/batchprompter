@@ -1,12 +1,10 @@
 import { z } from 'zod';
-import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from '../core/events.js';
-import { ContentResolver } from '../core/io/ContentResolver.js';
-import { ModelConfig } from '../config/schemas/model.js';
-import { LlmClient } from 'llm-fns';
 import { Step } from '../core/Step.js';
 import { StepRow } from '../core/StepRow.js';
 import { ResolvedPluginBase } from '../config/types.js';
+import { BatchPromptEvents } from '../core/events.js';
+import { LlmClient } from 'llm-fns';
+import { ModelConfig } from '../config/schemas/model.js';
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -48,14 +46,14 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
 
     /**
      * Initialization phase (Static).
-     * Called once per step definition.
-     * Use this to load files, validate config, and prepare resources.
+     * Called once per step definition during pipeline initialization.
+     * Use this to load files, validate config, and prepare resources that don't depend on row data.
      */
-    init?(step: Step, config: TRawConfig): Promise<TResolvedConfig>;
+    init(step: Step, config: TRawConfig): Promise<TResolvedConfig>;
 
     /**
      * Execution phase (Dynamic).
-     * Called for every row.
+     * Called for every row before the model runs.
      * Use stepRow.createLlm() to get clients.
      * Use stepRow.appendContent() to add to the prompt.
      * Use stepRow.context to read/write data.
@@ -65,33 +63,9 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
     /**
      * Post-processing phase.
      * Called after the model generation.
+     * Use this to validate results, transform output, or trigger side effects based on the model's response.
      */
     postProcess?(stepRow: StepRow, config: TResolvedConfig, result: any): Promise<any>;
-
-    // Legacy methods to be removed or adapted
-    resolveConfig?(
-        rawConfig: TRawConfig,
-        row: Record<string, any>,
-        inheritedModel: any,
-        contentResolver: ContentResolver
-    ): Promise<TResolvedConfig>;
-
-    normalizeConfig?(config: TRawConfig, contentResolver: ContentResolver): Promise<TRawConfig>;
-
-    mapStepToConfig?(step: any): TRawConfig | null;
-
-    prepareMessages?(
-        messages: any[],
-        config: TResolvedConfig,
-        context: PluginExecutionContext
-    ): Promise<PluginPacket[] | PluginPacket | void>;
-
-    postProcessMessages?(
-        response: any,
-        history: any[],
-        config: TResolvedConfig,
-        context: PluginExecutionContext
-    ): Promise<any>;
 }
 
 export class PluginRegistryV2 {

@@ -7,6 +7,7 @@ import { PluginRegistryV2 } from '../plugins/types.js';
 import { ContentResolver } from '../core/io/ContentResolver.js';
 import { z } from 'zod';
 import { zJsonSchemaObject } from './validationRules.js';
+import { UrlExpanderConfigSchema } from '../plugins/url-expander/UrlExpanderConfig.js';
 
 export interface ResolveConfigDependencies {
     pluginRegistry: PluginRegistryV2;
@@ -79,27 +80,26 @@ function expandShortcuts(config: any, registry: PluginRegistryV2): any {
         for (const step of expanded.steps) {
             step.plugins = step.plugins || [];
             
-            for (const plugin of registry.getAll()) {
-                if (plugin.mapStepToConfig) {
-                    const pluginConfig = plugin.mapStepToConfig(step);
-                    if (pluginConfig) {
-                        const isExplicitlyConfigured = step.plugins.some(
-                            (p: any) => p.type === pluginConfig.type
-                        );
-                        
-                        if (!isExplicitlyConfigured) {
-                            step.plugins.unshift(pluginConfig);
-                        }
-                        
-                        // Remove shortcut keys from step
-                        if (plugin.configSchema instanceof z.ZodObject) {
-                            // Note: We can't easily know which keys to remove without the specific extension schema.
-                            // But mapStepToConfig implies the plugin knows what keys it handles.
-                            // For now, we rely on the plugin logic or just leave them (Zod .strict() might complain if we don't strip).
-                            // Ideally, plugins should expose what keys they consume.
-                            // For UrlExpander, it's handled via UrlExpanderStepExtension in the schema.
-                        }
+            // Special handling for UrlExpander shortcut 'expandUrls'
+            // Since we removed mapStepToConfig from the generic interface, we handle known shortcuts here.
+            if (step.expandUrls !== undefined && step.expandUrls !== false) {
+                const isExplicitlyConfigured = step.plugins.some(
+                    (p: any) => p.type === 'url-expander'
+                );
+
+                if (!isExplicitlyConfigured) {
+                    let pluginConfig: any = {
+                        type: 'url-expander',
+                        output: { mode: 'ignore', explode: false },
+                        mode: 'fetch',
+                        maxChars: 30000
+                    };
+
+                    if (typeof step.expandUrls === 'object') {
+                        pluginConfig = { ...pluginConfig, ...step.expandUrls };
                     }
+
+                    step.plugins.unshift(pluginConfig);
                 }
             }
         }
@@ -138,14 +138,21 @@ function resolveStep(step: any, globals: any, stepIndex: number): StepConfig {
             pluginOutput.offset ??= globals.offset;
         }
 
-        // Deep merge model configs inside plugins
-        // We iterate over keys and if we find a model-like object, we merge it
+        // We merge the global model settings into the plugin config here
+        // so that the plugin.init() receives the fully merged config.
         const rawConfig = p.rawConfig || p;
         const mergedConfig = { ...rawConfig };
         
+        // Heuristic: If the plugin config has model fields, apply defaults
+        // This is a bit loose, but plugins will validate/refine in init()
         for (const key of Object.keys(mergedConfig)) {
             if (key.endsWith('Model') && typeof mergedConfig[key] === 'object') {
-                mergedConfig[key] = mergeModelConfigs(mergedConfig[key], mergedModel);
+                mergedConfig[key] = {
+                    model: mergedConfig[key].model ?? mergedModel.model,
+                    temperature: mergedConfig[key].temperature ?? mergedModel.temperature,
+                    thinkingLevel: mergedConfig[key].thinkingLevel ?? mergedModel.thinkingLevel,
+                    ...mergedConfig[key]
+                };
             }
         }
 
@@ -203,15 +210,5 @@ function resolveStep(step: any, globals: any, stepIndex: number): StepConfig {
         tmpDir: globals.tmpDir,
         timeout,
         expandUrls: step.expandUrls ?? true
-    };
-}
-
-function mergeModelConfigs(pluginModel: any, parentModel: ModelConfig): ModelConfig {
-    return {
-        model: pluginModel?.model ?? parentModel.model,
-        temperature: pluginModel?.temperature ?? parentModel.temperature,
-        thinkingLevel: pluginModel?.thinkingLevel ?? parentModel.thinkingLevel,
-        system: pluginModel?.system, // System/Prompt usually don't inherit content
-        prompt: pluginModel?.prompt
     };
 }

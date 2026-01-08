@@ -11,7 +11,6 @@ import { ActionRunner } from '../../src/ActionRunner.js';
 import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
 import { PromptLoader } from '../../src/config/PromptLoader.js';
 import {createMockOpenAI, getPromptSummary, LlmFatalError} from 'llm-fns';
-import { StepExecutor } from '../../src/StepExecutor.js';
 import { DebugLogger } from "../../src/index.js";
 
 export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
@@ -56,7 +55,7 @@ export function createTestContext(options: TestContextOptions = {}) {
         contentResolver,
         webSearch,
         imageSearch
-    };
+    } as any; // Cast to any because we construct the rest below
 
     return { globalContext, openai, events, contentResolver };
 }
@@ -110,7 +109,9 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         pluginRegistry.override(plugin);
     }
 
-    const stepExecutor = new StepExecutor(events as any);
+    // Complete GlobalContext construction
+    globalContext.pluginRegistry = pluginRegistry;
+    globalContext.llmFactory = llmFactory;
 
     const actionRunner = new ActionRunner(
         globalContext

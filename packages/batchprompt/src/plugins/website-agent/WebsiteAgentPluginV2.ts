@@ -3,16 +3,15 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext,
-    PluginPacket,
     LlmFactory
 } from '../types.js';
+import { Step } from '../../core/Step.js';
+import { StepRow } from '../../core/StepRow.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
 import { AiWebsiteAgent } from './AiWebsiteAgent.js';
-import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
@@ -22,7 +21,6 @@ import PQueue from 'p-queue';
 // Config Schema
 // =============================================================================
 
-// Loose Schema (String or Object for schema field) - defined first as base
 export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent').describe("Identifies this as a Website Agent plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
@@ -42,7 +40,6 @@ export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     merge: BaseModelConfigSchema.optional().describe("Model configuration for the Merger agent (consolidates data).")
 }).describe("Configuration for the Website Agent plugin.");
 
-// Strict Schema (Object only) - derived by narrowing the schema field
 export const WebsiteAgentConfigSchemaV2 = LooseWebsiteAgentConfigSchemaV2.extend({
     schema: zJsonSchemaObject.describe("The JSON Schema defining the data to extract.")
 }).strict();
@@ -55,7 +52,6 @@ export interface WebsiteAgentResolvedConfigV2 {
     output: ResolvedOutputConfig;
     url: string;
     schema: any;
-    extractionSchema: any;
     budget: number;
     batchSize: number;
     navigatorModel: ResolvedModelConfig;
@@ -73,7 +69,6 @@ const DEFAULT_MERGE = 'You are a data consolidation expert. Merge the JSON objec
 
 export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, WebsiteAgentResolvedConfigV2> {
     readonly type = 'website-agent';
-    // We use the Loose schema for the plugin interface to allow CLI/File inputs
     readonly configSchema = LooseWebsiteAgentConfigSchemaV2;
 
     constructor(
@@ -89,92 +84,42 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         return ['hasPuppeteer'];
     }
 
-    async normalizeConfig(
-        config: WebsiteAgentRawConfigV2,
-        contentResolver: ContentResolver
-    ): Promise<WebsiteAgentRawConfigV2> {
-        if (typeof config.schema === 'string') {
-            // If it looks like a template, skip static loading
-            if (config.schema.includes('{{')) {
-                return config;
-            }
-
-            try {
-                const content = await contentResolver.readText(config.schema);
-                return {
-                    ...config,
-                    schema: JSON.parse(content)
-                };
-            } catch (e: any) {
-                throw new Error(`Failed to load schema from '${config.schema}': ${e.message}`);
-            }
-        }
-        return config;
-    }
-
     private async resolvePluginModel(
+        step: Step,
         config: z.infer<typeof BaseModelConfigSchema> | undefined,
-        defaultPrompt: string,
-        row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        defaultPrompt: string
     ): Promise<ResolvedModelConfig> {
         let promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 
         if (config?.prompt) {
-            promptParts = await this.deps.promptLoader.load(config.prompt as any);
-            promptParts = promptParts.map((part: any) => {
-                if (part.type === 'text') {
-                    const template = Handlebars.compile(part.text, { noEscape: true });
-                    return { type: 'text' as const, text: template(row) };
-                }
-                return part;
-            });
+            promptParts = await step.loadPrompt(config.prompt);
         } else {
             promptParts = [{ type: 'text', text: defaultPrompt }];
         }
 
-        let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        if (config?.system) {
-            systemParts = await this.deps.promptLoader.load(config.system as any);
-            systemParts = systemParts.map((part: any) => {
-                if (part.type === 'text') {
-                    const template = Handlebars.compile(part.text, { noEscape: true });
-                    return { type: 'text' as const, text: template(row) };
-                }
-                return part;
-            });
-        }
+        const systemParts = config?.system ? await step.loadPrompt(config.system) : [];
 
         return {
-            model: config?.model || inheritedModel.model,
-            temperature: config?.temperature ?? inheritedModel.temperature,
-            thinkingLevel: config?.thinkingLevel ?? inheritedModel.thinkingLevel,
+            model: config?.model,
+            temperature: config?.temperature,
+            thinkingLevel: config?.thinkingLevel,
             systemParts,
             promptParts
         };
     }
 
-    async resolveConfig(
-        rawConfig: WebsiteAgentRawConfigV2,
-        row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
-        contentResolver: ContentResolver
-    ): Promise<WebsiteAgentResolvedConfigV2> {
-        // Resolve URL template
-        const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
-        const url = urlTemplate(row);
-
-        // Schema should already be an object after normalizeConfig
+    async init(step: Step, rawConfig: WebsiteAgentRawConfigV2): Promise<WebsiteAgentResolvedConfigV2> {
         let schema = rawConfig.schema;
-        if (typeof schema === 'string') {
-            throw new Error("Schema must be an object. Ensure ConfigNormalizer is used.");
+        
+        // Load schema if it's a file path (and not a template)
+        if (typeof schema === 'string' && !schema.includes('{{')) {
+            try {
+                const content = await step.globalContext.contentResolver.readText(schema);
+                schema = JSON.parse(content);
+            } catch (e: any) {
+                throw new Error(`Failed to load schema from '${schema}': ${e.message}`);
+            }
         }
-
-        // Render schema templates
-        schema = renderSchemaObject(schema, row);
-
-        // Create extraction schema (make all fields optional for partial extraction)
-        const extractionSchema = makeSchemaOptional(schema);
 
         return {
             type: 'website-agent',
@@ -184,32 +129,48 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
                 column: rawConfig.output.column,
                 explode: rawConfig.output.explode
             },
-            url,
+            url: rawConfig.url,
             schema,
-            extractionSchema,
             budget: rawConfig.budget,
             batchSize: rawConfig.batchSize,
-            navigatorModel: await this.resolvePluginModel(rawConfig.navigator, DEFAULT_NAVIGATOR, row, inheritedModel),
-            extractModel: await this.resolvePluginModel(rawConfig.extract, DEFAULT_EXTRACT, row, inheritedModel),
-            mergeModel: await this.resolvePluginModel(rawConfig.merge, DEFAULT_MERGE, row, inheritedModel)
+            navigatorModel: await this.resolvePluginModel(step, rawConfig.navigator, DEFAULT_NAVIGATOR),
+            extractModel: await this.resolvePluginModel(step, rawConfig.extract, DEFAULT_EXTRACT),
+            mergeModel: await this.resolvePluginModel(step, rawConfig.merge, DEFAULT_MERGE)
         };
     }
 
-    async prepareMessages(
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        config: WebsiteAgentResolvedConfigV2,
-        context: PluginExecutionContext
-    ): Promise<PluginPacket[]> {
-        const { row, emit } = context;
+    async prepare(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2): Promise<void> {
+        const { context } = stepRow;
+        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const puppeteerHelper = this.deps.puppeteerHelper;
         const puppeteerQueue = this.deps.puppeteerQueue;
 
-        const scope = new PluginScope(context, this.type);
+        // Resolve URL template
+        const url = stepRow.render(config.url);
+
+        // Resolve Schema template (if it was a string template or object with templates)
+        let schema = config.schema;
+        if (typeof schema === 'string') {
+             // It must be a template string if it wasn't resolved in init
+             try {
+                 const template = Handlebars.compile(schema, { noEscape: true });
+                 const resolvedPath = template(context);
+                 const content = await stepRow.step.globalContext.contentResolver.readText(resolvedPath);
+                 schema = JSON.parse(content);
+             } catch (e: any) {
+                 console.warn(`[WebsiteAgent] Failed to load schema from template:`, e);
+             }
+        } else {
+            schema = renderSchemaObject(schema, context);
+        }
+
+        // Create extraction schema
+        const extractionSchema = makeSchemaOptional(schema);
 
         // Create LLM clients
-        const navigatorLlm = this.deps.createLlm(config.navigatorModel);
-        const extractLlm = this.deps.createLlm(config.extractModel);
-        const mergeLlm = this.deps.createLlm(config.mergeModel);
+        const navigatorLlm = stepRow.createLlm(config.navigatorModel);
+        const extractLlm = stepRow.createLlm(config.extractModel);
+        const mergeLlm = stepRow.createLlm(config.mergeModel);
 
         // Create the agent
         const agent = new AiWebsiteAgent(
@@ -220,27 +181,36 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             puppeteerQueue
         );
 
-        // Bridge events to plugin scope
+        // Bridge events
+        // We need a temporary scope to bridge events to the global emitter with context
+        const scope = new PluginScope({
+            row: context,
+            stepIndex: stepRow.step.stepIndex,
+            pluginIndex: 0,
+            tempDirectory: stepRow.resolvedTempDir || '/tmp',
+            emit: emit
+        }, this.type);
+        
         scope.bridge(agent.events);
 
-        console.log(`[WebsiteAgent] Starting scrape of: ${config.url}`);
+        console.log(`[WebsiteAgent] Starting scrape of: ${url}`);
 
         // Execute the scrape
         const result = await agent.scrapeIterative(
-            config.url,
-            config.extractionSchema,
-            config.schema,
+            url,
+            extractionSchema,
+            schema,
             {
                 budget: config.budget,
                 batchSize: config.batchSize,
-                row
+                row: context
             }
         );
 
-        // Emit artifact with final result
+        // Emit artifact
         emit('plugin:artifact', {
-            row: context.row.index,
-            step: context.stepIndex,
+            row: stepRow.item.originalIndex,
+            step: stepRow.step.stepIndex,
             plugin: 'website-agent',
             type: 'json',
             filename: `website_agent/result_${Date.now()}.json`,
@@ -248,24 +218,29 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             tags: ['final', 'website-agent', 'result']
         });
 
-        // Build content parts for LLM context
+        // Add content to prompt
         const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-
         if (result && Object.keys(result).length > 0) {
             contentParts.push({
                 type: 'text',
-                text: `\n--- Website Data from ${config.url} ---\n${JSON.stringify(result, null, 2)}\n--------------------------\n`
+                text: `\n--- Website Data from ${url} ---\n${JSON.stringify(result, null, 2)}\n--------------------------\n`
             });
         } else {
             contentParts.push({
                 type: 'text',
-                text: `\n--- Website Data from ${config.url} ---\nNo data extracted.\n--------------------------\n`
+                text: `\n--- Website Data from ${url} ---\nNo data extracted.\n--------------------------\n`
             });
         }
+        
+        stepRow.appendContent(contentParts);
+        stepRow.context._websiteAgent_result = result;
+    }
 
-        return [{
-            data: result,
-            contentParts
-        }];
+    async postProcess(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2, modelResult: any): Promise<any> {
+        const result = stepRow.context._websiteAgent_result;
+        if (result && (modelResult === null || modelResult === undefined)) {
+            return result;
+        }
+        return modelResult;
     }
 }

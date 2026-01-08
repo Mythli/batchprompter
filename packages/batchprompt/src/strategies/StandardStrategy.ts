@@ -4,11 +4,11 @@ import Ajv from 'ajv';
 import { completionToMessage, LlmRetryError, LlmRetryResponseInfo, SchemaValidationError, concatMessageText } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StepConfig } from '../types.js';
-import { BoundLlmClient } from '../core/BoundLlmClient.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from '../core/events.js';
-import { Plugin, PluginExecutionContext, PluginServices } from '../plugins/types.js';
+import { Plugin, PluginServices } from '../plugins/types.js';
 import { ResolvedPluginBase } from '../config/types.js';
+import { StepRow } from '../core/StepRow.js';
 
 type ExtractedContent = {
     type: 'text' | 'image' | 'audio';
@@ -21,7 +21,7 @@ export class StandardStrategy implements GenerationStrategy {
     private ajv: any;
 
     constructor(
-        private llm: BoundLlmClient,
+        private stepRow: StepRow,
         private events: EventEmitter<BatchPromptEvents>,
         private plugins: { instance: Plugin; config: any; def: ResolvedPluginBase }[],
         private pluginServices: PluginServices,
@@ -58,45 +58,16 @@ export class StandardStrategy implements GenerationStrategy {
         return { type: 'text', data: '', extension: 'md' };
     }
 
-    private createPluginContext(row: Record<string, any>, stepIndex: number, pluginIndex: number, index: number): PluginExecutionContext {
-        return {
-            row,
-            stepIndex,
-            pluginIndex,
-            services: this.pluginServices,
-            tempDirectory: this.tempDir,
-            emit: (event, ...args) => {
-                if (event === 'plugin:artifact') {
-                    const payload = args[0];
-                    if (payload && payload.filename && !path.isAbsolute(payload.filename) && !payload.filename.startsWith('out')) {
-                        payload.filename = path.join(this.tempDir, payload.filename);
-                    }
-                    this.events.emit('plugin:artifact', payload);
-                } else if (event === 'step:progress') {
-                    const payload = args[0];
-                    this.events.emit('step:progress', { row: index, step: stepIndex, ...payload });
-                } else {
-                    (this.events.emit as any)(event, ...args);
-                }
-            }
-        };
-    }
-
     private async runPostProcessingPhase(
-        initialData: any,
-        conversation: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        row: Record<string, any>,
-        index: number,
-        stepIndex: number
+        initialData: any
     ): Promise<any> {
         let currentData = initialData;
 
         for (let i = 0; i < this.plugins.length; i++) {
             const { instance, config: pluginConfig } = this.plugins[i];
-            if (instance.postProcessMessages) {
-                const context = this.createPluginContext(row, stepIndex, i, index);
+            if (instance.postProcess) {
                 try {
-                    currentData = await instance.postProcessMessages(currentData, conversation, pluginConfig, context);
+                    currentData = await instance.postProcess(this.stepRow, pluginConfig, currentData);
                 } catch (e: any) {
                     throw new LlmRetryError(e.message, 'CUSTOM_ERROR', undefined, typeof currentData === 'string' ? currentData : JSON.stringify(currentData));
                 }
@@ -118,7 +89,7 @@ export class StandardStrategy implements GenerationStrategy {
         variationIndex?: number
     ): Promise<GenerationResult> {
 
-        // 1. Messages are now passed in (already prepared by PluginExecutor)
+        // 1. Messages are now passed in (already prepared by StepRow)
         const finalMessages = messages;
 
         // 2. Generation Loop
@@ -131,7 +102,12 @@ export class StandardStrategy implements GenerationStrategy {
              additionalParams.image_config = { aspect_ratio: config.aspectRatio };
         }
 
-        const rawClient = this.llm.getRawClient();
+        // Use the LLM created in StepRow (passed via StepContext in StepRow, but here we access it via stepRow.createLlm if needed, 
+        // or we assume the caller passed the right client. 
+        // Actually StandardStrategy constructor takes StepRow, but execute takes config/messages.
+        // We should use the LLM from StepRow context if possible, but StandardStrategy was designed to be generic.
+        // However, we can access stepRow.createLlm to get the raw client for the main model.
+        const rawClient = this.stepRow.createLlm(config.model).getRawClient();
         
         let finalResult: any;
         let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
@@ -161,12 +137,7 @@ export class StandardStrategy implements GenerationStrategy {
                 }
 
                 // 2. Run Plugin Post-Processing Phase
-                const syntheticHistory = [
-                    ...finalMessages, 
-                    { role: 'assistant', content: JSON.stringify(data) } as OpenAI.Chat.Completions.ChatCompletionMessageParam
-                ];
-                
-                return await this.runPostProcessingPhase(data, syntheticHistory, row, index, stepIndex);
+                return await this.runPostProcessingPhase(data);
             };
 
             finalResult = await rawClient.promptJson(finalMessages, config.schema, {
@@ -196,7 +167,7 @@ export class StandardStrategy implements GenerationStrategy {
                 capturedContent = this.extractContent(capturedHistoryMessage);
                 let data = capturedContent.data;
 
-                return await this.runPostProcessingPhase(data, info.conversation, row, index, stepIndex);
+                return await this.runPostProcessingPhase(data);
             };
 
             finalResult = await rawClient.promptRetry({

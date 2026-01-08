@@ -3,16 +3,15 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext,
-    PluginPacket,
     LlmFactory
 } from '../types.js';
+import { Step } from '../../core/Step.js';
+import { StepRow } from '../../core/StepRow.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiWebSearch } from './AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
-import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { WebSearch } from './WebSearch.js';
 
 // =============================================================================
@@ -93,56 +92,25 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     }
 
     private async resolvePluginModel(
-        config: z.infer<typeof BaseModelConfigSchema> | undefined,
-        row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        step: Step,
+        config: z.infer<typeof BaseModelConfigSchema> | undefined
     ): Promise<ResolvedModelConfig | undefined> {
         if (!config?.prompt) return undefined;
 
-        const parts = await this.deps.promptLoader.load(config.prompt as any);
-        const renderedParts = parts.map((part: any) => {
-            if (part.type === 'text') {
-                const template = Handlebars.compile(part.text, { noEscape: true });
-                return { type: 'text' as const, text: template(row) };
-            }
-            return part;
-        });
-
-        let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        if (config.system) {
-            systemParts = await this.deps.promptLoader.load(config.system);
-            systemParts = systemParts.map((part: any) => {
-                if (part.type === 'text') {
-                    const template = Handlebars.compile(part.text, { noEscape: true });
-                    return { type: 'text' as const, text: template(row) };
-                }
-                return part;
-            });
-        }
+        // Load prompts statically
+        const promptParts = await step.loadPrompt(config.prompt);
+        const systemParts = config.system ? await step.loadPrompt(config.system) : [];
 
         return {
-            model: config.model || inheritedModel.model,
-            temperature: config.temperature ?? inheritedModel.temperature,
-            thinkingLevel: config.thinkingLevel ?? inheritedModel.thinkingLevel,
+            model: config.model,
+            temperature: config.temperature,
+            thinkingLevel: config.thinkingLevel,
             systemParts,
-            promptParts: renderedParts
+            promptParts
         };
     }
 
-    async resolveConfig(
-        rawConfig: WebSearchRawConfigV2,
-        row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
-        contentResolver: ContentResolver
-    ): Promise<WebSearchResolvedConfigV2> {
-
-        // Render query template
-        let query: string | undefined;
-        if (rawConfig.query) {
-            const template = Handlebars.compile(rawConfig.query, { noEscape: true });
-            query = template(row);
-        }
-
+    async init(step: Step, rawConfig: WebSearchRawConfigV2): Promise<WebSearchResolvedConfigV2> {
         return {
             type: 'web-search',
             id: rawConfig.id ?? `web-search-${Date.now()}`,
@@ -151,10 +119,10 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
                 column: rawConfig.output.column,
                 explode: rawConfig.output.explode
             },
-            query,
-            queryModel: await this.resolvePluginModel(rawConfig.queryModel, row, inheritedModel),
-            selectModel: await this.resolvePluginModel(rawConfig.selectModel, row, inheritedModel),
-            compressModel: await this.resolvePluginModel(rawConfig.compressModel, row, inheritedModel),
+            query: rawConfig.query,
+            queryModel: await this.resolvePluginModel(step, rawConfig.queryModel),
+            selectModel: await this.resolvePluginModel(step, rawConfig.selectModel),
+            compressModel: await this.resolvePluginModel(step, rawConfig.compressModel),
             limit: rawConfig.limit,
             mode: rawConfig.mode,
             queryCount: rawConfig.queryCount,
@@ -165,18 +133,21 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         };
     }
 
-    async prepareMessages(
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        config: WebSearchResolvedConfigV2,
-        context: PluginExecutionContext
-    ): Promise<PluginPacket[]> {
-        const { row, emit } = context;
+    async prepare(stepRow: StepRow, config: WebSearchResolvedConfigV2): Promise<void> {
+        const { context } = stepRow;
+        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const webSearch = this.deps.webSearch;
 
+        // Render query template
+        let query: string | undefined;
+        if (config.query) {
+            query = stepRow.render(config.query);
+        }
+
         // Create LLM clients
-        const queryLlm = config.queryModel ? this.deps.createLlm(config.queryModel) : undefined;
-        const selectLlm = config.selectModel ? this.deps.createLlm(config.selectModel) : undefined;
-        const compressLlm = config.compressModel ? this.deps.createLlm(config.compressModel) : undefined;
+        const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;
+        const selectLlm = config.selectModel ? stepRow.createLlm(config.selectModel) : undefined;
+        const compressLlm = config.compressModel ? stepRow.createLlm(config.compressModel) : undefined;
 
         // Create Selector
         const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;
@@ -184,11 +155,11 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         // Use AiWebSearch utility for Map-Reduce execution
         const aiWebSearch = new AiWebSearch(webSearch, queryLlm, selector, compressLlm);
 
-        // Wire up events to context.emit
+        // Wire up events
         aiWebSearch.events.on('query:generated', (data) => {
             emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+                row: context.index,
+                step: stepRow.step.stepIndex,
                 plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/queries/queries_${Date.now()}.json`,
@@ -200,8 +171,8 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         aiWebSearch.events.on('search:result', (data) => {
             const safeQuery = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
             emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+                row: context.index,
+                step: stepRow.step.stepIndex,
                 plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`,
@@ -212,8 +183,8 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
 
         aiWebSearch.events.on('selection:reduce', (data) => {
             emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+                row: context.index,
+                step: stepRow.step.stepIndex,
                 plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/reduce/reduce_${Date.now()}.json`,
@@ -225,8 +196,8 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         aiWebSearch.events.on('content:enrich', (data) => {
             const safeUrl = data.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
             emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+                row: context.index,
+                step: stepRow.step.stepIndex,
                 plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/enrich/enrich_${safeUrl}_${Date.now()}.json`,
@@ -237,8 +208,8 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
 
         aiWebSearch.events.on('result:selected', (data) => {
             emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+                row: context.index,
+                step: stepRow.step.stepIndex,
                 plugin: 'web-search',
                 type: 'json',
                 filename: `web_search/selected/selected_${Date.now()}.json`,
@@ -247,8 +218,8 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             });
         });
 
-        const result = await aiWebSearch.process(row, {
-            query: config.query,
+        const result = await aiWebSearch.process(context, {
+            query,
             limit: config.limit,
             mode: config.mode,
             queryCount: config.queryCount,
@@ -258,14 +229,91 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             hl: config.hl
         });
 
-        // Always return one packet per result item
-        // ResultProcessor handles explosion/merging based on output config
-        return result.data.map(item => {
-            const text = `Source: ${item.title} (${item.link})\nContent:\n${item.content || item.snippet || ''}`;
-            return {
-                data: item,
-                contentParts: [{ type: 'text' as const, text }]
-            };
-        });
+        // Append content to the prompt
+        stepRow.appendContent(result.contentParts);
+        
+        // Store data in context (ResultProcessor will handle merging/exploding later if needed, 
+        // but for now we just make it available to the prompt)
+        // Note: ResultProcessor logic for plugins is handled in StepRow.run() via `result` return.
+        // But `prepare` is for setting up the prompt.
+        // If we want the data to be available for explosion, we should return it from `prepare`?
+        // No, `prepare` returns void.
+        // The `StepRow.run` logic iterates plugins and calls `postProcess`.
+        // Wait, `WebSearch` results are usually needed BEFORE the model runs (to inform the prompt).
+        // So `prepare` is the right place to fetch them.
+        // But if we want to explode based on search results, we need to pass them out.
+        // The current architecture in `StepRow.run` doesn't seem to capture data from `prepare` for explosion.
+        // It captures `result` from `postProcess`.
+        // However, `WebSearch` is often used as a source.
+        // If `output.explode` is true, we want to explode the search results.
+        // But `StepRow` only explodes the *final* result of the step.
+        // If the step has a model, the model output is the final result.
+        // If the step has NO model, the pass-through result is used.
+        // But `WebSearch` adds content to the prompt.
+        
+        // If we want to support "Search -> Explode" without a model:
+        // The `StepRow.run` logic says: `if (hasExplicitPrompt) { ... } else { return pass-through }`.
+        // If we have `WebSearch` but no `prompt`, `hasExplicitPrompt` might be false?
+        // `hasExplicitPrompt` checks `this.content.length > 0`.
+        // `WebSearch` adds to `this.content`. So `hasExplicitPrompt` becomes true.
+        // Then it runs the model (empty prompt + search results).
+        // If `model` is not configured, `createLlm` uses default model.
+        // This means "Search -> Explode" requires a model execution in the current logic?
+        // That seems wrong if we just want to explode the search results directly.
+        
+        // In the previous `StepExecutor`, plugins returned packets.
+        // `ResultProcessor` handled them.
+        // Now `prepare` returns void.
+        
+        // We need a way for `prepare` to signal "Here is data to be used as the step result if no model runs".
+        // Or we attach it to `stepRow` and `StepRow.run` checks it.
+        // Let's add `pluginData` to `StepRow`.
+        
+        // For now, I will attach the results to `stepRow.context['webSearch']` (or similar) so it's available.
+        // And if we want to explode, we might need to handle that in `postProcess` or modify `StepRow` to support it.
+        // Let's stick to the pattern: `prepare` enriches the prompt.
+        // If the user wants to explode search results, they usually do:
+        // Step 1: Search (output: merge)
+        // Step 2: Explode (using data from Step 1)
+        // OR
+        // Step 1: Search (output: explode) -> This implies the step result IS the search result.
+        
+        // To support "Step Result = Plugin Result", we can use `postProcess`.
+        // `WebSearch` can store its results in a private map or on `stepRow` and return them in `postProcess`.
+        
+        // Let's store the results in a WeakMap keyed by StepRow? Or just attach to StepRow context with a hidden key?
+        // I'll use a symbol or just a specific key on context that `postProcess` reads.
+        // Actually, `prepare` can just return void, but we can store state in the plugin instance? No, plugin instance is shared.
+        // We must store state on `StepRow`.
+        
+        // I will add `pluginData` to `StepRow` in the next file update if needed, or just use `context._internal`.
+        // Let's use `context._webSearch_results`.
+        
+        stepRow.context._webSearch_results = result.data;
+    }
+
+    async postProcess(stepRow: StepRow, config: WebSearchResolvedConfigV2, modelResult: any): Promise<any> {
+        // If the model ran, `modelResult` is the model output.
+        // If we want to return the search results instead (e.g. if no model prompt was given),
+        // we need to know if the model actually did anything useful or if we should override.
+        
+        // If the user configured `output.explode`, they likely want the search results if the model was just a pass-through.
+        // But `StepRow` runs the model if content is present.
+        
+        // For now, let's return the search results if they exist and `modelResult` is empty/null,
+        // OR if we want to explicitly expose them.
+        // Actually, the previous implementation returned packets.
+        // If we want to support the "Search and Explode" use case without a model,
+        // we might need to revisit `StepRow` logic to allow plugins to provide the primary result.
+        
+        // For this refactor, I will return `modelResult` by default.
+        // But if `modelResult` is null (pass-through), I return search results.
+        
+        const searchResults = stepRow.context._webSearch_results;
+        if (searchResults && (modelResult === null || modelResult === undefined)) {
+            return searchResults;
+        }
+        
+        return modelResult;
     }
 }

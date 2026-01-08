@@ -4,12 +4,12 @@ import Ajv from 'ajv';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import {
-    Plugin,
-    PluginExecutionContext
+    Plugin
 } from '../types.js';
+import { Step } from '../../core/Step.js';
+import { StepRow } from '../../core/StepRow.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
-import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
 import { renderSchemaObject } from '../../utils/schemaUtils.js';
@@ -59,44 +59,24 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         return [];
     }
 
-    async normalizeConfig(
-        config: ValidationRawConfigV2,
-        contentResolver: ContentResolver
-    ): Promise<ValidationRawConfigV2> {
-        if (typeof config.schema === 'string') {
-            // If it looks like a template, skip static loading
-            if (config.schema.includes('{{')) {
-                return config;
-            }
-            
-            try {
-                const content = await contentResolver.readText(config.schema);
-                return {
-                    ...config,
-                    schema: JSON.parse(content)
-                };
-            } catch (e: any) {
-                throw new Error(`Failed to load schema from '${config.schema}': ${e.message}`);
-            }
-        }
-        return config;
-    }
-
-    async resolveConfig(
-        rawConfig: ValidationRawConfigV2,
-        row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
-        contentResolver: ContentResolver
-    ): Promise<ValidationResolvedConfigV2> {
+    async init(step: Step, rawConfig: ValidationRawConfigV2): Promise<ValidationResolvedConfigV2> {
         let schema = rawConfig.schema;
         let schemaSource = '[inline]';
 
         if (typeof schema === 'string') {
-             throw new Error("Schema must be an object. Ensure ConfigNormalizer is used.");
+            // If it looks like a template, skip static loading
+            if (schema.includes('{{')) {
+                // It will be resolved in prepare/postProcess
+            } else {
+                try {
+                    const content = await step.globalContext.contentResolver.readText(schema);
+                    schema = JSON.parse(content);
+                    schemaSource = rawConfig.schema as string;
+                } catch (e: any) {
+                    throw new Error(`Failed to load schema from '${schema}': ${e.message}`);
+                }
+            }
         }
-
-        // Render schema templates
-        schema = renderSchemaObject(schema, row);
 
         return {
             type: 'validation',
@@ -112,26 +92,48 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         };
     }
 
-    async postProcessMessages(
-        response: any,
-        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    async prepare(stepRow: StepRow, config: ValidationResolvedConfigV2): Promise<void> {
+        // Validation happens in postProcess, but we might need to resolve dynamic schema here if we wanted to fail early.
+        // However, validation usually checks the OUTPUT of the model, so we wait for postProcess.
+    }
+
+    async postProcess(
+        stepRow: StepRow,
         config: ValidationResolvedConfigV2,
-        context: PluginExecutionContext
+        result: any
     ): Promise<any> {
-        const { row } = context;
-        const scope = new PluginScope(context, this.type);
-
-        let dataToValidate: any = response;
-
-        // If target is specified, we validate that specific data instead of the response
-        // However, usually validation plugin validates the LLM output (response).
-        // If target is used, it might be validating something from the row context.
-        // But postProcessMessages is designed to validate/transform the response.
+        const { context } = stepRow;
+        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         
+        const scope = new PluginScope({
+            row: context,
+            stepIndex: stepRow.step.stepIndex,
+            pluginIndex: 0,
+            tempDirectory: stepRow.resolvedTempDir || '/tmp',
+            emit: emit
+        }, this.type);
+
+        // Resolve schema if it's still a template string
+        let schema = config.schema;
+        if (typeof schema === 'string') {
+             try {
+                 const template = Handlebars.compile(schema, { noEscape: true });
+                 const resolvedPath = template(context);
+                 const content = await stepRow.step.globalContext.contentResolver.readText(resolvedPath);
+                 schema = JSON.parse(content);
+             } catch (e: any) {
+                 throw new Error(`Failed to load schema from template: ${e.message}`);
+             }
+        } else {
+            schema = renderSchemaObject(schema, context);
+        }
+
+        let dataToValidate: any = result;
+
         if (config.target) {
             const template = Handlebars.compile(config.target, { noEscape: true });
-            // We merge response into row for template context so we can validate response fields
-            const templateContext = { ...row, response };
+            // We merge result into row for template context so we can validate response fields
+            const templateContext = { ...context, response: result };
             const jsonString = template(templateContext);
 
             try {
@@ -145,17 +147,16 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             }
         } else {
             // Default behavior: Validate the response object directly
-            // If response is a string (e.g. raw text), try to parse it if schema expects object/array
-            if (typeof response === 'string') {
+            if (typeof result === 'string') {
                 try {
-                    dataToValidate = JSON.parse(response);
+                    dataToValidate = JSON.parse(result);
                 } catch (e) {
                     // Keep as string if parsing fails
                 }
             }
         }
 
-        const validate = this.ajv.compile(config.schema);
+        const validate = this.ajv.compile(schema);
         const valid = validate(dataToValidate);
 
         if (!valid) {
@@ -193,8 +194,6 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             tags: ['debug', 'validation', 'success']
         });
 
-        // Return the original response (or validated data if we want to enforce transformation)
-        // Usually we pass through the response.
-        return response;
+        return result;
     }
 }

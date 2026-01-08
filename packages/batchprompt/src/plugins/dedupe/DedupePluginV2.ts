@@ -2,13 +2,12 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { EventEmitter } from 'eventemitter3';
 import {
-    Plugin,
-    PluginExecutionContext,
-    PluginPacket
+    Plugin
 } from '../types.js';
+import { Step } from '../../core/Step.js';
+import { StepRow } from '../../core/StepRow.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
-import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
 
@@ -57,12 +56,7 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         return [];
     }
 
-    async resolveConfig(
-        rawConfig: DedupeRawConfigV2,
-        row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
-        contentResolver: ContentResolver
-    ): Promise<DedupeResolvedConfigV2> {
+    async init(step: Step, rawConfig: DedupeRawConfigV2): Promise<DedupeResolvedConfigV2> {
         return {
             type: 'dedupe',
             id: rawConfig.id ?? `dedupe-${Date.now()}`,
@@ -75,16 +69,20 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         };
     }
 
-    async prepareMessages(
-        messages: any[],
-        config: DedupeResolvedConfigV2,
-        context: PluginExecutionContext
-    ): Promise<PluginPacket[]> {
-        const { row } = context;
-        const scope = new PluginScope(context, this.type);
+    async prepare(stepRow: StepRow, config: DedupeResolvedConfigV2): Promise<void> {
+        const { context } = stepRow;
+        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
+        
+        const scope = new PluginScope({
+            row: context,
+            stepIndex: stepRow.step.stepIndex,
+            pluginIndex: 0,
+            tempDirectory: stepRow.resolvedTempDir || '/tmp',
+            emit: emit
+        }, this.type);
 
         const template = Handlebars.compile(config.keyTemplate, { noEscape: true });
-        const key = template(row);
+        const key = template(context);
 
         if (!globalSeenKeys.has(config.id)) {
             globalSeenKeys.set(config.id, new Set());
@@ -122,9 +120,6 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             }, null, 2),
             tags: ['debug', 'dedupe', 'kept']
         });
-
-        // Return empty packet to indicate no content change, just side effects (or error)
-        return [];
     }
 
     static resetState(): void {

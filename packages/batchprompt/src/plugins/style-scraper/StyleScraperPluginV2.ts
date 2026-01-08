@@ -3,15 +3,14 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import {
-    Plugin,
-    PluginExecutionContext,
-    PluginPacket
+    Plugin
 } from '../types.js';
+import { Step } from '../../core/Step.js';
+import { StepRow } from '../../core/StepRow.js';
 import { ServiceCapabilities, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
-import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 
@@ -64,17 +63,8 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         return ['hasPuppeteer'];
     }
 
-    async resolveConfig(
-        rawConfig: StyleScraperRawConfigV2,
-        row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
-        contentResolver: ContentResolver
-    ): Promise<StyleScraperResolvedConfigV2> {
-        const urlTemplate = Handlebars.compile(rawConfig.url, { noEscape: true });
-        const url = urlTemplate(row);
-
+    async init(step: Step, rawConfig: StyleScraperRawConfigV2): Promise<StyleScraperResolvedConfigV2> {
         const [w, h] = rawConfig.resolution.split('x').map(Number);
-
         return {
             type: 'style-scraper',
             id: rawConfig.id ?? `style-scraper-${Date.now()}`,
@@ -83,27 +73,26 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                 column: rawConfig.output.column,
                 explode: rawConfig.output.explode
             },
-            url,
+            url: rawConfig.url,
             resolution: { width: w || 1920, height: h || 1080 },
             mobile: rawConfig.mobile,
             interactive: rawConfig.interactive
         };
     }
 
-    async prepareMessages(
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        config: StyleScraperResolvedConfigV2,
-        context: PluginExecutionContext
-    ): Promise<PluginPacket[]> {
-        const { outputBasename, emit } = context;
+    async prepare(stepRow: StepRow, config: StyleScraperResolvedConfigV2): Promise<void> {
+        const { outputBasename } = stepRow;
+        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const puppeteerHelper = this.deps.puppeteerHelper;
+
+        const url = stepRow.render(config.url);
 
         const pageHelper = await puppeteerHelper.getPageHelper();
 
         try {
-            const cacheKey = `style-scraper:v2:${config.url}:${config.resolution.width}x${config.resolution.height}:${config.mobile}:${config.interactive}`;
+            const cacheKey = `style-scraper:v2:${url}:${config.resolution.width}x${config.resolution.height}:${config.mobile}:${config.interactive}`;
 
-            console.log(`[StyleScraper] Scraping: ${config.url}`);
+            console.log(`[StyleScraper] Scraping: ${url}`);
 
             interface Artifact {
                 type: string;
@@ -115,14 +104,14 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
             }
 
             const result = await pageHelper.navigateAndCache<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[]; artifacts: Artifact[] }>(
-                config.url,
+                url,
                 async (ph: PuppeteerPageHelper) => {
                     const contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
                     const artifacts: Artifact[] = [];
 
                     const desktopShot = (await ph.takeScreenshots([config.resolution]))[0];
                     if (desktopShot) {
-                        contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${config.url}) ---` });
+                        contentParts.push({ type: 'text', text: `\n--- Desktop Screenshot (${url}) ---` });
                         contentParts.push({ type: 'image_url', image_url: { url: desktopShot.screenshotBase64 } });
                         artifacts.push({ type: 'desktop', base64: desktopShot.screenshotBase64, extension: '.jpg' });
                     }
@@ -216,8 +205,8 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
 
                 if (filename) {
                     emit('plugin:artifact', {
-                        row: context.row.index,
-                        step: context.stepIndex,
+                        row: stepRow.item.originalIndex,
+                        step: stepRow.step.stepIndex,
                         plugin: 'style-scraper',
                         type: artifact.type === 'css' ? 'text' : 'image',
                         filename: `style_scraper/${subDir}/${filename}`,
@@ -236,12 +225,19 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                 }
             }
 
-            return [{
-                data: outputData,
-                contentParts: result.contentParts
-            }];
+            stepRow.appendContent(result.contentParts);
+            stepRow.context._styleScraper_result = outputData;
+
         } finally {
             await pageHelper.close();
         }
+    }
+
+    async postProcess(stepRow: StepRow, config: StyleScraperResolvedConfigV2, modelResult: any): Promise<any> {
+        const result = stepRow.context._styleScraper_result;
+        if (result && (modelResult === null || modelResult === undefined)) {
+            return result;
+        }
+        return modelResult;
     }
 }

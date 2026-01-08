@@ -1,20 +1,19 @@
 import OpenAI from 'openai';
 import TurndownService from 'turndown';
-import { Plugin, PluginExecutionContext, PluginPacket } from '../types.js';
+import { Plugin } from '../types.js';
+import { Step } from '../../core/Step.js';
+import { StepRow } from '../../core/StepRow.js';
 import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
 import { ServiceCapabilities } from '../../config/types.js';
-import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { 
     UrlExpanderConfig, 
     UrlExpanderResolvedConfig, 
-    UrlExpanderConfigSchema,
-    UrlExpanderStepExtension 
+    UrlExpanderConfigSchema
 } from './UrlExpanderConfig.js';
 
 export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderResolvedConfig> {
     readonly type = 'url-expander';
     readonly configSchema = UrlExpanderConfigSchema;
-    readonly stepExtensionSchema = UrlExpanderStepExtension;
 
     constructor(private registry: UrlHandlerRegistry) {}
 
@@ -22,38 +21,7 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         return [];
     }
 
-    mapStepToConfig(stepConfig: any): UrlExpanderConfig | null {
-        const config = stepConfig.expandUrls;
-        
-        // If explicitly false, do not activate
-        if (config === false) return null;
-
-        // If true or undefined (default), use defaults
-        if (config === true || config === undefined) {
-            return {
-                type: 'url-expander',
-                output: { mode: 'ignore', explode: false },
-                mode: 'fetch',
-                maxChars: 30000
-            };
-        }
-
-        // If object, merge with defaults
-        return {
-            type: 'url-expander',
-            output: { mode: 'ignore', explode: false },
-            mode: config.mode || 'fetch',
-            maxChars: config.maxChars || 30000,
-            id: config.id
-        };
-    }
-
-    async resolveConfig(
-        rawConfig: UrlExpanderConfig,
-        row: Record<string, any>,
-        inheritedModel: any,
-        contentResolver: ContentResolver
-    ): Promise<UrlExpanderResolvedConfig> {
+    async init(step: Step, rawConfig: UrlExpanderConfig): Promise<UrlExpanderResolvedConfig> {
         return {
             type: 'url-expander',
             id: rawConfig.id ?? `url-expander-${Date.now()}`,
@@ -67,13 +35,9 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         };
     }
 
-    async prepareMessages(
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        config: UrlExpanderResolvedConfig,
-        context: PluginExecutionContext
-    ): Promise<PluginPacket[] | null> {
-
+    async prepare(stepRow: StepRow, config: UrlExpanderResolvedConfig): Promise<void> {
         const { mode, maxChars } = config;
+        const messages = stepRow.history;
 
         // Resolve the generic handler based on mode
         const fallbackHandler = this.registry.getFallback(mode);
@@ -88,19 +52,18 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         const expandedData: Record<string, string> = {};
 
         // Scan ONLY the last message for URLs to expand
-        // This prevents re-expanding URLs present in the history from previous steps.
         const lastMessage = messages[messages.length - 1];
         
         if (!lastMessage) {
-            return null;
+            return;
         }
 
         if (lastMessage.role !== 'user' && lastMessage.role !== 'system') {
-            return null;
+            return;
         }
 
         const content = lastMessage.content;
-        if (!content) return null;
+        if (!content) return;
 
         let partsToCheck: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
 
@@ -154,7 +117,6 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                     const specificHandler = this.registry.getSpecificHandler(url);
                     if (specificHandler) {
                         handlerName = specificHandler.name;
-                        // Note: We pass empty services object because handlers now have injected deps
                         content = await specificHandler.handle(url, {} as any, fallbackHandler);
                     } else {
                         // 2. Fallback based on mode
@@ -179,16 +141,10 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
             }
         }
 
-        // If no content was added, return null to indicate pass-through (don't filter the row)
-        if (contentPartsToAdd.length === 0) {
-            return null;
+        if (contentPartsToAdd.length > 0) {
+            stepRow.appendContent(contentPartsToAdd);
+            // We can also store expanded data in context if needed
+            // stepRow.context._urlExpander_data = expandedData;
         }
-
-        // Return a single packet with all expansions
-        // This will be appended to the accumulated content by ResultProcessor
-        return [{
-            data: expandedData,
-            contentParts: contentPartsToAdd
-        }];
     }
 }

@@ -3,16 +3,15 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import {
     Plugin,
-    PluginExecutionContext,
-    PluginPacket,
     LlmFactory
 } from '../types.js';
+import { Step } from '../../core/Step.js';
+import { StepRow } from '../../core/StepRow.js';
 import { ServiceCapabilities, ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, BaseModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { PromptLoader } from '../../config/PromptLoader.js';
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
-import { ContentResolver } from '../../core/io/ContentResolver.js';
 import { ImageSearch } from './ImageSearch.js';
 
 // =============================================================================
@@ -87,55 +86,24 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
     }
 
     private async resolvePluginModel(
-        config: z.infer<typeof BaseModelConfigSchema> | undefined,
-        row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' }
+        step: Step,
+        config: z.infer<typeof BaseModelConfigSchema> | undefined
     ): Promise<ResolvedModelConfig | undefined> {
         if (!config?.prompt) return undefined;
 
-        const parts = await this.deps.promptLoader.load(config.prompt as any);
-        const renderedParts = parts.map((part: any) => {
-            if (part.type === 'text') {
-                const template = Handlebars.compile(part.text, { noEscape: true });
-                return { type: 'text' as const, text: template(row) };
-            }
-            return part;
-        });
-
-        let systemParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-        if (config.system) {
-            systemParts = await this.deps.promptLoader.load(config.system as any);
-            systemParts = systemParts.map((part: any) => {
-                if (part.type === 'text') {
-                    const template = Handlebars.compile(part.text, { noEscape: true });
-                    return { type: 'text' as const, text: template(row) };
-                }
-                return part;
-            });
-        }
+        const promptParts = await step.loadPrompt(config.prompt);
+        const systemParts = config.system ? await step.loadPrompt(config.system) : [];
 
         return {
-            model: config.model || inheritedModel.model,
-            temperature: config.temperature ?? inheritedModel.temperature,
-            thinkingLevel: config.thinkingLevel ?? inheritedModel.thinkingLevel,
+            model: config.model,
+            temperature: config.temperature,
+            thinkingLevel: config.thinkingLevel,
             systemParts,
-            promptParts: renderedParts
+            promptParts
         };
     }
 
-    async resolveConfig(
-        rawConfig: ImageSearchRawConfigV2,
-        row: Record<string, any>,
-        inheritedModel: { model: string; temperature?: number; thinkingLevel?: 'low' | 'medium' | 'high' },
-        contentResolver: ContentResolver
-    ): Promise<ImageSearchResolvedConfigV2> {
-
-        let query: string | undefined;
-        if (rawConfig.query) {
-            const template = Handlebars.compile(rawConfig.query, { noEscape: true });
-            query = template(row);
-        }
-
+    async init(step: Step, rawConfig: ImageSearchRawConfigV2): Promise<ImageSearchResolvedConfigV2> {
         return {
             type: 'image-search',
             id: rawConfig.id ?? `image-search-${Date.now()}`,
@@ -144,9 +112,9 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
                 column: rawConfig.output.column,
                 explode: rawConfig.output.explode
             },
-            query,
-            queryModel: await this.resolvePluginModel(rawConfig.queryModel, row, inheritedModel),
-            selectModel: await this.resolvePluginModel(rawConfig.selectModel, row, inheritedModel),
+            query: rawConfig.query,
+            queryModel: await this.resolvePluginModel(step, rawConfig.queryModel),
+            selectModel: await this.resolvePluginModel(step, rawConfig.selectModel),
             limit: rawConfig.limit,
             select: rawConfig.select,
             queryCount: rawConfig.queryCount,
@@ -158,30 +126,33 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         };
     }
 
-    async prepareMessages(
-        messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        config: ImageSearchResolvedConfigV2,
-        context: PluginExecutionContext
-    ): Promise<PluginPacket[]> {
-        const { row, outputBasename, emit } = context;
+    async prepare(stepRow: StepRow, config: ImageSearchResolvedConfigV2): Promise<void> {
+        const { context } = stepRow;
+        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const imageSearch = this.deps.imageSearch;
 
+        // Render query
+        let query: string | undefined;
+        if (config.query) {
+            query = stepRow.render(config.query);
+        }
+
         // Create LLM clients
-        const queryLlm = config.queryModel ? this.deps.createLlm(config.queryModel) : undefined;
-        const selectLlm = config.selectModel ? this.deps.createLlm(config.selectModel) : undefined;
+        const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;
+        const selectLlm = config.selectModel ? stepRow.createLlm(config.selectModel) : undefined;
 
         // Create Selector
         const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;
 
-        // Use AiImageSearch utility for Map-Reduce execution
+        // Use AiImageSearch utility
         const aiImageSearch = new AiImageSearch(imageSearch, queryLlm, selector, config.spriteSize);
 
         // Wire up events
         aiImageSearch.events.on('search:result', (data) => {
             const safeQuery = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
             emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+                row: context.index,
+                step: stepRow.step.stepIndex,
                 plugin: 'image-search',
                 type: 'json',
                 filename: `image_search/search_results/result_task${data.taskIndex}_${safeQuery}_p${data.page}.json`,
@@ -196,8 +167,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             filename += `_${data.index}.jpg`;
 
             emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+                row: context.index,
+                step: stepRow.step.stepIndex,
                 plugin: 'image-search',
                 type: 'image',
                 filename,
@@ -212,8 +183,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             filename += `_${data.index}.jpg`;
 
             emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+                row: context.index,
+                step: stepRow.step.stepIndex,
                 plugin: 'image-search',
                 type: 'image',
                 filename,
@@ -224,8 +195,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
 
         aiImageSearch.events.on('query:generated', (data) => {
             emit('plugin:artifact', {
-                row: context.row.index,
-                step: context.stepIndex,
+                row: context.index,
+                step: stepRow.step.stepIndex,
                 plugin: 'image-search',
                 type: 'json',
                 filename: `image_search/search_results/queries_${Date.now()}.json`,
@@ -234,9 +205,9 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             });
         });
 
-        const selectedImages = await aiImageSearch.process(row, {
-            query: config.query,
-            limit: config.select, // We want 'select' number of final images
+        const selectedImages = await aiImageSearch.process(context, {
+            query,
+            limit: config.select,
             queryCount: config.queryCount,
             maxPages: config.maxPages,
             dedupeStrategy: config.dedupeStrategy,
@@ -245,12 +216,12 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         });
 
         if (selectedImages.length === 0) {
-            return [];
+            return;
         }
 
-        // Process final images in parallel and build packets
+        // Process final images in parallel
         const sharp = (await import('sharp')).default;
-        const baseName = outputBasename || 'image';
+        const baseName = stepRow.outputBasename || 'image';
 
         const processedPackets = await Promise.all(selectedImages.map(async (img, i) => {
             const filename = `image_search/selected/${baseName}_selected_${i}.jpg`;
@@ -263,8 +234,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
 
                 // Emit final artifact
                 emit('plugin:artifact', {
-                    row: context.row.index,
-                    step: context.stepIndex,
+                    row: context.index,
+                    step: stepRow.step.stepIndex,
                     plugin: 'image-search',
                     type: 'image',
                     filename,
@@ -289,8 +260,22 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             }
         }));
 
-        // Always return one packet per image
-        // ResultProcessor handles explosion/merging based on output config
-        return processedPackets.filter((p): p is PluginPacket => p !== null);
+        const validPackets = processedPackets.filter((p): p is { data: any, contentParts: any[] } => p !== null);
+
+        // Append content to prompt
+        for (const packet of validPackets) {
+            stepRow.appendContent(packet.contentParts);
+        }
+
+        // Store results for postProcess
+        stepRow.context._imageSearch_results = validPackets.map(p => p.data);
+    }
+
+    async postProcess(stepRow: StepRow, config: ImageSearchResolvedConfigV2, modelResult: any): Promise<any> {
+        const results = stepRow.context._imageSearch_results;
+        if (results && (modelResult === null || modelResult === undefined)) {
+            return results;
+        }
+        return modelResult;
     }
 }

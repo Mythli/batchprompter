@@ -49,22 +49,8 @@ export class Step {
         for (const pluginConfig of this.config.plugins) {
             const plugin = this.globalContext.pluginRegistry.get(pluginConfig.type);
             if (plugin) {
-                let resolvedPluginConfig = pluginConfig.rawConfig || pluginConfig;
-                
-                if (plugin.init) {
-                    resolvedPluginConfig = await plugin.init(this, resolvedPluginConfig);
-                } else if (plugin.resolveConfig) {
-                    // Fallback to legacy resolveConfig if init is not present
-                    // We pass a dummy row because resolveConfig expects it, but Step.init is static.
-                    // This is a bridge for migration. Ideally plugins should implement init.
-                    resolvedPluginConfig = await plugin.resolveConfig(
-                        resolvedPluginConfig, 
-                        {}, // Empty row
-                        { model: this.config.model.model || this.globalContext.defaultModel },
-                        this.contentResolver
-                    );
-                }
-                
+                // We use the rawConfig which contains the merged model settings from resolveConfig
+                const resolvedPluginConfig = await plugin.init(this, pluginConfig.rawConfig || pluginConfig);
                 this.plugins.push({ instance: plugin, config: resolvedPluginConfig });
             }
         }
