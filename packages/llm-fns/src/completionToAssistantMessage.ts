@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 
 /**
  * Converts an OpenAI ChatCompletion object into an assistant message parameter.
- * Handles text, audio and custom image attachments.
+ * Handles text, audio, refusals, tool calls, and custom image attachments.
  *
  * @param completion The ChatCompletion object.
  * @returns An OpenAI ChatCompletionMessageParam with role 'assistant'.
@@ -22,69 +22,63 @@ export function completionToMessage(
         role: 'assistant',
     };
 
-    // Handle Content & Images (Parts)
-    const contentParts: any[] = [];
+    // Preserve standard fields
+    if (message.content !== undefined) messageParam.content = message.content;
+    if (message.refusal !== undefined) messageParam.refusal = message.refusal;
+    if (message.tool_calls !== undefined) messageParam.tool_calls = message.tool_calls;
+    if (message.function_call !== undefined) messageParam.function_call = message.function_call;
 
-    // 1. Existing Text Content
-    if (message.content) {
-        if (typeof message.content === 'string') {
-            contentParts.push({ type: 'text', text: message.content });
-        } else if (Array.isArray(message.content)) {
-            // Handle potential array content in completion
-            contentParts.push(...(message.content as any));
+    // Handle Content Normalization for Extensions (Images/Audio)
+    // If the provider returned images or audio in top-level fields (like OpenRouter or OpenAI Audio),
+    // we merge them into the content parts array to ensure they are preserved in history.
+    const images = (message as any).images;
+    const audio = (message as any).audio;
+
+    if ((images && Array.isArray(images) && images.length > 0) || (audio && audio.data)) {
+        let parts: any[] = [];
+
+        // Convert existing content to parts if it's a string
+        if (typeof messageParam.content === 'string') {
+            parts.push({ type: 'text', text: messageParam.content });
+        } else if (Array.isArray(messageParam.content)) {
+            parts = [...messageParam.content];
         }
-    }
 
-    // 2. Custom Images (OpenRouter / Custom Provider extension)
-    // The user snippet shows: message.images[].image_url.url
-    if ((message as any).images && Array.isArray((message as any).images)) {
-        for (const img of (message as any).images) {
-            // Handle OpenRouter format: { image_url: { url: "..." } }
-            if (img.image_url && img.image_url.url) {
-                contentParts.push({
-                    type: 'image_url',
-                    image_url: { url: img.image_url.url }
-                });
-            }
-            // Handle potential flat format (legacy or other providers): { url: "..." }
-            else if (img.url) {
-                contentParts.push({
-                    type: 'image_url',
-                    image_url: { url: img.url }
-                });
+        // Add images from extension field if not already present in parts
+        if (images && Array.isArray(images)) {
+            for (const img of images) {
+                const url = img.image_url?.url || img.url;
+                if (url && !parts.some(p => p.type === 'image_url' && p.image_url?.url === url)) {
+                    parts.push({
+                        type: 'image_url',
+                        image_url: { url }
+                    });
+                }
             }
         }
-    }
 
-    // 3. Custom Audio (Extension for providers returning audio in a list or custom format)
-    // We map this to 'input_audio' content parts to preserve the data in the history
-    // in a way that compatible clients (and our countChars) can understand.
-    if ((message as any).audio && Array.isArray((message as any).audio)) {
-        for (const aud of (message as any).audio) {
-            if (aud.data) {
-                contentParts.push({
+        // Add audio from extension field if not already present in parts
+        if (audio && audio.data) {
+            if (!parts.some(p => p.type === 'input_audio' && p.input_audio?.data === audio.data)) {
+                parts.push({
                     type: 'input_audio',
                     input_audio: {
-                        data: aud.data,
-                        format: aud.format || undefined
+                        data: audio.data,
+                        format: audio.format || undefined
                     }
                 });
             }
         }
-    }
 
-    // Assign content
-    if (contentParts.length > 0) {
-        // If we have mixed content or images, use array format.
-        // If we only have text, we could use string, but array is safer if we want to be uniform.
-        // However, standard OpenAI assistant messages prefer string for simple text.
-        if (contentParts.length === 1 && contentParts[0].type === 'text') {
-            messageParam.content = contentParts[0].text;
-        } else {
-            messageParam.content = contentParts;
+        if (parts.length > 0) {
+            // If we only have one text part, we can keep it as a string for simplicity,
+            // but if we have media, we must use the array format.
+            if (parts.length === 1 && parts[0].type === 'text') {
+                messageParam.content = parts[0].text;
+            } else {
+                messageParam.content = parts;
+            }
         }
-    } else {
-        messageParam.content = null;
     }
 
     return messageParam as OpenAI.Chat.Completions.ChatCompletionMessageParam;

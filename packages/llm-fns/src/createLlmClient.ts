@@ -122,6 +122,8 @@ export interface CreateLlmClientParams {
     queue?: PQueue;
     defaultRequestOptions?: LlmRequestOptions;
     retryBaseDelay?: number;
+    /** Optional custom fetch implementation for binary extraction */
+    fetch?: typeof globalThis.fetch;
 }
 
 /**
@@ -160,8 +162,11 @@ export function createLlmClient(params: CreateLlmClientParams) {
         maxConversationChars,
         queue,
         defaultRequestOptions,
-        retryBaseDelay: factoryRetryBaseDelay = 1000
+        retryBaseDelay: factoryRetryBaseDelay = 1000,
+        fetch: factoryFetch
     } = params;
+
+    const fetchImpl = factoryFetch ?? globalThis.fetch;
 
     const getCompletionParams = (promptParams: LlmPromptParams) => {
         const {
@@ -282,7 +287,7 @@ export function createLlmClient(params: CreateLlmClientParams) {
     async function promptImage(arg1: string | LlmPromptOptions, arg2?: LlmCommonOptions): Promise<Buffer> {
         const promptParams = normalizeOptions(arg1, arg2);
         const response = await prompt(promptParams);
-        return extractImageBuffer(response);
+        return extractImageBuffer(response, fetchImpl);
     }
 
     async function promptAudio(content: string, options?: LlmCommonOptions): Promise<Buffer>;

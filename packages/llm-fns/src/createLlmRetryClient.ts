@@ -75,6 +75,8 @@ export interface CreateLlmRetryClientParams {
     prompt: PromptFunction;
     fallbackPrompt?: PromptFunction;
     retryBaseDelay?: number;
+    /** Optional custom fetch implementation for binary extraction */
+    fetch?: typeof globalThis.fetch;
 }
 
 function normalizeRetryOptions<T>(
@@ -116,7 +118,9 @@ function constructLlmMessages(
 }
 
 export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
-    const { prompt, fallbackPrompt, retryBaseDelay: factoryRetryBaseDelay = 0 } = params;
+    const { prompt, fallbackPrompt, retryBaseDelay: factoryRetryBaseDelay = 0, fetch: factoryFetch } = params;
+
+    const fetchImpl = factoryFetch ?? globalThis.fetch;
 
     async function runPromptLoop<T>(
         retryParams: LlmRetryParams<T>
@@ -294,7 +298,7 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
 
         retryParams.validate = async (completion, info) => {
             try {
-                const buffer = await extractImageBuffer(completion);
+                const buffer = await extractImageBuffer(completion, fetchImpl);
                 if (userValidate) {
                     return await userValidate(completion, info);
                 }

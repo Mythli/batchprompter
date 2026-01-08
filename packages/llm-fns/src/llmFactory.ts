@@ -14,7 +14,8 @@ export function createLlm(params: CreateLlmFactoryParams) {
     
     const retryClient = createLlmRetryClient({
         prompt: baseClient.prompt,
-        retryBaseDelay: params.retryBaseDelay
+        retryBaseDelay: params.retryBaseDelay,
+        fetch: params.fetch
     });
 
     const jsonSchemaClient = createJsonSchemaLlmClient({
