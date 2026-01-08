@@ -23,8 +23,8 @@ export interface ConversationState {
     /** Shorthand to add a user message. Supports strings or content parts. */
     addUserMessage(content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[]): void;
 
-    /** Shorthand to add an assistant message. Supports strings or null. */
-    addAssistantMessage(content: string | null): void;
+    /** Shorthand to add an assistant message. Supports strings, content parts, or null. */
+    addAssistantMessage(content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] | null): void;
 
     /** Removes the last N messages from the history */
     pop(count?: number): OpenAI.Chat.Completions.ChatCompletionMessageParam[];
@@ -49,7 +49,7 @@ export function createConversationState(initialMessages: OpenAI.Chat.Completions
         add({ role: 'user', content: content as any });
     };
 
-    const addAssistantMessage = (content: string | null) => {
+    const addAssistantMessage = (content: string | OpenAI.Chat.Completions.ChatCompletionContentPart[] | null) => {
         add({ role: 'assistant', content: content as any });
     };
 
