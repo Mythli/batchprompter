@@ -64,7 +64,7 @@ export const StepBaseSchema = z.object({
     timeout: z.number().int().positive().optional(),
     // Shortcuts that might be used by plugins but exist on step level for convenience
     schema: z.any().optional(),
-    expandUrls: z.union([z.boolean(), z.record(z.any())]).optional()
+    expandUrls: z.union([z.boolean(), z.record(z.string(), z.any())]).optional()
 });
 
 export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
