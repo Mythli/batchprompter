@@ -1,16 +1,17 @@
 import { EventEmitter } from 'eventemitter3';
-import { ActionRunner } from '../ActionRunner.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { BatchPromptEvents } from '../events.js';
 import { MemoryArtifactHandler, Artifact } from '../MemoryArtifactHandler.js';
 import { ConfigExecutor } from './ConfigRefiner.js';
 import { resolveConfig } from '../config/resolveConfig.js';
+import { Pipeline } from '../Pipeline.js';
+import { GlobalContext } from '../types.js';
 
 export class InMemoryConfigExecutor implements ConfigExecutor {
     constructor(
-        private actionRunner: ActionRunner,
         private pluginRegistry: PluginRegistryV2,
-        private events: EventEmitter<BatchPromptEvents>
+        private events: EventEmitter<BatchPromptEvents>,
+        private globalContext: GlobalContext
     ) {}
 
     async runConfig(config: any, initialRows?: any[]): Promise<{ results: any[], artifacts: Artifact[] }> {
@@ -34,7 +35,8 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
         this.events.on('row:end', resultHandler);
 
         try {
-            await this.actionRunner.run(runtimeConfig);
+            const pipeline = new Pipeline(this.globalContext);
+            await pipeline.run(runtimeConfig);
         } finally {
             this.events.off('row:end', resultHandler);
         }

@@ -1,7 +1,7 @@
 // Core Exports
 export * from './types.js';
 export * from './getDiContainer.js';
-export * from './ActionRunner.js';
+export * from './Pipeline.js';
 
 // Config Utils
 export * from './config/validationRules.js';

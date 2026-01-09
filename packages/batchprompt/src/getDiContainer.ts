@@ -6,7 +6,6 @@ import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
 import { createPluginRegistry } from './plugins/index.js';
-import { ActionRunner } from './ActionRunner.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import { createAiLoggingFetcher, createCachedFetcher, createLlm } from "llm-fns";
 import { GlobalContext } from './types.js';
@@ -192,15 +191,10 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         llmFactory
     };
 
-    const actionRunner = new ActionRunner(
-        globalContext
-    );
-
     return {
         config,
         globalContext,
         pluginRegistry,
-        actionRunner,
         puppeteerHelper,
         capabilities,
         llmFactory,
