@@ -2,7 +2,7 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { EventEmitter } from 'eventemitter3';
 import {
-    Plugin,
+    BasePlugin,
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
@@ -25,16 +25,11 @@ export const DedupeConfigSchemaV2 = z.object({
     key: zHandlebars.describe("Deduplication key (Handlebars template). Items with the same key are dropped.")
 }).strict().describe("Configuration for the Dedupe plugin.");
 
-export type DedupeRawConfigV2 = z.infer<typeof DedupeConfigSchemaV2>;
-
-export interface DedupeResolvedConfigV2 {
+export interface DedupeConfig {
     type: 'dedupe';
     id: string;
     output: ResolvedOutputConfig;
     keyTemplate: string;
-}
-
-export interface DedupeHydratedConfigV2 extends DedupeResolvedConfigV2 {
     key: string;
 }
 
@@ -45,9 +40,8 @@ export interface DedupeHydratedConfigV2 extends DedupeResolvedConfigV2 {
 // Global deduplication state - shared across all instances
 const globalSeenKeys = new Map<string, Set<string>>();
 
-export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedConfigV2, DedupeHydratedConfigV2> {
+export class DedupePluginV2 extends BasePlugin<DedupeConfig> {
     readonly type = 'dedupe';
-    readonly configSchema = DedupeConfigSchemaV2;
     public readonly events = new EventEmitter();
 
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
@@ -55,12 +49,13 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             return {
                 ...config,
                 id: config.id ?? `dedupe-${Date.now()}`,
-                keyTemplate: config.key
+                keyTemplate: config.key,
+                key: '' // Placeholder, populated in hydrate
             };
         });
     }
 
-    async hydrate(config: DedupeResolvedConfigV2, context: Record<string, any>): Promise<DedupeHydratedConfigV2> {
+    async hydrate(config: DedupeConfig, context: Record<string, any>): Promise<DedupeConfig> {
         const template = Handlebars.compile(config.keyTemplate, { noEscape: true });
         const key = template(context);
         return {
@@ -69,7 +64,7 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         };
     }
 
-    async prepare(stepRow: StepRow, config: DedupeHydratedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: DedupeConfig): Promise<PluginPacket[]> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
@@ -80,7 +75,7 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             row: context,
             stepIndex: stepRow.step.stepIndex,
             pluginIndex: 0,
-            tempDirectory: stepRow.resolvedTempDir || '/tmp',
+            tempDirectory: await stepRow.getTempDir(),
             emit: emit
         }, this.type);
 

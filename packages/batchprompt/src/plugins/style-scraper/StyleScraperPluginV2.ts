@@ -3,7 +3,7 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import {
-    Plugin,
+    BasePlugin,
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
@@ -33,9 +33,7 @@ export const StyleScraperConfigSchemaV2 = z.object({
     interactive: z.boolean().default(false).describe("Find interactive elements, hover them, and capture screenshots + CSS.")
 }).strict().describe("Configuration for the Style Scraper plugin.");
 
-export type StyleScraperRawConfigV2 = z.infer<typeof StyleScraperConfigSchemaV2>;
-
-export interface StyleScraperResolvedConfigV2 {
+export interface StyleScraperConfig {
     type: 'style-scraper';
     id: string;
     output: ResolvedOutputConfig;
@@ -45,24 +43,21 @@ export interface StyleScraperResolvedConfigV2 {
     interactive: boolean;
 }
 
-export interface StyleScraperHydratedConfigV2 extends Omit<StyleScraperResolvedConfigV2, 'url'> {
-    url: string;
-}
-
 // =============================================================================
 // Plugin
 // =============================================================================
 
-export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, StyleScraperResolvedConfigV2, StyleScraperHydratedConfigV2> {
+export class StyleScraperPluginV2 extends BasePlugin<StyleScraperConfig> {
     readonly type = 'style-scraper';
-    readonly configSchema = StyleScraperConfigSchemaV2;
     public readonly events = new EventEmitter();
 
     constructor(
         private deps: {
             puppeteerHelper: PuppeteerHelper;
         }
-    ) {}
+    ) {
+        super();
+    }
 
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return StyleScraperConfigSchemaV2.transform(config => {
@@ -75,7 +70,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         });
     }
 
-    async hydrate(config: StyleScraperResolvedConfigV2, context: Record<string, any>): Promise<StyleScraperHydratedConfigV2> {
+    async hydrate(config: StyleScraperConfig, context: Record<string, any>): Promise<StyleScraperConfig> {
         const template = Handlebars.compile(config.url, { noEscape: true });
         const url = template(context);
         return {
@@ -84,7 +79,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         };
     }
 
-    async prepare(stepRow: StepRow, config: StyleScraperHydratedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: StyleScraperConfig): Promise<PluginPacket[]> {
         const outputBasename = await stepRow.getOutputBasename();
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const puppeteerHelper = this.deps.puppeteerHelper;
@@ -235,12 +230,5 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         } finally {
             await pageHelper.close();
         }
-    }
-
-    async postProcess(stepRow: StepRow, config: StyleScraperHydratedConfigV2, modelResult: any): Promise<PluginPacket[]> {
-        return [{
-            data: [modelResult],
-            contentParts: []
-        }];
     }
 }

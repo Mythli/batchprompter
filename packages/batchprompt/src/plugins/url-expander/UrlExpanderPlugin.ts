@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import TurndownService from 'turndown';
-import { Plugin, PluginPacket } from '../types.js';
+import { BasePlugin, PluginPacket } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
 import {
@@ -10,11 +10,12 @@ import {
 } from './UrlExpanderConfig.js';
 import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
-export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderResolvedConfig, UrlExpanderResolvedConfig> {
+export class UrlExpanderPlugin extends BasePlugin<UrlExpanderResolvedConfig> {
     readonly type = 'url-expander';
-    readonly configSchema = UrlExpanderConfigSchema;
 
-    constructor(private registry: UrlHandlerRegistry) {}
+    constructor(private registry: UrlHandlerRegistry) {
+        super();
+    }
 
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return UrlExpanderConfigSchema.transform(config => {
@@ -23,11 +24,6 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                 id: config.id ?? `url-expander-${Date.now()}`,
             };
         });
-    }
-
-    async hydrate(config: UrlExpanderResolvedConfig, context: Record<string, any>): Promise<UrlExpanderResolvedConfig> {
-        // No templates to render for this plugin
-        return config;
     }
 
     async prepare(stepRow: StepRow, config: UrlExpanderResolvedConfig): Promise<PluginPacket[]> {
@@ -44,7 +40,7 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         // However, prepare returns a packet that can override history.
         
         // Let's construct the full conversation the model *would* see
-        const currentMessages = stepRow.preparedMessages;
+        const currentMessages = await stepRow.getPreparedMessages();
 
         // Scan ONLY the last message for URLs to expand
         const lastMessageIndex = currentMessages.length - 1;

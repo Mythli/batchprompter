@@ -206,12 +206,10 @@ export class StepRow {
         // --- Stage 1: Plugin Preparation ---
         const plugins = await this.getPlugins();
         for (const { instance, config } of plugins) {
-            if (instance.prepare) {
-                currentRows = await flatMapAsync(currentRows, async (row) => {
-                    const packets = await instance.prepare!(row, config);
-                    return row.applyPackets(packets, config.output, instance.type);
-                });
-            }
+            currentRows = await flatMapAsync(currentRows, async (row) => {
+                const packets = await instance.prepare(row, config);
+                return row.applyPackets(packets, config.output, instance.type);
+            });
         }
 
         // --- Stage 2: Model Execution ---
@@ -227,12 +225,10 @@ export class StepRow {
 
         // --- Stage 3: Plugin Post-Processing ---
         for (const { instance, config } of plugins) {
-            if (instance.postProcess) {
-                currentRows = await flatMapAsync(currentRows, async (row) => {
-                    const packets = await instance.postProcess!(row, config, row.lastResult);
-                    return row.applyPackets(packets, config.output, instance.type);
-                });
-            }
+            currentRows = await flatMapAsync(currentRows, async (row) => {
+                const packets = await instance.postProcess(row, config, row.lastResult);
+                return row.applyPackets(packets, config.output, instance.type);
+            });
         }
 
         // Convert StepRows back to PipelineItems

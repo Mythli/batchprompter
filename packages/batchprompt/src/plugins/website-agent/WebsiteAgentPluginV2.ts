@@ -2,11 +2,10 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import {
-    Plugin,
+    BasePlugin,
     LlmFactory,
     PluginPacket
 } from '../types.js';
-import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
@@ -16,6 +15,7 @@ import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js'
 import { PluginScope } from '../PluginScope.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import PQueue from 'p-queue';
+import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent'),
@@ -34,9 +34,7 @@ export const WebsiteAgentConfigSchemaV2 = LooseWebsiteAgentConfigSchemaV2.extend
     schema: zJsonSchemaObject
 }).strict();
 
-export type WebsiteAgentRawConfigV2 = z.infer<typeof LooseWebsiteAgentConfigSchemaV2>;
-
-export interface WebsiteAgentResolvedConfigV2 {
+export interface WebsiteAgentConfig {
     type: 'website-agent';
     id: string;
     output: ResolvedOutputConfig;
@@ -49,9 +47,8 @@ export interface WebsiteAgentResolvedConfigV2 {
     mergeModel: ResolvedModelConfig;
 }
 
-export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, WebsiteAgentResolvedConfigV2> {
+export class WebsiteAgentPluginV2 extends BasePlugin<WebsiteAgentConfig> {
     readonly type = 'website-agent';
-    readonly configSchema = LooseWebsiteAgentConfigSchemaV2;
 
     constructor(
         private deps: {
@@ -59,24 +56,40 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             puppeteerQueue: PQueue;
             createLlm: LlmFactory;
         }
-    ) {}
-
-    async init(step: Step, rawConfig: any): Promise<WebsiteAgentResolvedConfigV2> {
-        return {
-            type: 'website-agent',
-            id: rawConfig.id ?? `website-agent-${Date.now()}`,
-            output: rawConfig.output,
-            url: rawConfig.url,
-            schema: rawConfig.schema,
-            budget: rawConfig.budget,
-            batchSize: rawConfig.batchSize,
-            navigatorModel: rawConfig.navigator,
-            extractModel: rawConfig.extract,
-            mergeModel: rawConfig.merge
-        };
+    ) {
+        super();
+    }
+    
+    override getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
+         return LooseWebsiteAgentConfigSchemaV2.transform(config => {
+            const resolve = (model: any) => model ? import('../../config/schemas/index.js').then(m => m.resolveModelConfig(model, step.model)) : undefined;
+            // We can't use async import inside synchronous transform easily if we want to keep it simple.
+            // But `resolveModelConfig` is imported at top level in other files.
+            // I need to import `resolveModelConfig` in this file.
+            // It is imported as `resolveModelConfig` from `../../config/schemas/index.js`.
+            
+            // Note: resolveModelConfig is not imported in this file yet. I need to add it.
+            // Wait, I see `resolveModelConfig` is NOT imported in the imports above.
+            // I will add it to the imports.
+            
+            return import('../../config/schemas/index.js').then(({ resolveModelConfig }) => {
+                return {
+                    type: 'website-agent' as const,
+                    id: config.id ?? `website-agent-${Date.now()}`,
+                    output: config.output,
+                    url: config.url,
+                    schema: config.schema,
+                    budget: config.budget,
+                    batchSize: config.batchSize,
+                    navigatorModel: resolveModelConfig(config.navigator, step.model),
+                    extractModel: resolveModelConfig(config.extract, step.model),
+                    mergeModel: resolveModelConfig(config.merge, step.model)
+                };
+            });
+        });
     }
 
-    async prepare(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: WebsiteAgentConfig): Promise<PluginPacket[]> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
@@ -162,13 +175,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         return [{
             data: [result],
             contentParts
-        }];
-    }
-
-    async postProcess(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
-        return [{
-            data: [modelResult],
-            contentParts: []
         }];
     }
 }

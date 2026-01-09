@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import {
-    Plugin,
+    BasePlugin,
     LlmFactory,
     PluginPacket
 } from '../types.js';
@@ -30,9 +30,7 @@ export const ImageSearchConfigSchemaV2 = z.object({
     hl: z.string().optional()
 }).strict();
 
-export type ImageSearchRawConfigV2 = z.infer<typeof ImageSearchConfigSchemaV2>;
-
-export interface ImageSearchResolvedConfigV2 {
+export interface ImageSearchConfig {
     type: 'image-search';
     id: string;
     output: ResolvedOutputConfig;
@@ -49,20 +47,17 @@ export interface ImageSearchResolvedConfigV2 {
     hl?: string;
 }
 
-export interface ImageSearchHydratedConfigV2 extends Omit<ImageSearchResolvedConfigV2, 'query'> {
-    query?: string;
-}
-
-export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, ImageSearchResolvedConfigV2, ImageSearchHydratedConfigV2> {
+export class ImageSearchPluginV2 extends BasePlugin<ImageSearchConfig> {
     readonly type = 'image-search';
-    readonly configSchema = ImageSearchConfigSchemaV2;
 
     constructor(
         private deps: {
             imageSearch: ImageSearch;
             createLlm: LlmFactory;
         }
-    ) {}
+    ) {
+        super();
+    }
 
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return ImageSearchConfigSchemaV2.transform(config => {
@@ -75,7 +70,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         });
     }
 
-    async hydrate(config: ImageSearchResolvedConfigV2, context: Record<string, any>): Promise<ImageSearchHydratedConfigV2> {
+    async hydrate(config: ImageSearchConfig, context: Record<string, any>): Promise<ImageSearchConfig> {
         let query: string | undefined;
         if (config.query) {
             const template = Handlebars.compile(config.query, { noEscape: true });
@@ -88,7 +83,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         };
     }
 
-    async prepare(stepRow: StepRow, config: ImageSearchHydratedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: ImageSearchConfig): Promise<PluginPacket[]> {
         const { context } = stepRow;
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const imageSearch = this.deps.imageSearch;
@@ -217,13 +212,6 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         return [{
             data: validItems.map(p => p.data),
             contentParts: validItems.flatMap(p => p.contentParts)
-        }];
-    }
-
-    async postProcess(stepRow: StepRow, config: ImageSearchHydratedConfigV2, modelResult: any): Promise<PluginPacket[]> {
-        return [{
-            data: [modelResult],
-            contentParts: []
         }];
     }
 }

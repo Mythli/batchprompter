@@ -3,7 +3,7 @@ import Handlebars from 'handlebars';
 import Ajv from 'ajv';
 import { EventEmitter } from 'eventemitter3';
 import {
-    Plugin,
+    BasePlugin,
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
@@ -22,9 +22,7 @@ export const LooseValidationConfigSchemaV2 = z.object({
     target: zHandlebars.optional()
 });
 
-export type ValidationRawConfigV2 = z.infer<typeof LooseValidationConfigSchemaV2>;
-
-export interface ValidationResolvedConfigV2 {
+export interface ValidationConfig {
     type: 'validation';
     id: string;
     output: ResolvedOutputConfig;
@@ -33,19 +31,14 @@ export interface ValidationResolvedConfigV2 {
     schemaSource: string;
 }
 
-export interface ValidationHydratedConfigV2 extends Omit<ValidationResolvedConfigV2, 'schema' | 'target'> {
-    schema: any;
-    target?: string;
-}
-
-export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, ValidationResolvedConfigV2, ValidationHydratedConfigV2> {
+export class ValidationPluginV2 extends BasePlugin<ValidationConfig> {
     readonly type = 'validation';
-    readonly configSchema = LooseValidationConfigSchemaV2;
     public readonly events = new EventEmitter();
 
     private ajv: any;
 
     constructor() {
+        super();
         // @ts-ignore
         this.ajv = new Ajv.default ? new Ajv.default() : new Ajv();
     }
@@ -71,7 +64,7 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         });
     }
 
-    async hydrate(config: ValidationResolvedConfigV2, context: Record<string, any>): Promise<ValidationHydratedConfigV2> {
+    async hydrate(config: ValidationConfig, context: Record<string, any>): Promise<ValidationConfig> {
         let schema = config.schema;
         if (typeof schema === 'string') {
              try {
@@ -101,13 +94,9 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         };
     }
 
-    async prepare(stepRow: StepRow, config: ValidationHydratedConfigV2): Promise<PluginPacket[]> {
-        return [{ data: [null], contentParts: [] }];
-    }
-
     async postProcess(
         stepRow: StepRow,
-        config: ValidationHydratedConfigV2,
+        config: ValidationConfig,
         result: any
     ): Promise<PluginPacket[]> {
         const { context } = stepRow;
@@ -120,7 +109,7 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             row: context,
             stepIndex: stepRow.step.stepIndex,
             pluginIndex: 0,
-            tempDirectory: stepRow.resolvedTempDir || '/tmp',
+            tempDirectory: await stepRow.getTempDir(),
             emit: emit
         }, this.type);
 

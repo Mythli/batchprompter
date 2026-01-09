@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import {
-    Plugin,
+    BasePlugin,
     LlmFactory,
     PluginPacket
 } from '../types.js';
@@ -30,9 +30,7 @@ export const WebSearchConfigSchemaV2 = z.object({
     hl: z.string().optional()
 }).strict();
 
-export type WebSearchRawConfigV2 = z.infer<typeof WebSearchConfigSchemaV2>;
-
-export interface WebSearchResolvedConfigV2 {
+export interface WebSearchConfig {
     type: 'web-search';
     id: string;
     output: ResolvedOutputConfig;
@@ -49,20 +47,17 @@ export interface WebSearchResolvedConfigV2 {
     hl?: string;
 }
 
-export interface WebSearchHydratedConfigV2 extends Omit<WebSearchResolvedConfigV2, 'query'> {
-    query?: string;
-}
-
-export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearchResolvedConfigV2, WebSearchHydratedConfigV2> {
+export class WebSearchPluginV2 extends BasePlugin<WebSearchConfig> {
     readonly type = 'web-search';
-    readonly configSchema = WebSearchConfigSchemaV2;
 
     constructor(
         private deps: {
             webSearch: WebSearch;
             createLlm: LlmFactory;
         }
-    ) {}
+    ) {
+        super();
+    }
 
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return WebSearchConfigSchemaV2.transform(config => {
@@ -76,7 +71,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         });
     }
 
-    async hydrate(config: WebSearchResolvedConfigV2, context: Record<string, any>): Promise<WebSearchHydratedConfigV2> {
+    async hydrate(config: WebSearchConfig, context: Record<string, any>): Promise<WebSearchConfig> {
         let query: string | undefined;
         if (config.query) {
             const template = Handlebars.compile(config.query, { noEscape: true });
@@ -89,7 +84,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         };
     }
 
-    async prepare(stepRow: StepRow, config: WebSearchHydratedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: WebSearchConfig): Promise<PluginPacket[]> {
         const { context } = stepRow;
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const webSearch = this.deps.webSearch;
@@ -179,14 +174,6 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         return [{
             data: result.data, // Array of results
             contentParts: result.contentParts
-        }];
-    }
-
-    async postProcess(stepRow: StepRow, config: WebSearchHydratedConfigV2, modelResult: any): Promise<PluginPacket[]> {
-        // Pass-through
-        return [{
-            data: [modelResult],
-            contentParts: []
         }];
     }
 }

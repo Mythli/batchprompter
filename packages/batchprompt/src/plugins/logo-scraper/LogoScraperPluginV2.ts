@@ -2,7 +2,7 @@ import { z } from 'zod';
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import {
-    Plugin,
+    BasePlugin,
     LlmFactory,
     PluginPacket
 } from '../types.js';
@@ -32,9 +32,7 @@ export const LogoScraperConfigSchemaV2 = z.object({
     faviconLimit: z.number().int().positive().default(1)
 }).strict();
 
-export type LogoScraperRawConfigV2 = z.infer<typeof LogoScraperConfigSchemaV2>;
-
-export interface LogoScraperResolvedConfigV2 {
+export interface LogoScraperConfig {
     type: 'logo-scraper';
     id: string;
     output: ResolvedOutputConfig;
@@ -49,15 +47,8 @@ export interface LogoScraperResolvedConfigV2 {
     faviconLimit: number;
 }
 
-export interface LogoScraperHydratedConfigV2 extends Omit<LogoScraperResolvedConfigV2, 'url' | 'logoPath' | 'faviconPath'> {
-    url: string;
-    logoPath?: string;
-    faviconPath?: string;
-}
-
-export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoScraperResolvedConfigV2, LogoScraperHydratedConfigV2> {
+export class LogoScraperPluginV2 extends BasePlugin<LogoScraperConfig> {
     readonly type = 'logo-scraper';
-    readonly configSchema = LogoScraperConfigSchemaV2;
 
     constructor(
         private deps: {
@@ -65,7 +56,9 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             fetcher: Fetcher;
             createLlm: LlmFactory;
         }
-    ) {}
+    ) {
+        super();
+    }
 
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return LogoScraperConfigSchemaV2.transform(config => {
@@ -78,7 +71,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         });
     }
 
-    async hydrate(config: LogoScraperResolvedConfigV2, context: Record<string, any>): Promise<LogoScraperHydratedConfigV2> {
+    async hydrate(config: LogoScraperConfig, context: Record<string, any>): Promise<LogoScraperConfig> {
         const sanitizedRow: Record<string, any> = {};
         for (const [key, val] of Object.entries(context)) {
              const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
@@ -108,7 +101,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         };
     }
 
-    async prepare(stepRow: StepRow, config: LogoScraperHydratedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: LogoScraperConfig): Promise<PluginPacket[]> {
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const puppeteerHelper = this.deps.puppeteerHelper;
         const fetcher = this.deps.fetcher;
@@ -222,13 +215,6 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         return [{
             data: [outputData],
             contentParts
-        }];
-    }
-
-    async postProcess(stepRow: StepRow, config: LogoScraperHydratedConfigV2, modelResult: any): Promise<PluginPacket[]> {
-        return [{
-            data: [modelResult],
-            contentParts: []
         }];
     }
 }

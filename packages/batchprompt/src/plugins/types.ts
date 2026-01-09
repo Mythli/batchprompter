@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import OpenAI from 'openai';
-import { Step } from '../Step.js';
 import { StepRow } from '../StepRow.js';
 import { ResolvedPluginBase } from '../config/types.js';
 import { BatchPromptEvents } from '../events.js';
@@ -39,27 +38,24 @@ export interface PluginPacket {
 }
 
 export interface ResolvedPlugin {
-    instance: Plugin;
+    instance: Plugin<any>;
     config: any;
     def: ResolvedPluginBase;
 }
 
-export interface Plugin<TRawConfig = any, TResolvedConfig = any, THydratedConfig = any> {
+export interface Plugin<TConfig = any> {
     readonly type: string;
     
-    // We keep configSchema for reference/introspection, but getSchema is the primary method now
-    readonly configSchema: z.ZodType<TRawConfig>;
-
     /**
      * Returns the Zod schema used to validate and resolve the plugin configuration.
      * This schema should handle inheritance from the step and global configurations.
      */
-    getSchema(step: StepBaseConfig, globals: GlobalsConfig): z.ZodType<TResolvedConfig>;
+    getSchema(step: StepBaseConfig, globals: GlobalsConfig): z.ZodType<TConfig>;
 
     /**
      * Hydrates the resolved configuration with runtime data (e.g. rendering Handlebars templates).
      */
-    hydrate(config: TResolvedConfig, context: Record<string, any>): Promise<THydratedConfig>;
+    hydrate(config: TConfig, context: Record<string, any>): Promise<TConfig>;
 
     /**
      * Prepares data before the LLM call.
@@ -67,34 +63,52 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any, THydratedConfig
      * To do nothing, return [{ data: [null], contentParts: [] }]
      * To filter, return []
      */
-    prepare?(stepRow: StepRow, config: THydratedConfig): Promise<PluginPacket[]>;
+    prepare(stepRow: StepRow, config: TConfig): Promise<PluginPacket[]>;
 
     /**
      * Processes the result after the LLM call.
      * Must return an array of packets.
      */
-    postProcess?(stepRow: StepRow, config: THydratedConfig, result: any): Promise<PluginPacket[]>;
+    postProcess(stepRow: StepRow, config: TConfig, result: any): Promise<PluginPacket[]>;
+}
+
+export abstract class BasePlugin<TConfig = any> implements Plugin<TConfig> {
+    abstract readonly type: string;
+    
+    abstract getSchema(step: StepBaseConfig, globals: GlobalsConfig): z.ZodType<TConfig>;
+
+    async hydrate(config: TConfig, context: Record<string, any>): Promise<TConfig> {
+        return config;
+    }
+
+    async prepare(stepRow: StepRow, config: TConfig): Promise<PluginPacket[]> {
+        return [{ data: [null], contentParts: [] }];
+    }
+
+    async postProcess(stepRow: StepRow, config: TConfig, result: any): Promise<PluginPacket[]> {
+        return [{ data: [result], contentParts: [] }];
+    }
 }
 
 export class PluginRegistryV2 {
-    private plugins = new Map<string, Plugin>();
+    private plugins = new Map<string, Plugin<any>>();
 
-    register(plugin: Plugin): void {
+    register(plugin: Plugin<any>): void {
         if (this.plugins.has(plugin.type)) {
             throw new Error(`Plugin '${plugin.type}' is already registered`);
         }
         this.plugins.set(plugin.type, plugin);
     }
 
-    override(plugin: Plugin): void {
+    override(plugin: Plugin<any>): void {
         this.plugins.set(plugin.type, plugin);
     }
 
-    get(type: string): Plugin | undefined {
+    get(type: string): Plugin<any> | undefined {
         return this.plugins.get(type);
     }
 
-    getAll(): Plugin[] {
+    getAll(): Plugin<any>[] {
         return Array.from(this.plugins.values());
     }
 }
