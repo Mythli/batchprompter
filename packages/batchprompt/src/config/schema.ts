@@ -72,147 +72,163 @@ export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
 // Pipeline Schema Factory
 // =============================================================================
 
-export function createPipelineSchema(pluginRegistry: PluginRegistryV2) {
-    
-    // The input schema allows any plugins array, we validate them in the transform
-    const StepInputSchema = StepBaseSchema.extend({
+/**
+ * Creates a factory function that produces the Pipeline Schema.
+ * This allows dependency injection of the PluginRegistry.
+ */
+export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) => {
+
+    // 1. Define the "Loose" Schema
+    // This schema validates the structure of Globals and Steps but treats plugins as 'any'.
+    // We use this to extract the context (Globals + Step Base) needed to generate the strict plugin schemas.
+    const LooseStepSchema = StepBaseSchema.extend({
         plugins: z.array(z.record(z.string(), z.any())).default([])
     });
 
-    const PipelineInputSchema = GlobalsConfigSchema.extend({
+    const LoosePipelineSchema = GlobalsConfigSchema.extend({
         data: z.array(z.record(z.string(), z.any())).default([{}]),
-        steps: z.array(StepInputSchema).min(1)
+        steps: z.array(LooseStepSchema).min(1)
     });
 
-    return PipelineInputSchema.transform(async (pipeline) => {
-        // 1. Resolve Globals
-        // (Already parsed by Zod, but we capture them for passing down)
-        const globals: GlobalsConfig = {
-            model: pipeline.model,
-            temperature: pipeline.temperature,
-            thinkingLevel: pipeline.thinkingLevel,
-            concurrency: pipeline.concurrency,
-            taskConcurrency: pipeline.taskConcurrency,
-            tmpDir: pipeline.tmpDir,
-            outputPath: pipeline.outputPath,
-            dataOutputPath: pipeline.dataOutputPath,
-            timeout: pipeline.timeout,
-            inputLimit: pipeline.inputLimit,
-            inputOffset: pipeline.inputOffset,
-            limit: pipeline.limit,
-            offset: pipeline.offset
+    // 2. Internal Helper: Resolve Inheritance
+    // Merges Global defaults into the Step configuration to create the context for plugins.
+    const resolveStepContext = (step: z.infer<typeof LooseStepSchema>, globals: GlobalsConfig): StepBaseConfig => {
+        const globalModelDefaults = {
+            model: globals.model,
+            temperature: globals.temperature,
+            thinkingLevel: globals.thinkingLevel
         };
 
-        // 2. Resolve Steps
-        const resolvedSteps = await Promise.all(pipeline.steps.map(async (step, stepIndex) => {
-            // A. Merge Global Defaults into Step Model
-            const globalModelDefaults = {
-                model: globals.model,
-                temperature: globals.temperature,
-                thinkingLevel: globals.thinkingLevel
-            };
+        const rawStepModel = step.model || {};
+        
+        // Merge logic: Step > Global
+        const mergedStepModelConfig = {
+            model: rawStepModel.model ?? globalModelDefaults.model,
+            temperature: rawStepModel.temperature ?? globalModelDefaults.temperature,
+            thinkingLevel: rawStepModel.thinkingLevel ?? globalModelDefaults.thinkingLevel,
+            system: rawStepModel.system ?? step.system,
+            prompt: rawStepModel.prompt ?? step.prompt
+        };
 
-            const rawStepModel = step.model || {};
-            
-            // Merge logic: Step > Global
-            const mergedStepModelConfig = {
-                model: rawStepModel.model ?? globalModelDefaults.model,
-                temperature: rawStepModel.temperature ?? globalModelDefaults.temperature,
-                thinkingLevel: rawStepModel.thinkingLevel ?? globalModelDefaults.thinkingLevel,
-                system: rawStepModel.system ?? step.system,
-                prompt: rawStepModel.prompt ?? step.prompt
-            };
+        return {
+            ...step,
+            model: mergedStepModelConfig
+        };
+    };
 
-            // Transform to messages immediately for the Step's own model
-            const resolvedModel = transformModelConfig(mergedStepModelConfig);
-
-            // Resolve Judge & Feedback
-            let resolvedJudge;
-            if (step.judge) {
-                resolvedJudge = transformModelConfig({
-                    model: step.judge.model ?? mergedStepModelConfig.model,
-                    temperature: step.judge.temperature ?? mergedStepModelConfig.temperature,
-                    thinkingLevel: step.judge.thinkingLevel ?? mergedStepModelConfig.thinkingLevel,
-                    system: step.judge.system,
-                    prompt: step.judge.prompt
+    // 3. Internal Helper: Build Dynamic Plugin Schema
+    // Creates a Zod schema for a specific plugin instance, injected with the resolved context.
+    const buildPluginSchema = (pluginType: string, stepContext: StepBaseConfig, globals: GlobalsConfig) => {
+        const pluginInstance = pluginRegistry.get(pluginType);
+        
+        if (!pluginInstance) {
+            // We return a schema that always fails, so Zod handles the error reporting
+            return z.any().superRefine((val, ctx) => {
+                ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    message: `Unknown plugin type: '${pluginType}'`,
+                    path: ['type']
                 });
-            }
+            });
+        }
 
-            let resolvedFeedback;
-            if (step.feedback) {
-                const fbConfig = transformModelConfig({
-                    model: step.feedback.model ?? mergedStepModelConfig.model,
-                    temperature: step.feedback.temperature ?? mergedStepModelConfig.temperature,
-                    thinkingLevel: step.feedback.thinkingLevel ?? mergedStepModelConfig.thinkingLevel,
-                    system: step.feedback.system,
-                    prompt: step.feedback.prompt
-                });
-                resolvedFeedback = { ...fbConfig, loops: step.feedback.loops };
-            }
-
-            // Create the StepBaseConfig object to pass to plugins
-            // We pass the *merged* model config so plugins can inherit from it
-            const stepBaseConfig: StepBaseConfig = {
-                ...step,
-                model: mergedStepModelConfig // Pass the merged config, not the resolved messages yet
+        return pluginInstance.getSchema(stepContext, globals).transform(async (config) => {
+            return {
+                type: pluginType,
+                id: config.id ?? `${pluginType}-${Date.now()}`, // Fallback ID if not set by plugin schema
+                output: config.output,
+                config: config,
+                instance: pluginInstance
             };
+        });
+    };
 
-            // B. Resolve Plugins
-            const resolvedPlugins = await Promise.all(step.plugins.map(async (pluginRaw, pluginIdx) => {
-                const type = pluginRaw.type;
-                const pluginInstance = pluginRegistry.get(type);
+    // 4. The Main Schema Creator
+    return () => {
+        return z.any().transform(async (rawInput) => {
+            // Pass 1: Parse the loose structure to get Globals and Step Bases
+            const looseConfig = await LoosePipelineSchema.parseAsync(rawInput);
 
-                if (!pluginInstance) {
-                    throw new Error(`Unknown plugin type: ${type} in step ${stepIndex + 1}`);
+            // Pass 2: Build the Strict Schema dynamically based on the loose config
+            // We map over the parsed steps to build a specific schema for each step's plugins
+            const resolvedSteps = await Promise.all(looseConfig.steps.map(async (step, stepIndex) => {
+                
+                // A. Calculate Context (Inheritance)
+                const stepContext = resolveStepContext(step, looseConfig);
+
+                // B. Build Schemas for THIS step's plugins
+                // We iterate the *raw* plugins from the loose parse to know which types to look up
+                const pluginSchemas = step.plugins.map((rawPlugin) => {
+                    const type = rawPlugin.type;
+                    return buildPluginSchema(type, stepContext, looseConfig);
+                });
+
+                // C. Create a Tuple Schema for the plugins array
+                // We use a tuple because we want to validate each plugin index against its specific generated schema
+                // (Since we generated the schemas based on the *order* of plugins in the loose config)
+                const PluginsTuple = z.tuple(pluginSchemas as any);
+
+                // D. Parse the plugins using the strict schemas
+                const resolvedPlugins = await PluginsTuple.parseAsync(step.plugins);
+
+                // E. Final Step Assembly (same as before, but now using the strictly parsed plugins)
+                const resolvedModel = transformModelConfig(stepContext.model!); // Context has the merged model
+
+                let resolvedJudge;
+                if (step.judge) {
+                    resolvedJudge = transformModelConfig({
+                        model: step.judge.model ?? stepContext.model!.model,
+                        temperature: step.judge.temperature ?? stepContext.model!.temperature,
+                        thinkingLevel: step.judge.thinkingLevel ?? stepContext.model!.thinkingLevel,
+                        system: step.judge.system,
+                        prompt: step.judge.prompt
+                    });
                 }
 
-                // Get the dynamic schema for this plugin in this context
-                const pluginSchema = pluginInstance.getSchema(stepBaseConfig, globals);
+                let resolvedFeedback;
+                if (step.feedback) {
+                    const fbConfig = transformModelConfig({
+                        model: step.feedback.model ?? stepContext.model!.model,
+                        temperature: step.feedback.temperature ?? stepContext.model!.temperature,
+                        thinkingLevel: step.feedback.thinkingLevel ?? stepContext.model!.thinkingLevel,
+                        system: step.feedback.system,
+                        prompt: step.feedback.prompt
+                    });
+                    resolvedFeedback = { ...fbConfig, loops: step.feedback.loops };
+                }
 
-                // Parse and transform the plugin config
-                const resolvedPluginConfig = await pluginSchema.parseAsync(pluginRaw);
+                const outputPathTemplate = step.outputPath ?? looseConfig.outputPath;
+                const timeout = step.timeout ?? looseConfig.timeout;
 
                 return {
-                    type: type,
-                    id: resolvedPluginConfig.id ?? `${type}-${stepIndex}-${pluginIdx}`,
-                    output: resolvedPluginConfig.output,
-                    config: resolvedPluginConfig,
-                    instance: pluginInstance
+                    // Base properties
+                    output: step.output,
+                    outputPath: outputPathTemplate,
+                    outputTemplate: outputPathTemplate,
+                    timeout,
+                    tmpDir: looseConfig.tmpDir,
+                    candidates: step.candidates,
+                    aspectRatio: step.aspectRatio,
+                    
+                    // Resolved Components
+                    model: resolvedModel,
+                    judge: resolvedJudge,
+                    feedback: resolvedFeedback,
+                    plugins: resolvedPlugins,
+
+                    // Original raw config for reference
+                    rawConfig: step
                 };
             }));
 
-            // C. Final Step Configuration
-            const outputPathTemplate = step.outputPath ?? globals.outputPath;
-            const timeout = step.timeout ?? globals.timeout;
-
+            // Return the fully resolved RuntimeConfig
             return {
-                // Base properties
-                output: step.output,
-                outputPath: outputPathTemplate,
-                outputTemplate: outputPathTemplate,
-                timeout,
-                tmpDir: globals.tmpDir,
-                candidates: step.candidates,
-                aspectRatio: step.aspectRatio,
-                
-                // Resolved Components
-                model: resolvedModel,
-                judge: resolvedJudge,
-                feedback: resolvedFeedback,
-                plugins: resolvedPlugins,
-
-                // Original raw config for reference if needed
-                rawConfig: step
+                ...looseConfig, // Globals
+                steps: resolvedSteps
             };
-        }));
-
-        return {
-            ...globals,
-            data: pipeline.data,
-            steps: resolvedSteps
-        };
-    });
-}
+        });
+    };
+};
 
 // Backward compatibility export (though mostly unused now)
 export const StepConfigSchema = StepBaseSchema.extend({

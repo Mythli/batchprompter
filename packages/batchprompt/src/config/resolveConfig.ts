@@ -1,5 +1,5 @@
 import { RuntimeConfig } from './types.js';
-import { createPipelineSchema } from './schema.js';
+import { createPipelineSchemaFactory } from './schema.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 
 export interface ResolveConfigDependencies {
@@ -17,10 +17,13 @@ export async function resolveConfig(
     // 1. Preprocess Shortcuts (URL Expander)
     const preprocessedConfig = expandShortcuts(rawConfig);
 
-    // 2. Create Schema with Registry
-    const PipelineSchema = createPipelineSchema(deps.pluginRegistry);
+    // 2. Create Schema Factory
+    const createSchema = createPipelineSchemaFactory(deps.pluginRegistry);
+    
+    // 3. Create the Schema
+    const PipelineSchema = createSchema();
 
-    // 3. Parse & Transform
+    // 4. Parse & Transform
     const config = await PipelineSchema.parseAsync(preprocessedConfig);
 
     return config as RuntimeConfig;

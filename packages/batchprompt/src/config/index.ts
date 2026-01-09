@@ -30,13 +30,12 @@ export {
 
     // Step
     FeedbackConfigSchema,
-    LooseStepConfigSchema,
     StepConfigSchema,
 
     // Globals
     GlobalsConfigSchema,
     // Factory for custom plugin unions (used by CLI)
-    createPipelineSchema
+    createPipelineSchemaFactory
 } from './schema.js';
 
 // =============================================================================
