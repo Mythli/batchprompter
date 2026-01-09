@@ -6,15 +6,14 @@ export {
     // Prompt
     PromptSchema,
     type PromptDef,
-    
+
     // Output
     OutputConfigSchema,
     DEFAULT_PLUGIN_OUTPUT,
     type OutputConfig,
-    
+
     // Model
     ModelConfigSchema,
-    BaseModelConfigSchema,
     BaseModelConfigSchema,
     type ModelConfig,
     type BaseModelConfig,
@@ -28,19 +27,14 @@ export {
 export {
     // Backward compatibility alias
     PromptDefSchema,
-    
+
     // Step
     FeedbackConfigSchema,
     LooseStepConfigSchema,
     StepConfigSchema,
-    
+
     // Globals
     GlobalsConfigSchema,
-    
-    // Pipeline
-    LoosePipelineConfigSchema,
-    PipelineConfigSchema,
-    
     // Factory for custom plugin unions (used by CLI)
     createPipelineSchema
 } from './schema.js';
@@ -50,7 +44,6 @@ export {
 // =============================================================================
 
 export type {
-    ResolvedOutputConfig,
     ResolvedModelConfig,
     ResolvedPluginBase,
     ServiceCapabilities,
@@ -65,8 +58,5 @@ export type {
 // Loaders & Utilities
 // =============================================================================
 
-export { PromptLoader } from './PromptLoader.js';
-export type { SchemaLoader } from './SchemaLoader.js';
 export { zJsonSchemaObject, zHandlebars } from './validationRules.js';
-export { ConfigNormalizer } from './ConfigNormalizer.js';
 export { resolveConfig, type ResolveConfigDependencies } from './resolveConfig.js';
