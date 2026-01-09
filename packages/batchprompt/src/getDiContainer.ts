@@ -13,6 +13,7 @@ import { ServiceCapabilities, ModelConfig } from './config/types.js';
 import { LlmClientFactory } from './LlmClientFactory.js';
 import { attachQueueLogger } from "./debug/queue.js";
 import { LlmFactory } from './plugins/types.js';
+import { createPipelineSchemaFactory } from './config/schema.js';
 
 function getEnvVar(env: Record<string, any>, keys: string[]): string | undefined {
     for (const key of keys) {
@@ -163,13 +164,13 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         });
     };
 
-    const promptLoader = {} as any; // Mock/Empty as it's removed
-
     const pluginRegistry = createPluginRegistry({
         webSearch,
         imageSearch,
         puppeteerHelper,
-        createLlm: createTheLlm
+        createLlm: createTheLlm,
+        fetcher,
+        puppeteerQueue
     });
 
     const { EventEmitter } = await import('eventemitter3');
@@ -191,6 +192,8 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         llmFactory
     };
 
+    const buildPipelineSchema = createPipelineSchemaFactory(pluginRegistry);
+
     return {
         config,
         globalContext,
@@ -198,6 +201,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         puppeteerHelper,
         capabilities,
         llmFactory,
+        buildPipelineSchema
     };
 }
 

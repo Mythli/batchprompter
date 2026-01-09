@@ -4,7 +4,8 @@ import {
     PluginRegistryV2, 
     GlobalContext, 
     ContentResolver, 
-    InMemoryConfigExecutor 
+    Pipeline,
+    createPipelineSchemaFactory
 } from 'batchprompt';
 
 export class ExecutionService {
@@ -16,18 +17,22 @@ export class ExecutionService {
     ) {}
 
     async runConfig(config: any, initialRows?: any[]): Promise<{ results: any[], artifacts: any[], zip: string }> {
-        // Use InMemoryConfigExecutor to handle config resolution and execution
-        const executor = new InMemoryConfigExecutor(
-            this.actionRunner,
-            this.pluginRegistry,
-            this.globalContext.events,
-            this.contentResolver
-        );
+        // Inject initialRows if provided
+        const configWithData = { ...config };
+        if (initialRows && initialRows.length > 0) {
+            configWithData.data = initialRows;
+        }
 
-        // Execute
-        const { results, artifacts } = await executor.runConfig(config, initialRows);
+        // 1. Build Schema & Resolve Config
+        const buildSchema = createPipelineSchemaFactory(this.pluginRegistry);
+        const schema = await buildSchema(configWithData);
+        const runtimeConfig = await schema.parseAsync(configWithData);
 
-        // Create Zip of artifacts
+        // 2. Run Pipeline
+        const pipeline = new Pipeline(this.globalContext);
+        const { results, artifacts } = await pipeline.run(runtimeConfig);
+
+        // 3. Create Zip of artifacts
         const zip = new JSZip();
 
         // Add config and results

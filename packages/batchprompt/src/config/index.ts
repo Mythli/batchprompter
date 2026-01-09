@@ -58,4 +58,3 @@ export type {
 // =============================================================================
 
 export { zJsonSchemaObject, zHandlebars } from './validationRules.js';
-export { resolveConfig, type ResolveConfigDependencies } from './resolveConfig.js';

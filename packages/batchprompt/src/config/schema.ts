@@ -72,6 +72,29 @@ export const StepBaseSchema = z.object({
 export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
 
 // =============================================================================
+// Preprocessing Logic
+// =============================================================================
+
+function preprocessConfig(config: any, registry: PluginRegistryV2): any {
+    if (!config || typeof config !== 'object') return config;
+    const expanded = JSON.parse(JSON.stringify(config));
+
+    if (expanded.steps && Array.isArray(expanded.steps)) {
+        const plugins = registry.getAll();
+        for (let i = 0; i < expanded.steps.length; i++) {
+            let step = expanded.steps[i];
+            for (const plugin of plugins) {
+                if (plugin.preprocessStep) {
+                    step = plugin.preprocessStep(step);
+                }
+            }
+            expanded.steps[i] = step;
+        }
+    }
+    return expanded;
+}
+
+// =============================================================================
 // Pipeline Schema Factory
 // =============================================================================
 
@@ -163,12 +186,16 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
 
     // 4. The Main Schema Creator
     return async (rawInput: unknown) => {
+        // --- Stage 0: Preprocess ---
+        // We run preprocessing here to expand shortcuts before Zod sees the structure
+        const preprocessedInput = preprocessConfig(rawInput, pluginRegistry);
+
         // --- Stage 1: Parse Globals ---
-        const globals = await Stage1Schema.parseAsync(rawInput);
+        const globals = await Stage1Schema.parseAsync(preprocessedInput);
 
         // --- Stage 2: Parse Step Contexts ---
         const Stage2Schema = createStage2Schema(globals);
-        const context = await Stage2Schema.parseAsync(rawInput);
+        const context = await Stage2Schema.parseAsync(preprocessedInput);
 
         // --- Stage 3: Build Final Composite Schema ---
 
@@ -224,8 +251,13 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
         const StepsTuple = z.tuple(stepSchemas as any);
 
         // Return the Final Schema
-        return GlobalsConfigSchema.extend({
-            steps: StepsTuple
-        });
+        // We wrap it in z.preprocess to ensure that if this schema is used elsewhere,
+        // it still applies the preprocessing logic.
+        return z.preprocess(
+            (raw) => preprocessConfig(raw, pluginRegistry),
+            GlobalsConfigSchema.extend({
+                steps: StepsTuple
+            })
+        );
     };
 };

@@ -14,7 +14,7 @@ export interface ConfigExecutor {
     runConfig(config: any, initialRows?: any[]): Promise<{ results: any[] }>;
 }
 
-type PipelineConfig = z.infer<typeof PipelineConfigInputSchema>;
+type PipelineConfig = any;
 
 const EvaluationSchema = z.object({
     success: z.boolean().describe("Whether the configuration output satisfies the user request."),
@@ -82,20 +82,9 @@ export class ConfigRefiner {
         messages.push(...history);
 
         // Determine schema to use
-        let schema: z.ZodType<any> = PipelineConfigInputSchema;
-        let isDataOmitted = false;
-
-        if (input.sampleRows && input.sampleRows.length > 0) {
-            schema = PipelineConfigInputSchema.omit({ data: true });
-            isDataOmitted = true;
-        }
+        const schema = z.record(z.string(), z.any());
 
         const result = await this.generatorLlm.promptZod(messages, schema);
-
-        if (isDataOmitted) {
-            // Re-hydrate the result with default data config
-            return PipelineConfigInputSchema.parse(result);
-        }
 
         return result as PipelineConfig;
     }

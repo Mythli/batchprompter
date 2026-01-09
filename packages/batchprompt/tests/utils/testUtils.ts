@@ -7,9 +7,10 @@ import { LlmClientFactory } from '../../src/LlmClientFactory.js';
 import { MessageBuilder } from '../../src/core/MessageBuilder.js';
 import { Plugin, createPluginRegistry } from '../../src/plugins/index.js';
 import { ActionRunner } from '../../src/ActionRunner.js';
-import { InMemoryConfigExecutor } from '../../src/generator/InMemoryConfigExecutor.js';
-import {createMockOpenAI, getPromptSummary, LlmFatalError} from 'llm-fns';
+import { createMockOpenAI, getPromptSummary, LlmFatalError } from 'llm-fns';
 import { DebugLogger } from "../../src/index.js";
+import { Pipeline } from '../../src/Pipeline.js';
+import { createPipelineSchemaFactory } from '../../src/config/schema.js';
 
 export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
 
@@ -109,11 +110,22 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         globalContext
     );
 
-    const executor = new InMemoryConfigExecutor(
-        actionRunner,
-        pluginRegistry,
-        events
-    );
+    // Helper to run config using the new Pipeline flow
+    const executor = {
+        runConfig: async (config: any, initialRows?: any[]) => {
+            const configWithData = { ...config };
+            if (initialRows && initialRows.length > 0) {
+                configWithData.data = initialRows;
+            }
+
+            const buildSchema = createPipelineSchemaFactory(pluginRegistry);
+            const schema = await buildSchema(configWithData);
+            const runtimeConfig = await schema.parseAsync(configWithData);
+
+            const pipeline = new Pipeline(globalContext);
+            return pipeline.run(runtimeConfig);
+        }
+    };
 
     return {
         executor,
