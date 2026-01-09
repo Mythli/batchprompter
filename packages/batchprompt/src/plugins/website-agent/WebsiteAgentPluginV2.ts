@@ -6,16 +6,16 @@ import {
     LlmFactory,
     PluginPacket
 } from '../types.js';
+import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, transformModelConfig } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
 import { AiWebsiteAgent } from './AiWebsiteAgent.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import PQueue from 'p-queue';
-import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent'),
@@ -23,12 +23,16 @@ export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT),
     url: zHandlebars,
     schema: z.union([z.string(), zJsonSchemaObject]),
-    budget: z.number().int().positive().default(1),
+    budget: z.number().int().positive().default(10),
     batchSize: z.number().int().positive().default(3),
     navigator: RawModelConfigSchema.optional(),
     extract: RawModelConfigSchema.optional(),
     merge: RawModelConfigSchema.optional()
 });
+
+export const WebsiteAgentConfigSchemaV2 = LooseWebsiteAgentConfigSchemaV2.extend({
+    schema: zJsonSchemaObject
+}).strict();
 
 export type WebsiteAgentRawConfigV2 = z.infer<typeof LooseWebsiteAgentConfigSchemaV2>;
 
@@ -45,12 +49,7 @@ export interface WebsiteAgentResolvedConfigV2 {
     mergeModel: ResolvedModelConfig;
 }
 
-export interface WebsiteAgentHydratedConfigV2 extends Omit<WebsiteAgentResolvedConfigV2, 'url' | 'schema'> {
-    url: string;
-    schema: any;
-}
-
-export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, WebsiteAgentResolvedConfigV2, WebsiteAgentHydratedConfigV2> {
+export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, WebsiteAgentResolvedConfigV2> {
     readonly type = 'website-agent';
     readonly configSchema = LooseWebsiteAgentConfigSchemaV2;
 
@@ -62,62 +61,22 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         }
     ) {}
 
-    getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
-        return LooseWebsiteAgentConfigSchemaV2.transform(config => {
-            // Inherit defaults from step model
-            const stepModel = step.model || {};
-            
-            const resolveModel = (modelConfig?: any) => {
-                const merged = {
-                    model: modelConfig?.model ?? stepModel.model,
-                    temperature: modelConfig?.temperature ?? stepModel.temperature,
-                    thinkingLevel: modelConfig?.thinkingLevel ?? stepModel.thinkingLevel,
-                    system: modelConfig?.system,
-                    prompt: modelConfig?.prompt
-                };
-                return transformModelConfig(merged);
-            };
-
-            return {
-                type: 'website-agent' as const,
-                id: config.id ?? `website-agent-${Date.now()}`,
-                output: config.output,
-                url: config.url,
-                schema: config.schema,
-                budget: config.budget,
-                batchSize: config.batchSize,
-                navigatorModel: resolveModel(config.navigator),
-                extractModel: resolveModel(config.extract),
-                mergeModel: resolveModel(config.merge)
-            };
-        });
-    }
-
-    async hydrate(config: WebsiteAgentResolvedConfigV2, context: Record<string, any>): Promise<WebsiteAgentHydratedConfigV2> {
-        const template = Handlebars.compile(config.url, { noEscape: true });
-        const url = template(context);
-
-        let schema = config.schema;
-        if (typeof schema === 'string') {
-             try {
-                 const schemaTemplate = Handlebars.compile(schema, { noEscape: true });
-                 const resolvedSchema = schemaTemplate(context);
-                 schema = JSON.parse(resolvedSchema);
-             } catch (e: any) {
-                 console.warn(`[WebsiteAgent] Failed to parse schema template:`, e);
-             }
-        } else {
-            schema = renderSchemaObject(schema, context);
-        }
-
+    async init(step: Step, rawConfig: any): Promise<WebsiteAgentResolvedConfigV2> {
         return {
-            ...config,
-            url,
-            schema
+            type: 'website-agent',
+            id: rawConfig.id ?? `website-agent-${Date.now()}`,
+            output: rawConfig.output,
+            url: rawConfig.url,
+            schema: rawConfig.schema,
+            budget: rawConfig.budget,
+            batchSize: rawConfig.batchSize,
+            navigatorModel: rawConfig.navigator,
+            extractModel: rawConfig.extract,
+            mergeModel: rawConfig.merge
         };
     }
 
-    async prepare(stepRow: StepRow, config: WebsiteAgentHydratedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2): Promise<PluginPacket[]> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
@@ -127,7 +86,22 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         const puppeteerHelper = this.deps.puppeteerHelper;
         const puppeteerQueue = this.deps.puppeteerQueue;
 
-        const extractionSchema = makeSchemaOptional(config.schema);
+        const url = stepRow.render(config.url);
+
+        let schema = config.schema;
+        if (typeof schema === 'string') {
+             try {
+                 const template = Handlebars.compile(schema, { noEscape: true });
+                 const resolvedSchema = template(context);
+                 schema = JSON.parse(resolvedSchema);
+             } catch (e: any) {
+                 console.warn(`[WebsiteAgent] Failed to parse schema template:`, e);
+             }
+        } else {
+            schema = renderSchemaObject(schema, context);
+        }
+
+        const extractionSchema = makeSchemaOptional(schema);
 
         const navigatorLlm = stepRow.createLlm(config.navigatorModel);
         const extractLlm = stepRow.createLlm(config.extractModel);
@@ -152,9 +126,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         scope.bridge(agent.events);
 
         const result = await agent.scrapeIterative(
-            config.url,
+            url,
             extractionSchema,
-            config.schema,
+            schema,
             {
                 budget: config.budget,
                 batchSize: config.batchSize,
@@ -176,12 +150,12 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         if (result && Object.keys(result).length > 0) {
             contentParts.push({
                 type: 'text',
-                text: `\n--- Website Data from ${config.url} ---\n${JSON.stringify(result, null, 2)}\n--------------------------\n`
+                text: `\n--- Website Data from ${url} ---\n${JSON.stringify(result, null, 2)}\n--------------------------\n`
             });
         } else {
             contentParts.push({
                 type: 'text',
-                text: `\n--- Website Data from ${config.url} ---\nNo data extracted.\n--------------------------\n`
+                text: `\n--- Website Data from ${url} ---\nNo data extracted.\n--------------------------\n`
             });
         }
 
@@ -191,7 +165,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         }];
     }
 
-    async postProcess(stepRow: StepRow, config: WebsiteAgentHydratedConfigV2, modelResult: any): Promise<PluginPacket[]> {
+    async postProcess(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
         return [{
             data: [modelResult],
             contentParts: []
