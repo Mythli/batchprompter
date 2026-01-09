@@ -3,7 +3,8 @@ import Handlebars from 'handlebars';
 import Ajv from 'ajv';
 import { EventEmitter } from 'eventemitter3';
 import {
-    Plugin
+    Plugin,
+    PluginPacket
 } from '../types.js';
 import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
@@ -53,19 +54,13 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         let schemaSource = '[inline]';
 
         if (typeof schema === 'string') {
-            // If it looks like a template, skip static loading
             if (schema.includes('{{')) {
-                // It will be resolved in prepare/postProcess
+                // Template
             } else {
-                // We no longer support file loading here.
-                // If it's a string and not a template, it must be a JSON string or we fail.
                 try {
                     schema = JSON.parse(schema);
                     schemaSource = rawConfig.schema as string;
                 } catch (e: any) {
-                    // If it's not JSON, we assume it's a template that doesn't look like one, or invalid.
-                    // But since we removed file loading, we can't resolve paths.
-                    // We'll leave it as string if it fails parse, assuming it might be a template.
                 }
             }
         }
@@ -80,14 +75,15 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         };
     }
 
-    async prepare(stepRow: StepRow, config: ValidationResolvedConfigV2): Promise<void> {
+    async prepare(stepRow: StepRow, config: ValidationResolvedConfigV2): Promise<PluginPacket[]> {
+        return [{ data: [null], contentParts: [] }];
     }
 
     async postProcess(
         stepRow: StepRow,
         config: ValidationResolvedConfigV2,
         result: any
-    ): Promise<any> {
+    ): Promise<PluginPacket[]> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
@@ -160,7 +156,8 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
                 tags: ['debug', 'validation', 'error']
             });
 
-            throw new Error(`Validation failed: ${errors}`);
+            // Return empty array to filter/drop
+            return [];
         }
 
         scope.emit('validation:passed', { source: config.schemaSource });
@@ -177,6 +174,10 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             tags: ['debug', 'validation', 'success']
         });
 
-        return result;
+        // Return original result to continue
+        return [{
+            data: [result],
+            contentParts: []
+        }];
     }
 }

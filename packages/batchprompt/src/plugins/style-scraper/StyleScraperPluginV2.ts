@@ -3,7 +3,8 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import {
-    Plugin
+    Plugin,
+    PluginPacket
 } from '../types.js';
 import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
@@ -76,7 +77,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         };
     }
 
-    async prepare(stepRow: StepRow, config: StyleScraperResolvedConfigV2): Promise<void> {
+    async prepare(stepRow: StepRow, config: StyleScraperResolvedConfigV2): Promise<PluginPacket[]> {
         const { outputBasename } = stepRow;
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const puppeteerHelper = this.deps.puppeteerHelper;
@@ -221,19 +222,20 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
                 }
             }
 
-            stepRow.appendContent(result.contentParts);
-            stepRow.context._styleScraper_result = outputData;
+            return [{
+                data: [outputData],
+                contentParts: result.contentParts
+            }];
 
         } finally {
             await pageHelper.close();
         }
     }
 
-    async postProcess(stepRow: StepRow, config: StyleScraperResolvedConfigV2, modelResult: any): Promise<any> {
-        const result = stepRow.context._styleScraper_result;
-        if (result && (modelResult === null || modelResult === undefined)) {
-            return result;
-        }
-        return modelResult;
+    async postProcess(stepRow: StepRow, config: StyleScraperResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
+        return [{
+            data: [modelResult],
+            contentParts: []
+        }];
     }
 }

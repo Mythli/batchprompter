@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import {
     Plugin,
-    LlmFactory
+    LlmFactory,
+    PluginPacket
 } from '../types.js';
 import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
@@ -77,7 +78,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         };
     }
 
-    async prepare(stepRow: StepRow, config: ImageSearchResolvedConfigV2): Promise<void> {
+    async prepare(stepRow: StepRow, config: ImageSearchResolvedConfigV2): Promise<PluginPacket[]> {
         const { context } = stepRow;
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const imageSearch = this.deps.imageSearch;
@@ -162,7 +163,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         });
 
         if (selectedImages.length === 0) {
-            return;
+            return [{ data: [null], contentParts: [] }];
         }
 
         const sharp = (await import('sharp')).default;
@@ -204,20 +205,20 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             }
         }));
 
-        const validPackets = processedPackets.filter((p): p is { data: any, contentParts: any[] } => p !== null);
+        const validItems = processedPackets.filter((p): p is { data: any, contentParts: any[] } => p !== null);
 
-        for (const packet of validPackets) {
-            stepRow.appendContent(packet.contentParts);
-        }
-
-        stepRow.context._imageSearch_results = validPackets.map(p => p.data);
+        // We return a single packet containing all items.
+        // The StepRow will handle exploding them if config.explode is true.
+        return [{
+            data: validItems.map(p => p.data),
+            contentParts: validItems.flatMap(p => p.contentParts)
+        }];
     }
 
-    async postProcess(stepRow: StepRow, config: ImageSearchResolvedConfigV2, modelResult: any): Promise<any> {
-        const results = stepRow.context._imageSearch_results;
-        if (results && (modelResult === null || modelResult === undefined)) {
-            return results;
-        }
-        return modelResult;
+    async postProcess(stepRow: StepRow, config: ImageSearchResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
+        return [{
+            data: [modelResult],
+            contentParts: []
+        }];
     }
 }

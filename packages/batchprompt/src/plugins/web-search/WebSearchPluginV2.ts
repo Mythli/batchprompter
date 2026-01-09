@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import {
     Plugin,
-    LlmFactory
+    LlmFactory,
+    PluginPacket
 } from '../types.js';
 import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
@@ -59,7 +60,6 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
     ) {}
 
     async init(step: Step, rawConfig: any): Promise<WebSearchResolvedConfigV2> {
-        // rawConfig here is already the merged/transformed config from the pipeline schema
         return {
             type: 'web-search',
             id: rawConfig.id ?? `web-search-${Date.now()}`,
@@ -78,7 +78,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         };
     }
 
-    async prepare(stepRow: StepRow, config: WebSearchResolvedConfigV2): Promise<void> {
+    async prepare(stepRow: StepRow, config: WebSearchResolvedConfigV2): Promise<PluginPacket[]> {
         const { context } = stepRow;
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const webSearch = this.deps.webSearch;
@@ -169,17 +169,18 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
             hl: config.hl
         });
 
-        stepRow.appendContent(result.contentParts);
-
-        stepRow.context._webSearch_results = result.data;
+        // Return packet
+        return [{
+            data: result.data, // Array of results
+            contentParts: result.contentParts
+        }];
     }
 
-    async postProcess(stepRow: StepRow, config: WebSearchResolvedConfigV2, modelResult: any): Promise<any> {
-        const searchResults = stepRow.context._webSearch_results;
-        if (searchResults && (modelResult === null || modelResult === undefined)) {
-            return searchResults;
-        }
-
-        return modelResult;
+    async postProcess(stepRow: StepRow, config: WebSearchResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
+        // Pass-through
+        return [{
+            data: [modelResult],
+            contentParts: []
+        }];
     }
 }

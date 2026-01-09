@@ -12,6 +12,12 @@ import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { ResolvedModelConfig } from './config/schemas/model.js';
 import { PluginPacket } from './plugins/types.js';
 
+// Helper for async flatMap
+async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]>): Promise<U[]> {
+    const results = await Promise.all(array.map(callback));
+    return results.flat();
+}
+
 export class StepRow {
     private _context: Record<string, any>;
     private _content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
@@ -65,16 +71,10 @@ export class StepRow {
         // --- Stage 1: Plugin Preparation ---
         for (const { instance, config } of this.step.plugins) {
             if (instance.prepare) {
-                const nextRows: StepRow[] = [];
-                for (const row of currentRows) {
-                    const packet = await instance.prepare(row, config);
-                    if (packet) {
-                        nextRows.push(...row.applyPacket(packet, config.output, instance.type));
-                    } else {
-                        nextRows.push(row);
-                    }
-                }
-                currentRows = nextRows;
+                currentRows = await flatMapAsync(currentRows, async (row) => {
+                    const packets = await instance.prepare!(row, config);
+                    return row.applyPackets(packets, config.output, instance.type);
+                });
             }
         }
 
@@ -83,74 +83,91 @@ export class StepRow {
         const hasMessages = modelConfig.messages.length > 0;
 
         if (hasMessages) {
-            const nextRows: StepRow[] = [];
-            for (const row of currentRows) {
-                const packet = await row.executeLlm();
-                nextRows.push(...row.applyPacket(packet, this.step.config.output, 'modelOutput'));
-            }
-            currentRows = nextRows;
+            currentRows = await flatMapAsync(currentRows, async (row) => {
+                const packets = await row.executeLlm();
+                return row.applyPackets(packets, this.step.config.output, 'modelOutput');
+            });
         }
 
         // --- Stage 3: Plugin Post-Processing ---
         for (const { instance, config } of this.step.plugins) {
             if (instance.postProcess) {
-                const nextRows: StepRow[] = [];
-                for (const row of currentRows) {
-                    const packet = await instance.postProcess(row, config, row.lastResult);
-                    if (packet) {
-                        nextRows.push(...row.applyPacket(packet, config.output, instance.type));
-                    } else {
-                        nextRows.push(row);
-                    }
-                }
-                currentRows = nextRows;
+                currentRows = await flatMapAsync(currentRows, async (row) => {
+                    const packets = await instance.postProcess!(row, config, row.lastResult);
+                    return row.applyPackets(packets, config.output, instance.type);
+                });
             }
         }
 
         // Convert StepRows back to PipelineItems
-        return currentRows.map(row => ({
-            ...row.item,
-            row: row.context, // The context contains the updated row data
-            history: row.history,
-            stepHistory: [...row.item.stepHistory, row.lastResult]
-        }));
+        return currentRows.map(row => row.toPipelineItem());
+    }
+
+    public toPipelineItem(): PipelineItem {
+        return {
+            ...this.item,
+            row: this._context, // The context contains the updated row data
+            history: this._history,
+            stepHistory: [...this.item.stepHistory, this.lastResult]
+        };
     }
 
     /**
-     * Applies a packet to the current row, potentially spawning new StepRow instances if exploding.
+     * Applies a list of packets to the current row, potentially spawning new StepRow instances.
      */
-    public applyPacket(packet: PluginPacket, config: OutputConfig, namespace: string): StepRow[] {
-        if (packet.filter) {
-            return [];
+    public applyPackets(packets: PluginPacket[], config: OutputConfig, namespace: string): StepRow[] {
+        const nextRows: StepRow[] = [];
+
+        for (const packet of packets) {
+            // 1. Update History if provided (e.g. URL Expander)
+            if (packet.history) {
+                this._history = [...packet.history];
+            }
+
+            // 2. Append Content
+            if (packet.contentParts && packet.contentParts.length > 0) {
+                this._content.push(...packet.contentParts);
+            }
+
+            // 3. Handle Data (Branching/Explosion)
+            const dataArray = packet.data;
+
+            if (dataArray.length === 0) {
+                // Filter/Drop: Do nothing, effectively dropping this branch
+                continue;
+            }
+
+            if (config.explode && dataArray.length > 1) {
+                // Explode: Spawn new rows for each item
+                this.getEvents().emit('step:progress', {
+                    row: this.item.originalIndex,
+                    step: this.step.stepIndex + 1,
+                    type: 'explode',
+                    message: `Exploding ${dataArray.length} items`,
+                    data: { total: dataArray.length }
+                });
+
+                dataArray.forEach((itemData, idx) => {
+                    nextRows.push(this.spawn(itemData, idx, config, namespace));
+                });
+            } else {
+                // Standard: Update current row with the data (single item or array treated as single unit)
+                // If explode is false, we treat the whole array as the result
+                const dataToApply = config.explode ? dataArray[0] : dataArray;
+                
+                this.updateData(dataToApply, config, namespace);
+                nextRows.push(this);
+            }
         }
 
-        const results: StepRow[] = [];
-        const data = packet.data;
+        return nextRows;
+    }
 
-        if (config.explode && Array.isArray(data)) {
-            // Log explosion
-            this.getEvents().emit('step:progress', {
-                row: this.item.originalIndex,
-                step: this.step.stepIndex + 1,
-                type: 'explode',
-                message: `Exploding ${data.length} items`,
-                data: { total: data.length }
-            });
-
-            data.forEach((itemData, idx) => {
-                const newRow = this.clone();
-                newRow.item.variationIndex = idx;
-                newRow.updateData(itemData, config, namespace);
-                newRow.appendContent(packet.contentParts);
-                results.push(newRow);
-            });
-        } else {
-            this.updateData(data, config, namespace);
-            this.appendContent(packet.contentParts);
-            results.push(this);
-        }
-
-        return results;
+    private spawn(data: any, variationIndex: number, config: OutputConfig, namespace: string): StepRow {
+        const newRow = this.clone();
+        newRow.item.variationIndex = variationIndex;
+        newRow.updateData(data, config, namespace);
+        return newRow;
     }
 
     private updateData(data: any, config: OutputConfig, namespace: string) {
@@ -171,13 +188,7 @@ export class StepRow {
         }
     }
 
-    private appendContent(parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]) {
-        if (parts && parts.length > 0) {
-            this._content.push(...parts);
-        }
-    }
-
-    private async executeLlm(): Promise<PluginPacket> {
+    private async executeLlm(): Promise<PluginPacket[]> {
         const modelConfig = this.step.config.model;
 
         // Resolve Schema (Dynamic)
@@ -225,8 +236,11 @@ export class StepRow {
     private clone(): StepRow {
         const newItem = JSON.parse(JSON.stringify(this.item));
         const newRow = new StepRow(this.step, newItem);
+        // Deep copy mutable state
         newRow._content = [...this._content];
         newRow._history = [...this._history];
+        newRow._context = { ...this._context };
+        
         newRow.resolvedOutputDir = this.resolvedOutputDir;
         newRow.resolvedTempDir = this.resolvedTempDir;
         newRow.outputBasename = this.outputBasename;

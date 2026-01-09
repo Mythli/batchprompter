@@ -1,16 +1,9 @@
 import OpenAI from 'openai';
-import path from 'path';
 import Ajv from 'ajv';
-import { completionToMessage, LlmRetryError, LlmRetryResponseInfo, SchemaValidationError, concatMessageText } from 'llm-fns';
-import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
+import { SchemaValidationError } from 'llm-fns';
+import { GenerationStrategy } from './GenerationStrategy.js';
 import { StepRow } from '../StepRow.js';
-
-type ExtractedContent = {
-    type: 'text' | 'image' | 'audio';
-    data: string;
-    extension: string;
-    raw?: any;
-};
+import { PluginPacket } from '../plugins/types.js';
 
 export class StandardStrategy implements GenerationStrategy {
     private ajv: any;
@@ -22,59 +15,10 @@ export class StandardStrategy implements GenerationStrategy {
         this.ajv = new Ajv.default ? new Ajv.default({ strict: false }) : new Ajv({ strict: false });
     }
 
-    private extractContent(message: OpenAI.Chat.Completions.ChatCompletionMessageParam): ExtractedContent {
-        const content = message.content;
-
-        if (typeof content === 'string') {
-            return { type: 'text', data: content, extension: 'md' };
-        }
-
-        if (Array.isArray(content)) {
-            const audio = content.find(p => p.type === 'input_audio');
-            if (audio && audio.type === 'input_audio') {
-                return { type: 'audio', data: audio.input_audio.data, extension: 'wav' };
-            }
-
-            const image = content.find(p => p.type === 'image_url');
-            if (image && image.type === 'image_url') {
-                return { type: 'image', data: image.image_url.url, extension: 'png' };
-            }
-
-            const text = concatMessageText([message]);
-            return { type: 'text', data: text, extension: 'md' };
-        }
-
-        return { type: 'text', data: '', extension: 'md' };
-    }
-
-    private async runPostProcessingPhase(
-        initialData: any
-    ): Promise<any> {
-        let currentData = initialData;
-        const plugins = this.stepRow.getPlugins();
-
-        for (let i = 0; i < plugins.length; i++) {
-            const { instance, config: pluginConfig } = plugins[i];
-            if (instance.postProcess) {
-                try {
-                    const packet = await instance.postProcess(this.stepRow, pluginConfig, currentData);
-                    if (packet) {
-                        currentData = packet.data;
-                    }
-                } catch (e: any) {
-                    throw new LlmRetryError(e.message, 'CUSTOM_ERROR', undefined, typeof currentData === 'string' ? currentData : JSON.stringify(currentData));
-                }
-            }
-        }
-
-        return currentData;
-    }
-
-    async execute(cacheSalt?: string | number): Promise<GenerationResult> {
+    async execute(cacheSalt?: string | number): Promise<PluginPacket[]> {
         const config = this.stepRow.step.config;
         const index = this.stepRow.item.originalIndex;
         const stepIndex = this.stepRow.step.stepIndex;
-        const variationIndex = this.stepRow.item.variationIndex;
         const finalMessages = this.stepRow.preparedMessages;
         const schema = this.stepRow.resolvedSchema;
 
@@ -90,10 +34,6 @@ export class StandardStrategy implements GenerationStrategy {
         const rawClient = this.stepRow.createLlm(config.model).getRawClient();
 
         let finalResult: any;
-        let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
-        let finalExtension = 'txt';
-        let finalType = 'text';
-        let finalContentPayload: string | Buffer = '';
 
         if (schema) {
             const validator = async (data: any) => {
@@ -109,7 +49,7 @@ export class StandardStrategy implements GenerationStrategy {
                     });
                     throw new SchemaValidationError(`Schema Mismatch: ${errors}`);
                 }
-                return await this.runPostProcessingPhase(data);
+                return data;
             };
 
             finalResult = await rawClient.promptJson(finalMessages, schema, {
@@ -118,10 +58,34 @@ export class StandardStrategy implements GenerationStrategy {
                 validator,
                 ...additionalParams
             });
+        } else {
+            finalResult = await rawClient.promptText({
+                messages: finalMessages,
+                requestOptions,
+                ...additionalParams
+            });
+        }
 
-            finalHistoryMessage = {
-                role: 'assistant',
-                content: JSON.stringify(finalResult, null, 2)
-            };
-            finalExtension = 'json';
-            finalType = 'json';
+        // Standard strategy returns a single packet with the result
+        // If the result is an array (e.g. from JSON schema), it will be in data[0] if explode=false
+        // or data=[...items] if explode=true.
+        // However, the LLM returns ONE "thing" (object, array, or string).
+        // We wrap it in an array for the PluginPacket data contract.
+        
+        // If the LLM returned an array (e.g. JSON list), we treat that as the data payload.
+        // The StepRow.applyPacket logic will handle exploding it if config.explode is true.
+        
+        let dataPayload: any[] = [];
+        if (Array.isArray(finalResult)) {
+            dataPayload = finalResult;
+        } else {
+            dataPayload = [finalResult];
+        }
+
+        return [{
+            data: dataPayload,
+            contentParts: [],
+            history: undefined // Standard strategy doesn't modify history
+        }];
+    }
+}

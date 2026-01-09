@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import OpenAI from 'openai';
 import { Step } from '../Step.js';
 import { StepRow } from '../StepRow.js';
 import { ResolvedPluginBase } from '../config/types.js';
@@ -21,14 +22,19 @@ export interface PluginExecutionContext {
  * Standardized output from a plugin or LLM operation.
  */
 export interface PluginPacket {
-    /** The structured data result */
-    data: any;
+    /** 
+     * The structured results. 
+     * - [] (Empty): Signals a filter/drop.
+     * - [item]: Standard continuation.
+     * - [item1, item2, ...]: Signals an explosion (if config.explode is true).
+     */
+    data: any[]; 
     /** Content parts to be added to the prompt for subsequent operations in the step */
     contentParts: any[];
+    /** Optional: Overrides the conversation history */
+    history?: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     /** Optional artifacts generated during the operation */
     artifacts?: any[];
-    /** If true, the current execution branch should be dropped */
-    filter?: boolean;
 }
 
 export interface ResolvedPlugin {
@@ -45,13 +51,17 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
 
     /**
      * Prepares data before the LLM call.
+     * Must return an array of packets.
+     * To do nothing, return [{ data: [null], contentParts: [] }]
+     * To filter, return []
      */
-    prepare?(stepRow: StepRow, config: TResolvedConfig): Promise<PluginPacket | void>;
+    prepare?(stepRow: StepRow, config: TResolvedConfig): Promise<PluginPacket[]>;
 
     /**
      * Processes the result after the LLM call.
+     * Must return an array of packets.
      */
-    postProcess?(stepRow: StepRow, config: TResolvedConfig, result: any): Promise<PluginPacket | void>;
+    postProcess?(stepRow: StepRow, config: TResolvedConfig, result: any): Promise<PluginPacket[]>;
 }
 
 export class PluginRegistryV2 {

@@ -3,7 +3,8 @@ import Handlebars from 'handlebars';
 import OpenAI from 'openai';
 import {
     Plugin,
-    LlmFactory
+    LlmFactory,
+    PluginPacket
 } from '../types.js';
 import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
@@ -22,7 +23,7 @@ export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT),
     url: zHandlebars,
     schema: z.union([z.string(), zJsonSchemaObject]),
-    budget: z.number().int().positive().default(10),
+    budget: z.number().int().positive().default(1),
     batchSize: z.number().int().positive().default(3),
     navigator: RawModelConfigSchema.optional(),
     extract: RawModelConfigSchema.optional(),
@@ -61,7 +62,6 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
     ) {}
 
     async init(step: Step, rawConfig: any): Promise<WebsiteAgentResolvedConfigV2> {
-        // rawConfig is fully resolved/merged
         return {
             type: 'website-agent',
             id: rawConfig.id ?? `website-agent-${Date.now()}`,
@@ -76,7 +76,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         };
     }
 
-    async prepare(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2): Promise<void> {
+    async prepare(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2): Promise<PluginPacket[]> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
@@ -159,15 +159,16 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             });
         }
 
-        stepRow.appendContent(contentParts);
-        stepRow.context._websiteAgent_result = result;
+        return [{
+            data: [result],
+            contentParts
+        }];
     }
 
-    async postProcess(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2, modelResult: any): Promise<any> {
-        const result = stepRow.context._websiteAgent_result;
-        if (result && (modelResult === null || modelResult === undefined)) {
-            return result;
-        }
-        return modelResult;
+    async postProcess(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
+        return [{
+            data: [modelResult],
+            contentParts: []
+        }];
     }
 }

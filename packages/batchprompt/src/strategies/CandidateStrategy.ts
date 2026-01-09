@@ -1,11 +1,15 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { createCandidateSelector } from 'llm-fns';
-import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
+import { GenerationStrategy } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
 import { StepRow } from '../StepRow.js';
+import { PluginPacket } from '../plugins/types.js';
 
-type CandidateType = GenerationResult & { candidateIndex: number };
+type CandidateType = {
+    packet: PluginPacket;
+    candidateIndex: number;
+};
 
 export class CandidateStrategy implements GenerationStrategy {
     constructor(
@@ -17,7 +21,7 @@ export class CandidateStrategy implements GenerationStrategy {
         return this.stepRow.getEvents();
     }
 
-    async execute(cacheSalt?: string | number): Promise<GenerationResult> {
+    async execute(cacheSalt?: string | number): Promise<PluginPacket[]> {
         const config = this.stepRow.step.config;
         const index = this.stepRow.item.originalIndex;
         const stepIndex = this.stepRow.step.stepIndex;
@@ -29,12 +33,13 @@ export class CandidateStrategy implements GenerationStrategy {
         const selector = createCandidateSelector<void, CandidateType>({
             candidateCount,
             generate: async (_, i, salt) => {
-                const res = await this.standardStrategy.execute(salt);
-                return { ...res, candidateIndex: i };
+                const packets = await this.standardStrategy.execute(salt);
+                // Standard strategy returns 1 packet usually.
+                return { packet: packets[0], candidateIndex: i };
             },
             judge: async (_, candidates) => {
                 if (!judgeConfig) {
-                    // No judge configured, return dummy selection (we will use all candidates anyway)
+                    // No judge configured, return dummy selection
                     return { bestCandidateIndex: 0, reason: "No judge configured" };
                 }
 
@@ -65,26 +70,19 @@ export class CandidateStrategy implements GenerationStrategy {
                 this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Only 1 candidate succeeded. Skipping judge.` });
             }
 
-            return {
-                historyMessage: selection.winner.historyMessage,
-                columnValue: selection.winner.columnValue,
-                raw: selection.winner.raw
-            };
+            return [selection.winner.packet];
         } else {
-            // NO JUDGE: Return array for explode
+            // NO JUDGE: Return all candidates to explode
             this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `No judge configured. Returning all ${selection.candidates.length} candidates.` });
 
-            // We map to the raw result format expected by ResultProcessor (array of items)
-            const explodedResults = selection.candidates.map(c => c.raw || c.columnValue);
-
-            return {
-                historyMessage: {
-                    role: 'assistant',
-                    content: `[Generated ${explodedResults.length} candidates]`
-                },
-                columnValue: null,
-                raw: explodedResults
-            };
+            // We merge all candidate data into a single array for the packet
+            const allData = selection.candidates.flatMap(c => c.packet.data);
+            
+            return [{
+                data: allData,
+                contentParts: [],
+                history: undefined
+            }];
         }
     }
 
@@ -105,16 +103,17 @@ export class CandidateStrategy implements GenerationStrategy {
             const cand = candidates[i];
             candidatePresentationParts.push({ type: 'text', text: `\n--- Candidate ${i} ---\n` });
 
-            const val = cand.columnValue || "";
+            const val = cand.packet.data[0]; // Assuming single item per candidate packet
+            const valStr = typeof val === 'string' ? val : JSON.stringify(val);
 
             // Heuristic for images
-            if (val.startsWith('http') || val.startsWith('data:image')) {
+            if (valStr.startsWith('http') || valStr.startsWith('data:image')) {
                 candidatePresentationParts.push({
                     type: 'image_url',
-                    image_url: { url: val }
+                    image_url: { url: valStr }
                 });
             } else {
-                candidatePresentationParts.push({ type: 'text', text: val });
+                candidatePresentationParts.push({ type: 'text', text: valStr });
             }
         }
 

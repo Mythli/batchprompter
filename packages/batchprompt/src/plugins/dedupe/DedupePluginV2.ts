@@ -2,7 +2,8 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { EventEmitter } from 'eventemitter3';
 import {
-    Plugin
+    Plugin,
+    PluginPacket
 } from '../types.js';
 import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
@@ -40,13 +41,6 @@ export interface DedupeResolvedConfigV2 {
 // Global deduplication state - shared across all instances
 const globalSeenKeys = new Map<string, Set<string>>();
 
-export class SkipRowError extends Error {
-    constructor(message: string) {
-        super(message);
-        this.name = 'SkipRowError';
-    }
-}
-
 export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedConfigV2> {
     readonly type = 'dedupe';
     readonly configSchema = DedupeConfigSchemaV2;
@@ -65,7 +59,7 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
         };
     }
 
-    async prepare(stepRow: StepRow, config: DedupeResolvedConfigV2): Promise<void> {
+    async prepare(stepRow: StepRow, config: DedupeResolvedConfigV2): Promise<PluginPacket[]> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
@@ -102,8 +96,8 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
                 tags: ['debug', 'dedupe', 'duplicate']
             });
 
-            // Throw special error to skip this row
-            throw new SkipRowError(`Duplicate key found: ${key}`);
+            // Return empty array to filter/drop this row
+            return [];
         }
 
         scope.emit('duplicate:kept', { key });
@@ -119,6 +113,12 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             }, null, 2),
             tags: ['debug', 'dedupe', 'kept']
         });
+
+        // Return neutral packet to continue
+        return [{
+            data: [null],
+            contentParts: []
+        }];
     }
 
     static resetState(): void {

@@ -2,7 +2,8 @@ import { z } from 'zod';
 import OpenAI from 'openai';
 import {
     Plugin,
-    LlmFactory
+    LlmFactory,
+    PluginPacket
 } from '../types.js';
 import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
@@ -76,7 +77,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         };
     }
 
-    async prepare(stepRow: StepRow, config: LogoScraperResolvedConfigV2): Promise<void> {
+    async prepare(stepRow: StepRow, config: LogoScraperResolvedConfigV2): Promise<PluginPacket[]> {
         const { context } = stepRow;
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const puppeteerHelper = this.deps.puppeteerHelper;
@@ -206,15 +207,16 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             });
         }
 
-        stepRow.appendContent(contentParts);
-        stepRow.context._logoScraper_result = outputData;
+        return [{
+            data: [outputData],
+            contentParts
+        }];
     }
 
-    async postProcess(stepRow: StepRow, config: LogoScraperResolvedConfigV2, modelResult: any): Promise<any> {
-        const result = stepRow.context._logoScraper_result;
-        if (result && (modelResult === null || modelResult === undefined)) {
-            return result;
-        }
-        return modelResult;
+    async postProcess(stepRow: StepRow, config: LogoScraperResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
+        return [{
+            data: [modelResult],
+            contentParts: []
+        }];
     }
 }
