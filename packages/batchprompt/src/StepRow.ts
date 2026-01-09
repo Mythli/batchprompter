@@ -2,14 +2,13 @@ import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
 import { Step } from './Step.js';
-import { PipelineItem, OutputConfig } from './types.js';
+import { PipelineItem, OutputConfig, StepConfig, ResolvedModelConfig } from './types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 import { ensureDir, aggressiveSanitize } from './utils/fileUtils.js';
 import { renderSchemaObject } from './utils/schemaUtils.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
-import { ResolvedModelConfig } from './config/schemas/model.js';
 import { PluginPacket } from './plugins/types.js';
 
 // Helper for async flatMap
@@ -37,15 +36,7 @@ export class StepRow {
     public lastResult: any = null;
 
     // Hydrated Configuration State
-    private _hydrated!: {
-        outputDir: string;
-        tempDir: string;
-        outputBasename: string;
-        outputExtension: string;
-        schema?: any;
-        model: ResolvedModelConfig;
-        plugins: { instance: any, config: any }[];
-    };
+    public hydratedConfig!: StepConfig;
     private _isHydrated = false;
 
     constructor(
@@ -64,32 +55,32 @@ export class StepRow {
     }
 
     getPlugins() {
-        return this._hydrated?.plugins || [];
+        return this.hydratedConfig?.plugins || [];
     }
 
     getTempDir() {
-        return this._hydrated?.tempDir || '/tmp';
+        return this.hydratedConfig?.resolvedTempDir || '/tmp';
     }
 
     get outputBasename() {
-        return this._hydrated?.outputBasename;
+        return this.hydratedConfig?.outputBasename;
     }
 
     get outputExtension() {
-        return this._hydrated?.outputExtension;
+        return this.hydratedConfig?.outputExtension;
     }
 
     get resolvedOutputDir() {
-        return this._hydrated?.outputDir;
+        return this.hydratedConfig?.resolvedOutputDir;
     }
 
     get resolvedSchema() {
-        return this._hydrated?.schema;
+        return this.hydratedConfig?.schema;
     }
 
     get preparedMessages() {
         // Combine hydrated model messages with dynamic content and history
-        const messages = [...this.state.history, ...this._hydrated.model.messages];
+        const messages = [...this.state.history, ...this.hydratedConfig.model.messages];
         if (this.state.content.length > 0) {
             messages.push({ role: 'user', content: this.state.content });
         }
@@ -105,7 +96,7 @@ export class StepRow {
         let currentRows: StepRow[] = [this];
 
         // --- Stage 1: Plugin Preparation ---
-        for (const { instance, config } of this._hydrated.plugins) {
+        for (const { instance, config } of this.hydratedConfig.plugins) {
             if (instance.prepare) {
                 currentRows = await flatMapAsync(currentRows, async (row) => {
                     // Ensure row is initialized (idempotent)
@@ -130,7 +121,7 @@ export class StepRow {
         }
 
         // --- Stage 3: Plugin Post-Processing ---
-        for (const { instance, config } of this._hydrated.plugins) {
+        for (const { instance, config } of this.hydratedConfig.plugins) {
             if (instance.postProcess) {
                 currentRows = await flatMapAsync(currentRows, async (row) => {
                     // Ensure row is initialized (idempotent)
@@ -200,40 +191,46 @@ export class StepRow {
         }
 
         // 3. Resolve Model Messages
-        const hydratedMessages = config.model.messages.map(msg => {
-            if (typeof msg.content === 'string') {
-                return { ...msg, content: this.render(msg.content) };
-            } else if (Array.isArray(msg.content)) {
-                const hydratedContent = msg.content.map(part => {
-                    if (part.type === 'text') {
-                        return { ...part, text: this.render(part.text) };
+        const hydrateModel = (m?: ResolvedModelConfig): ResolvedModelConfig | undefined => {
+            if (!m) return undefined;
+            return {
+                ...m,
+                messages: m.messages.map(msg => {
+                    if (typeof msg.content === 'string') {
+                        return { ...msg, content: this.render(msg.content) };
+                    } else if (Array.isArray(msg.content)) {
+                        const hydratedContent = msg.content.map(part => {
+                            if (part.type === 'text') {
+                                return { ...part, text: this.render(part.text) };
+                            }
+                            return part;
+                        });
+                        return { ...msg, content: hydratedContent };
                     }
-                    return part;
-                });
-                return { ...msg, content: hydratedContent };
-            }
-            return msg;
-        });
+                    return msg;
+                }) as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+            };
+        };
 
         // 4. Hydrate Plugins
-        const hydratedPlugins = await Promise.all(config.plugins.map(async (p: any) => {
+        const hydratedPlugins = await Promise.all(config.plugins.map(async (p) => {
             const hydratedConfig = await p.instance.hydrate(p.config, this.state.context);
             return {
-                instance: p.instance,
+                ...p,
                 config: hydratedConfig
             };
         }));
 
-        this._hydrated = {
-            outputDir,
-            tempDir,
+        this.hydratedConfig = {
+            ...config,
+            resolvedOutputDir: outputDir,
+            resolvedTempDir: tempDir,
             outputBasename,
             outputExtension,
             schema,
-            model: {
-                ...config.model,
-                messages: hydratedMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-            },
+            model: hydrateModel(config.model)!,
+            judge: hydrateModel(config.judge),
+            feedback: config.feedback ? { ...hydrateModel(config.feedback)!, loops: config.feedback.loops } : undefined,
             plugins: hydratedPlugins
         };
 
@@ -242,10 +239,12 @@ export class StepRow {
 
     public toPipelineItem(): PipelineItem {
         return {
-            ...this.item,
             row: this.state.data, // Return the clean persistent data
             history: this.state.history,
-            stepHistory: [...this.state.stepHistory, this.lastResult]
+            originalIndex: this.state.originalIndex,
+            variationIndex: this.state.variationIndex,
+            stepHistory: [...this.state.stepHistory, this.lastResult],
+            workspace: this.state.context
         };
     }
 
@@ -346,11 +345,11 @@ export class StepRow {
 
     private async executeLlm(): Promise<PluginPacket[]> {
         // Create LLM Client using hydrated model config
-        const llm = this.createLlm(this._hydrated.model);
+        const llm = this.createLlm(this.hydratedConfig.model);
         
         // Execution Strategy
         let strategy: GenerationStrategy = new StandardStrategy(this);
-        if (this.step.config.candidates > 1) {
+        if (this.hydratedConfig.candidates > 1) {
             strategy = new CandidateStrategy(strategy as StandardStrategy, this);
         }
 
@@ -362,7 +361,7 @@ export class StepRow {
      * If config is provided, it uses that. Otherwise it uses the hydrated model config.
      */
     createLlm(config?: ResolvedModelConfig): BoundLlmClient {
-        const targetConfig = config || this._hydrated.model;
+        const targetConfig = config || this.hydratedConfig.model;
         return this.step.globalContext.llmFactory.create(targetConfig, targetConfig.messages);
     }
 

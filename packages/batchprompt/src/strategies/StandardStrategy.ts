@@ -16,8 +16,9 @@ export class StandardStrategy implements GenerationStrategy {
     }
 
     async execute(cacheSalt?: string | number): Promise<PluginPacket[]> {
-        const config = this.stepRow.step.config;
-        const index = this.stepRow.item.originalIndex;
+        const config = this.stepRow.hydratedConfig;
+        const index = this.stepRow.hydratedConfig.originalIndex; // Note: originalIndex is not on StepConfig, but we can get it from row
+        const rowIndex = (this.stepRow as any).state.originalIndex;
         const stepIndex = this.stepRow.step.stepIndex;
         const finalMessages = this.stepRow.preparedMessages;
         const schema = this.stepRow.resolvedSchema;
@@ -41,7 +42,7 @@ export class StandardStrategy implements GenerationStrategy {
                 if (!valid) {
                     const errors = this.ajv.errorsText();
                     this.stepRow.getEvents().emit('validation:failed', {
-                        row: index,
+                        row: rowIndex,
                         step: stepIndex,
                         data,
                         schema: schema,
