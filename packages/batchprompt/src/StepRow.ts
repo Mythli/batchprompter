@@ -19,6 +19,7 @@ async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]
 }
 
 export class StepRow {
+    private _row: Record<string, any>;
     private _context: Record<string, any>;
     private _content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
     private _history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
@@ -39,7 +40,12 @@ export class StepRow {
         public readonly step: Step,
         public readonly item: PipelineItem
     ) {
-        this._context = { ...item.row, ...item.workspace };
+        // _row is the persistent data that flows to the next step
+        this._row = { ...item.row };
+        
+        // _context is the ephemeral environment for templates (Row + Workspace)
+        this._context = { ...item.workspace, ...this._row };
+        
         this._history = [...item.history];
     }
 
@@ -106,7 +112,7 @@ export class StepRow {
     public toPipelineItem(): PipelineItem {
         return {
             ...this.item,
-            row: this._context, // The context contains the updated row data
+            row: this._row, // Return the clean row data, not the full context
             history: this._history,
             stepHistory: [...this.item.stepHistory, this.lastResult]
         };
@@ -164,27 +170,49 @@ export class StepRow {
     }
 
     private spawn(data: any, variationIndex: number, config: OutputConfig, namespace: string): StepRow {
-        const newRow = this.clone();
-        newRow.item.variationIndex = variationIndex;
+        const newItem = JSON.parse(JSON.stringify(this.item));
+        newItem.variationIndex = variationIndex;
+        
+        const newRow = new StepRow(this.step, newItem);
+        
+        // Deep copy mutable state
+        newRow._content = [...this._content];
+        newRow._history = [...this._history];
+        
+        // Deep copy row to preserve changes from previous plugins in this step
+        newRow._row = JSON.parse(JSON.stringify(this._row));
+        
+        // Shallow copy context (it's a mix of row + workspace + temp data)
+        newRow._context = { ...this._context };
+        
+        newRow.resolvedOutputDir = this.resolvedOutputDir;
+        newRow.resolvedTempDir = this.resolvedTempDir;
+        newRow.outputBasename = this.outputBasename;
+        newRow.outputExtension = this.outputExtension;
+
+        // Apply the new data
         newRow.updateData(data, config, namespace);
+        
         return newRow;
     }
 
     private updateData(data: any, config: OutputConfig, namespace: string) {
         this.lastResult = data;
         
-        // Always update context for templates
+        // 1. Always update context for templates (Ephemeral)
         this._context[namespace] = data;
 
-        // Update row based on strategy
+        // 2. Update row based on strategy (Persistent)
         if (config.mode === 'merge') {
             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-                Object.assign(this._context, data);
+                Object.assign(this._row, data);
+                Object.assign(this._context, data); // Sync context
             } else {
-                this._context[namespace] = data;
+                // Cannot merge non-object into root, but it's available in namespace
             }
         } else if (config.mode === 'column' && config.column) {
-            this._context[config.column] = data;
+            this._row[config.column] = data;
+            this._context[config.column] = data; // Sync context
         }
     }
 
@@ -231,21 +259,6 @@ export class StepRow {
         }
 
         return await strategy.execute();
-    }
-
-    private clone(): StepRow {
-        const newItem = JSON.parse(JSON.stringify(this.item));
-        const newRow = new StepRow(this.step, newItem);
-        // Deep copy mutable state
-        newRow._content = [...this._content];
-        newRow._history = [...this._history];
-        newRow._context = { ...this._context };
-        
-        newRow.resolvedOutputDir = this.resolvedOutputDir;
-        newRow.resolvedTempDir = this.resolvedTempDir;
-        newRow.outputBasename = this.outputBasename;
-        newRow.outputExtension = this.outputExtension;
-        return newRow;
     }
 
     /**
