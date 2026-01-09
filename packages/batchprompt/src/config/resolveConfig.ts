@@ -20,10 +20,10 @@ export async function resolveConfig(
     // 2. Create Schema Factory
     const createSchema = createPipelineSchemaFactory(deps.pluginRegistry);
     
-    // 3. Create the Schema
-    const PipelineSchema = createSchema();
+    // 3. Create the Schema based on the input data
+    const PipelineSchema = await createSchema(preprocessedConfig);
 
-    // 4. Parse & Transform
+    // 4. Parse & Transform using the custom-built schema
     const config = await PipelineSchema.parseAsync(preprocessedConfig);
 
     return config as RuntimeConfig;

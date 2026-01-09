@@ -41,7 +41,8 @@ export const GlobalsConfigSchema = z.object({
     inputLimit: z.number().int().positive().optional(),
     inputOffset: z.number().int().min(0).optional(),
     limit: z.number().int().positive().optional(),
-    offset: z.number().int().min(0).optional()
+    offset: z.number().int().min(0).optional(),
+    data: z.array(z.record(z.string(), z.any())).default([{}]),
 });
 
 export type GlobalsConfig = z.infer<typeof GlobalsConfigSchema>;
@@ -78,51 +79,53 @@ export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
  */
 export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) => {
 
-    // 1. Define the "Loose" Schema
-    // This schema validates the structure of Globals and Steps but treats plugins as 'any'.
-    // We use this to extract the context (Globals + Step Base) needed to generate the strict plugin schemas.
-    const LooseStepSchema = StepBaseSchema.extend({
-        plugins: z.array(z.record(z.string(), z.any())).default([])
-    });
+    // 1. Stage 1: Globals Analysis Schema
+    // Parses only globals, passes everything else through
+    const Stage1Schema = GlobalsConfigSchema.passthrough();
 
-    const LoosePipelineSchema = GlobalsConfigSchema.extend({
-        data: z.array(z.record(z.string(), z.any())).default([{}]),
-        steps: z.array(LooseStepSchema).min(1)
-    });
-
-    // 2. Internal Helper: Resolve Inheritance
-    // Merges Global defaults into the Step configuration to create the context for plugins.
-    const resolveStepContext = (step: z.infer<typeof LooseStepSchema>, globals: GlobalsConfig): StepBaseConfig => {
+    // 2. Stage 2: Step Context Analysis Schema Builder
+    // Creates a schema that resolves Step Base configs by merging them with Globals
+    const createStage2Schema = (globals: GlobalsConfig) => {
         const globalModelDefaults = {
             model: globals.model,
             temperature: globals.temperature,
             thinkingLevel: globals.thinkingLevel
         };
 
-        const rawStepModel = step.model || {};
-        
-        // Merge logic: Step > Global
-        const mergedStepModelConfig = {
-            model: rawStepModel.model ?? globalModelDefaults.model,
-            temperature: rawStepModel.temperature ?? globalModelDefaults.temperature,
-            thinkingLevel: rawStepModel.thinkingLevel ?? globalModelDefaults.thinkingLevel,
-            system: rawStepModel.system ?? step.system,
-            prompt: rawStepModel.prompt ?? step.prompt
-        };
+        // A Step schema that merges global defaults into itself during transform
+        const ContextAwareStepSchema = StepBaseSchema.extend({
+            plugins: z.array(z.record(z.string(), z.any())).default([])
+        }).transform(step => {
+            const rawStepModel = step.model || {};
+            
+            // Merge logic: Step > Global
+            const mergedStepModelConfig = {
+                model: rawStepModel.model ?? globalModelDefaults.model,
+                temperature: rawStepModel.temperature ?? globalModelDefaults.temperature,
+                thinkingLevel: rawStepModel.thinkingLevel ?? globalModelDefaults.thinkingLevel,
+                system: rawStepModel.system ?? step.system,
+                prompt: rawStepModel.prompt ?? step.prompt
+            };
 
-        return {
-            ...step,
-            model: mergedStepModelConfig
-        };
+            // We return the step with the merged model config.
+            // Note: We do NOT resolve to messages yet, as plugins need the raw config for their own inheritance.
+            // The final resolution happens in the plugin schema or the final step transform.
+            return {
+                ...step,
+                model: mergedStepModelConfig
+            };
+        });
+
+        return GlobalsConfigSchema.extend({
+            steps: z.array(ContextAwareStepSchema).min(1)
+        }).passthrough();
     };
 
-    // 3. Internal Helper: Build Dynamic Plugin Schema
-    // Creates a Zod schema for a specific plugin instance, injected with the resolved context.
+    // 3. Helper to build a specific plugin schema
     const buildPluginSchema = (pluginType: string, stepContext: StepBaseConfig, globals: GlobalsConfig) => {
         const pluginInstance = pluginRegistry.get(pluginType);
         
         if (!pluginInstance) {
-            // We return a schema that always fails, so Zod handles the error reporting
             return z.any().superRefine((val, ctx) => {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
@@ -132,10 +135,12 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
             });
         }
 
+        // Get the context-aware schema from the plugin
+        // This schema handles its own defaults and transformations
         return pluginInstance.getSchema(stepContext, globals).transform(async (config) => {
             return {
                 type: pluginType,
-                id: config.id ?? `${pluginType}-${Date.now()}`, // Fallback ID if not set by plugin schema
+                id: config.id ?? `${pluginType}-${Date.now()}`,
                 output: config.output,
                 config: config,
                 instance: pluginInstance
@@ -144,36 +149,37 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
     };
 
     // 4. The Main Schema Creator
-    return () => {
-        return z.any().transform(async (rawInput) => {
-            // Pass 1: Parse the loose structure to get Globals and Step Bases
-            const looseConfig = await LoosePipelineSchema.parseAsync(rawInput);
+    return async (rawInput: unknown) => {
+        // --- Stage 1: Parse Globals ---
+        const globals = await Stage1Schema.parseAsync(rawInput);
 
-            // Pass 2: Build the Strict Schema dynamically based on the loose config
-            // We map over the parsed steps to build a specific schema for each step's plugins
-            const resolvedSteps = await Promise.all(looseConfig.steps.map(async (step, stepIndex) => {
-                
-                // A. Calculate Context (Inheritance)
-                const stepContext = resolveStepContext(step, looseConfig);
+        // --- Stage 2: Parse Step Contexts ---
+        const Stage2Schema = createStage2Schema(globals);
+        const context = await Stage2Schema.parseAsync(rawInput);
 
-                // B. Build Schemas for THIS step's plugins
-                // We iterate the *raw* plugins from the loose parse to know which types to look up
-                const pluginSchemas = step.plugins.map((rawPlugin) => {
-                    const type = rawPlugin.type;
-                    return buildPluginSchema(type, stepContext, looseConfig);
-                });
+        // --- Stage 3: Build Final Composite Schema ---
+        
+        // Map over the resolved steps to build specific schemas for each
+        const stepSchemas = context.steps.map((stepContext, stepIndex) => {
+            
+            // A. Build schemas for the plugins in this step
+            // We use the raw plugins from the input (via context) to determine types
+            const pluginSchemas = stepContext.plugins.map((rawPlugin) => {
+                return buildPluginSchema(rawPlugin.type, stepContext, globals);
+            });
 
-                // C. Create a Tuple Schema for the plugins array
-                // We use a tuple because we want to validate each plugin index against its specific generated schema
-                // (Since we generated the schemas based on the *order* of plugins in the loose config)
-                const PluginsTuple = z.tuple(pluginSchemas as any);
+            const PluginsTuple = z.tuple(pluginSchemas as any);
 
-                // D. Parse the plugins using the strict schemas
-                const resolvedPlugins = await PluginsTuple.parseAsync(step.plugins);
+            // B. Build the Final Step Schema
+            // This schema validates the plugins tuple and finalizes the step config
+            return StepBaseSchema.extend({
+                plugins: PluginsTuple
+            }).transform(step => {
+                // Finalize Step Model (Prompt -> Messages)
+                // The stepContext.model we have here is already merged with globals from Stage 2
+                const resolvedModel = transformModelConfig(stepContext.model!);
 
-                // E. Final Step Assembly (same as before, but now using the strictly parsed plugins)
-                const resolvedModel = transformModelConfig(stepContext.model!); // Context has the merged model
-
+                // Resolve Judge & Feedback
                 let resolvedJudge;
                 if (step.judge) {
                     resolvedJudge = transformModelConfig({
@@ -197,8 +203,8 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
                     resolvedFeedback = { ...fbConfig, loops: step.feedback.loops };
                 }
 
-                const outputPathTemplate = step.outputPath ?? looseConfig.outputPath;
-                const timeout = step.timeout ?? looseConfig.timeout;
+                const outputPathTemplate = step.outputPath ?? globals.outputPath;
+                const timeout = step.timeout ?? globals.timeout;
 
                 return {
                     // Base properties
@@ -206,7 +212,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
                     outputPath: outputPathTemplate,
                     outputTemplate: outputPathTemplate,
                     timeout,
-                    tmpDir: looseConfig.tmpDir,
+                    tmpDir: globals.tmpDir,
                     candidates: step.candidates,
                     aspectRatio: step.aspectRatio,
                     
@@ -214,18 +220,19 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
                     model: resolvedModel,
                     judge: resolvedJudge,
                     feedback: resolvedFeedback,
-                    plugins: resolvedPlugins,
+                    plugins: step.plugins, // These are now fully resolved by PluginsTuple
 
                     // Original raw config for reference
                     rawConfig: step
                 };
-            }));
+            });
+        });
 
-            // Return the fully resolved RuntimeConfig
-            return {
-                ...looseConfig, // Globals
-                steps: resolvedSteps
-            };
+        const StepsTuple = z.tuple(stepSchemas as any);
+
+        // Return the Final Schema
+        return GlobalsConfigSchema.extend({
+            steps: StepsTuple
         });
     };
 };
