@@ -35,12 +35,14 @@ function preprocessConfig(config: any, registry: PluginRegistryV2): any {
 
     if (expanded.steps && Array.isArray(expanded.steps)) {
         const plugins = registry.getAll();
-        for (const step of expanded.steps) {
+        for (let i = 0; i < expanded.steps.length; i++) {
+            let step = expanded.steps[i];
             for (const plugin of plugins) {
                 if (plugin.preprocessStep) {
-                    plugin.preprocessStep(step);
+                    step = plugin.preprocessStep(step);
                 }
             }
+            expanded.steps[i] = step;
         }
     }
     return expanded;

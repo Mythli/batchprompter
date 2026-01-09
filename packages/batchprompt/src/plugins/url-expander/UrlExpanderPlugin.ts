@@ -31,7 +31,7 @@ export class UrlExpanderPlugin extends BasePlugin<UrlExpanderResolvedConfig> {
         return UrlExpanderStepExtension;
     }
 
-    preprocessStep(step: any): void {
+    preprocessStep(step: any): any {
         if (step.expandUrls !== undefined && step.expandUrls !== false) {
             step.plugins = step.plugins || [];
             
@@ -54,6 +54,7 @@ export class UrlExpanderPlugin extends BasePlugin<UrlExpanderResolvedConfig> {
                 step.plugins.unshift(pluginConfig);
             }
         }
+        return step;
     }
 
     async prepare(stepRow: StepRow, config: UrlExpanderResolvedConfig): Promise<PluginPacket[]> {

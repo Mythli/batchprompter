@@ -80,8 +80,9 @@ export interface Plugin<TConfig = any> {
     /**
      * Optional: Pre-processes a raw step configuration before validation.
      * Useful for converting shortcuts (like 'expandUrls') into actual plugin configurations.
+     * Must return the modified step configuration.
      */
-    preprocessStep?(stepConfig: any): void;
+    preprocessStep?(stepConfig: any): any;
 }
 
 export abstract class BasePlugin<TConfig = any> implements Plugin<TConfig> {
@@ -105,8 +106,8 @@ export abstract class BasePlugin<TConfig = any> implements Plugin<TConfig> {
         return undefined;
     }
 
-    preprocessStep(stepConfig: any): void {
-        // No-op by default
+    preprocessStep(stepConfig: any): any {
+        return stepConfig;
     }
 }
 
