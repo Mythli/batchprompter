@@ -7,7 +7,7 @@ import {
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, transformModelConfig } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ImageSearch } from './ImageSearch.js';
@@ -69,14 +69,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
             const stepModel = step.model || {};
             
             const resolveModel = (modelConfig?: any) => {
-                const merged = {
-                    model: modelConfig?.model ?? stepModel.model,
-                    temperature: modelConfig?.temperature ?? stepModel.temperature,
-                    thinkingLevel: modelConfig?.thinkingLevel ?? stepModel.thinkingLevel,
-                    system: modelConfig?.system,
-                    prompt: modelConfig?.prompt
-                };
-                return transformModelConfig(merged);
+                return resolveModelConfig(modelConfig, stepModel);
             };
 
             return {

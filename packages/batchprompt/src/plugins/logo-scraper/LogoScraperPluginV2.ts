@@ -8,7 +8,7 @@ import {
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, transformModelConfig } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
@@ -72,14 +72,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             const stepModel = step.model || {};
             
             const resolveModel = (modelConfig?: any) => {
-                const merged = {
-                    model: modelConfig?.model ?? stepModel.model,
-                    temperature: modelConfig?.temperature ?? stepModel.temperature,
-                    thinkingLevel: modelConfig?.thinkingLevel ?? stepModel.thinkingLevel,
-                    system: modelConfig?.system,
-                    prompt: modelConfig?.prompt
-                };
-                return transformModelConfig(merged);
+                return resolveModelConfig(modelConfig, stepModel);
             };
 
             return {

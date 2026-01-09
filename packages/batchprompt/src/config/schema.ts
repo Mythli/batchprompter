@@ -5,7 +5,9 @@ import {
     PromptSchema,
     RawModelConfigSchema,
     OutputConfigSchema,
-    transformModelConfig
+    transformModelConfig,
+    mergeModelConfigs,
+    resolveModelConfig
 } from './schemas/index.js';
 import { zHandlebars } from './validationRules.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
@@ -92,20 +94,18 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
             thinkingLevel: globals.thinkingLevel
         };
 
-        // A Step schema that merges global defaults into itself during transform
+        // A Step schema that resolves Step Base configs by merging them with Globals
         const ContextAwareStepSchema = StepBaseSchema.extend({
             plugins: z.array(z.record(z.string(), z.any())).default([])
         }).transform(step => {
             const rawStepModel = step.model || {};
 
             // Merge logic: Step > Global
-            const mergedStepModelConfig = {
-                model: rawStepModel.model ?? globalModelDefaults.model,
-                temperature: rawStepModel.temperature ?? globalModelDefaults.temperature,
-                thinkingLevel: rawStepModel.thinkingLevel ?? globalModelDefaults.thinkingLevel,
-                system: rawStepModel.system ?? step.system,
-                prompt: rawStepModel.prompt ?? step.prompt
-            };
+            const mergedStepModelConfig = mergeModelConfigs(rawStepModel, {
+                ...globalModelDefaults,
+                system: step.system,
+                prompt: step.prompt
+            });
 
             // We return the step with the merged model config.
             // Note: We do NOT resolve to messages yet, as plugins need the raw config for their own inheritance.
@@ -180,26 +180,11 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
                 const resolvedModel = transformModelConfig(stepContext.model!);
 
                 // Resolve Judge & Feedback
-                let resolvedJudge;
-                if (step.judge) {
-                    resolvedJudge = transformModelConfig({
-                        model: step.judge.model ?? stepContext.model!.model,
-                        temperature: step.judge.temperature ?? stepContext.model!.temperature,
-                        thinkingLevel: step.judge.thinkingLevel ?? stepContext.model!.thinkingLevel,
-                        system: step.judge.system,
-                        prompt: step.judge.prompt
-                    });
-                }
+                const resolvedJudge = step.judge ? resolveModelConfig(step.judge, stepContext.model) : undefined;
 
                 let resolvedFeedback;
                 if (step.feedback) {
-                    const fbConfig = transformModelConfig({
-                        model: step.feedback.model ?? stepContext.model!.model,
-                        temperature: step.feedback.temperature ?? stepContext.model!.temperature,
-                        thinkingLevel: step.feedback.thinkingLevel ?? stepContext.model!.thinkingLevel,
-                        system: step.feedback.system,
-                        prompt: step.feedback.prompt
-                    });
+                    const fbConfig = resolveModelConfig(step.feedback, stepContext.model);
                     resolvedFeedback = { ...fbConfig, loops: step.feedback.loops };
                 }
 

@@ -64,6 +64,26 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
     };
 }
 
+/**
+ * Merges a child config with a parent config, with the child taking precedence.
+ */
+export function mergeModelConfigs(child?: ModelConfig, parent?: ModelConfig): ModelConfig {
+    return {
+        model: child?.model ?? parent?.model,
+        temperature: child?.temperature ?? parent?.temperature,
+        thinkingLevel: child?.thinkingLevel ?? parent?.thinkingLevel,
+        system: child?.system ?? parent?.system,
+        prompt: child?.prompt ?? parent?.prompt
+    };
+}
+
+/**
+ * Merges a child config with a parent config and transforms it into a ResolvedModelConfig.
+ */
+export function resolveModelConfig(child?: ModelConfig, parent?: ModelConfig): ResolvedModelConfig {
+    return transformModelConfig(mergeModelConfigs(child, parent));
+}
+
 // For backward compatibility with imports
 export const BaseModelConfigSchema = RawModelConfigSchema;
 export const ModelConfigSchema = RawModelConfigSchema;

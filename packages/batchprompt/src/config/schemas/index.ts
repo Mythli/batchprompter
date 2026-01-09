@@ -13,5 +13,7 @@ export {
     type BaseModelConfig,
     type PluginModelConfig,
     type ResolvedModelConfig,
-    transformModelConfig
+    transformModelConfig,
+    mergeModelConfigs,
+    resolveModelConfig
 } from './model.js';
