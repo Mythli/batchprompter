@@ -68,13 +68,9 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
         return StyleScraperConfigSchemaV2.transform(config => {
             const [w, h] = config.resolution.split('x').map(Number);
             return {
-                type: 'style-scraper' as const,
+                ...config,
                 id: config.id ?? `style-scraper-${Date.now()}`,
-                output: config.output,
-                url: config.url,
                 resolution: { width: w || 1920, height: h || 1080 },
-                mobile: config.mobile,
-                interactive: config.interactive
             };
         });
     }

@@ -55,24 +55,17 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             let schema = config.schema;
             let schemaSource = '[inline]';
 
-            if (typeof schema === 'string') {
-                if (schema.includes('{{')) {
-                    // Template
-                } else {
-                    try {
-                        schema = JSON.parse(schema);
-                        schemaSource = config.schema as string;
-                    } catch (e: any) {
-                    }
-                }
+            if (typeof schema === 'string' && !schema.includes('{{')) {
+                try {
+                    schema = JSON.parse(schema);
+                    schemaSource = config.schema as string;
+                } catch (e: any) {}
             }
 
             return {
-                type: 'validation' as const,
+                ...config,
                 id: config.id ?? `validation-${Date.now()}`,
-                output: config.output,
                 schema,
-                target: config.target,
                 schemaSource
             };
         });

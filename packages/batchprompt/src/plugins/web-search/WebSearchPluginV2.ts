@@ -66,27 +66,12 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
 
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return WebSearchConfigSchemaV2.transform(config => {
-            const stepModel = step.model || {};
-            
-            const resolveModel = (modelConfig?: any) => {
-                return resolveModelConfig(modelConfig, stepModel);
-            };
-
             return {
-                type: 'web-search' as const,
+                ...config,
                 id: config.id ?? `web-search-${Date.now()}`,
-                output: config.output,
-                query: config.query,
-                queryModel: config.queryModel ? resolveModel(config.queryModel) : undefined,
-                selectModel: config.selectModel ? resolveModel(config.selectModel) : undefined,
-                compressModel: config.compressModel ? resolveModel(config.compressModel) : undefined,
-                limit: config.limit,
-                mode: config.mode,
-                queryCount: config.queryCount,
-                maxPages: config.maxPages,
-                dedupeStrategy: config.dedupeStrategy,
-                gl: config.gl,
-                hl: config.hl
+                queryModel: config.queryModel ? resolveModelConfig(config.queryModel, step.model) : undefined,
+                selectModel: config.selectModel ? resolveModelConfig(config.selectModel, step.model) : undefined,
+                compressModel: config.compressModel ? resolveModelConfig(config.compressModel, step.model) : undefined,
             };
         });
     }

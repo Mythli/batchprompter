@@ -66,27 +66,11 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
 
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return ImageSearchConfigSchemaV2.transform(config => {
-            const stepModel = step.model || {};
-            
-            const resolveModel = (modelConfig?: any) => {
-                return resolveModelConfig(modelConfig, stepModel);
-            };
-
             return {
-                type: 'image-search' as const,
+                ...config,
                 id: config.id ?? `image-search-${Date.now()}`,
-                output: config.output,
-                query: config.query,
-                queryModel: config.queryModel ? resolveModel(config.queryModel) : undefined,
-                selectModel: config.selectModel ? resolveModel(config.selectModel) : undefined,
-                limit: config.limit,
-                select: config.select,
-                queryCount: config.queryCount,
-                spriteSize: config.spriteSize,
-                maxPages: config.maxPages,
-                dedupeStrategy: config.dedupeStrategy,
-                gl: config.gl,
-                hl: config.hl
+                queryModel: config.queryModel ? resolveModelConfig(config.queryModel, step.model) : undefined,
+                selectModel: config.selectModel ? resolveModelConfig(config.selectModel, step.model) : undefined,
             };
         });
     }

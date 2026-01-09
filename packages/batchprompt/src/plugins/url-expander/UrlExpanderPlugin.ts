@@ -19,15 +19,8 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return UrlExpanderConfigSchema.transform(config => {
             return {
-                type: 'url-expander' as const,
+                ...config,
                 id: config.id ?? `url-expander-${Date.now()}`,
-                output: {
-                    mode: config.output.mode,
-                    column: config.output.column,
-                    explode: config.output.explode
-                },
-                mode: config.mode,
-                maxChars: config.maxChars
             };
         });
     }

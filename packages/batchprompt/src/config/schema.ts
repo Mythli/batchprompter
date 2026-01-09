@@ -189,23 +189,18 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
                 }
 
                 const outputPathTemplate = step.outputPath ?? globals.outputPath;
-                const timeout = step.timeout ?? globals.timeout;
 
                 return {
-                    // Base properties
-                    output: step.output,
+                    ...step,
                     outputPath: outputPathTemplate,
                     outputTemplate: outputPathTemplate,
-                    timeout,
+                    timeout: step.timeout ?? globals.timeout,
                     tmpDir: globals.tmpDir,
-                    candidates: step.candidates,
-                    aspectRatio: step.aspectRatio,
 
                     // Resolved Components
                     model: resolvedModel,
                     judge: resolvedJudge,
                     feedback: resolvedFeedback,
-                    plugins: step.plugins, // These are now fully resolved by PluginsTuple
 
                     // Original raw config for reference
                     rawConfig: step

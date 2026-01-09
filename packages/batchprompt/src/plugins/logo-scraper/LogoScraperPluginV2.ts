@@ -69,25 +69,11 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
 
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return LogoScraperConfigSchemaV2.transform(config => {
-            const stepModel = step.model || {};
-            
-            const resolveModel = (modelConfig?: any) => {
-                return resolveModelConfig(modelConfig, stepModel);
-            };
-
             return {
-                type: 'logo-scraper' as const,
+                ...config,
                 id: config.id ?? `logo-scraper-${Date.now()}`,
-                output: config.output,
-                url: config.url,
-                analyzeModel: resolveModel(config.analyze),
-                extractModel: resolveModel(config.extract),
-                maxCandidates: config.maxCandidates,
-                minScore: config.minScore,
-                logoPath: config.logoPath,
-                faviconPath: config.faviconPath,
-                logoLimit: config.logoLimit,
-                faviconLimit: config.faviconLimit
+                analyzeModel: resolveModelConfig(config.analyze, step.model),
+                extractModel: resolveModelConfig(config.extract, step.model),
             };
         });
     }

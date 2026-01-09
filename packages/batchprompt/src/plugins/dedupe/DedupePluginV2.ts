@@ -53,13 +53,8 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
     getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
         return DedupeConfigSchemaV2.transform(config => {
             return {
-                type: 'dedupe' as const,
+                ...config,
                 id: config.id ?? `dedupe-${Date.now()}`,
-                output: {
-                    mode: config.output.mode,
-                    column: config.output.column,
-                    explode: config.output.explode
-                },
                 keyTemplate: config.key
             };
         });
