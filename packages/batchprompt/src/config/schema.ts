@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import os from 'os';
 import path from 'path';
-import { 
+import {
     PromptSchema,
-    RawModelConfigSchema, 
+    RawModelConfigSchema,
     OutputConfigSchema,
     transformModelConfig
 } from './schemas/index.js';
@@ -63,7 +63,7 @@ export const StepBaseSchema = z.object({
     aspectRatio: z.string().optional(),
     timeout: z.number().int().positive().optional(),
     // Shortcuts that might be used by plugins but exist on step level for convenience
-    schema: z.any().optional(), 
+    schema: z.any().optional(),
     expandUrls: z.union([z.boolean(), z.record(z.any())]).optional()
 });
 
@@ -97,7 +97,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
             plugins: z.array(z.record(z.string(), z.any())).default([])
         }).transform(step => {
             const rawStepModel = step.model || {};
-            
+
             // Merge logic: Step > Global
             const mergedStepModelConfig = {
                 model: rawStepModel.model ?? globalModelDefaults.model,
@@ -124,7 +124,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
     // 3. Helper to build a specific plugin schema
     const buildPluginSchema = (pluginType: string, stepContext: StepBaseConfig, globals: GlobalsConfig) => {
         const pluginInstance = pluginRegistry.get(pluginType);
-        
+
         if (!pluginInstance) {
             return z.any().superRefine((val, ctx) => {
                 ctx.addIssue({
@@ -158,10 +158,10 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
         const context = await Stage2Schema.parseAsync(rawInput);
 
         // --- Stage 3: Build Final Composite Schema ---
-        
+
         // Map over the resolved steps to build specific schemas for each
         const stepSchemas = context.steps.map((stepContext, stepIndex) => {
-            
+
             // A. Build schemas for the plugins in this step
             // We use the raw plugins from the input (via context) to determine types
             const pluginSchemas = stepContext.plugins.map((rawPlugin) => {
@@ -215,7 +215,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
                     tmpDir: globals.tmpDir,
                     candidates: step.candidates,
                     aspectRatio: step.aspectRatio,
-                    
+
                     // Resolved Components
                     model: resolvedModel,
                     judge: resolvedJudge,
@@ -236,8 +236,3 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
         });
     };
 };
-
-// Backward compatibility export (though mostly unused now)
-export const StepConfigSchema = StepBaseSchema.extend({
-    plugins: z.array(z.any())
-});
