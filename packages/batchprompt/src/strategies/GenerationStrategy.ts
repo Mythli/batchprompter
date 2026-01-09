@@ -1,14 +1,8 @@
 import OpenAI from 'openai';
+import { PluginPacket } from '../plugins/types.js';
 
-export interface GenerationResult {
+export interface GenerationResult extends PluginPacket {
     historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
-    columnValue: string | null;
-    raw?: any;
-    /**
-     * If the generation strategy executed multiple times (e.g. due to plugin explosion),
-     * this array contains the individual results.
-     */
-    explodedResults?: GenerationResult[];
 }
 
 export interface GenerationStrategy {

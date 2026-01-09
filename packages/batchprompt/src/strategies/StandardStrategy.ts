@@ -40,9 +40,7 @@ export class StandardStrategy implements GenerationStrategy {
                 return { type: 'image', data: image.image_url.url, extension: 'png' };
             }
 
-            // Fallback to text parts
             const text = concatMessageText([message]);
-
             return { type: 'text', data: text, extension: 'md' };
         }
 
@@ -59,7 +57,10 @@ export class StandardStrategy implements GenerationStrategy {
             const { instance, config: pluginConfig } = plugins[i];
             if (instance.postProcess) {
                 try {
-                    currentData = await instance.postProcess(this.stepRow, pluginConfig, currentData);
+                    const packet = await instance.postProcess(this.stepRow, pluginConfig, currentData);
+                    if (packet) {
+                        currentData = packet.data;
+                    }
                 } catch (e: any) {
                     throw new LlmRetryError(e.message, 'CUSTOM_ERROR', undefined, typeof currentData === 'string' ? currentData : JSON.stringify(currentData));
                 }
@@ -77,7 +78,6 @@ export class StandardStrategy implements GenerationStrategy {
         const finalMessages = this.stepRow.preparedMessages;
         const schema = this.stepRow.resolvedSchema;
 
-        // 2. Generation Loop
         const requestOptions = cacheSalt ? {
             headers: { 'X-Cache-Salt': String(cacheSalt) }
         } : undefined;
@@ -87,25 +87,19 @@ export class StandardStrategy implements GenerationStrategy {
              additionalParams.image_config = { aspect_ratio: config.aspectRatio };
         }
 
-        // Use the LLM created in StepRow
         const rawClient = this.stepRow.createLlm(config.model).getRawClient();
 
         let finalResult: any;
         let finalHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam;
-        let columnValue: string | null;
         let finalExtension = 'txt';
         let finalType = 'text';
         let finalContentPayload: string | Buffer = '';
 
         if (schema) {
-            // --- Branch A: JSON Schema ---
-
             const validator = async (data: any) => {
-                // 1. Validate Schema
                 const valid = this.ajv.validate(schema, data);
                 if (!valid) {
                     const errors = this.ajv.errorsText();
-
                     this.stepRow.getEvents().emit('validation:failed', {
                         row: index,
                         step: stepIndex,
@@ -113,11 +107,8 @@ export class StandardStrategy implements GenerationStrategy {
                         schema: schema,
                         errors: this.ajv.errors
                     });
-
                     throw new SchemaValidationError(`Schema Mismatch: ${errors}`);
                 }
-
-                // 2. Run Plugin Post-Processing Phase
                 return await this.runPostProcessingPhase(data);
             };
 
@@ -132,83 +123,5 @@ export class StandardStrategy implements GenerationStrategy {
                 role: 'assistant',
                 content: JSON.stringify(finalResult, null, 2)
             };
-            columnValue = JSON.stringify(finalResult, null, 2);
             finalExtension = 'json';
             finalType = 'json';
-            finalContentPayload = columnValue;
-
-        } else {
-            // --- Branch B: Standard / Retry ---
-
-            let capturedContent: ExtractedContent | null = null;
-            let capturedHistoryMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | null = null;
-
-            const validateCallback = async (response: any, info: LlmRetryResponseInfo) => {
-                capturedHistoryMessage = completionToMessage(response);
-                capturedContent = this.extractContent(capturedHistoryMessage);
-                let data = capturedContent.data;
-
-                return await this.runPostProcessingPhase(data);
-            };
-
-            finalResult = await rawClient.promptRetry({
-                messages: finalMessages,
-                requestOptions,
-                maxRetries: 3 + (config.feedback?.loops || 0),
-                validate: validateCallback,
-                ...additionalParams
-            });
-
-            if (!capturedContent || !capturedHistoryMessage) throw new Error("Generation failed.");
-
-            const content: ExtractedContent = capturedContent;
-            finalHistoryMessage = capturedHistoryMessage;
-            columnValue = content.data;
-            finalExtension = content.extension;
-            finalType = content.type;
-
-            if (finalType === 'audio') {
-                finalContentPayload = Buffer.from(content.data, 'base64');
-            } else {
-                finalContentPayload = content.data;
-            }
-        }
-
-        // Emit Artifact
-        // Use resolved paths from StepRow
-        const effectiveBasename = this.stepRow.outputBasename || 'output';
-        let filename = `${effectiveBasename}.${finalExtension}`;
-
-        if (variationIndex !== undefined) {
-            filename = `${effectiveBasename}_${variationIndex}.${finalExtension}`;
-        }
-
-        const targetDir = this.stepRow.resolvedOutputDir || this.stepRow.getTempDir();
-        if (targetDir) {
-            filename = path.join(targetDir, filename);
-        }
-
-        // Check for empty content before emitting
-        const hasContent = Buffer.isBuffer(finalContentPayload)
-            ? finalContentPayload.length > 0
-            : String(finalContentPayload).trim().length > 0;
-
-        if (hasContent) {
-            this.stepRow.getEvents().emit('plugin:artifact', {
-                row: index,
-                step: stepIndex,
-                plugin: 'model',
-                type: finalType,
-                filename: filename,
-                content: finalContentPayload,
-                tags: ['final']
-            });
-        }
-
-        return {
-            historyMessage: finalHistoryMessage!,
-            columnValue: typeof finalResult === 'string' ? finalResult : null,
-            raw: finalResult
-        };
-    }
-}

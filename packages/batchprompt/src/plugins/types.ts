@@ -17,9 +17,18 @@ export interface PluginExecutionContext {
     emit: <K extends keyof BatchPromptEvents>(event: K, ...args: Parameters<BatchPromptEvents[K]>) => void;
 }
 
+/**
+ * Standardized output from a plugin or LLM operation.
+ */
 export interface PluginPacket {
-    contentParts: any[];
+    /** The structured data result */
     data: any;
+    /** Content parts to be added to the prompt for subsequent operations in the step */
+    contentParts: any[];
+    /** Optional artifacts generated during the operation */
+    artifacts?: any[];
+    /** If true, the current execution branch should be dropped */
+    filter?: boolean;
 }
 
 export interface ResolvedPlugin {
@@ -34,9 +43,15 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
 
     init(step: Step, config: TRawConfig): Promise<TResolvedConfig>;
 
-    prepare?(stepRow: StepRow, config: TResolvedConfig): Promise<void>;
+    /**
+     * Prepares data before the LLM call.
+     */
+    prepare?(stepRow: StepRow, config: TResolvedConfig): Promise<PluginPacket | void>;
 
-    postProcess?(stepRow: StepRow, config: TResolvedConfig, result: any): Promise<any>;
+    /**
+     * Processes the result after the LLM call.
+     */
+    postProcess?(stepRow: StepRow, config: TResolvedConfig, result: any): Promise<PluginPacket | void>;
 }
 
 export class PluginRegistryV2 {

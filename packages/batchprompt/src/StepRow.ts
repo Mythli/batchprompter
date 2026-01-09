@@ -10,11 +10,14 @@ import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { ResolvedModelConfig } from './config/schemas/model.js';
+import { PluginPacket } from './plugins/types.js';
 
 export class StepRow {
-    public readonly context: Record<string, any>;
-    public readonly content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-    public readonly history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+    private _context: Record<string, any>;
+    private _content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
+    private _history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+    
+    public lastResult: any = null;
 
     // Resolved paths
     public resolvedOutputDir?: string;
@@ -30,9 +33,15 @@ export class StepRow {
         public readonly step: Step,
         public readonly item: PipelineItem
     ) {
-        this.context = { ...item.row, ...item.workspace };
-        this.history = [...item.history];
+        this._context = { ...item.row, ...item.workspace };
+        this._history = [...item.history];
     }
+
+    // --- Getters (Read-only for plugins) ---
+
+    get context() { return this._context; }
+    get content() { return this._content; }
+    get history() { return this._history; }
 
     getEvents() {
         return this.step.globalContext.events;
@@ -46,162 +55,189 @@ export class StepRow {
         return this.resolvedTempDir || '/tmp';
     }
 
+    // --- Core Logic ---
+
     async run(): Promise<PipelineItem[]> {
-        // --- Stage 1: Path Resolution ---
         await this.resolvePaths();
 
-        // --- Stage 2: Plugin Preparation ---
+        let currentRows: StepRow[] = [this];
+
+        // --- Stage 1: Plugin Preparation ---
         for (const { instance, config } of this.step.plugins) {
             if (instance.prepare) {
-                await instance.prepare(this, config);
-            }
-        }
-
-        // --- Stage 3: Model Setup ---
-        const modelConfig = this.step.config.model;
-
-        // Check if we have explicit messages to send (Prompt/System)
-        // We do NOT count this.content (plugin content) as a trigger for the model
-        // if there is no prompt. This allows "Pass-through" of plugin results.
-        const hasMessages = modelConfig.messages.length > 0;
-
-        let result: any = null;
-        let historyMessage: OpenAI.Chat.Completions.ChatCompletionMessageParam | undefined;
-
-        if (hasMessages) {
-            // Resolve Schema (Dynamic)
-            let schema = this.step.config.schema;
-            if (schema) {
-                if (typeof schema === 'string') {
-                    // Template string -> Render -> Parse
-                    try {
-                        const template = Handlebars.compile(schema, { noEscape: true });
-                        const renderedSchema = template(this.context);
-                        schema = JSON.parse(renderedSchema);
-                    } catch (e) {
-                        console.warn(`[Row ${this.item.originalIndex}] Failed to parse schema template:`, e);
-                    }
-                } else {
-                    // Render templates inside the schema object
-                    try {
-                        schema = renderSchemaObject(schema, this.context);
-                    } catch (e: any) {
-                        console.warn(`[Row ${this.item.originalIndex}] Failed to render schema templates:`, e);
+                const nextRows: StepRow[] = [];
+                for (const row of currentRows) {
+                    const packet = await instance.prepare(row, config);
+                    if (packet) {
+                        nextRows.push(...row.applyPacket(packet, config.output, instance.type));
+                    } else {
+                        nextRows.push(row);
                     }
                 }
+                currentRows = nextRows;
             }
-            this.resolvedSchema = schema;
-
-            // Create LLM Client & Hydrate Messages
-            const llm = this.getBoundClient(modelConfig);
-
-            // Get the hydrated messages from the client
-            this.preparedMessages = llm.getMessages();
-
-            // Append dynamic content from plugins (this.content)
-            if (this.content.length > 0) {
-                this.preparedMessages.push({ role: 'user', content: this.content });
-            }
-
-            // Prepend History
-            this.preparedMessages = [...this.history, ...this.preparedMessages];
-
-            // --- Stage 4: Execution Strategy ---
-
-            let strategy: GenerationStrategy = new StandardStrategy(this);
-
-            if (this.step.config.candidates > 1) {
-                strategy = new CandidateStrategy(strategy as StandardStrategy, this);
-            }
-
-            const executionResult = await strategy.execute();
-
-            result = executionResult.raw !== undefined ? executionResult.raw : executionResult.columnValue;
-            historyMessage = executionResult.historyMessage;
         }
 
-        // --- Stage 5: Plugin Post-Processing ---
-        // We run this even if model didn't run, to allow plugins to return their data
+        // --- Stage 2: Model Execution ---
+        const modelConfig = this.step.config.model;
+        const hasMessages = modelConfig.messages.length > 0;
+
+        if (hasMessages) {
+            const nextRows: StepRow[] = [];
+            for (const row of currentRows) {
+                const packet = await row.executeLlm();
+                nextRows.push(...row.applyPacket(packet, this.step.config.output, 'modelOutput'));
+            }
+            currentRows = nextRows;
+        }
+
+        // --- Stage 3: Plugin Post-Processing ---
         for (const { instance, config } of this.step.plugins) {
             if (instance.postProcess) {
-                result = await instance.postProcess(this, config, result);
+                const nextRows: StepRow[] = [];
+                for (const row of currentRows) {
+                    const packet = await instance.postProcess(row, config, row.lastResult);
+                    if (packet) {
+                        nextRows.push(...row.applyPacket(packet, config.output, instance.type));
+                    } else {
+                        nextRows.push(row);
+                    }
+                }
+                currentRows = nextRows;
             }
         }
 
-        // --- Stage 6: Output Handling (Explode/Merge) ---
-        const outputConfig = this.step.config.output;
-        const nextItems: PipelineItem[] = [];
+        // Convert StepRows back to PipelineItems
+        return currentRows.map(row => ({
+            ...row.item,
+            row: row.context, // The context contains the updated row data
+            history: row.history,
+            stepHistory: [...row.item.stepHistory, row.lastResult]
+        }));
+    }
 
-        if (outputConfig.explode && Array.isArray(result)) {
-            // Apply limit/offset
-            let itemsToProcess = result;
-            if (outputConfig.offset && outputConfig.offset > 0) {
-                itemsToProcess = itemsToProcess.slice(outputConfig.offset);
-            }
-            if (outputConfig.limit && outputConfig.limit > 0) {
-                itemsToProcess = itemsToProcess.slice(0, outputConfig.limit);
-            }
+    /**
+     * Applies a packet to the current row, potentially spawning new StepRow instances if exploding.
+     */
+    public applyPacket(packet: PluginPacket, config: OutputConfig, namespace: string): StepRow[] {
+        if (packet.filter) {
+            return [];
+        }
 
+        const results: StepRow[] = [];
+        const data = packet.data;
+
+        if (config.explode && Array.isArray(data)) {
             // Log explosion
             this.getEvents().emit('step:progress', {
                 row: this.item.originalIndex,
                 step: this.step.stepIndex + 1,
                 type: 'explode',
-                message: `Exploding ${result.length} items into ${itemsToProcess.length}`,
-                data: { total: result.length, count: itemsToProcess.length, limit: outputConfig.limit, offset: outputConfig.offset }
+                message: `Exploding ${data.length} items`,
+                data: { total: data.length }
             });
 
-            itemsToProcess.forEach((itemData, idx) => {
-                const newRow = { ...this.context };
-                this.applyOutput(newRow, itemData, outputConfig);
-
-                nextItems.push({
-                    row: newRow,
-                    workspace: this.item.workspace,
-                    stepHistory: [...this.item.stepHistory, result],
-                    history: historyMessage ? [...this.history, historyMessage] : [...this.history],
-                    originalIndex: this.item.originalIndex,
-                    variationIndex: idx
-                });
+            data.forEach((itemData, idx) => {
+                const newRow = this.clone();
+                newRow.item.variationIndex = idx;
+                newRow.updateData(itemData, config, namespace);
+                newRow.appendContent(packet.contentParts);
+                results.push(newRow);
             });
         } else {
-            const newRow = { ...this.context };
-            if (result !== null && result !== undefined) {
-                this.applyOutput(newRow, result, outputConfig);
-            }
-
-            nextItems.push({
-                row: newRow,
-                workspace: this.item.workspace,
-                stepHistory: [...this.item.stepHistory, result],
-                history: historyMessage ? [...this.history, historyMessage] : [...this.history],
-                originalIndex: this.item.originalIndex,
-                variationIndex: 0
-            });
+            this.updateData(data, config, namespace);
+            this.appendContent(packet.contentParts);
+            results.push(this);
         }
 
-        return nextItems;
+        return results;
     }
 
-    private applyOutput(row: Record<string, any>, data: any, config: OutputConfig) {
+    private updateData(data: any, config: OutputConfig, namespace: string) {
+        this.lastResult = data;
+        
+        // Always update context for templates
+        this._context[namespace] = data;
+
+        // Update row based on strategy
         if (config.mode === 'merge') {
-             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-                 Object.assign(row, data);
-             }
+            if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+                Object.assign(this._context, data);
+            } else {
+                this._context[namespace] = data;
+            }
         } else if (config.mode === 'column' && config.column) {
-            row[config.column] = data;
+            this._context[config.column] = data;
         }
     }
 
-    appendContent(parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]) {
-        this.content.push(...parts);
+    private appendContent(parts: OpenAI.Chat.Completions.ChatCompletionContentPart[]) {
+        if (parts && parts.length > 0) {
+            this._content.push(...parts);
+        }
+    }
+
+    private async executeLlm(): Promise<PluginPacket> {
+        const modelConfig = this.step.config.model;
+
+        // Resolve Schema (Dynamic)
+        let schema = this.step.config.schema;
+        if (schema) {
+            if (typeof schema === 'string') {
+                try {
+                    const template = Handlebars.compile(schema, { noEscape: true });
+                    const renderedSchema = template(this._context);
+                    schema = JSON.parse(renderedSchema);
+                } catch (e) {
+                    console.warn(`[Row ${this.item.originalIndex}] Failed to parse schema template:`, e);
+                }
+            } else {
+                try {
+                    schema = renderSchemaObject(schema, this._context);
+                } catch (e: any) {
+                    console.warn(`[Row ${this.item.originalIndex}] Failed to render schema templates:`, e);
+                }
+            }
+        }
+        this.resolvedSchema = schema;
+
+        // Create LLM Client & Hydrate Messages
+        const llm = this.getBoundClient(modelConfig);
+        this.preparedMessages = llm.getMessages();
+
+        // Append dynamic content from plugins
+        if (this._content.length > 0) {
+            this.preparedMessages.push({ role: 'user', content: this._content });
+        }
+
+        // Prepend History
+        this.preparedMessages = [...this._history, ...this.preparedMessages];
+
+        // Execution Strategy
+        let strategy: GenerationStrategy = new StandardStrategy(this);
+        if (this.step.config.candidates > 1) {
+            strategy = new CandidateStrategy(strategy as StandardStrategy, this);
+        }
+
+        return await strategy.execute();
+    }
+
+    private clone(): StepRow {
+        const newItem = JSON.parse(JSON.stringify(this.item));
+        const newRow = new StepRow(this.step, newItem);
+        newRow._content = [...this._content];
+        newRow._history = [...this._history];
+        newRow.resolvedOutputDir = this.resolvedOutputDir;
+        newRow.resolvedTempDir = this.resolvedTempDir;
+        newRow.outputBasename = this.outputBasename;
+        newRow.outputExtension = this.outputExtension;
+        return newRow;
     }
 
     /**
      * Creates a BoundLlmClient by hydrating the messages in the config.
      */
     getBoundClient(config: ResolvedModelConfig): BoundLlmClient {
-        // Hydrate messages
         const hydratedMessages = config.messages.map(msg => {
             if (typeof msg.content === 'string') {
                 return { ...msg, content: this.render(msg.content) };
@@ -220,15 +256,12 @@ export class StepRow {
         return this.step.globalContext.llmFactory.create(config, hydratedMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[]);
     }
 
-    // Alias for plugins that might still call createLlm
     createLlm(config: ResolvedModelConfig): BoundLlmClient {
         return this.getBoundClient(config);
     }
 
-    render(template: string, context: Record<string, any> = this.context): string {
+    render(template: string, context: Record<string, any> = this._context): string {
         if (!template) return '';
-        // Handlebars throws on undefined helpers/properties sometimes, safe wrap?
-        // Assuming standard usage.
         const t = Handlebars.compile(template, { noEscape: true });
         return t(context);
     }
@@ -238,7 +271,7 @@ export class StepRow {
         const stepNum = stepIndex + 1;
 
         const sanitizedContext: Record<string, any> = {};
-        for (const [key, val] of Object.entries(this.context)) {
+        for (const [key, val] of Object.entries(this._context)) {
              const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
              sanitizedContext[key] = aggressiveSanitize(stringVal);
         }
