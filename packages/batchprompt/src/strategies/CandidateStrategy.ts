@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { createCandidateSelector } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
-import { StepRow } from '../core/StepRow.js';
+import { StepRow } from '../StepRow.js';
 
 type CandidateType = GenerationResult & { candidateIndex: number };
 
@@ -104,9 +104,9 @@ export class CandidateStrategy implements GenerationStrategy {
         for (let i = 0; i < candidates.length; i++) {
             const cand = candidates[i];
             candidatePresentationParts.push({ type: 'text', text: `\n--- Candidate ${i} ---\n` });
-            
+
             const val = cand.columnValue || "";
-            
+
             // Heuristic for images
             if (val.startsWith('http') || val.startsWith('data:image')) {
                 candidatePresentationParts.push({
@@ -124,7 +124,7 @@ export class CandidateStrategy implements GenerationStrategy {
         const contextParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
             { type: 'text', text: "Original request context:\n" }
         ];
-        
+
         if (lastUserMsg && Array.isArray(lastUserMsg.content)) {
             contextParts.push(...lastUserMsg.content);
         } else if (lastUserMsg && typeof lastUserMsg.content === 'string') {

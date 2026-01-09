@@ -5,8 +5,8 @@ import { EventEmitter } from 'eventemitter3';
 import {
     Plugin
 } from '../types.js';
-import { Step } from '../../core/Step.js';
-import { StepRow } from '../../core/StepRow.js';
+import { Step } from '../../Step.js';
+import { StepRow } from '../../StepRow.js';
 import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
@@ -57,7 +57,7 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             if (schema.includes('{{')) {
                 // It will be resolved in prepare/postProcess
             } else {
-                // We no longer support file loading here. 
+                // We no longer support file loading here.
                 // If it's a string and not a template, it must be a JSON string or we fail.
                 try {
                     schema = JSON.parse(schema);
@@ -89,11 +89,11 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         result: any
     ): Promise<any> {
         const { context } = stepRow;
-        
+
         const emit = (event: any, ...args: any[]) => {
             stepRow.step.globalContext.events.emit(event, ...args);
         };
-        
+
         const scope = new PluginScope({
             row: context,
             stepIndex: stepRow.step.stepIndex,
@@ -146,7 +146,7 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         if (!valid) {
             const errors = this.ajv.errorsText(validate.errors);
             scope.emit('validation:failed', { source: config.schemaSource, errors });
-            
+
             scope.artifact({
                 type: 'json',
                 filename: `validation/validation_${Date.now()}.json`,
@@ -164,7 +164,7 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         }
 
         scope.emit('validation:passed', { source: config.schemaSource });
-        
+
         scope.artifact({
             type: 'json',
             filename: `validation/validation_${Date.now()}.json`,

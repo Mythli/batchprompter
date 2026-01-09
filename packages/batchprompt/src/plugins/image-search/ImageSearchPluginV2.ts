@@ -3,8 +3,8 @@ import {
     Plugin,
     LlmFactory
 } from '../types.js';
-import { Step } from '../../core/Step.js';
-import { StepRow } from '../../core/StepRow.js';
+import { Step } from '../../Step.js';
+import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { AiImageSearch } from './AiImageSearch.js';

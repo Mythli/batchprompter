@@ -5,8 +5,8 @@ import {
     Plugin,
     LlmFactory
 } from '../types.js';
-import { Step } from '../../core/Step.js';
-import { StepRow } from '../../core/StepRow.js';
+import { Step } from '../../Step.js';
+import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
@@ -78,7 +78,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
 
     async prepare(stepRow: StepRow, config: WebsiteAgentResolvedConfigV2): Promise<void> {
         const { context } = stepRow;
-        
+
         const emit = (event: any, ...args: any[]) => {
             stepRow.step.globalContext.events.emit(event, ...args);
         };
@@ -122,7 +122,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             tempDirectory: stepRow.resolvedTempDir || '/tmp',
             emit: emit
         }, this.type);
-        
+
         scope.bridge(agent.events);
 
         const result = await agent.scrapeIterative(
@@ -158,7 +158,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
                 text: `\n--- Website Data from ${url} ---\nNo data extracted.\n--------------------------\n`
             });
         }
-        
+
         stepRow.appendContent(contentParts);
         stepRow.context._websiteAgent_result = result;
     }

@@ -5,8 +5,8 @@ import { EventEmitter } from 'eventemitter3';
 import {
     Plugin
 } from '../types.js';
-import { Step } from '../../core/Step.js';
-import { StepRow } from '../../core/StepRow.js';
+import { Step } from '../../Step.js';
+import { StepRow } from '../../StepRow.js';
 import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
@@ -22,10 +22,10 @@ export const StyleScraperConfigSchemaV2 = z.object({
     type: z.literal('style-scraper').describe("Identifies this as a Style Scraper plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save the scraped style data."),
-    
+
     // Required
     url: zHandlebars.describe("URL to scrape. Supports Handlebars."),
-    
+
     // Options
     resolution: z.string().default('1920x1080').describe("Viewport resolution for desktop screenshot."),
     mobile: z.boolean().default(false).describe("Capture an additional mobile screenshot (iPhone X viewport)."),

@@ -4,8 +4,8 @@ import { EventEmitter } from 'eventemitter3';
 import {
     Plugin
 } from '../types.js';
-import { Step } from '../../core/Step.js';
-import { StepRow } from '../../core/StepRow.js';
+import { Step } from '../../Step.js';
+import { StepRow } from '../../StepRow.js';
 import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { zHandlebars } from '../../config/validationRules.js';
@@ -19,7 +19,7 @@ export const DedupeConfigSchemaV2 = z.object({
     type: z.literal('dedupe').describe("Identifies this as a Dedupe plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT).describe("How to save deduplication results."),
-    
+
     // Required
     key: zHandlebars.describe("Deduplication key (Handlebars template). Items with the same key are dropped.")
 }).strict().describe("Configuration for the Dedupe plugin.");
@@ -67,11 +67,11 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
 
     async prepare(stepRow: StepRow, config: DedupeResolvedConfigV2): Promise<void> {
         const { context } = stepRow;
-        
+
         const emit = (event: any, ...args: any[]) => {
             stepRow.step.globalContext.events.emit(event, ...args);
         };
-        
+
         const scope = new PluginScope({
             row: context,
             stepIndex: stepRow.step.stepIndex,
@@ -90,7 +90,7 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
 
         if (seenKeys.has(key)) {
             scope.emit('duplicate:found', { key });
-            
+
             scope.artifact({
                 type: 'json',
                 filename: `dedupe/dedupe_${Date.now()}.json`,

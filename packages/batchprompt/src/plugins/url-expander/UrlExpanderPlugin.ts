@@ -1,12 +1,12 @@
 import OpenAI from 'openai';
 import TurndownService from 'turndown';
 import { Plugin } from '../types.js';
-import { Step } from '../../core/Step.js';
-import { StepRow } from '../../core/StepRow.js';
+import { Step } from '../../Step.js';
+import { StepRow } from '../../StepRow.js';
 import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
-import { 
-    UrlExpanderConfig, 
-    UrlExpanderResolvedConfig, 
+import {
+    UrlExpanderConfig,
+    UrlExpanderResolvedConfig,
     UrlExpanderConfigSchema
 } from './UrlExpanderConfig.js';
 
@@ -33,10 +33,10 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
     async prepare(stepRow: StepRow, config: UrlExpanderResolvedConfig): Promise<void> {
         const { mode, maxChars } = config;
         const messages = stepRow.history;
-        
+
         // Also check current step messages (which might contain the prompt with the URL)
         const currentMessages = stepRow.step.config.model.messages || [];
-        
+
         const allMessages = [...messages, ...currentMessages];
 
         // Resolve the generic handler based on mode
@@ -53,7 +53,7 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
 
         // Scan ONLY the last message for URLs to expand
         const lastMessage = allMessages[allMessages.length - 1];
-        
+
         if (!lastMessage) {
             return;
         }
@@ -131,7 +131,7 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
                         console.log(`[UrlExpander] Expanded ${url} using ${handlerName}`);
                         const truncated = content.substring(0, maxChars);
                         const expansionText = `\n\n--- Content of ${url} ---\n${truncated}\n--------------------------\n`;
-                        
+
                         contentPartsToAdd.push({ type: 'text', text: expansionText });
                         expandedData[url] = truncated;
                     }

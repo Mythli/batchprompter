@@ -4,8 +4,8 @@ import {
     Plugin,
     LlmFactory
 } from '../types.js';
-import { Step } from '../../core/Step.js';
-import { StepRow } from '../../core/StepRow.js';
+import { Step } from '../../Step.js';
+import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
@@ -128,7 +128,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         for (let i = 0; i < Math.min(logos.length, config.logoLimit); i++) {
             const logo = logos[i];
             if (!logo.isFavicon) {
-                const filename = logoPath 
+                const filename = logoPath
                     ? (i === 0 ? logoPath : logoPath.replace(/\.(\w+)$/, `_${i}.$1`))
                     : `logo_scraper/logos/logo_${i}.png`;
 

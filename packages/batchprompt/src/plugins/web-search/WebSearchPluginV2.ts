@@ -3,8 +3,8 @@ import {
     Plugin,
     LlmFactory
 } from '../types.js';
-import { Step } from '../../core/Step.js';
-import { StepRow } from '../../core/StepRow.js';
+import { Step } from '../../Step.js';
+import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { AiWebSearch } from './AiWebSearch.js';
@@ -170,7 +170,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         });
 
         stepRow.appendContent(result.contentParts);
-        
+
         stepRow.context._webSearch_results = result.data;
     }
 
@@ -179,7 +179,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         if (searchResults && (modelResult === null || modelResult === undefined)) {
             return searchResults;
         }
-        
+
         return modelResult;
     }
 }
