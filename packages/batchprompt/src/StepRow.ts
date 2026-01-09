@@ -19,17 +19,17 @@ async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]
 }
 
 export class StepRow {
-    // _persistentData: The actual data record that is being processed. 
+    // _persistentData: The actual data record that is being processed.
     // It is what gets passed to the next step and eventually saved.
     private _persistentData: Record<string, any>;
 
-    // _templateContext: The "view" seen by Handlebars templates. 
+    // _templateContext: The "view" seen by Handlebars templates.
     // It is a superset of _persistentData + workspace + ephemeral plugin outputs.
     private _templateContext: Record<string, any>;
 
     private _content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
     private _history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-    
+
     public lastResult: any = null;
 
     // Resolved paths
@@ -48,10 +48,10 @@ export class StepRow {
     ) {
         // Initialize persistent data from the input row
         this._persistentData = { ...item.row };
-        
+
         // Initialize template context with workspace and row data
         this._templateContext = { ...item.workspace, ...this._persistentData };
-        
+
         this._history = [...item.history];
     }
 
@@ -64,16 +64,6 @@ export class StepRow {
     getEvents() {
         return this.step.globalContext.events;
     }
-
-    getPlugins() {
-        return this.step.plugins;
-    }
-
-    getTempDir() {
-        return this.resolvedTempDir || '/tmp';
-    }
-
-    // --- Core Logic ---
 
     async run(): Promise<PipelineItem[]> {
         await this.resolvePaths();
@@ -166,7 +156,7 @@ export class StepRow {
                 // Standard: Update current row with the data (single item or array treated as single unit)
                 // If explode is false, we treat the whole array as the result
                 const dataToApply = config.explode ? dataArray[0] : dataArray;
-                
+
                 this.updateData(dataToApply, config, namespace);
                 nextRows.push(this);
             }
@@ -178,21 +168,21 @@ export class StepRow {
     private spawn(data: any, variationIndex: number, config: OutputConfig, namespace: string): StepRow {
         const newItem = JSON.parse(JSON.stringify(this.item));
         newItem.variationIndex = variationIndex;
-        
+
         const newRow = new StepRow(this.step, newItem);
-        
+
         // Deep copy mutable state
         newRow._content = [...this._content];
         newRow._history = [...this._history];
-        
+
         // Deep copy persistent data to ensure branch independence
         newRow._persistentData = JSON.parse(JSON.stringify(this._persistentData));
-        
+
         // Shallow copy template context (it inherits parent's ephemeral state)
         // We do a shallow copy so that modifications in this branch don't affect siblings,
         // but we don't need a deep copy of the entire context history.
         newRow._templateContext = { ...this._templateContext };
-        
+
         newRow.resolvedOutputDir = this.resolvedOutputDir;
         newRow.resolvedTempDir = this.resolvedTempDir;
         newRow.outputBasename = this.outputBasename;
@@ -200,13 +190,13 @@ export class StepRow {
 
         // Apply the new data specific to this branch
         newRow.updateData(data, config, namespace);
-        
+
         return newRow;
     }
 
     private updateData(data: any, config: OutputConfig, namespace: string) {
         this.lastResult = data;
-        
+
         // 1. Always update template context with namespaced data (Ephemeral)
         // This allows {{web-search.result}} even if mode is 'ignore'
         this._templateContext[namespace] = data;
