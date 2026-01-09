@@ -3,7 +3,8 @@ import { z } from 'zod';
 import {
     OutputConfigSchema,
     ResolvedModelConfig,
-    RawModelConfigSchema
+    RawModelConfigSchema,
+    PromptSchema
 } from './schemas/index.js';
 import { GlobalsConfigSchema, StepBaseSchema } from './schema.js';
 
@@ -20,7 +21,7 @@ export type ResolvedOutputConfig = OutputConfig;
 // Prompt Types
 // =============================================================================
 
-export type PromptDef = string | any[];
+export type PromptDef = z.infer<typeof PromptSchema>;
 
 // =============================================================================
 // Service Configuration
@@ -37,52 +38,52 @@ export interface ServiceCapabilities {
 
 export { ResolvedModelConfig };
 
-export interface ResolvedPluginBase {
-    type: string;
-    id: string;
-    output: OutputConfig;
-    config: any; // The resolved config specific to the plugin
-    instance: any; // The plugin instance
-}
+const ResolvedPluginBaseSchema = z.object({
+    type: z.string(),
+    id: z.string(),
+    output: OutputConfigSchema,
+    config: z.any(),
+    instance: z.any()
+});
+
+export type ResolvedPluginBase = z.infer<typeof ResolvedPluginBaseSchema>;
 
 // =============================================================================
 // Step Configuration (Runtime)
 // =============================================================================
 
-// Base type from Zod schema
-type StepBase = z.infer<typeof StepBaseSchema>;
+const ResolvedStepConfigSchema = StepBaseSchema
+    .omit({ model: true, judge: true, feedback: true })
+    .extend({
+        // Resolved Plugins
+        plugins: z.array(ResolvedPluginBaseSchema),
 
-export interface StepConfig extends Omit<StepBase, 'model' | 'judge' | 'feedback'> {
-    // Resolved Plugins
-    plugins: ResolvedPluginBase[];
+        // Resolved Models
+        model: z.custom<ResolvedModelConfig>(),
+        judge: z.custom<ResolvedModelConfig>().optional(),
+        feedback: z.custom<ResolvedModelConfig & { loops: number }>().optional(),
 
-    // Resolved Models
-    model: ResolvedModelConfig;
-    judge?: ResolvedModelConfig;
-    feedback?: ResolvedModelConfig & { loops: number };
+        // Runtime paths
+        resolvedOutputDir: z.string().optional(),
+        resolvedTempDir: z.string().optional(),
+        outputBasename: z.string().optional(),
+        outputExtension: z.string().optional(),
+        outputTemplate: z.string().optional(),
+        tmpDir: z.string().optional(),
+    });
 
-    // Runtime paths
-    resolvedOutputDir?: string;
-    resolvedTempDir?: string;
-    outputBasename?: string;
-    outputExtension?: string;
-    outputTemplate?: string;
-    tmpDir?: string;
-}
-
+export type StepConfig = z.infer<typeof ResolvedStepConfigSchema>;
 export type ResolvedStepConfig = StepConfig;
 
 // =============================================================================
 // Global & Pipeline Configuration (Runtime)
 // =============================================================================
 
-type GlobalsConfigBase = z.infer<typeof GlobalsConfigSchema>;
+export type GlobalsConfig = z.infer<typeof GlobalsConfigSchema>;
 
-export interface GlobalsConfig extends GlobalsConfigBase {}
-
-export interface RuntimeConfig extends GlobalsConfig {
+export type RuntimeConfig = GlobalsConfig & {
     steps: StepConfig[];
     data: Record<string, any>[];
-}
+};
 
 export type ResolvedPipelineConfig = RuntimeConfig;
