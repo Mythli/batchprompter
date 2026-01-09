@@ -16,12 +16,11 @@ export class StandardStrategy implements GenerationStrategy {
     }
 
     async execute(cacheSalt?: string | number): Promise<PluginPacket[]> {
-        const config = this.stepRow.hydratedConfig;
-        const index = this.stepRow.hydratedConfig.originalIndex; // Note: originalIndex is not on StepConfig, but we can get it from row
-        const rowIndex = (this.stepRow as any).state.originalIndex;
+        const config = await this.stepRow.hydratedConfig();
+        const rowIndex = this.stepRow.getOriginalIndex();
         const stepIndex = this.stepRow.step.stepIndex;
-        const finalMessages = this.stepRow.preparedMessages;
-        const schema = this.stepRow.resolvedSchema;
+        const finalMessages = await this.stepRow.getPreparedMessages();
+        const schema = await this.stepRow.getResolvedSchema();
 
         const requestOptions = cacheSalt ? {
             headers: { 'X-Cache-Salt': String(cacheSalt) }
@@ -32,7 +31,7 @@ export class StandardStrategy implements GenerationStrategy {
              additionalParams.image_config = { aspect_ratio: config.aspectRatio };
         }
 
-        const rawClient = this.stepRow.createLlm(config.model).getRawClient();
+        const rawClient = (await this.stepRow.createLlm(config.model)).getRawClient();
 
         let finalResult: any;
 

@@ -85,7 +85,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
     }
 
     async prepare(stepRow: StepRow, config: StyleScraperHydratedConfigV2): Promise<PluginPacket[]> {
-        const { outputBasename } = stepRow;
+        const outputBasename = await stepRow.getOutputBasename();
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const puppeteerHelper = this.deps.puppeteerHelper;
 
@@ -207,7 +207,7 @@ export class StyleScraperPluginV2 implements Plugin<StyleScraperRawConfigV2, Sty
 
                 if (filename) {
                     emit('plugin:artifact', {
-                        row: stepRow.item.originalIndex,
+                        row: stepRow.getOriginalIndex(),
                         step: stepRow.step.stepIndex,
                         plugin: 'style-scraper',
                         type: artifact.type === 'css' ? 'text' : 'image',

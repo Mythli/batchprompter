@@ -103,9 +103,9 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
 
         const extractionSchema = makeSchemaOptional(schema);
 
-        const navigatorLlm = stepRow.createLlm(config.navigatorModel);
-        const extractLlm = stepRow.createLlm(config.extractModel);
-        const mergeLlm = stepRow.createLlm(config.mergeModel);
+        const navigatorLlm = await stepRow.createLlm(config.navigatorModel);
+        const extractLlm = await stepRow.createLlm(config.extractModel);
+        const mergeLlm = await stepRow.createLlm(config.mergeModel);
 
         const agent = new AiWebsiteAgent(
             navigatorLlm,
@@ -119,7 +119,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
             row: context,
             stepIndex: stepRow.step.stepIndex,
             pluginIndex: 0,
-            tempDirectory: stepRow.resolvedTempDir || '/tmp',
+            tempDirectory: await stepRow.getTempDir(),
             emit: emit
         }, this.type);
 
@@ -137,7 +137,7 @@ export class WebsiteAgentPluginV2 implements Plugin<WebsiteAgentRawConfigV2, Web
         );
 
         emit('plugin:artifact', {
-            row: stepRow.item.originalIndex,
+            row: stepRow.getOriginalIndex(),
             step: stepRow.step.stepIndex,
             plugin: 'website-agent',
             type: 'json',

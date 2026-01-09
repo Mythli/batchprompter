@@ -22,8 +22,8 @@ export class CandidateStrategy implements GenerationStrategy {
     }
 
     async execute(cacheSalt?: string | number): Promise<PluginPacket[]> {
-        const config = this.stepRow.hydratedConfig;
-        const index = (this.stepRow as any).state.originalIndex;
+        const config = await this.stepRow.hydratedConfig();
+        const index = this.stepRow.getOriginalIndex();
         const stepIndex = this.stepRow.step.stepIndex;
         const candidateCount = config.candidates;
         const judgeConfig = config.judge;
@@ -89,10 +89,11 @@ export class CandidateStrategy implements GenerationStrategy {
     private async performJudging(
         candidates: CandidateType[]
     ): Promise<{ best_candidate_index: number; reason: string }> {
-        const judgeConfig = this.stepRow.hydratedConfig.judge;
+        const config = await this.stepRow.hydratedConfig();
+        const judgeConfig = config.judge;
         if (!judgeConfig) throw new Error("No judge configuration found");
 
-        const judgeClient = this.stepRow.getBoundClient(judgeConfig);
+        const judgeClient = await this.stepRow.getBoundClient(judgeConfig);
 
         // Prepare Candidate Presentation
         const candidatePresentationParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
@@ -118,7 +119,7 @@ export class CandidateStrategy implements GenerationStrategy {
         }
 
         // Add context about the original request
-        const messages = this.stepRow.preparedMessages;
+        const messages = await this.stepRow.getPreparedMessages();
         const lastUserMsg = messages.slice().reverse().find(m => m.role === 'user');
         const contextParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
             { type: 'text', text: "Original request context:\n" }

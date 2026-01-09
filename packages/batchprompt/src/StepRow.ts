@@ -36,8 +36,7 @@ export class StepRow {
     public lastResult: any = null;
 
     // Hydrated Configuration State
-    public hydratedConfig!: StepConfig;
-    private _isHydrated = false;
+    private _hydratedConfig?: StepConfig;
 
     constructor(
         public readonly step: Step,
@@ -54,90 +53,12 @@ export class StepRow {
         return this.step.globalContext.events;
     }
 
-    getPlugins() {
-        return this.hydratedConfig?.plugins || [];
+    public getOriginalIndex(): number {
+        return this.state.originalIndex;
     }
 
-    getTempDir() {
-        return this.hydratedConfig?.resolvedTempDir || '/tmp';
-    }
-
-    get outputBasename() {
-        return this.hydratedConfig?.outputBasename;
-    }
-
-    get outputExtension() {
-        return this.hydratedConfig?.outputExtension;
-    }
-
-    get resolvedOutputDir() {
-        return this.hydratedConfig?.resolvedOutputDir;
-    }
-
-    get resolvedSchema() {
-        return this.hydratedConfig?.schema;
-    }
-
-    get preparedMessages() {
-        // Combine hydrated model messages with dynamic content and history
-        const messages = [...this.state.history, ...this.hydratedConfig.model.messages];
-        if (this.state.content.length > 0) {
-            messages.push({ role: 'user', content: this.state.content });
-        }
-        return messages;
-    }
-
-    // --- Core Logic ---
-
-    async run(): Promise<PipelineItem[]> {
-        // Initialize self (Hydration)
-        await this.init();
-
-        let currentRows: StepRow[] = [this];
-
-        // --- Stage 1: Plugin Preparation ---
-        for (const { instance, config } of this.hydratedConfig.plugins) {
-            if (instance.prepare) {
-                currentRows = await flatMapAsync(currentRows, async (row) => {
-                    // Ensure row is initialized (idempotent)
-                    await row.init();
-                    const packets = await instance.prepare!(row, config);
-                    return row.applyPackets(packets, config.output, instance.type);
-                });
-            }
-        }
-
-        // --- Stage 2: Model Execution ---
-        const modelConfig = this.step.config.model;
-        const hasMessages = modelConfig.messages.length > 0;
-
-        if (hasMessages) {
-            currentRows = await flatMapAsync(currentRows, async (row) => {
-                // Ensure row is initialized (idempotent)
-                await row.init();
-                const packets = await row.executeLlm();
-                return row.applyPackets(packets, this.step.config.output, 'modelOutput');
-            });
-        }
-
-        // --- Stage 3: Plugin Post-Processing ---
-        for (const { instance, config } of this.hydratedConfig.plugins) {
-            if (instance.postProcess) {
-                currentRows = await flatMapAsync(currentRows, async (row) => {
-                    // Ensure row is initialized (idempotent)
-                    await row.init();
-                    const packets = await instance.postProcess!(row, config, row.lastResult);
-                    return row.applyPackets(packets, config.output, instance.type);
-                });
-            }
-        }
-
-        // Convert StepRows back to PipelineItems
-        return currentRows.map(row => row.toPipelineItem());
-    }
-
-    public async init(): Promise<void> {
-        if (this._isHydrated) return;
+    public async hydratedConfig(): Promise<StepConfig> {
+        if (this._hydratedConfig) return this._hydratedConfig;
 
         const { config, stepIndex } = this.step;
         const stepNum = stepIndex + 1;
@@ -221,7 +142,7 @@ export class StepRow {
             };
         }));
 
-        this.hydratedConfig = {
+        this._hydratedConfig = {
             ...config,
             resolvedOutputDir: outputDir,
             resolvedTempDir: tempDir,
@@ -234,7 +155,88 @@ export class StepRow {
             plugins: hydratedPlugins
         };
 
-        this._isHydrated = true;
+        return this._hydratedConfig;
+    }
+
+    async getPlugins() {
+        const config = await this.hydratedConfig();
+        return config.plugins || [];
+    }
+
+    async getTempDir() {
+        const config = await this.hydratedConfig();
+        return config.resolvedTempDir || '/tmp';
+    }
+
+    async getOutputBasename() {
+        const config = await this.hydratedConfig();
+        return config.outputBasename;
+    }
+
+    async getOutputExtension() {
+        const config = await this.hydratedConfig();
+        return config.outputExtension;
+    }
+
+    async getResolvedOutputDir() {
+        const config = await this.hydratedConfig();
+        return config.resolvedOutputDir;
+    }
+
+    async getResolvedSchema() {
+        const config = await this.hydratedConfig();
+        return config.schema;
+    }
+
+    async getPreparedMessages() {
+        const config = await this.hydratedConfig();
+        // Combine hydrated model messages with dynamic content and history
+        const messages = [...this.state.history, ...config.model.messages];
+        if (this.state.content.length > 0) {
+            messages.push({ role: 'user', content: this.state.content });
+        }
+        return messages;
+    }
+
+    // --- Core Logic ---
+
+    async run(): Promise<PipelineItem[]> {
+        let currentRows: StepRow[] = [this];
+
+        // --- Stage 1: Plugin Preparation ---
+        const plugins = await this.getPlugins();
+        for (const { instance, config } of plugins) {
+            if (instance.prepare) {
+                currentRows = await flatMapAsync(currentRows, async (row) => {
+                    const packets = await instance.prepare!(row, config);
+                    return row.applyPackets(packets, config.output, instance.type);
+                });
+            }
+        }
+
+        // --- Stage 2: Model Execution ---
+        const hydratedConfig = await this.hydratedConfig();
+        const hasMessages = hydratedConfig.model.messages.length > 0;
+
+        if (hasMessages) {
+            currentRows = await flatMapAsync(currentRows, async (row) => {
+                const packets = await row.executeLlm();
+                return row.applyPackets(packets, this.step.config.output, 'modelOutput');
+            });
+        }
+
+        // --- Stage 3: Plugin Post-Processing ---
+        for (const { instance, config } of plugins) {
+            if (instance.postProcess) {
+                currentRows = await flatMapAsync(currentRows, async (row) => {
+                    const packets = await instance.postProcess!(row, config, row.lastResult);
+                    return row.applyPackets(packets, config.output, instance.type);
+                });
+            }
+        }
+
+        // Convert StepRows back to PipelineItems
+        return currentRows.map(row => row.toPipelineItem());
     }
 
     public toPipelineItem(): PipelineItem {
@@ -343,13 +345,14 @@ export class StepRow {
         return newRow;
     }
 
-    private async executeLlm(): Promise<PluginPacket[]> {
+    public async executeLlm(): Promise<PluginPacket[]> {
+        const config = await this.hydratedConfig();
         // Create LLM Client using hydrated model config
-        const llm = this.createLlm(this.hydratedConfig.model);
+        const llm = await this.createLlm(config.model);
         
         // Execution Strategy
         let strategy: GenerationStrategy = new StandardStrategy(this);
-        if (this.hydratedConfig.candidates > 1) {
+        if (config.candidates > 1) {
             strategy = new CandidateStrategy(strategy as StandardStrategy, this);
         }
 
@@ -360,15 +363,15 @@ export class StepRow {
      * Creates a BoundLlmClient.
      * If config is provided, it uses that. Otherwise it uses the hydrated model config.
      */
-    createLlm(config?: ResolvedModelConfig): BoundLlmClient {
-        const targetConfig = config || this.hydratedConfig.model;
+    async createLlm(config?: ResolvedModelConfig): Promise<BoundLlmClient> {
+        const targetConfig = config || (await this.hydratedConfig()).model;
         return this.step.globalContext.llmFactory.create(targetConfig, targetConfig.messages);
     }
 
     /**
      * Helper to get a client bound to specific messages (used by CandidateStrategy/Judge)
      */
-    getBoundClient(config: ResolvedModelConfig): BoundLlmClient {
+    async getBoundClient(config: ResolvedModelConfig): Promise<BoundLlmClient> {
         return this.createLlm(config);
     }
 

@@ -93,8 +93,8 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const imageSearch = this.deps.imageSearch;
 
-        const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;
-        const selectLlm = config.selectModel ? stepRow.createLlm(config.selectModel) : undefined;
+        const queryLlm = config.queryModel ? await stepRow.createLlm(config.queryModel) : undefined;
+        const selectLlm = config.selectModel ? await stepRow.createLlm(config.selectModel) : undefined;
 
         const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;
 
@@ -172,7 +172,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         }
 
         const sharp = (await import('sharp')).default;
-        const baseName = stepRow.outputBasename || 'image';
+        const baseName = (await stepRow.getOutputBasename()) || 'image';
 
         const processedPackets = await Promise.all(selectedImages.map(async (img, i) => {
             const filename = `image_search/selected/${baseName}_selected_${i}.jpg`;

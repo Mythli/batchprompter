@@ -113,8 +113,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         const puppeteerHelper = this.deps.puppeteerHelper;
         const fetcher = this.deps.fetcher;
 
-        const analyzeLlm = stepRow.createLlm(config.analyzeModel);
-        const extractLlm = stepRow.createLlm(config.extractModel);
+        const analyzeLlm = await stepRow.createLlm(config.analyzeModel);
+        const extractLlm = await stepRow.createLlm(config.extractModel);
 
         const imageDownloader = new ImageDownloader(fetcher);
 
@@ -149,7 +149,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
                 const buffer = Buffer.from(base64Data, 'base64');
 
                 emit('plugin:artifact', {
-                    row: stepRow.item.originalIndex,
+                    row: stepRow.getOriginalIndex(),
                     step: stepRow.step.stepIndex,
                     plugin: 'logo-scraper',
                     type: 'image',
@@ -178,7 +178,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             const buffer = Buffer.from(base64Data, 'base64');
 
             emit('plugin:artifact', {
-                row: stepRow.item.originalIndex,
+                row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
                 plugin: 'logo-scraper',
                 type: 'image',
