@@ -81,7 +81,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
 
     // 1. Stage 1: Globals Analysis Schema
     // Parses only globals, passes everything else through
-    const Stage1Schema = GlobalsConfigSchema.passthrough();
+    const Stage1Schema = GlobalsConfigSchema.loose();
 
     // 2. Stage 2: Step Context Analysis Schema Builder
     // Creates a schema that resolves Step Base configs by merging them with Globals
@@ -118,7 +118,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
 
         return GlobalsConfigSchema.extend({
             steps: z.array(ContextAwareStepSchema).min(1)
-        }).passthrough();
+        }).loose();
     };
 
     // 3. Helper to build a specific plugin schema
