@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import PQueue from 'p-queue';
 import { EventEmitter } from 'eventemitter3';
 import { GlobalContext } from '../../src/types.js';
-import { LlmClientFactory } from '../../src/core/LlmClientFactory.js';
+import { LlmClientFactory } from '../../src/LlmClientFactory.js';
 import { MessageBuilder } from '../../src/core/MessageBuilder.js';
 import { Plugin, createPluginRegistry } from '../../src/plugins/index.js';
 import { ActionRunner } from '../../src/ActionRunner.js';
