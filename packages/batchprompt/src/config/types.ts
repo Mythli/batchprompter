@@ -66,12 +66,6 @@ export interface StepConfig extends Omit<StepConfigBase, 'plugins' | 'model' | '
     outputBasename?: string;
     outputExtension?: string;
     outputTemplate?: string;
-
-    // Shell commands
-    verifyCommand?: string;
-    command?: string;
-    skipCandidateCommand?: boolean;
-
     tmpDir?: string;
 }
 
