@@ -19,8 +19,14 @@ async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]
 }
 
 export class StepRow {
-    private _row: Record<string, any>;
-    private _context: Record<string, any>;
+    // _persistentData: The actual data record that is being processed. 
+    // It is what gets passed to the next step and eventually saved.
+    private _persistentData: Record<string, any>;
+
+    // _templateContext: The "view" seen by Handlebars templates. 
+    // It is a superset of _persistentData + workspace + ephemeral plugin outputs.
+    private _templateContext: Record<string, any>;
+
     private _content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
     private _history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     
@@ -40,18 +46,18 @@ export class StepRow {
         public readonly step: Step,
         public readonly item: PipelineItem
     ) {
-        // _row is the persistent data that flows to the next step
-        this._row = { ...item.row };
+        // Initialize persistent data from the input row
+        this._persistentData = { ...item.row };
         
-        // _context is the ephemeral environment for templates (Row + Workspace)
-        this._context = { ...item.workspace, ...this._row };
+        // Initialize template context with workspace and row data
+        this._templateContext = { ...item.workspace, ...this._persistentData };
         
         this._history = [...item.history];
     }
 
     // --- Getters (Read-only for plugins) ---
 
-    get context() { return this._context; }
+    get context() { return this._templateContext; }
     get content() { return this._content; }
     get history() { return this._history; }
 
@@ -112,7 +118,7 @@ export class StepRow {
     public toPipelineItem(): PipelineItem {
         return {
             ...this.item,
-            row: this._row, // Return the clean row data, not the full context
+            row: this._persistentData, // Return the clean persistent data
             history: this._history,
             stepHistory: [...this.item.stepHistory, this.lastResult]
         };
@@ -179,18 +185,20 @@ export class StepRow {
         newRow._content = [...this._content];
         newRow._history = [...this._history];
         
-        // Deep copy row to preserve changes from previous plugins in this step
-        newRow._row = JSON.parse(JSON.stringify(this._row));
+        // Deep copy persistent data to ensure branch independence
+        newRow._persistentData = JSON.parse(JSON.stringify(this._persistentData));
         
-        // Shallow copy context (it's a mix of row + workspace + temp data)
-        newRow._context = { ...this._context };
+        // Shallow copy template context (it inherits parent's ephemeral state)
+        // We do a shallow copy so that modifications in this branch don't affect siblings,
+        // but we don't need a deep copy of the entire context history.
+        newRow._templateContext = { ...this._templateContext };
         
         newRow.resolvedOutputDir = this.resolvedOutputDir;
         newRow.resolvedTempDir = this.resolvedTempDir;
         newRow.outputBasename = this.outputBasename;
         newRow.outputExtension = this.outputExtension;
 
-        // Apply the new data
+        // Apply the new data specific to this branch
         newRow.updateData(data, config, namespace);
         
         return newRow;
@@ -199,20 +207,23 @@ export class StepRow {
     private updateData(data: any, config: OutputConfig, namespace: string) {
         this.lastResult = data;
         
-        // 1. Always update context for templates (Ephemeral)
-        this._context[namespace] = data;
+        // 1. Always update template context with namespaced data (Ephemeral)
+        // This allows {{web-search.result}} even if mode is 'ignore'
+        this._templateContext[namespace] = data;
 
-        // 2. Update row based on strategy (Persistent)
+        // 2. Update persistent data based on strategy (Persistent)
         if (config.mode === 'merge') {
             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-                Object.assign(this._row, data);
-                Object.assign(this._context, data); // Sync context
+                Object.assign(this._persistentData, data);
+                // Sync to context so root-level variables are available immediately
+                Object.assign(this._templateContext, data);
             } else {
                 // Cannot merge non-object into root, but it's available in namespace
             }
         } else if (config.mode === 'column' && config.column) {
-            this._row[config.column] = data;
-            this._context[config.column] = data; // Sync context
+            this._persistentData[config.column] = data;
+            // Sync to context
+            this._templateContext[config.column] = data;
         }
     }
 
@@ -225,14 +236,14 @@ export class StepRow {
             if (typeof schema === 'string') {
                 try {
                     const template = Handlebars.compile(schema, { noEscape: true });
-                    const renderedSchema = template(this._context);
+                    const renderedSchema = template(this._templateContext);
                     schema = JSON.parse(renderedSchema);
                 } catch (e) {
                     console.warn(`[Row ${this.item.originalIndex}] Failed to parse schema template:`, e);
                 }
             } else {
                 try {
-                    schema = renderSchemaObject(schema, this._context);
+                    schema = renderSchemaObject(schema, this._templateContext);
                 } catch (e: any) {
                     console.warn(`[Row ${this.item.originalIndex}] Failed to render schema templates:`, e);
                 }
@@ -287,7 +298,7 @@ export class StepRow {
         return this.getBoundClient(config);
     }
 
-    render(template: string, context: Record<string, any> = this._context): string {
+    render(template: string, context: Record<string, any> = this._templateContext): string {
         if (!template) return '';
         const t = Handlebars.compile(template, { noEscape: true });
         return t(context);
@@ -298,7 +309,7 @@ export class StepRow {
         const stepNum = stepIndex + 1;
 
         const sanitizedContext: Record<string, any> = {};
-        for (const [key, val] of Object.entries(this._context)) {
+        for (const [key, val] of Object.entries(this._templateContext)) {
              const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
              sanitizedContext[key] = aggressiveSanitize(stringVal);
         }
