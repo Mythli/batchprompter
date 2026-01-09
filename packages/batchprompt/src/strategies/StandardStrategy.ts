@@ -3,7 +3,7 @@ import path from 'path';
 import Ajv from 'ajv';
 import { completionToMessage, LlmRetryError, LlmRetryResponseInfo, SchemaValidationError, concatMessageText } from 'llm-fns';
 import { GenerationStrategy, GenerationResult } from './GenerationStrategy.js';
-import { StepRow } from '../core/StepRow.js';
+import { StepRow } from '../StepRow.js';
 
 type ExtractedContent = {
     type: 'text' | 'image' | 'audio';

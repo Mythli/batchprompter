@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { Step } from '../core/Step.js';
-import { StepRow } from '../core/StepRow.js';
+import { Step } from '../Step.js';
+import { StepRow } from '../StepRow.js';
 import { ResolvedPluginBase } from '../config/types.js';
-import { BatchPromptEvents } from '../core/events.js';
+import { BatchPromptEvents } from '../events.js';
 import { LlmClient } from 'llm-fns';
 import { ModelConfig } from '../config/schemas/model.js';
 
@@ -68,7 +68,7 @@ export class PluginRegistryV2 {
         }
 
         const schemas = plugins.map(p => p.configSchema);
-        
+
         if (schemas.length === 1) {
             return schemas[0];
         }
