@@ -1,20 +1,21 @@
 import { z } from 'zod';
 import OpenAI from 'openai';
+import Handlebars from 'handlebars';
 import {
     Plugin,
     LlmFactory,
     PluginPacket
 } from '../types.js';
-import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, transformModelConfig } from '../../config/schemas/index.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import { Fetcher } from 'llm-fns';
+import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const LogoScraperConfigSchemaV2 = z.object({
     type: z.literal('logo-scraper'),
@@ -48,7 +49,13 @@ export interface LogoScraperResolvedConfigV2 {
     faviconLimit: number;
 }
 
-export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoScraperResolvedConfigV2> {
+export interface LogoScraperHydratedConfigV2 extends Omit<LogoScraperResolvedConfigV2, 'url' | 'logoPath' | 'faviconPath'> {
+    url: string;
+    logoPath?: string;
+    faviconPath?: string;
+}
+
+export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoScraperResolvedConfigV2, LogoScraperHydratedConfigV2> {
     readonly type = 'logo-scraper';
     readonly configSchema = LogoScraperConfigSchemaV2;
 
@@ -60,46 +67,72 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         }
     ) {}
 
-    async init(step: Step, rawConfig: any): Promise<LogoScraperResolvedConfigV2> {
-        return {
-            type: 'logo-scraper',
-            id: rawConfig.id ?? `logo-scraper-${Date.now()}`,
-            output: rawConfig.output,
-            url: rawConfig.url,
-            analyzeModel: rawConfig.analyze,
-            extractModel: rawConfig.extract,
-            maxCandidates: rawConfig.maxCandidates,
-            minScore: rawConfig.minScore,
-            logoPath: rawConfig.logoPath,
-            faviconPath: rawConfig.faviconPath,
-            logoLimit: rawConfig.logoLimit,
-            faviconLimit: rawConfig.faviconLimit
-        };
+    getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
+        return LogoScraperConfigSchemaV2.transform(config => {
+            const stepModel = step.model || {};
+            
+            const resolveModel = (modelConfig?: any) => {
+                const merged = {
+                    model: modelConfig?.model ?? stepModel.model,
+                    temperature: modelConfig?.temperature ?? stepModel.temperature,
+                    thinkingLevel: modelConfig?.thinkingLevel ?? stepModel.thinkingLevel,
+                    system: modelConfig?.system,
+                    prompt: modelConfig?.prompt
+                };
+                return transformModelConfig(merged);
+            };
+
+            return {
+                type: 'logo-scraper' as const,
+                id: config.id ?? `logo-scraper-${Date.now()}`,
+                output: config.output,
+                url: config.url,
+                analyzeModel: resolveModel(config.analyze),
+                extractModel: resolveModel(config.extract),
+                maxCandidates: config.maxCandidates,
+                minScore: config.minScore,
+                logoPath: config.logoPath,
+                faviconPath: config.faviconPath,
+                logoLimit: config.logoLimit,
+                faviconLimit: config.faviconLimit
+            };
+        });
     }
 
-    async prepare(stepRow: StepRow, config: LogoScraperResolvedConfigV2): Promise<PluginPacket[]> {
-        const { context } = stepRow;
-        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
-        const puppeteerHelper = this.deps.puppeteerHelper;
-        const fetcher = this.deps.fetcher;
-
-        const url = stepRow.render(config.url);
-
+    async hydrate(config: LogoScraperResolvedConfigV2, context: Record<string, any>): Promise<LogoScraperHydratedConfigV2> {
         const sanitizedRow: Record<string, any> = {};
         for (const [key, val] of Object.entries(context)) {
              const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
              sanitizedRow[key] = aggressiveSanitize(stringVal);
         }
 
+        const urlTemplate = Handlebars.compile(config.url, { noEscape: true });
+        const url = urlTemplate(context);
+
         let logoPath: string | undefined;
         if (config.logoPath) {
-            logoPath = stepRow.render(config.logoPath, sanitizedRow);
+            const t = Handlebars.compile(config.logoPath, { noEscape: true });
+            logoPath = t(sanitizedRow);
         }
 
         let faviconPath: string | undefined;
         if (config.faviconPath) {
-            faviconPath = stepRow.render(config.faviconPath, sanitizedRow);
+            const t = Handlebars.compile(config.faviconPath, { noEscape: true });
+            faviconPath = t(sanitizedRow);
         }
+
+        return {
+            ...config,
+            url,
+            logoPath,
+            faviconPath
+        };
+    }
+
+    async prepare(stepRow: StepRow, config: LogoScraperHydratedConfigV2): Promise<PluginPacket[]> {
+        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
+        const puppeteerHelper = this.deps.puppeteerHelper;
+        const fetcher = this.deps.fetcher;
 
         const analyzeLlm = stepRow.createLlm(config.analyzeModel);
         const extractLlm = stepRow.createLlm(config.extractModel);
@@ -117,7 +150,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
             }
         );
 
-        const result: LogoScraperResult = await scraper.scrape(url);
+        const result: LogoScraperResult = await scraper.scrape(config.url);
 
         const logos = result.logos || [];
         const outputData: Record<string, any> = {
@@ -129,8 +162,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         for (let i = 0; i < Math.min(logos.length, config.logoLimit); i++) {
             const logo = logos[i];
             if (!logo.isFavicon) {
-                const filename = logoPath
-                    ? (i === 0 ? logoPath : logoPath.replace(/\.(\w+)$/, `_${i}.$1`))
+                const filename = config.logoPath
+                    ? (i === 0 ? config.logoPath : config.logoPath.replace(/\.(\w+)$/, `_${i}.$1`))
                     : `logo_scraper/logos/logo_${i}.png`;
 
                 const base64Data = logo.base64PngData.replace(/^data:image\/\w+;base64,/, '');
@@ -158,8 +191,8 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         const favicons = logos.filter((l: AnalyzedLogo) => l.isFavicon);
         for (let i = 0; i < Math.min(favicons.length, config.faviconLimit); i++) {
             const favicon = favicons[i];
-            const filename = faviconPath
-                ? (i === 0 ? faviconPath : faviconPath.replace(/\.(\w+)$/, `_${i}.$1`))
+            const filename = config.faviconPath
+                ? (i === 0 ? config.faviconPath : config.faviconPath.replace(/\.(\w+)$/, `_${i}.$1`))
                 : `logo_scraper/favicons/favicon_${i}.png`;
 
             const base64Data = favicon.base64PngData.replace(/^data:image\/\w+;base64,/, '');
@@ -190,7 +223,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         if (logos.length > 0) {
             contentParts.push({
                 type: 'text',
-                text: `\n--- Logo Analysis for ${url} ---\nFound ${logos.length} logos. Primary brand color: ${result.primaryColor?.hex || 'unknown'}\n`
+                text: `\n--- Logo Analysis for ${config.url} ---\nFound ${logos.length} logos. Primary brand color: ${result.primaryColor?.hex || 'unknown'}\n`
             });
 
             const bestLogo = logos[0];
@@ -203,7 +236,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         } else {
             contentParts.push({
                 type: 'text',
-                text: `\n--- Logo Analysis for ${url} ---\nNo suitable logos found.\n`
+                text: `\n--- Logo Analysis for ${config.url} ---\nNo suitable logos found.\n`
             });
         }
 
@@ -213,7 +246,7 @@ export class LogoScraperPluginV2 implements Plugin<LogoScraperRawConfigV2, LogoS
         }];
     }
 
-    async postProcess(stepRow: StepRow, config: LogoScraperResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
+    async postProcess(stepRow: StepRow, config: LogoScraperHydratedConfigV2, modelResult: any): Promise<PluginPacket[]> {
         return [{
             data: [modelResult],
             contentParts: []

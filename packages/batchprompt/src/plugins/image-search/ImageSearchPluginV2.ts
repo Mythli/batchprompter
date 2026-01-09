@@ -1,16 +1,17 @@
 import { z } from 'zod';
+import Handlebars from 'handlebars';
 import {
     Plugin,
     LlmFactory,
     PluginPacket
 } from '../types.js';
-import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, transformModelConfig } from '../../config/schemas/index.js';
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ImageSearch } from './ImageSearch.js';
+import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const ImageSearchConfigSchemaV2 = z.object({
     type: z.literal('image-search'),
@@ -48,7 +49,11 @@ export interface ImageSearchResolvedConfigV2 {
     hl?: string;
 }
 
-export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, ImageSearchResolvedConfigV2> {
+export interface ImageSearchHydratedConfigV2 extends Omit<ImageSearchResolvedConfigV2, 'query'> {
+    query?: string;
+}
+
+export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, ImageSearchResolvedConfigV2, ImageSearchHydratedConfigV2> {
     readonly type = 'image-search';
     readonly configSchema = ImageSearchConfigSchemaV2;
 
@@ -59,34 +64,57 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         }
     ) {}
 
-    async init(step: Step, rawConfig: any): Promise<ImageSearchResolvedConfigV2> {
+    getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
+        return ImageSearchConfigSchemaV2.transform(config => {
+            const stepModel = step.model || {};
+            
+            const resolveModel = (modelConfig?: any) => {
+                const merged = {
+                    model: modelConfig?.model ?? stepModel.model,
+                    temperature: modelConfig?.temperature ?? stepModel.temperature,
+                    thinkingLevel: modelConfig?.thinkingLevel ?? stepModel.thinkingLevel,
+                    system: modelConfig?.system,
+                    prompt: modelConfig?.prompt
+                };
+                return transformModelConfig(merged);
+            };
+
+            return {
+                type: 'image-search' as const,
+                id: config.id ?? `image-search-${Date.now()}`,
+                output: config.output,
+                query: config.query,
+                queryModel: config.queryModel ? resolveModel(config.queryModel) : undefined,
+                selectModel: config.selectModel ? resolveModel(config.selectModel) : undefined,
+                limit: config.limit,
+                select: config.select,
+                queryCount: config.queryCount,
+                spriteSize: config.spriteSize,
+                maxPages: config.maxPages,
+                dedupeStrategy: config.dedupeStrategy,
+                gl: config.gl,
+                hl: config.hl
+            };
+        });
+    }
+
+    async hydrate(config: ImageSearchResolvedConfigV2, context: Record<string, any>): Promise<ImageSearchHydratedConfigV2> {
+        let query: string | undefined;
+        if (config.query) {
+            const template = Handlebars.compile(config.query, { noEscape: true });
+            query = template(context);
+        }
+
         return {
-            type: 'image-search',
-            id: rawConfig.id ?? `image-search-${Date.now()}`,
-            output: rawConfig.output,
-            query: rawConfig.query,
-            queryModel: rawConfig.queryModel,
-            selectModel: rawConfig.selectModel,
-            limit: rawConfig.limit,
-            select: rawConfig.select,
-            queryCount: rawConfig.queryCount,
-            spriteSize: rawConfig.spriteSize,
-            maxPages: rawConfig.maxPages,
-            dedupeStrategy: rawConfig.dedupeStrategy,
-            gl: rawConfig.gl,
-            hl: rawConfig.hl
+            ...config,
+            query
         };
     }
 
-    async prepare(stepRow: StepRow, config: ImageSearchResolvedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: ImageSearchHydratedConfigV2): Promise<PluginPacket[]> {
         const { context } = stepRow;
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const imageSearch = this.deps.imageSearch;
-
-        let query: string | undefined;
-        if (config.query) {
-            query = stepRow.render(config.query);
-        }
 
         const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;
         const selectLlm = config.selectModel ? stepRow.createLlm(config.selectModel) : undefined;
@@ -153,7 +181,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         });
 
         const selectedImages = await aiImageSearch.process(context, {
-            query,
+            query: config.query,
             limit: config.select,
             queryCount: config.queryCount,
             maxPages: config.maxPages,
@@ -215,7 +243,7 @@ export class ImageSearchPluginV2 implements Plugin<ImageSearchRawConfigV2, Image
         }];
     }
 
-    async postProcess(stepRow: StepRow, config: ImageSearchResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
+    async postProcess(stepRow: StepRow, config: ImageSearchHydratedConfigV2, modelResult: any): Promise<PluginPacket[]> {
         return [{
             data: [modelResult],
             contentParts: []

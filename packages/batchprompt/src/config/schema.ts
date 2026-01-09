@@ -7,8 +7,8 @@ import {
     OutputConfigSchema,
     transformModelConfig
 } from './schemas/index.js';
-import { zJsonSchemaObject, zHandlebars } from './validationRules.js';
-import { UrlExpanderStepExtension } from '../plugins/url-expander/UrlExpanderConfig.js';
+import { zHandlebars } from './validationRules.js';
+import { PluginRegistryV2 } from '../plugins/types.js';
 
 // =============================================================================
 // Re-exports
@@ -44,68 +44,78 @@ export const GlobalsConfigSchema = z.object({
     offset: z.number().int().min(0).optional()
 });
 
-// =============================================================================
-// Step Schema
-// =============================================================================
-
-export function createStepSchema<TPlugin extends z.ZodTypeAny, TSchema extends z.ZodTypeAny>(
-    pluginUnion: TPlugin,
-    schemaFieldType: TSchema
-) {
-    return z.object({
-        prompt: PromptSchema.optional(),
-        system: PromptSchema.optional(),
-        model: RawModelConfigSchema.optional(),
-        output: OutputConfigSchema.default({ mode: 'ignore', explode: false }),
-        outputPath: zHandlebars.optional(),
-        candidates: z.number().int().positive().default(1),
-        judge: RawModelConfigSchema.optional(),
-        feedback: FeedbackConfigSchema.optional(),
-        aspectRatio: z.string().optional(),
-        timeout: z.number().int().positive().optional(),
-        schema: schemaFieldType.optional(),
-        plugins: z.array(pluginUnion).default([])
-    }).merge(UrlExpanderStepExtension);
-}
-
-export const StepConfigSchema = createStepSchema(z.any(), z.any()); // Placeholder for type inference
-export const LooseStepConfigSchema = StepConfigSchema; // Alias for now if they are the same structure in this context
+export type GlobalsConfig = z.infer<typeof GlobalsConfigSchema>;
 
 // =============================================================================
-// Pipeline Schema with Inheritance Logic
+// Step Base Schema (No Plugins)
 // =============================================================================
 
-export const PipelineConfigInputSchema = GlobalsConfigSchema.extend({
-    data: z.array(z.record(z.string(), z.any())).default([{}]),
-    steps: z.array(StepConfigSchema).min(1)
+export const StepBaseSchema = z.object({
+    prompt: PromptSchema.optional(),
+    system: PromptSchema.optional(),
+    model: RawModelConfigSchema.optional(),
+    output: OutputConfigSchema.default({ mode: 'ignore', explode: false }),
+    outputPath: zHandlebars.optional(),
+    candidates: z.number().int().positive().default(1),
+    judge: RawModelConfigSchema.optional(),
+    feedback: FeedbackConfigSchema.optional(),
+    aspectRatio: z.string().optional(),
+    timeout: z.number().int().positive().optional(),
+    // Shortcuts that might be used by plugins but exist on step level for convenience
+    schema: z.any().optional(), 
+    expandUrls: z.union([z.boolean(), z.record(z.any())]).optional()
 });
 
-export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema extends z.ZodTypeAny>(
-    pluginUnion: TPlugin,
-    schemaFieldType: TSchema
-) {
-    const StepSchema = createStepSchema(pluginUnion, schemaFieldType);
+export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
+
+// =============================================================================
+// Pipeline Schema Factory
+// =============================================================================
+
+export function createPipelineSchema(pluginRegistry: PluginRegistryV2) {
     
-    const Base = GlobalsConfigSchema.extend({
-        data: z.array(z.record(z.string(), z.any())).default([{}]),
-        steps: z.array(StepSchema).min(1)
+    // The input schema allows any plugins array, we validate them in the transform
+    const StepInputSchema = StepBaseSchema.extend({
+        plugins: z.array(z.record(z.string(), z.any())).default([])
     });
 
-    return Base.transform(pipeline => {
-        // --- Inheritance Logic ---
-        
-        const globalModelDefaults = {
+    const PipelineInputSchema = GlobalsConfigSchema.extend({
+        data: z.array(z.record(z.string(), z.any())).default([{}]),
+        steps: z.array(StepInputSchema).min(1)
+    });
+
+    return PipelineInputSchema.transform(async (pipeline) => {
+        // 1. Resolve Globals
+        // (Already parsed by Zod, but we capture them for passing down)
+        const globals: GlobalsConfig = {
             model: pipeline.model,
             temperature: pipeline.temperature,
-            thinkingLevel: pipeline.thinkingLevel
+            thinkingLevel: pipeline.thinkingLevel,
+            concurrency: pipeline.concurrency,
+            taskConcurrency: pipeline.taskConcurrency,
+            tmpDir: pipeline.tmpDir,
+            outputPath: pipeline.outputPath,
+            dataOutputPath: pipeline.dataOutputPath,
+            timeout: pipeline.timeout,
+            inputLimit: pipeline.inputLimit,
+            inputOffset: pipeline.inputOffset,
+            limit: pipeline.limit,
+            offset: pipeline.offset
         };
 
-        const resolvedSteps = pipeline.steps.map((step, stepIndex) => {
-            // 1. Merge Global -> Step Model
-            // Step-level 'prompt' and 'system' are shortcuts for 'model.prompt' and 'model.system'
+        // 2. Resolve Steps
+        const resolvedSteps = await Promise.all(pipeline.steps.map(async (step, stepIndex) => {
+            // A. Merge Global Defaults into Step Model
+            const globalModelDefaults = {
+                model: globals.model,
+                temperature: globals.temperature,
+                thinkingLevel: globals.thinkingLevel
+            };
+
             const rawStepModel = step.model || {};
             
-            const mergedStepModel = {
+            // Merge logic: Step > Global
+            const mergedStepModelConfig = {
                 model: rawStepModel.model ?? globalModelDefaults.model,
                 temperature: rawStepModel.temperature ?? globalModelDefaults.temperature,
                 thinkingLevel: rawStepModel.thinkingLevel ?? globalModelDefaults.thinkingLevel,
@@ -113,16 +123,16 @@ export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema exten
                 prompt: rawStepModel.prompt ?? step.prompt
             };
 
-            // 2. Transform Step Model to Messages
-            const resolvedModel = transformModelConfig(mergedStepModel);
+            // Transform to messages immediately for the Step's own model
+            const resolvedModel = transformModelConfig(mergedStepModelConfig);
 
-            // 3. Resolve Judge & Feedback
+            // Resolve Judge & Feedback
             let resolvedJudge;
             if (step.judge) {
                 resolvedJudge = transformModelConfig({
-                    model: step.judge.model ?? mergedStepModel.model,
-                    temperature: step.judge.temperature ?? mergedStepModel.temperature,
-                    thinkingLevel: step.judge.thinkingLevel ?? mergedStepModel.thinkingLevel,
+                    model: step.judge.model ?? mergedStepModelConfig.model,
+                    temperature: step.judge.temperature ?? mergedStepModelConfig.temperature,
+                    thinkingLevel: step.judge.thinkingLevel ?? mergedStepModelConfig.thinkingLevel,
                     system: step.judge.system,
                     prompt: step.judge.prompt
                 });
@@ -131,81 +141,80 @@ export function createPipelineSchema<TPlugin extends z.ZodTypeAny, TSchema exten
             let resolvedFeedback;
             if (step.feedback) {
                 const fbConfig = transformModelConfig({
-                    model: step.feedback.model ?? mergedStepModel.model,
-                    temperature: step.feedback.temperature ?? mergedStepModel.temperature,
-                    thinkingLevel: step.feedback.thinkingLevel ?? mergedStepModel.thinkingLevel,
+                    model: step.feedback.model ?? mergedStepModelConfig.model,
+                    temperature: step.feedback.temperature ?? mergedStepModelConfig.temperature,
+                    thinkingLevel: step.feedback.thinkingLevel ?? mergedStepModelConfig.thinkingLevel,
                     system: step.feedback.system,
                     prompt: step.feedback.prompt
                 });
                 resolvedFeedback = { ...fbConfig, loops: step.feedback.loops };
             }
 
-            // 4. Process Plugins (Push-down inheritance)
-            const resolvedPlugins = step.plugins.map((plugin: any, pluginIdx: number) => {
-                const pluginOutput = plugin.output || { mode: 'ignore', explode: false };
-                
-                // Propagate global limits if exploding
-                if (pluginOutput.explode) {
-                    pluginOutput.limit ??= pipeline.limit;
-                    pluginOutput.offset ??= pipeline.offset;
+            // Create the StepBaseConfig object to pass to plugins
+            // We pass the *merged* model config so plugins can inherit from it
+            const stepBaseConfig: StepBaseConfig = {
+                ...step,
+                model: mergedStepModelConfig // Pass the merged config, not the resolved messages yet
+            };
+
+            // B. Resolve Plugins
+            const resolvedPlugins = await Promise.all(step.plugins.map(async (pluginRaw, pluginIdx) => {
+                const type = pluginRaw.type;
+                const pluginInstance = pluginRegistry.get(type);
+
+                if (!pluginInstance) {
+                    throw new Error(`Unknown plugin type: ${type} in step ${stepIndex + 1}`);
                 }
 
-                // Merge Step Model into Plugin Models
-                // We iterate over keys to find model configs (heuristic: ends with 'Model')
-                const rawConfig = plugin.rawConfig || plugin; // Handle pre-parsed or raw
-                const mergedPluginConfig = { ...rawConfig };
+                // Get the dynamic schema for this plugin in this context
+                const pluginSchema = pluginInstance.getSchema(stepBaseConfig, globals);
 
-                for (const key of Object.keys(mergedPluginConfig)) {
-                    if (key.endsWith('Model') && typeof mergedPluginConfig[key] === 'object') {
-                        const pModel = mergedPluginConfig[key];
-                        // Merge step defaults
-                        const mergedPModel = {
-                            model: pModel.model ?? mergedStepModel.model,
-                            temperature: pModel.temperature ?? mergedStepModel.temperature,
-                            thinkingLevel: pModel.thinkingLevel ?? mergedStepModel.thinkingLevel,
-                            system: pModel.system,
-                            prompt: pModel.prompt
-                        };
-                        // Transform to messages immediately
-                        mergedPluginConfig[key] = transformModelConfig(mergedPModel);
-                    }
-                }
+                // Parse and transform the plugin config
+                const resolvedPluginConfig = await pluginSchema.parseAsync(pluginRaw);
 
                 return {
-                    type: plugin.type,
-                    id: plugin.id ?? `${plugin.type}-${stepIndex}-${pluginIdx}`,
-                    output: pluginOutput,
-                    rawConfig: mergedPluginConfig
+                    type: type,
+                    id: resolvedPluginConfig.id ?? `${type}-${stepIndex}-${pluginIdx}`,
+                    output: resolvedPluginConfig.output,
+                    config: resolvedPluginConfig,
+                    instance: pluginInstance
                 };
-            });
+            }));
 
-            // 5. Resolve Output Path
-            const outputPathTemplate = step.outputPath ?? pipeline.outputPath;
-            
-            // 6. Resolve Timeout
-            const timeout = step.timeout ?? pipeline.timeout;
+            // C. Final Step Configuration
+            const outputPathTemplate = step.outputPath ?? globals.outputPath;
+            const timeout = step.timeout ?? globals.timeout;
 
             return {
-                ...step,
+                // Base properties
+                output: step.output,
+                outputPath: outputPathTemplate,
+                outputTemplate: outputPathTemplate,
+                timeout,
+                tmpDir: globals.tmpDir,
+                candidates: step.candidates,
+                aspectRatio: step.aspectRatio,
+                
+                // Resolved Components
                 model: resolvedModel,
                 judge: resolvedJudge,
                 feedback: resolvedFeedback,
                 plugins: resolvedPlugins,
-                outputPath: outputPathTemplate,
-                outputTemplate: outputPathTemplate,
-                timeout,
-                tmpDir: pipeline.tmpDir,
-                // Clean up shortcuts
-                prompt: undefined,
-                system: undefined
+
+                // Original raw config for reference if needed
+                rawConfig: step
             };
-        });
+        }));
 
         return {
-            ...pipeline,
+            ...globals,
+            data: pipeline.data,
             steps: resolvedSteps
         };
     });
 }
 
-export const PipelineConfigSchema = createPipelineSchema(z.any(), z.any());
+// Backward compatibility export (though mostly unused now)
+export const StepConfigSchema = StepBaseSchema.extend({
+    plugins: z.array(z.any())
+});

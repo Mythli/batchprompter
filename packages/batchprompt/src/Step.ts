@@ -1,10 +1,7 @@
 import { StepConfig, GlobalContext, PipelineItem } from './types.js';
 import { StepRow } from './StepRow.js';
-import { Plugin } from './plugins/types.js';
 
 export class Step {
-    public readonly plugins: { instance: Plugin; config: any }[] = [];
-
     constructor(
         public readonly config: StepConfig,
         public readonly globalContext: GlobalContext,
@@ -12,19 +9,19 @@ export class Step {
     ) {}
 
     async init() {
-        // Initialize Plugins
-        // The config.plugins array already contains fully resolved/merged configurations
-        for (const pluginConfig of this.config.plugins) {
-            const plugin = this.globalContext.pluginRegistry.get(pluginConfig.type);
-            if (plugin) {
-                // We pass the rawConfig which is now the fully merged config for that plugin
-                const resolvedPluginConfig = await plugin.init(this, pluginConfig.rawConfig);
-                this.plugins.push({ instance: plugin, config: resolvedPluginConfig });
-            }
-        }
+        // No initialization needed anymore as plugins are resolved in the schema phase
+        // and hydrated in the StepRow phase.
     }
 
     createRow(item: PipelineItem): StepRow {
-        return new StepRow(this, item);
+        return new StepRow(this, {
+            data: item.row,
+            context: { ...item.workspace, ...item.row },
+            history: item.history,
+            content: [],
+            originalIndex: item.originalIndex,
+            variationIndex: item.variationIndex,
+            stepHistory: item.stepHistory
+        });
     }
 }

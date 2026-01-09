@@ -1,7 +1,6 @@
 import OpenAI from 'openai';
 import TurndownService from 'turndown';
 import { Plugin, PluginPacket } from '../types.js';
-import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
 import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
 import {
@@ -9,25 +8,33 @@ import {
     UrlExpanderResolvedConfig,
     UrlExpanderConfigSchema
 } from './UrlExpanderConfig.js';
+import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
-export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderResolvedConfig> {
+export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderResolvedConfig, UrlExpanderResolvedConfig> {
     readonly type = 'url-expander';
     readonly configSchema = UrlExpanderConfigSchema;
 
     constructor(private registry: UrlHandlerRegistry) {}
 
-    async init(step: Step, rawConfig: UrlExpanderConfig): Promise<UrlExpanderResolvedConfig> {
-        return {
-            type: 'url-expander',
-            id: rawConfig.id ?? `url-expander-${Date.now()}`,
-            output: {
-                mode: rawConfig.output.mode,
-                column: rawConfig.output.column,
-                explode: rawConfig.output.explode
-            },
-            mode: rawConfig.mode,
-            maxChars: rawConfig.maxChars
-        };
+    getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
+        return UrlExpanderConfigSchema.transform(config => {
+            return {
+                type: 'url-expander' as const,
+                id: config.id ?? `url-expander-${Date.now()}`,
+                output: {
+                    mode: config.output.mode,
+                    column: config.output.column,
+                    explode: config.output.explode
+                },
+                mode: config.mode,
+                maxChars: config.maxChars
+            };
+        });
+    }
+
+    async hydrate(config: UrlExpanderResolvedConfig, context: Record<string, any>): Promise<UrlExpanderResolvedConfig> {
+        // No templates to render for this plugin
+        return config;
     }
 
     async prepare(stepRow: StepRow, config: UrlExpanderResolvedConfig): Promise<PluginPacket[]> {
@@ -35,25 +42,20 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         const messages = stepRow.history;
 
         // Also check current step messages (which might contain the prompt with the URL)
-        const currentMessages = stepRow.step.config.model.messages || [];
-
-        // We want to modify the history that will be used for the LLM.
-        // The StepRow combines history + currentMessages.
-        // We will operate on the combined set and return a new history array.
-        const allMessages = [...messages, ...currentMessages];
-
-        // Resolve the generic handler based on mode
-        const fallbackHandler = this.registry.getFallback(mode);
-
-        // Regex to find http/https URLs.
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-
-        const turndownService = new TurndownService();
-        turndownService.remove(['script', 'style', 'noscript', 'iframe']);
+        // Note: In the new architecture, stepRow.preparedMessages includes history + current model messages
+        // But we want to modify the history *before* the model sees it, or modify the current message.
+        // The UrlExpander logic is a bit unique: it modifies the *last user message* found in the combined set.
+        
+        // We access the hydrated model messages directly from the row
+        // But StepRow doesn't expose them easily in a mutable way.
+        // However, prepare returns a packet that can override history.
+        
+        // Let's construct the full conversation the model *would* see
+        const currentMessages = stepRow.preparedMessages;
 
         // Scan ONLY the last message for URLs to expand
-        const lastMessageIndex = allMessages.length - 1;
-        const lastMessage = allMessages[lastMessageIndex];
+        const lastMessageIndex = currentMessages.length - 1;
+        const lastMessage = currentMessages[lastMessageIndex];
 
         if (!lastMessage || (lastMessage.role !== 'user' && lastMessage.role !== 'system')) {
             return [{ data: [null], contentParts: [] }];
@@ -72,6 +74,13 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
 
         const newParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
         let modified = false;
+
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const turndownService = new TurndownService();
+        turndownService.remove(['script', 'style', 'noscript', 'iframe']);
+
+        // Resolve the generic handler based on mode
+        const fallbackHandler = this.registry.getFallback(mode);
 
         for (const part of partsToCheck) {
             if (part.type !== 'text') {
@@ -153,8 +162,18 @@ export class UrlExpanderPlugin implements Plugin<UrlExpanderConfig, UrlExpanderR
         }
 
         if (modified) {
-            // Create a new history array with the modified last message
-            const newHistory = [...allMessages];
+            // We need to return a packet that updates the history.
+            // Since we modified the *last message* of the *combined* set,
+            // we need to be careful.
+            // If the last message was from history, we update history.
+            // If it was from the current step's model config, we can't easily update it via packet.history alone
+            // because packet.history replaces the *previous* history.
+            
+            // However, StepRow.preparedMessages combines history + model messages.
+            // If we return a new history that includes EVERYTHING, it effectively overrides the context.
+            
+            // Let's reconstruct the full history with the modification.
+            const newHistory = [...currentMessages];
             newHistory[lastMessageIndex] = { ...lastMessage, content: newParts };
 
             return [{

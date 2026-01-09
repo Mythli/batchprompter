@@ -1,16 +1,17 @@
 import { z } from 'zod';
+import Handlebars from 'handlebars';
 import {
     Plugin,
     LlmFactory,
     PluginPacket
 } from '../types.js';
-import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, transformModelConfig } from '../../config/schemas/index.js';
 import { AiWebSearch } from './AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { WebSearch } from './WebSearch.js';
+import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const WebSearchConfigSchemaV2 = z.object({
     type: z.literal('web-search'),
@@ -48,7 +49,11 @@ export interface WebSearchResolvedConfigV2 {
     hl?: string;
 }
 
-export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearchResolvedConfigV2> {
+export interface WebSearchHydratedConfigV2 extends Omit<WebSearchResolvedConfigV2, 'query'> {
+    query?: string;
+}
+
+export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearchResolvedConfigV2, WebSearchHydratedConfigV2> {
     readonly type = 'web-search';
     readonly configSchema = WebSearchConfigSchemaV2;
 
@@ -59,34 +64,57 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         }
     ) {}
 
-    async init(step: Step, rawConfig: any): Promise<WebSearchResolvedConfigV2> {
+    getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
+        return WebSearchConfigSchemaV2.transform(config => {
+            const stepModel = step.model || {};
+            
+            const resolveModel = (modelConfig?: any) => {
+                const merged = {
+                    model: modelConfig?.model ?? stepModel.model,
+                    temperature: modelConfig?.temperature ?? stepModel.temperature,
+                    thinkingLevel: modelConfig?.thinkingLevel ?? stepModel.thinkingLevel,
+                    system: modelConfig?.system,
+                    prompt: modelConfig?.prompt
+                };
+                return transformModelConfig(merged);
+            };
+
+            return {
+                type: 'web-search' as const,
+                id: config.id ?? `web-search-${Date.now()}`,
+                output: config.output,
+                query: config.query,
+                queryModel: config.queryModel ? resolveModel(config.queryModel) : undefined,
+                selectModel: config.selectModel ? resolveModel(config.selectModel) : undefined,
+                compressModel: config.compressModel ? resolveModel(config.compressModel) : undefined,
+                limit: config.limit,
+                mode: config.mode,
+                queryCount: config.queryCount,
+                maxPages: config.maxPages,
+                dedupeStrategy: config.dedupeStrategy,
+                gl: config.gl,
+                hl: config.hl
+            };
+        });
+    }
+
+    async hydrate(config: WebSearchResolvedConfigV2, context: Record<string, any>): Promise<WebSearchHydratedConfigV2> {
+        let query: string | undefined;
+        if (config.query) {
+            const template = Handlebars.compile(config.query, { noEscape: true });
+            query = template(context);
+        }
+
         return {
-            type: 'web-search',
-            id: rawConfig.id ?? `web-search-${Date.now()}`,
-            output: rawConfig.output,
-            query: rawConfig.query,
-            queryModel: rawConfig.queryModel,
-            selectModel: rawConfig.selectModel,
-            compressModel: rawConfig.compressModel,
-            limit: rawConfig.limit,
-            mode: rawConfig.mode,
-            queryCount: rawConfig.queryCount,
-            maxPages: rawConfig.maxPages,
-            dedupeStrategy: rawConfig.dedupeStrategy,
-            gl: rawConfig.gl,
-            hl: rawConfig.hl
+            ...config,
+            query
         };
     }
 
-    async prepare(stepRow: StepRow, config: WebSearchResolvedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: WebSearchHydratedConfigV2): Promise<PluginPacket[]> {
         const { context } = stepRow;
         const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const webSearch = this.deps.webSearch;
-
-        let query: string | undefined;
-        if (config.query) {
-            query = stepRow.render(config.query);
-        }
 
         const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;
         const selectLlm = config.selectModel ? stepRow.createLlm(config.selectModel) : undefined;
@@ -159,7 +187,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         });
 
         const result = await aiWebSearch.process(context, {
-            query,
+            query: config.query,
             limit: config.limit,
             mode: config.mode,
             queryCount: config.queryCount,
@@ -176,7 +204,7 @@ export class WebSearchPluginV2 implements Plugin<WebSearchRawConfigV2, WebSearch
         }];
     }
 
-    async postProcess(stepRow: StepRow, config: WebSearchResolvedConfigV2, modelResult: any): Promise<PluginPacket[]> {
+    async postProcess(stepRow: StepRow, config: WebSearchHydratedConfigV2, modelResult: any): Promise<PluginPacket[]> {
         // Pass-through
         return [{
             data: [modelResult],

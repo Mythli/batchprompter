@@ -18,18 +18,22 @@ async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]
     return results.flat();
 }
 
+export interface StepRowState {
+    // The persistent data record that is being processed and saved
+    data: Record<string, any>;
+    // The view context (workspace + data + ephemeral plugin outputs)
+    context: Record<string, any>;
+    // Conversation history
+    history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+    // Accumulated content for the current step
+    content: OpenAI.Chat.Completions.ChatCompletionContentPart[];
+    // Metadata
+    originalIndex: number;
+    variationIndex?: number;
+    stepHistory: any[];
+}
+
 export class StepRow {
-    // _persistentData: The actual data record that is being processed.
-    // It is what gets passed to the next step and eventually saved.
-    private _persistentData: Record<string, any>;
-
-    // _templateContext: The "view" seen by Handlebars templates.
-    // It is a superset of _persistentData + workspace + ephemeral plugin outputs.
-    private _templateContext: Record<string, any>;
-
-    private _content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
-    private _history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-
     public lastResult: any = null;
 
     // Hydrated Configuration State
@@ -40,34 +44,27 @@ export class StepRow {
         outputExtension: string;
         schema?: any;
         model: ResolvedModelConfig;
+        plugins: { instance: any, config: any }[];
     };
     private _isHydrated = false;
 
     constructor(
         public readonly step: Step,
-        public readonly item: PipelineItem
-    ) {
-        // Initialize persistent data from the input row
-        this._persistentData = { ...item.row };
-
-        // Initialize template context with workspace and row data
-        this._templateContext = { ...item.workspace, ...this._persistentData };
-
-        this._history = [...item.history];
-    }
+        private readonly state: StepRowState
+    ) {}
 
     // --- Getters (Read-only for plugins) ---
 
-    get context() { return this._templateContext; }
-    get content() { return this._content; }
-    get history() { return this._history; }
+    get context() { return this.state.context; }
+    get content() { return this.state.content; }
+    get history() { return this.state.history; }
 
     getEvents() {
         return this.step.globalContext.events;
     }
 
     getPlugins() {
-        return this.step.plugins;
+        return this._hydrated?.plugins || [];
     }
 
     getTempDir() {
@@ -92,9 +89,9 @@ export class StepRow {
 
     get preparedMessages() {
         // Combine hydrated model messages with dynamic content and history
-        const messages = [...this._history, ...this._hydrated.model.messages];
-        if (this._content.length > 0) {
-            messages.push({ role: 'user', content: this._content });
+        const messages = [...this.state.history, ...this._hydrated.model.messages];
+        if (this.state.content.length > 0) {
+            messages.push({ role: 'user', content: this.state.content });
         }
         return messages;
     }
@@ -102,13 +99,13 @@ export class StepRow {
     // --- Core Logic ---
 
     async run(): Promise<PipelineItem[]> {
-        // Initialize self
+        // Initialize self (Hydration)
         await this.init();
 
         let currentRows: StepRow[] = [this];
 
         // --- Stage 1: Plugin Preparation ---
-        for (const { instance, config } of this.step.plugins) {
+        for (const { instance, config } of this._hydrated.plugins) {
             if (instance.prepare) {
                 currentRows = await flatMapAsync(currentRows, async (row) => {
                     // Ensure row is initialized (idempotent)
@@ -133,7 +130,7 @@ export class StepRow {
         }
 
         // --- Stage 3: Plugin Post-Processing ---
-        for (const { instance, config } of this.step.plugins) {
+        for (const { instance, config } of this._hydrated.plugins) {
             if (instance.postProcess) {
                 currentRows = await flatMapAsync(currentRows, async (row) => {
                     // Ensure row is initialized (idempotent)
@@ -156,13 +153,13 @@ export class StepRow {
 
         // 1. Resolve Paths
         const sanitizedContext: Record<string, any> = {};
-        for (const [key, val] of Object.entries(this._templateContext)) {
+        for (const [key, val] of Object.entries(this.state.context)) {
              const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
              sanitizedContext[key] = aggressiveSanitize(stringVal);
         }
 
         let outputDir = '';
-        let outputBasename = `output_${this.item.originalIndex}_${stepNum}`;
+        let outputBasename = `output_${this.state.originalIndex}_${stepNum}`;
         let outputExtension = config.aspectRatio ? '.png' : '.txt';
         let tempDir = '/tmp';
 
@@ -188,16 +185,16 @@ export class StepRow {
             if (typeof schema === 'string') {
                 try {
                     const template = Handlebars.compile(schema, { noEscape: true });
-                    const renderedSchema = template(this._templateContext);
+                    const renderedSchema = template(this.state.context);
                     schema = JSON.parse(renderedSchema);
                 } catch (e) {
-                    console.warn(`[Row ${this.item.originalIndex}] Failed to parse schema template:`, e);
+                    console.warn(`[Row ${this.state.originalIndex}] Failed to parse schema template:`, e);
                 }
             } else {
                 try {
-                    schema = renderSchemaObject(schema, this._templateContext);
+                    schema = renderSchemaObject(schema, this.state.context);
                 } catch (e: any) {
-                    console.warn(`[Row ${this.item.originalIndex}] Failed to render schema templates:`, e);
+                    console.warn(`[Row ${this.state.originalIndex}] Failed to render schema templates:`, e);
                 }
             }
         }
@@ -218,6 +215,15 @@ export class StepRow {
             return msg;
         });
 
+        // 4. Hydrate Plugins
+        const hydratedPlugins = await Promise.all(config.plugins.map(async (p: any) => {
+            const hydratedConfig = await p.instance.hydrate(p.config, this.state.context);
+            return {
+                instance: p.instance,
+                config: hydratedConfig
+            };
+        }));
+
         this._hydrated = {
             outputDir,
             tempDir,
@@ -227,7 +233,8 @@ export class StepRow {
             model: {
                 ...config.model,
                 messages: hydratedMessages as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-            }
+            },
+            plugins: hydratedPlugins
         };
 
         this._isHydrated = true;
@@ -236,9 +243,9 @@ export class StepRow {
     public toPipelineItem(): PipelineItem {
         return {
             ...this.item,
-            row: this._persistentData, // Return the clean persistent data
-            history: this._history,
-            stepHistory: [...this.item.stepHistory, this.lastResult]
+            row: this.state.data, // Return the clean persistent data
+            history: this.state.history,
+            stepHistory: [...this.state.stepHistory, this.lastResult]
         };
     }
 
@@ -249,14 +256,16 @@ export class StepRow {
         const nextRows: StepRow[] = [];
 
         for (const packet of packets) {
-            // 1. Update History if provided (e.g. URL Expander)
+            // 1. Update History if provided
+            let nextHistory = this.state.history;
             if (packet.history) {
-                this._history = [...packet.history];
+                nextHistory = [...packet.history];
             }
 
             // 2. Append Content
+            let nextContent = this.state.content;
             if (packet.contentParts && packet.contentParts.length > 0) {
-                this._content.push(...packet.contentParts);
+                nextContent = [...nextContent, ...packet.contentParts];
             }
 
             // 3. Handle Data (Branching/Explosion)
@@ -270,7 +279,7 @@ export class StepRow {
             if (config.explode && dataArray.length > 1) {
                 // Explode: Spawn new rows for each item
                 this.getEvents().emit('step:progress', {
-                    row: this.item.originalIndex,
+                    row: this.state.originalIndex,
                     step: this.step.stepIndex + 1,
                     type: 'explode',
                     message: `Exploding ${dataArray.length} items`,
@@ -278,62 +287,61 @@ export class StepRow {
                 });
 
                 dataArray.forEach((itemData, idx) => {
-                    nextRows.push(this.spawn(itemData, idx, config, namespace));
+                    nextRows.push(this.spawn(itemData, idx, config, namespace, nextHistory, nextContent));
                 });
             } else {
-                // Standard: Update current row with the data (single item or array treated as single unit)
-                // If explode is false, we treat the whole array as the result
+                // Standard: Update current row with the data
                 const dataToApply = config.explode ? dataArray[0] : dataArray;
-
-                this.updateData(dataToApply, config, namespace);
-                nextRows.push(this);
+                
+                // We can reuse 'spawn' to create the next state even for single items, 
+                // effectively treating it as a mutation of the flow
+                nextRows.push(this.spawn(dataToApply, this.state.variationIndex, config, namespace, nextHistory, nextContent));
             }
         }
 
         return nextRows;
     }
 
-    private spawn(data: any, variationIndex: number, config: OutputConfig, namespace: string): StepRow {
-        const newItem = JSON.parse(JSON.stringify(this.item));
-        newItem.variationIndex = variationIndex;
+    private spawn(
+        data: any, 
+        variationIndex: number | undefined, 
+        config: OutputConfig, 
+        namespace: string,
+        history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+        content: OpenAI.Chat.Completions.ChatCompletionContentPart[]
+    ): StepRow {
+        // 1. Clone Data & Context
+        const newData = JSON.parse(JSON.stringify(this.state.data));
+        const newContext = { ...this.state.context };
 
-        const newRow = new StepRow(this.step, newItem);
+        // 2. Apply New Data
+        newContext[namespace] = data;
 
-        // Deep copy mutable state
-        newRow._content = [...this._content];
-        newRow._history = [...this._history];
-
-        // Deep copy persistent data to ensure branch independence
-        newRow._persistentData = JSON.parse(JSON.stringify(this._persistentData));
-
-        // Shallow copy template context (it inherits parent's ephemeral state)
-        newRow._templateContext = { ...this._templateContext };
-
-        // Apply the new data specific to this branch
-        newRow.updateData(data, config, namespace);
-
-        // Note: newRow is NOT hydrated. It will hydrate itself when run() calls init().
-        return newRow;
-    }
-
-    private updateData(data: any, config: OutputConfig, namespace: string) {
-        this.lastResult = data;
-
-        // 1. Always update template context with namespaced data (Ephemeral)
-        this._templateContext[namespace] = data;
-
-        // 2. Update persistent data based on strategy (Persistent)
         if (config.mode === 'merge') {
             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-                Object.assign(this._persistentData, data);
-                // Sync to context so root-level variables are available immediately
-                Object.assign(this._templateContext, data);
+                Object.assign(newData, data);
+                Object.assign(newContext, data);
             }
         } else if (config.mode === 'column' && config.column) {
-            this._persistentData[config.column] = data;
-            // Sync to context
-            this._templateContext[config.column] = data;
+            newData[config.column] = data;
+            newContext[config.column] = data;
         }
+
+        // 3. Create New State
+        const newState: StepRowState = {
+            data: newData,
+            context: newContext,
+            history: history,
+            content: content,
+            originalIndex: this.state.originalIndex,
+            variationIndex: variationIndex ?? this.state.variationIndex,
+            stepHistory: this.state.stepHistory
+        };
+
+        // 4. Return New Row
+        const newRow = new StepRow(this.step, newState);
+        newRow.lastResult = data;
+        return newRow;
     }
 
     private async executeLlm(): Promise<PluginPacket[]> {
@@ -365,7 +373,7 @@ export class StepRow {
         return this.createLlm(config);
     }
 
-    render(template: string, context: Record<string, any> = this._templateContext): string {
+    render(template: string, context: Record<string, any> = this.state.context): string {
         if (!template) return '';
         const t = Handlebars.compile(template, { noEscape: true });
         return t(context);

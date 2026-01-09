@@ -5,7 +5,7 @@ import {
     ResolvedModelConfig,
     RawModelConfigSchema
 } from './schemas/index.js';
-import { GlobalsConfigSchema, StepConfigSchema } from './schema.js';
+import { GlobalsConfigSchema, StepBaseSchema } from './schema.js';
 
 // =============================================================================
 // Schema-Derived Types
@@ -41,7 +41,8 @@ export interface ResolvedPluginBase {
     type: string;
     id: string;
     output: OutputConfig;
-    rawConfig?: any;
+    config: any; // The resolved config specific to the plugin
+    instance: any; // The plugin instance
 }
 
 // =============================================================================
@@ -49,9 +50,9 @@ export interface ResolvedPluginBase {
 // =============================================================================
 
 // Base type from Zod schema
-type StepConfigBase = z.infer<typeof StepConfigSchema>;
+type StepBase = z.infer<typeof StepBaseSchema>;
 
-export interface StepConfig extends Omit<StepConfigBase, 'plugins' | 'model' | 'judge' | 'feedback'> {
+export interface StepConfig extends Omit<StepBase, 'model' | 'judge' | 'feedback'> {
     // Resolved Plugins
     plugins: ResolvedPluginBase[];
 

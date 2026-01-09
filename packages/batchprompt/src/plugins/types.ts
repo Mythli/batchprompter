@@ -6,6 +6,7 @@ import { ResolvedPluginBase } from '../config/types.js';
 import { BatchPromptEvents } from '../events.js';
 import { LlmClient } from 'llm-fns';
 import { ModelConfig } from '../config/schemas/model.js';
+import { StepBaseConfig, GlobalsConfig } from '../config/schema.js';
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -43,11 +44,22 @@ export interface ResolvedPlugin {
     def: ResolvedPluginBase;
 }
 
-export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
+export interface Plugin<TRawConfig = any, TResolvedConfig = any, THydratedConfig = any> {
     readonly type: string;
+    
+    // We keep configSchema for reference/introspection, but getSchema is the primary method now
     readonly configSchema: z.ZodType<TRawConfig>;
 
-    init(step: Step, config: TRawConfig): Promise<TResolvedConfig>;
+    /**
+     * Returns the Zod schema used to validate and resolve the plugin configuration.
+     * This schema should handle inheritance from the step and global configurations.
+     */
+    getSchema(step: StepBaseConfig, globals: GlobalsConfig): z.ZodType<TResolvedConfig>;
+
+    /**
+     * Hydrates the resolved configuration with runtime data (e.g. rendering Handlebars templates).
+     */
+    hydrate(config: TResolvedConfig, context: Record<string, any>): Promise<THydratedConfig>;
 
     /**
      * Prepares data before the LLM call.
@@ -55,13 +67,13 @@ export interface Plugin<TRawConfig = any, TResolvedConfig = any> {
      * To do nothing, return [{ data: [null], contentParts: [] }]
      * To filter, return []
      */
-    prepare?(stepRow: StepRow, config: TResolvedConfig): Promise<PluginPacket[]>;
+    prepare?(stepRow: StepRow, config: THydratedConfig): Promise<PluginPacket[]>;
 
     /**
      * Processes the result after the LLM call.
      * Must return an array of packets.
      */
-    postProcess?(stepRow: StepRow, config: TResolvedConfig, result: any): Promise<PluginPacket[]>;
+    postProcess?(stepRow: StepRow, config: THydratedConfig, result: any): Promise<PluginPacket[]>;
 }
 
 export class PluginRegistryV2 {
@@ -84,22 +96,6 @@ export class PluginRegistryV2 {
 
     getAll(): Plugin[] {
         return Array.from(this.plugins.values());
-    }
-
-    getSchema(): z.ZodTypeAny {
-        const plugins = this.getAll();
-        if (plugins.length === 0) {
-            return z.object({ type: z.string() });
-        }
-
-        const schemas = plugins.map(p => p.configSchema);
-
-        if (schemas.length === 1) {
-            return schemas[0];
-        }
-
-        // @ts-ignore - Zod types are complex for dynamic arrays
-        return z.discriminatedUnion('type', schemas);
     }
 }
 

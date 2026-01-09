@@ -5,12 +5,12 @@ import {
     Plugin,
     PluginPacket
 } from '../types.js';
-import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
+import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 // =============================================================================
 // Config Schema
@@ -34,6 +34,10 @@ export interface DedupeResolvedConfigV2 {
     keyTemplate: string;
 }
 
+export interface DedupeHydratedConfigV2 extends DedupeResolvedConfigV2 {
+    key: string;
+}
+
 // =============================================================================
 // Plugin (Stateless - state managed externally)
 // =============================================================================
@@ -41,25 +45,36 @@ export interface DedupeResolvedConfigV2 {
 // Global deduplication state - shared across all instances
 const globalSeenKeys = new Map<string, Set<string>>();
 
-export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedConfigV2> {
+export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedConfigV2, DedupeHydratedConfigV2> {
     readonly type = 'dedupe';
     readonly configSchema = DedupeConfigSchemaV2;
     public readonly events = new EventEmitter();
 
-    async init(step: Step, rawConfig: DedupeRawConfigV2): Promise<DedupeResolvedConfigV2> {
+    getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
+        return DedupeConfigSchemaV2.transform(config => {
+            return {
+                type: 'dedupe' as const,
+                id: config.id ?? `dedupe-${Date.now()}`,
+                output: {
+                    mode: config.output.mode,
+                    column: config.output.column,
+                    explode: config.output.explode
+                },
+                keyTemplate: config.key
+            };
+        });
+    }
+
+    async hydrate(config: DedupeResolvedConfigV2, context: Record<string, any>): Promise<DedupeHydratedConfigV2> {
+        const template = Handlebars.compile(config.keyTemplate, { noEscape: true });
+        const key = template(context);
         return {
-            type: 'dedupe',
-            id: rawConfig.id ?? `dedupe-${Date.now()}`,
-            output: {
-                mode: rawConfig.output.mode,
-                column: rawConfig.output.column,
-                explode: rawConfig.output.explode
-            },
-            keyTemplate: rawConfig.key
+            ...config,
+            key
         };
     }
 
-    async prepare(stepRow: StepRow, config: DedupeResolvedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: DedupeHydratedConfigV2): Promise<PluginPacket[]> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
@@ -74,23 +89,20 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             emit: emit
         }, this.type);
 
-        const template = Handlebars.compile(config.keyTemplate, { noEscape: true });
-        const key = template(context);
-
         if (!globalSeenKeys.has(config.id)) {
             globalSeenKeys.set(config.id, new Set());
         }
         const seenKeys = globalSeenKeys.get(config.id)!;
 
-        if (seenKeys.has(key)) {
-            scope.emit('duplicate:found', { key });
+        if (seenKeys.has(config.key)) {
+            scope.emit('duplicate:found', { key: config.key });
 
             scope.artifact({
                 type: 'json',
                 filename: `dedupe/dedupe_${Date.now()}.json`,
                 content: JSON.stringify({
                     id: config.id,
-                    key,
+                    key: config.key,
                     isDuplicate: true
                 }, null, 2),
                 tags: ['debug', 'dedupe', 'duplicate']
@@ -100,15 +112,15 @@ export class DedupePluginV2 implements Plugin<DedupeRawConfigV2, DedupeResolvedC
             return [];
         }
 
-        scope.emit('duplicate:kept', { key });
-        seenKeys.add(key);
+        scope.emit('duplicate:kept', { key: config.key });
+        seenKeys.add(config.key);
 
         scope.artifact({
             type: 'json',
             filename: `dedupe/dedupe_${Date.now()}.json`,
             content: JSON.stringify({
                 id: config.id,
-                key,
+                key: config.key,
                 isDuplicate: false
             }, null, 2),
             tags: ['debug', 'dedupe', 'kept']

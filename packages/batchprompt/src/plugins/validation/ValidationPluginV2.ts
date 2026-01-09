@@ -6,13 +6,13 @@ import {
     Plugin,
     PluginPacket
 } from '../types.js';
-import { Step } from '../../Step.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
 import { renderSchemaObject } from '../../utils/schemaUtils.js';
+import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const LooseValidationConfigSchemaV2 = z.object({
     type: z.literal('validation'),
@@ -21,10 +21,6 @@ export const LooseValidationConfigSchemaV2 = z.object({
     schema: z.union([z.string(), zJsonSchemaObject]),
     target: zHandlebars.optional()
 });
-
-export const ValidationConfigSchemaV2 = LooseValidationConfigSchemaV2.extend({
-    schema: zJsonSchemaObject
-}).strict();
 
 export type ValidationRawConfigV2 = z.infer<typeof LooseValidationConfigSchemaV2>;
 
@@ -37,7 +33,12 @@ export interface ValidationResolvedConfigV2 {
     schemaSource: string;
 }
 
-export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, ValidationResolvedConfigV2> {
+export interface ValidationHydratedConfigV2 extends Omit<ValidationResolvedConfigV2, 'schema' | 'target'> {
+    schema: any;
+    target?: string;
+}
+
+export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, ValidationResolvedConfigV2, ValidationHydratedConfigV2> {
     readonly type = 'validation';
     readonly configSchema = LooseValidationConfigSchemaV2;
     public readonly events = new EventEmitter();
@@ -49,39 +50,71 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
         this.ajv = new Ajv.default ? new Ajv.default() : new Ajv();
     }
 
-    async init(step: Step, rawConfig: ValidationRawConfigV2): Promise<ValidationResolvedConfigV2> {
-        let schema = rawConfig.schema;
-        let schemaSource = '[inline]';
+    getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
+        return LooseValidationConfigSchemaV2.transform(config => {
+            let schema = config.schema;
+            let schemaSource = '[inline]';
 
-        if (typeof schema === 'string') {
-            if (schema.includes('{{')) {
-                // Template
-            } else {
-                try {
-                    schema = JSON.parse(schema);
-                    schemaSource = rawConfig.schema as string;
-                } catch (e: any) {
+            if (typeof schema === 'string') {
+                if (schema.includes('{{')) {
+                    // Template
+                } else {
+                    try {
+                        schema = JSON.parse(schema);
+                        schemaSource = config.schema as string;
+                    } catch (e: any) {
+                    }
                 }
             }
+
+            return {
+                type: 'validation' as const,
+                id: config.id ?? `validation-${Date.now()}`,
+                output: config.output,
+                schema,
+                target: config.target,
+                schemaSource
+            };
+        });
+    }
+
+    async hydrate(config: ValidationResolvedConfigV2, context: Record<string, any>): Promise<ValidationHydratedConfigV2> {
+        let schema = config.schema;
+        if (typeof schema === 'string') {
+             try {
+                 const template = Handlebars.compile(schema, { noEscape: true });
+                 const resolvedSchema = template(context);
+                 schema = JSON.parse(resolvedSchema);
+             } catch (e: any) {
+                 throw new Error(`Failed to parse schema template: ${e.message}`);
+             }
+        } else {
+            schema = renderSchemaObject(schema, context);
+        }
+
+        let target = config.target;
+        if (target) {
+            // We don't render target here because it depends on the *result* of the step,
+            // which isn't available at init time.
+            // Wait, target is a template string that selects data from the context/result.
+            // If it selects from context, we could render it.
+            // But usually validation runs on the result.
         }
 
         return {
-            type: 'validation',
-            id: rawConfig.id ?? `validation-${Date.now()}`,
-            output: rawConfig.output,
+            ...config,
             schema,
-            target: rawConfig.target,
-            schemaSource
+            target
         };
     }
 
-    async prepare(stepRow: StepRow, config: ValidationResolvedConfigV2): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: ValidationHydratedConfigV2): Promise<PluginPacket[]> {
         return [{ data: [null], contentParts: [] }];
     }
 
     async postProcess(
         stepRow: StepRow,
-        config: ValidationResolvedConfigV2,
+        config: ValidationHydratedConfigV2,
         result: any
     ): Promise<PluginPacket[]> {
         const { context } = stepRow;
@@ -97,19 +130,6 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             tempDirectory: stepRow.resolvedTempDir || '/tmp',
             emit: emit
         }, this.type);
-
-        let schema = config.schema;
-        if (typeof schema === 'string') {
-             try {
-                 const template = Handlebars.compile(schema, { noEscape: true });
-                 const resolvedSchema = template(context);
-                 schema = JSON.parse(resolvedSchema);
-             } catch (e: any) {
-                 throw new Error(`Failed to parse schema template: ${e.message}`);
-             }
-        } else {
-            schema = renderSchemaObject(schema, context);
-        }
 
         let dataToValidate: any = result;
 
@@ -136,7 +156,7 @@ export class ValidationPluginV2 implements Plugin<ValidationRawConfigV2, Validat
             }
         }
 
-        const validate = this.ajv.compile(schema);
+        const validate = this.ajv.compile(config.schema);
         const valid = validate(dataToValidate);
 
         if (!valid) {

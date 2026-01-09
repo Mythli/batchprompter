@@ -1,8 +1,6 @@
 import { RuntimeConfig } from './types.js';
 import { createPipelineSchema } from './schema.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
-import { z } from 'zod';
-import { zJsonSchemaObject } from './validationRules.js';
 
 export interface ResolveConfigDependencies {
     pluginRegistry: PluginRegistryV2;
@@ -16,25 +14,13 @@ export async function resolveConfig(
     rawConfig: unknown,
     deps: ResolveConfigDependencies
 ): Promise<RuntimeConfig> {
-    // 0. Get Dynamic Plugin Schema
-    const pluginUnion = deps.pluginRegistry.getSchema();
-
-    // 1. Create Schema
-    // We use zJsonSchemaObject for strict validation of schemas, 
-    // or allow strings if we want to support file paths for schemas (but we removed file loading).
-    // If schemas are inline objects, zJsonSchemaObject is correct.
-    // If schemas are template strings (e.g. "{{schema}}"), we might need z.union([z.string(), zJsonSchemaObject]).
-    const PipelineSchema = createPipelineSchema(
-        pluginUnion,
-        z.union([z.string(), zJsonSchemaObject])
-    );
-
-    // 2. Preprocess Shortcuts (URL Expander)
-    // We need to do this before parsing because the schema expects plugins to be in the array.
+    // 1. Preprocess Shortcuts (URL Expander)
     const preprocessedConfig = expandShortcuts(rawConfig);
 
+    // 2. Create Schema with Registry
+    const PipelineSchema = createPipelineSchema(deps.pluginRegistry);
+
     // 3. Parse & Transform
-    // This handles validation, normalization, inheritance, and transformation to messages.
     const config = await PipelineSchema.parseAsync(preprocessedConfig);
 
     return config as RuntimeConfig;
