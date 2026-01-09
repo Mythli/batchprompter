@@ -14,18 +14,17 @@ export * from './generator/InMemoryConfigExecutor.js';
 export * from './generated/ConfigDocumentation.js';
 
 // Core Components
-export * from './core/events.js';
-export * from './core/LlmClientFactory.js';
-export * from './core/BoundLlmClient.js';
-export * from './core/MessageBuilder.js';
-export * from './core/ResultProcessor.js';
+export * from './events.js';
+export * from './LlmClientFactory.js';
+export * from './BoundLlmClient.js';
+export * from './ResultProcessor.js';
 
 // Plugins
 export * from './plugins/index.js';
 export * from './plugins/PluginScope.js';
 
 // Handlers
-export * from './handlers/MemoryArtifactHandler.js';
+export * from './MemoryArtifactHandler.js';
 
 // Utils
 export * from './utils/dataLoader.js';

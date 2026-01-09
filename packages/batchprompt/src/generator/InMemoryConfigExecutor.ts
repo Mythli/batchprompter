@@ -1,8 +1,8 @@
 import { EventEmitter } from 'eventemitter3';
 import { ActionRunner } from '../ActionRunner.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
-import { BatchPromptEvents } from '../core/events.js';
-import { MemoryArtifactHandler, Artifact } from '../handlers/MemoryArtifactHandler.js';
+import { BatchPromptEvents } from '../events.js';
+import { MemoryArtifactHandler, Artifact } from '../MemoryArtifactHandler.js';
 import { ConfigExecutor } from './ConfigRefiner.js';
 import { resolveConfig } from '../config/resolveConfig.js';
 
@@ -24,10 +24,10 @@ export class InMemoryConfigExecutor implements ConfigExecutor {
         const runtimeConfig = await resolveConfig(configWithData, {
             pluginRegistry: this.pluginRegistry
         });
-        
+
         // Capture artifacts in memory (so we don't write to disk during test runs)
         const memoryHandler = new MemoryArtifactHandler(this.events);
-        
+
         // Capture results
         const results: any[] = [];
         const resultHandler = ({ result }: any) => results.push(result);

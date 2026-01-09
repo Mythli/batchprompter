@@ -11,8 +11,7 @@ import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import { createAiLoggingFetcher, createCachedFetcher, createLlm } from "llm-fns";
 import { GlobalContext } from './types.js';
 import { ServiceCapabilities, ModelConfig } from './config/types.js';
-import { LlmClientFactory } from './core/LlmClientFactory.js';
-import { MessageBuilder } from './core/MessageBuilder.js';
+import { LlmClientFactory } from './LlmClientFactory.js';
 import { attachQueueLogger } from "./debug/queue.js";
 import { LlmFactory } from './plugins/types.js';
 
@@ -193,8 +192,6 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         llmFactory
     };
 
-    const messageBuilder = new MessageBuilder();
-
     const actionRunner = new ActionRunner(
         globalContext
     );
@@ -207,7 +204,6 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         puppeteerHelper,
         capabilities,
         llmFactory,
-        messageBuilder
     };
 }
 
