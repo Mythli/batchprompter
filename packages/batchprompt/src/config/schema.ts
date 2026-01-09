@@ -66,7 +66,7 @@ export const StepBaseSchema = z.object({
     timeout: z.number().int().positive().optional(),
     // Shortcuts that might be used by plugins but exist on step level for convenience
     schema: z.any().optional(),
-    expandUrls: z.union([z.boolean(), z.record(z.string(), z.any())]).optional()
+    // Note: 'expandUrls' and other plugin shortcuts are injected dynamically by the factory
 });
 
 export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
@@ -80,6 +80,19 @@ export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
  * This allows dependency injection of the PluginRegistry.
  */
 export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) => {
+
+    // 0. Extend StepBaseSchema with Plugin Extensions
+    let ExtendedStepBaseSchema = StepBaseSchema;
+    const plugins = pluginRegistry.getAll();
+    
+    for (const plugin of plugins) {
+        if (plugin.getStepExtensionSchema) {
+            const extension = plugin.getStepExtensionSchema();
+            if (extension) {
+                ExtendedStepBaseSchema = ExtendedStepBaseSchema.merge(extension as any);
+            }
+        }
+    }
 
     // 1. Stage 1: Globals Analysis Schema
     // Parses only globals, passes everything else through
@@ -95,7 +108,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
         };
 
         // A Step schema that resolves Step Base configs by merging them with Globals
-        const ContextAwareStepSchema = StepBaseSchema.extend({
+        const ContextAwareStepSchema = ExtendedStepBaseSchema.extend({
             plugins: z.array(z.record(z.string(), z.any())).default([])
         }).transform(step => {
             const rawStepModel = step.model || {};
@@ -164,7 +177,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
 
             // A. Build schemas for the plugins in this step
             // We use the raw plugins from the input (via context) to determine types
-            const pluginSchemas = stepContext.plugins.map((rawPlugin) => {
+            const pluginSchemas = stepContext.plugins.map((rawPlugin: any) => {
                 return buildPluginSchema(rawPlugin.type, stepContext, globals);
             });
 
@@ -172,7 +185,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
 
             // B. Build the Final Step Schema
             // This schema validates the plugins tuple and finalizes the step config
-            return StepBaseSchema.extend({
+            return ExtendedStepBaseSchema.extend({
                 plugins: PluginsTuple
             }).transform(step => {
                 // Finalize Step Model (Prompt -> Messages)

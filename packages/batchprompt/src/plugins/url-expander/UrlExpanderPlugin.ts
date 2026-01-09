@@ -6,7 +6,8 @@ import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
 import {
     UrlExpanderConfig,
     UrlExpanderResolvedConfig,
-    UrlExpanderConfigSchema
+    UrlExpanderConfigSchema,
+    UrlExpanderStepExtension
 } from './UrlExpanderConfig.js';
 import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
@@ -24,6 +25,35 @@ export class UrlExpanderPlugin extends BasePlugin<UrlExpanderResolvedConfig> {
                 id: config.id ?? `url-expander-${Date.now()}`,
             };
         });
+    }
+
+    getStepExtensionSchema() {
+        return UrlExpanderStepExtension;
+    }
+
+    preprocessStep(step: any): void {
+        if (step.expandUrls !== undefined && step.expandUrls !== false) {
+            step.plugins = step.plugins || [];
+            
+            const isExplicitlyConfigured = step.plugins.some(
+                (p: any) => p.type === 'url-expander'
+            );
+
+            if (!isExplicitlyConfigured) {
+                let pluginConfig: any = {
+                    type: 'url-expander',
+                    output: { mode: 'ignore', explode: false },
+                    mode: 'fetch',
+                    maxChars: 30000
+                };
+
+                if (typeof step.expandUrls === 'object') {
+                    pluginConfig = { ...pluginConfig, ...step.expandUrls };
+                }
+
+                step.plugins.unshift(pluginConfig);
+            }
+        }
     }
 
     async prepare(stepRow: StepRow, config: UrlExpanderResolvedConfig): Promise<PluginPacket[]> {

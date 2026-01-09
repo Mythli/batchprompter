@@ -70,6 +70,18 @@ export interface Plugin<TConfig = any> {
      * Must return an array of packets.
      */
     postProcess(stepRow: StepRow, config: TConfig, result: any): Promise<PluginPacket[]>;
+
+    /**
+     * Optional: Returns a Zod schema to extend the base step configuration.
+     * This allows plugins to add top-level properties to a step (e.g. 'expandUrls').
+     */
+    getStepExtensionSchema?(): z.ZodType<any>;
+
+    /**
+     * Optional: Pre-processes a raw step configuration before validation.
+     * Useful for converting shortcuts (like 'expandUrls') into actual plugin configurations.
+     */
+    preprocessStep?(stepConfig: any): void;
 }
 
 export abstract class BasePlugin<TConfig = any> implements Plugin<TConfig> {
@@ -87,6 +99,14 @@ export abstract class BasePlugin<TConfig = any> implements Plugin<TConfig> {
 
     async postProcess(stepRow: StepRow, config: TConfig, result: any): Promise<PluginPacket[]> {
         return [{ data: [result], contentParts: [] }];
+    }
+
+    getStepExtensionSchema(): z.ZodType<any> | undefined {
+        return undefined;
+    }
+
+    preprocessStep(stepConfig: any): void {
+        // No-op by default
     }
 }
 

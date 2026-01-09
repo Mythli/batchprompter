@@ -14,8 +14,8 @@ export async function resolveConfig(
     rawConfig: unknown,
     deps: ResolveConfigDependencies
 ): Promise<RuntimeConfig> {
-    // 1. Preprocess Shortcuts (URL Expander)
-    const preprocessedConfig = expandShortcuts(rawConfig);
+    // 1. Preprocess Shortcuts (Plugin Hooks)
+    const preprocessedConfig = preprocessConfig(rawConfig, deps.pluginRegistry);
 
     // 2. Create Schema Factory
     const createSchema = createPipelineSchemaFactory(deps.pluginRegistry);
@@ -29,32 +29,16 @@ export async function resolveConfig(
     return config as RuntimeConfig;
 }
 
-function expandShortcuts(config: any): any {
+function preprocessConfig(config: any, registry: PluginRegistryV2): any {
     if (!config || typeof config !== 'object') return config;
     const expanded = JSON.parse(JSON.stringify(config));
 
-    if (expanded.steps) {
+    if (expanded.steps && Array.isArray(expanded.steps)) {
+        const plugins = registry.getAll();
         for (const step of expanded.steps) {
-            step.plugins = step.plugins || [];
-            
-            if (step.expandUrls !== undefined && step.expandUrls !== false) {
-                const isExplicitlyConfigured = step.plugins.some(
-                    (p: any) => p.type === 'url-expander'
-                );
-
-                if (!isExplicitlyConfigured) {
-                    let pluginConfig: any = {
-                        type: 'url-expander',
-                        output: { mode: 'ignore', explode: false },
-                        mode: 'fetch',
-                        maxChars: 30000
-                    };
-
-                    if (typeof step.expandUrls === 'object') {
-                        pluginConfig = { ...pluginConfig, ...step.expandUrls };
-                    }
-
-                    step.plugins.unshift(pluginConfig);
+            for (const plugin of plugins) {
+                if (plugin.preprocessStep) {
+                    plugin.preprocessStep(step);
                 }
             }
         }
