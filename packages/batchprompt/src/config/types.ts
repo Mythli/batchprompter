@@ -9,18 +9,13 @@ export type { ResolvedModelConfig };
 export type { OutputConfig } from './schemas/index.js';
 
 // =============================================================================
-// Resolved Plugin Base
+// Service Capabilities
 // =============================================================================
 
-export const ResolvedPluginBaseSchema = z.object({
-    type: z.string(),
-    id: z.string(),
-    output: OutputConfigSchema,
-    config: z.any(),
-    instance: z.any() // This is the Plugin<T> instance
-});
-
-export type ResolvedPluginBase = z.infer<typeof ResolvedPluginBaseSchema>;
+export interface ServiceCapabilities {
+    hasSerper: boolean;
+    hasPuppeteer: boolean;
+}
 
 // =============================================================================
 // Re-exports from Schema (The Source of Truth)
@@ -33,5 +28,6 @@ export type {
     ResolvedStepConfig,
     GlobalsConfig,
     RuntimeConfig,
-    ResolvedPipelineConfig
+    ResolvedPipelineConfig,
+    ResolvedPluginBase
 } from './schema.js';

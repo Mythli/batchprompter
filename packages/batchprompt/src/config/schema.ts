@@ -7,12 +7,11 @@ import {
     OutputConfigSchema,
     transformModelConfig,
     mergeModelConfigs,
-    resolveModelConfig
+    resolveModelConfig,
+    ModelConfig
 } from './schemas/index.js';
 import { zHandlebars } from './validationRules.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
-import { ResolvedPluginBaseSchema } from './types.js';
-import {ResolvedModelConfigSchema} from "./schemas/model.js";
 
 // =============================================================================
 // Re-exports
@@ -72,11 +71,77 @@ export const StepBaseSchema = z.object({
 export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
 
 // =============================================================================
-// Resolved Step Schema (Output/Runtime)
+// Resolved Plugin Base
 // =============================================================================
 
+export const ResolvedPluginBaseSchema = z.object({
+    type: z.string(),
+    id: z.string(),
+    output: OutputConfigSchema,
+    config: z.any(),
+    instance: z.any() // This is the Plugin<T> instance
+});
 
-export type StepConfig = z.infer<typeof ResolvedStepSchema>;
+export type ResolvedPluginBase = z.infer<typeof ResolvedPluginBaseSchema>;
+
+// =============================================================================
+// Step Resolution Logic
+// =============================================================================
+
+/**
+ * Resolves a raw step configuration into its final runtime state.
+ * This function is used by the Zod transform to infer the output type.
+ * 
+ * @param step The raw step configuration (with plugins already resolved to objects)
+ * @param globals The global configuration
+ * @param contextModel The merged model configuration (Global + Step Raw)
+ */
+export function resolveStep(
+    step: StepBaseConfig & { plugins: ResolvedPluginBase[], [key: string]: any },
+    globals: GlobalsConfig,
+    contextModel: ModelConfig
+) {
+    // Finalize Step Model (Prompt -> Messages)
+    const resolvedModel = transformModelConfig(contextModel);
+
+    // Resolve Judge & Feedback
+    const resolvedJudge = step.judge ? resolveModelConfig(step.judge, contextModel) : undefined;
+
+    let resolvedFeedback;
+    if (step.feedback) {
+        const fbConfig = resolveModelConfig(step.feedback, contextModel);
+        resolvedFeedback = { ...fbConfig, loops: step.feedback.loops };
+    }
+
+    const outputPathTemplate = step.outputPath ?? globals.outputPath;
+
+    return {
+        // Pass-throughs
+        output: step.output,
+        candidates: step.candidates,
+        aspectRatio: step.aspectRatio,
+        schema: step.schema,
+
+        // Resolved
+        outputPath: outputPathTemplate,
+        outputTemplate: outputPathTemplate,
+        timeout: step.timeout ?? globals.timeout,
+        tmpDir: globals.tmpDir,
+        model: resolvedModel,
+        judge: resolvedJudge,
+        feedback: resolvedFeedback,
+        plugins: step.plugins,
+
+        // Raw
+        rawConfig: step
+    };
+}
+
+// =============================================================================
+// Inferred Runtime Types
+// =============================================================================
+
+export type StepConfig = ReturnType<typeof resolveStep>;
 export type ResolvedStepConfig = StepConfig;
 
 export type RuntimeConfig = GlobalsConfig & {
@@ -211,40 +276,9 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
             return ExtendedStepBaseSchema.extend({
                 plugins: PluginsTuple
             }).transform((step): StepConfig => {
-                // Finalize Step Model (Prompt -> Messages)
-                const resolvedModel = transformModelConfig(stepContext.model!);
-
-                // Resolve Judge & Feedback
-                const resolvedJudge = step.judge ? resolveModelConfig(step.judge, stepContext.model) : undefined;
-
-                let resolvedFeedback;
-                if (step.feedback) {
-                    const fbConfig = resolveModelConfig(step.feedback, stepContext.model);
-                    resolvedFeedback = { ...fbConfig, loops: step.feedback.loops };
-                }
-
-                const outputPathTemplate = step.outputPath ?? globals.outputPath;
-
-                return {
-                    // Pass-throughs
-                    output: step.output,
-                    candidates: step.candidates,
-                    aspectRatio: step.aspectRatio,
-                    schema: step.schema,
-
-                    // Resolved
-                    outputPath: outputPathTemplate,
-                    outputTemplate: outputPathTemplate,
-                    timeout: step.timeout ?? globals.timeout,
-                    tmpDir: globals.tmpDir,
-                    model: resolvedModel,
-                    judge: resolvedJudge,
-                    feedback: resolvedFeedback,
-                    plugins: step.plugins as any, // Zod tuple transform handled above
-
-                    // Raw
-                    rawConfig: step
-                };
+                // Use the extracted resolution logic
+                // stepContext.model contains the merged model config from Stage 2
+                return resolveStep(step as any, globals, stepContext.model!);
             });
         });
 
