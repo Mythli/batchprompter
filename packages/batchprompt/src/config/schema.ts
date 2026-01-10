@@ -30,6 +30,12 @@ export const OutputConfigSchema = z.object({
 
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
 
+export const FeedbackConfigSchema = z.object({
+    loops: z.number().int().positive().default(3)
+}).describe("Configuration for feedback loops.");
+
+export type FeedbackConfig = z.infer<typeof FeedbackConfigSchema>;
+
 export const StepSchema = z.object({
     timeout: z.number().int().positive().default(180),
     limit: z.number().int().positive().optional(),
@@ -56,7 +62,7 @@ export const GlobalsSchema = StepSchema.extend({
     steps: z.array(StepSchema)
 });
 
-export type GlobalConfig = z.infer<typeof StepSchema>;
+export type GlobalConfig = z.infer<typeof GlobalsSchema>;
 
 export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) => {
     const plugins = pluginRegistry.getAll();
