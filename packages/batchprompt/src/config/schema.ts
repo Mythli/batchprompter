@@ -4,7 +4,6 @@ import path from 'path';
 import {
     PromptSchema,
     RawModelConfigSchema,
-    ResolvedModelConfigSchema,
     OutputConfigSchema,
     transformModelConfig,
     mergeModelConfigs,
@@ -13,6 +12,7 @@ import {
 import { zHandlebars } from './validationRules.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
 import { ResolvedPluginBaseSchema } from './types.js';
+import {ResolvedModelConfigSchema} from "./schemas/model.js";
 
 // =============================================================================
 // Re-exports
@@ -75,34 +75,6 @@ export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
 // Resolved Step Schema (Output/Runtime)
 // =============================================================================
 
-/**
- * This schema defines the shape of a Step AFTER it has been processed by the factory.
- * It is used to infer the Runtime types.
- */
-export const ResolvedStepSchema = z.object({
-    // Resolved Fields
-    outputPath: z.string().optional(),
-    outputTemplate: z.string().optional(),
-    timeout: z.number().optional(),
-    tmpDir: z.string().optional(),
-    
-    // Resolved Components
-    model: ResolvedModelConfigSchema,
-    judge: ResolvedModelConfigSchema.optional(),
-    feedback: ResolvedModelConfigSchema.extend({ loops: z.number() }).optional(),
-    
-    // Resolved Plugins
-    plugins: z.array(ResolvedPluginBaseSchema),
-    
-    // Pass-throughs
-    output: OutputConfigSchema,
-    candidates: z.number(),
-    aspectRatio: z.string().optional(),
-    schema: z.any().optional(),
-    
-    // Raw Config for reference
-    rawConfig: z.any()
-});
 
 export type StepConfig = z.infer<typeof ResolvedStepSchema>;
 export type ResolvedStepConfig = StepConfig;
@@ -145,12 +117,12 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
     // 0. Extend StepBaseSchema with Plugin Extensions
     let ExtendedStepBaseSchema = StepBaseSchema;
     const plugins = pluginRegistry.getAll();
-    
+
     for (const plugin of plugins) {
         if (plugin.getStepExtensionSchema) {
             const extension = plugin.getStepExtensionSchema();
             if (extension) {
-                ExtendedStepBaseSchema = ExtendedStepBaseSchema.merge(extension as any);
+                ExtendedStepBaseSchema = ExtendedStepBaseSchema.extend(extension as any);
             }
         }
     }

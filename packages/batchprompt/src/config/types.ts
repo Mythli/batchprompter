@@ -23,24 +23,15 @@ export const ResolvedPluginBaseSchema = z.object({
 export type ResolvedPluginBase = z.infer<typeof ResolvedPluginBaseSchema>;
 
 // =============================================================================
-// Service Capabilities
-// =============================================================================
-
-export interface ServiceCapabilities {
-    hasSerper: boolean;
-    hasPuppeteer: boolean;
-}
-
-// =============================================================================
 // Re-exports from Schema (The Source of Truth)
 // =============================================================================
 
 // These types are now inferred from the schema definitions in config/schema.ts
 // to avoid manual duplication.
-export type { 
-    StepConfig, 
-    ResolvedStepConfig, 
-    GlobalsConfig, 
-    RuntimeConfig, 
-    ResolvedPipelineConfig 
+export type {
+    StepConfig,
+    ResolvedStepConfig,
+    GlobalsConfig,
+    RuntimeConfig,
+    ResolvedPipelineConfig
 } from './schema.js';
