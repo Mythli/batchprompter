@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import {zHandlebars, zJsonSchemaObject} from './validationRules.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
+import {ModelConfigSchema} from "./model.js";
 
 // we take env, we take model defaults from env
 // this allows us to build a full model schema with defaults which come from env, this means this needs to be in the container already, it cant infer types? --> no it can, they are mandatory
@@ -28,56 +29,6 @@ export const OutputConfigSchema = z.object({
 }).describe("Configuration for output handling.");
 
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
-
-export const PromptSchema = z.union([
-    z.string(),
-    z.array(z.any()) // ContentPart[]
-]).describe("Prompt definition: string or ContentPart[]");
-
-export type PromptDef = z.infer<typeof PromptSchema>;
-
-export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema>) {
-    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-
-    if (config.system) {
-        const parts = normalizePromptToParts(config.system);
-        const text = parts.map(p => p.type === 'text' ? p.text : '').join('\n');
-        if (text) {
-            messages.push({ role: 'system', content: text });
-        }
-    }
-
-    if (config.prompt) {
-        const parts = normalizePromptToParts(config.prompt);
-        if (parts.length > 0) {
-            messages.push({ role: 'user', content: parts });
-        }
-    }
-
-    return {
-        model: config.model,
-        temperature: config.temperature,
-        thinkingLevel: config.thinkingLevel,
-        messages
-    };
-}
-
-const ModelConfigSchema = z.object({
-    model: z.string().optional(),
-    temperature: z.number().min(0).max(2).optional(),
-    thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
-    system: PromptSchema.optional(),
-    prompt: PromptSchema.optional()
-});
-
-
-const createModelConfigSchemaWithDefaults = () => {
-
-}
-
-export const FeedbackConfigSchema = ModelConfigSchema.extend({
-    loops: z.number().int().min(0).default(0).describe("Number of feedback iterations to run.")
-});
 
 export const StepSchema = z.object({
     timeout: z.number().int().positive().default(180),
