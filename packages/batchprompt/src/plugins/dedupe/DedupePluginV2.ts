@@ -6,10 +6,8 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
-import { zHandlebars } from '../../config/validationRules.js';
+import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT, zHandlebars, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
 import { PluginScope } from '../PluginScope.js';
-import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const DedupeConfigSchemaV2 = z.object({
     type: z.literal('dedupe').describe("Identifies this as a Dedupe plugin."),

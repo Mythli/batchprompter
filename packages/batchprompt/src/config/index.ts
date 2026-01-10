@@ -1,60 +1,15 @@
 // =============================================================================
-// Schemas - Single Source of Truth
+// Configuration Exports
 // =============================================================================
 
-export {
-    // Prompt
-    PromptSchema,
-    type PromptDef,
+// Export everything from schemas (Prompt, Output, Model)
+export * from './schemas/index.js';
 
-    // Output
-    OutputConfigSchema,
-    DEFAULT_PLUGIN_OUTPUT,
-    type OutputConfig,
+// Export everything from the main schema definition (Step, Globals, Factory, Inferred Types)
+export * from './schema.js';
 
-    // Model
-    ModelConfigSchema,
-    BaseModelConfigSchema,
-    type ModelConfig,
-    type BaseModelConfig,
-    type PluginModelConfig
-} from './schemas/index.js';
+// Export validation rules
+export * from './validationRules.js';
 
-// =============================================================================
-// Pipeline Schemas
-// =============================================================================
-
-export {
-    // Backward compatibility alias
-    PromptDefSchema,
-
-    // Step
-    FeedbackConfigSchema,
-    StepConfigSchema,
-
-    // Globals
-    GlobalsConfigSchema,
-    // Factory for custom plugin unions (used by CLI)
-    createPipelineSchemaFactory
-} from './schema.js';
-
-// =============================================================================
-// Types
-// =============================================================================
-
-export type {
-    ResolvedModelConfig,
-    ResolvedPluginBase,
-    ServiceCapabilities,
-    StepConfig,
-    ResolvedStepConfig,
-    GlobalsConfig,
-    RuntimeConfig,
-    ResolvedPipelineConfig
-} from './types.js';
-
-// =============================================================================
-// Loaders & Utilities
-// =============================================================================
-
-export { zJsonSchemaObject, zHandlebars } from './validationRules.js';
+// Export types (if any remain that aren't in schema.js)
+export * from './types.js';

@@ -1,11 +1,9 @@
 import { z } from 'zod';
 import OpenAI from 'openai';
 import { StepRow } from '../StepRow.js';
-import { ResolvedPluginBase } from '../config/types.js';
+import { ResolvedPluginBase, RawModelConfig, StepBaseConfig, GlobalsConfig } from '../config/index.js';
 import { BatchPromptEvents } from '../events.js';
 import { LlmClient } from 'llm-fns';
-import { RawModelConfig } from '../config/schemas/model.js';
-import { StepBaseConfig, GlobalsConfig } from '../config/schema.js';
 
 export interface PluginExecutionContext {
     row: Record<string, any>;

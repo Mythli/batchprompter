@@ -7,12 +7,10 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT, zHandlebars, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
-import { zHandlebars } from '../../config/validationRules.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
-import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const StyleScraperConfigSchemaV2 = z.object({
     type: z.literal('style-scraper').describe("Identifies this as a Style Scraper plugin."),

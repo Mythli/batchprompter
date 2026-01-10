@@ -7,14 +7,12 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, zJsonSchemaObject, zHandlebars, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
 import { AiWebsiteAgent } from './AiWebsiteAgent.js';
-import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import PQueue from 'p-queue';
-import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const LooseWebsiteAgentConfigSchemaV2 = z.object({
     type: z.literal('website-agent'),
@@ -50,7 +48,7 @@ export class WebsiteAgentPluginV2 extends BasePlugin<WebsiteAgentConfig> {
     
     override getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
          return LooseWebsiteAgentConfigSchemaV2.transform(async (config) => {
-            const { resolveModelConfig } = await import('../../config/schemas/index.js');
+            const { resolveModelConfig } = await import('../../config/index.js');
             return {
                 type: 'website-agent' as const,
                 id: config.id ?? `website-agent-${Date.now()}`,

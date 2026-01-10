@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import { OutputConfigSchema } from '../../config/common.js';
-import { OutputConfig } from '../../config/types.js';
+import { OutputConfigSchema } from '../../config/index.js';
 
 export const UrlExpanderConfigSchema = z.object({
     type: z.literal('url-expander').describe("Identifies this as a URL expander plugin."),

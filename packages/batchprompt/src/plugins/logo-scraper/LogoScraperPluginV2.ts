@@ -7,14 +7,12 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig, zHandlebars, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoScraper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
-import { zHandlebars } from '../../config/validationRules.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import { Fetcher } from 'llm-fns';
-import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const LogoScraperConfigSchemaV2 = z.object({
     type: z.literal('logo-scraper'),

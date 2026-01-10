@@ -6,11 +6,10 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ImageSearch } from './ImageSearch.js';
-import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const ImageSearchConfigSchemaV2 = z.object({
     type: z.literal('image-search'),

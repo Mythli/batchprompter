@@ -7,11 +7,9 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
-import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
+import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT, zJsonSchemaObject, zHandlebars, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
 import { PluginScope } from '../PluginScope.js';
 import { renderSchemaObject } from '../../utils/schemaUtils.js';
-import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const LooseValidationConfigSchemaV2 = z.object({
     type: z.literal('validation'),

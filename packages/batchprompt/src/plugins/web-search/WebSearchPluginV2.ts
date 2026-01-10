@@ -6,11 +6,10 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
 import { AiWebSearch } from './AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { WebSearch } from './WebSearch.js';
-import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
 export const WebSearchConfigSchemaV2 = z.object({
     type: z.literal('web-search'),
