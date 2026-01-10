@@ -122,7 +122,6 @@ export function resolveStep(
 
         // Resolved
         outputPath: outputPathTemplate,
-        outputTemplate: outputPathTemplate,
         tmpDir: globals.tmpDir,
         model: resolvedModel,
         judge: resolvedJudge,
