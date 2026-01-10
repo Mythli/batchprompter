@@ -5,15 +5,16 @@ import OpenAI from "openai";
 import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
-import { createPluginRegistry } from './plugins/index.js';
+import { createPluginRegistry, PluginRegistryV2 } from './plugins/index.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { createAiLoggingFetcher, createCachedFetcher, createLlm } from "llm-fns";
-import { GlobalContext } from './types.js';
+import { createAiLoggingFetcher, createCachedFetcher, createLlm, CacheLike } from "llm-fns";
 import { ServiceCapabilities, ModelConfig } from './config/types.js';
 import { LlmClientFactory } from './LlmClientFactory.js';
 import { attachQueueLogger } from "./debug/queue.js";
 import { LlmFactory } from './plugins/types.js';
 import { createPipelineSchemaFactory } from './config/schema.js';
+import { EventEmitter } from 'eventemitter3';
+import { BatchPromptEvents } from './events.js';
 
 function getEnvVar(env: Record<string, any>, keys: string[]): string | undefined {
     for (const key of keys) {
@@ -47,7 +48,7 @@ export type ConfigOverrides = {
     retryBaseDelay?: number;
 };
 
-class KeyvCacheAdapter {
+class KeyvCacheAdapter implements CacheLike {
     constructor(private keyv: Keyv) {}
     async get<T>(key: string): Promise<T | undefined> { return this.keyv.get(key); }
     async set(key: string, value: any, ttl?: number): Promise<void> { await this.keyv.set(key, value, ttl); }
@@ -60,7 +61,25 @@ class KeyvCacheAdapter {
     store: any = {};
 }
 
-export const initConfig = async (env: Record<string, any>, overrides: ConfigOverrides = {}) => {
+export type BatchPromptDeps = {
+    openai: OpenAI;
+    events: EventEmitter<BatchPromptEvents>;
+    cache?: CacheLike;
+    gptQueue: PQueue;
+    taskQueue: PQueue;
+    serperQueue: PQueue;
+    puppeteerQueue: PQueue;
+    puppeteerHelper: PuppeteerHelper;
+    fetcher: any; // Fetcher from llm-fns
+    imageSearch?: ImageSearch;
+    webSearch?: WebSearch;
+    capabilities: ServiceCapabilities;
+    defaultModel: string;
+    pluginRegistry: PluginRegistryV2;
+    llmFactory: LlmClientFactory;
+};
+
+export const initConfig = async (env: Record<string, any>, overrides: ConfigOverrides = {}): Promise<BatchPromptDeps> => {
     const rawConfig = {
         ...env,
         AI_API_KEY: getEnvVar(env, ['BATCHPROMPT_OPENAI_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY']),
@@ -82,7 +101,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         hasPuppeteer: true
     };
 
-    let cache: any;
+    let cache: CacheLike | undefined;
     if (config.CACHE_ENABLED) {
         const keyv = new Keyv({
             store: new KeyvSqlite(`sqlite://${config.SQLITE_PATH}`),
@@ -126,16 +145,16 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
 
     if (capabilities.hasSerper) {
         if (!imageSearch && config.SERPER_API_KEY) {
-            imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher, serperQueue);
+            imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher as any, serperQueue);
         }
         if (!webSearch && config.SERPER_API_KEY) {
-            webSearch = new WebSearch(config.SERPER_API_KEY, fetcher, serperQueue);
+            webSearch = new WebSearch(config.SERPER_API_KEY, fetcher as any, serperQueue);
         }
     }
 
     const puppeteerHelper = new PuppeteerHelper({
-        cache,
-        fetcher,
+        cache: cache as any,
+        fetcher: fetcher as any,
         maxPagesBeforeRestart: config.PUPPETEER_MAX_PAGES_BEFORE_RESTART,
         restartTimeout: config.PUPPETEER_RESTART_TIMEOUT
     });
@@ -169,14 +188,15 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         imageSearch,
         puppeteerHelper,
         createLlm: createTheLlm,
-        fetcher,
+        fetcher: fetcher as any,
         puppeteerQueue
     });
 
-    const { EventEmitter } = await import('eventemitter3');
-    const globalContext: GlobalContext = {
+    const events = new EventEmitter<BatchPromptEvents>();
+
+    return {
         openai,
-        events: new EventEmitter(),
+        events,
         cache,
         gptQueue,
         taskQueue,
@@ -191,23 +211,11 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         pluginRegistry,
         llmFactory
     };
-
-    const buildPipelineSchema = createPipelineSchemaFactory(pluginRegistry);
-
-    return {
-        config,
-        globalContext,
-        pluginRegistry,
-        puppeteerHelper,
-        capabilities,
-        llmFactory,
-        buildPipelineSchema
-    };
 }
 
 export type TheConfig = Awaited<ReturnType<typeof initConfig>>;
 
-let configInstance: null | TheConfig = null;
+let configInstance: null | BatchPromptDeps = null;
 export const getDiContainer = async (env: Record<string, any>, overrides?: ConfigOverrides) => {
     if(!configInstance) {
         configInstance = await initConfig(env, overrides);

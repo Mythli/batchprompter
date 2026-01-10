@@ -50,7 +50,7 @@ export class StepRow {
     get history() { return this.state.history; }
 
     getEvents() {
-        return this.step.globalContext.events;
+        return this.step.deps.events;
     }
 
     public getOriginalIndex(): number {
@@ -361,7 +361,7 @@ export class StepRow {
      */
     async createLlm(config?: ResolvedModelConfig): Promise<BoundLlmClient> {
         const targetConfig = config || (await this.hydratedConfig()).model;
-        return this.step.globalContext.llmFactory.create(targetConfig, targetConfig.messages);
+        return this.step.deps.llmFactory.create(targetConfig, targetConfig.messages);
     }
 
     /**

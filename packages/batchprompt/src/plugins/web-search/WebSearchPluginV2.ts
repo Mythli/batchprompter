@@ -86,7 +86,7 @@ export class WebSearchPluginV2 extends BasePlugin<WebSearchConfig> {
 
     async prepare(stepRow: StepRow, config: WebSearchConfig): Promise<PluginPacket[]> {
         const { context } = stepRow;
-        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
+        const emit = stepRow.step.deps.events.emit.bind(stepRow.step.deps.events);
         const webSearch = this.deps.webSearch;
 
         const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;

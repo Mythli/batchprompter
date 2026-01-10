@@ -102,7 +102,7 @@ export class ValidationPluginV2 extends BasePlugin<ValidationConfig> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
-            stepRow.step.globalContext.events.emit(event, ...args);
+            stepRow.step.deps.events.emit(event, ...args);
         };
 
         const scope = new PluginScope({

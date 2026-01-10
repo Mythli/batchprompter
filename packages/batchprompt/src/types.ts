@@ -21,26 +21,3 @@ export interface PipelineItem {
     stepHistory: Record<string, any>[];
     workspace: Record<string, any>;
 }
-
-export interface GlobalContext {
-    openai: OpenAI;
-    events: EventEmitter<BatchPromptEvents>;
-
-    cache?: Cache;
-    gptQueue: PQueue;
-    serperQueue: PQueue;
-    puppeteerQueue: PQueue;
-    taskQueue: PQueue;
-
-    puppeteerHelper: PuppeteerHelper;
-    fetcher: Fetcher;
-
-    imageSearch?: ImageSearch;
-    webSearch?: WebSearch;
-
-    capabilities: ServiceCapabilities;
-    defaultModel: string;
-
-    pluginRegistry: PluginRegistryV2;
-    llmFactory: LlmClientFactory;
-}

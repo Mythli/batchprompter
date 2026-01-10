@@ -8,7 +8,7 @@ import {
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
 import { AiWebsiteAgent } from './AiWebsiteAgent.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
@@ -62,30 +62,18 @@ export class WebsiteAgentPluginV2 extends BasePlugin<WebsiteAgentConfig> {
     
     override getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
          return LooseWebsiteAgentConfigSchemaV2.transform(config => {
-            const resolve = (model: any) => model ? import('../../config/schemas/index.js').then(m => m.resolveModelConfig(model, step.model)) : undefined;
-            // We can't use async import inside synchronous transform easily if we want to keep it simple.
-            // But `resolveModelConfig` is imported at top level in other files.
-            // I need to import `resolveModelConfig` in this file.
-            // It is imported as `resolveModelConfig` from `../../config/schemas/index.js`.
-            
-            // Note: resolveModelConfig is not imported in this file yet. I need to add it.
-            // Wait, I see `resolveModelConfig` is NOT imported in the imports above.
-            // I will add it to the imports.
-            
-            return import('../../config/schemas/index.js').then(({ resolveModelConfig }) => {
-                return {
-                    type: 'website-agent' as const,
-                    id: config.id ?? `website-agent-${Date.now()}`,
-                    output: config.output,
-                    url: config.url,
-                    schema: config.schema,
-                    budget: config.budget,
-                    batchSize: config.batchSize,
-                    navigatorModel: resolveModelConfig(config.navigator, step.model),
-                    extractModel: resolveModelConfig(config.extract, step.model),
-                    mergeModel: resolveModelConfig(config.merge, step.model)
-                };
-            });
+            return {
+                type: 'website-agent' as const,
+                id: config.id ?? `website-agent-${Date.now()}`,
+                output: config.output,
+                url: config.url,
+                schema: config.schema,
+                budget: config.budget,
+                batchSize: config.batchSize,
+                navigatorModel: resolveModelConfig(config.navigator, step.model),
+                extractModel: resolveModelConfig(config.extract, step.model),
+                mergeModel: resolveModelConfig(config.merge, step.model)
+            };
         });
     }
 
@@ -93,7 +81,7 @@ export class WebsiteAgentPluginV2 extends BasePlugin<WebsiteAgentConfig> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
-            stepRow.step.globalContext.events.emit(event, ...args);
+            stepRow.step.deps.events.emit(event, ...args);
         };
 
         const puppeteerHelper = this.deps.puppeteerHelper;

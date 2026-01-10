@@ -1,10 +1,11 @@
-import { StepConfig, GlobalContext, PipelineItem } from './types.js';
+import { StepConfig, PipelineItem } from './types.js';
 import { StepRow } from './StepRow.js';
+import { BatchPromptDeps } from './getDiContainer.js';
 
 export class Step {
     constructor(
         public readonly config: StepConfig,
-        public readonly globalContext: GlobalContext,
+        public readonly deps: BatchPromptDeps,
         public readonly stepIndex: number
     ) {}
 

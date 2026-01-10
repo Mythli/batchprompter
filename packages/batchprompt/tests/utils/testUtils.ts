@@ -2,15 +2,14 @@ import { vi } from 'vitest';
 import OpenAI from 'openai';
 import PQueue from 'p-queue';
 import { EventEmitter } from 'eventemitter3';
-import { GlobalContext } from '../../src/types.js';
 import { LlmClientFactory } from '../../src/LlmClientFactory.js';
-import { MessageBuilder } from '../../src/core/MessageBuilder.js';
 import { Plugin, createPluginRegistry } from '../../src/plugins/index.js';
-import { ActionRunner } from '../../src/ActionRunner.js';
-import { createMockOpenAI, getPromptSummary, LlmFatalError } from 'llm-fns';
+import { createMockOpenAI } from 'llm-fns';
 import { DebugLogger } from "../../src/index.js";
 import { Pipeline } from '../../src/Pipeline.js';
 import { createPipelineSchemaFactory } from '../../src/config/schema.js';
+import { BatchPromptDeps } from '../../src/getDiContainer.js';
+import { BatchPromptEvents } from '../../src/events.js';
 
 export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]) => string | any;
 
@@ -23,9 +22,9 @@ export interface TestContextOptions {
 export function createTestContext(options: TestContextOptions = {}) {
     const { responses = [], webSearch, imageSearch } = options;
     const openai = createMockOpenAI(responses);
-    const events = new EventEmitter();
+    const events = new EventEmitter<BatchPromptEvents>();
 
-    const globalContext: GlobalContext = {
+    const deps: BatchPromptDeps = {
         openai,
         events: events as any,
         gptQueue: new PQueue(),
@@ -51,10 +50,12 @@ export function createTestContext(options: TestContextOptions = {}) {
         },
         defaultModel: 'gpt-mock',
         webSearch,
-        imageSearch
-    } as any; // Cast to any because we construct the rest below
+        imageSearch,
+        pluginRegistry: null as any, // Injected later
+        llmFactory: null as any // Injected later
+    };
 
-    return { globalContext, openai, events };
+    return { deps, openai, events };
 }
 
 export interface TestEnvOptions {
@@ -74,7 +75,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         imageSearch
     } = options;
 
-    const { globalContext, openai, events } = createTestContext({
+    const { deps, openai, events } = createTestContext({
         responses: mockResponses,
         webSearch,
         imageSearch
@@ -83,18 +84,18 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     // Add DebugLogger to see events in test output
     new DebugLogger(events as any);
 
-    const llmFactory = new LlmClientFactory(openai, globalContext.gptQueue, 'gpt-mock', 0);
+    const llmFactory = new LlmClientFactory(openai, deps.gptQueue, 'gpt-mock', 0);
 
     // Create registry with injected dependencies
-    const createLlm = (config: any) => llmFactory.create(config).getRawClient();
+    const createLlm = (config: any) => llmFactory.create(config, []).getRawClient();
 
     const pluginRegistry = createPluginRegistry({
         createLlm: createLlm as any,
-        webSearch: globalContext.webSearch,
-        imageSearch: globalContext.imageSearch,
-        puppeteerHelper: globalContext.puppeteerHelper,
-        puppeteerQueue: globalContext.puppeteerQueue,
-        fetcher: globalContext.fetcher
+        webSearch: deps.webSearch,
+        imageSearch: deps.imageSearch,
+        puppeteerHelper: deps.puppeteerHelper,
+        puppeteerQueue: deps.puppeteerQueue,
+        fetcher: deps.fetcher
     });
 
     // Apply overrides
@@ -102,13 +103,9 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         pluginRegistry.override(plugin);
     }
 
-    // Complete GlobalContext construction
-    globalContext.pluginRegistry = pluginRegistry;
-    globalContext.llmFactory = llmFactory;
-
-    const actionRunner = new ActionRunner(
-        globalContext
-    );
+    // Complete deps construction
+    deps.pluginRegistry = pluginRegistry;
+    deps.llmFactory = llmFactory;
 
     // Helper to run config using the new Pipeline flow
     const executor = {
@@ -122,7 +119,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
             const schema = await buildSchema(configWithData);
             const runtimeConfig = await schema.parseAsync(configWithData);
 
-            const pipeline = new Pipeline(globalContext);
+            const pipeline = new Pipeline(deps);
             return pipeline.run(runtimeConfig);
         }
     };
@@ -132,6 +129,6 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         openai,
         events,
         registry: pluginRegistry,
-        globalContext
+        deps
     };
 }

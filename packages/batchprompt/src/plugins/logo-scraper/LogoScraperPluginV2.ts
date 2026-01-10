@@ -102,7 +102,7 @@ export class LogoScraperPluginV2 extends BasePlugin<LogoScraperConfig> {
     }
 
     async prepare(stepRow: StepRow, config: LogoScraperConfig): Promise<PluginPacket[]> {
-        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
+        const emit = stepRow.step.deps.events.emit.bind(stepRow.step.deps.events);
         const puppeteerHelper = this.deps.puppeteerHelper;
         const fetcher = this.deps.fetcher;
 

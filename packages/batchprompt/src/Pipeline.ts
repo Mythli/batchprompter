@@ -1,5 +1,6 @@
-import { StepConfig, GlobalContext, RuntimeConfig, PipelineItem } from './types.js';
+import { StepConfig, RuntimeConfig, PipelineItem } from './types.js';
 import { Step } from './Step.js';
+import { BatchPromptDeps } from './getDiContainer.js';
 
 interface TaskPayload {
     item: PipelineItem;
@@ -10,14 +11,14 @@ export class Pipeline {
     public readonly steps: Step[] = [];
 
     constructor(
-        private globalContext: GlobalContext
+        private deps: BatchPromptDeps
     ) {}
 
     private async init(stepConfigs: StepConfig[]) {
         this.steps.length = 0;
         for (let i = 0; i < stepConfigs.length; i++) {
             const stepConfig = stepConfigs[i];
-            const step = new Step(stepConfig, this.globalContext, i);
+            const step = new Step(stepConfig, this.deps, i);
             await step.init();
             this.steps.push(step);
         }
@@ -25,7 +26,7 @@ export class Pipeline {
 
     async run(config: RuntimeConfig): Promise<{ results: any[], artifacts: any[] }> {
         const { concurrency, taskConcurrency, data, steps, offset = 0, limit } = config;
-        const events = this.globalContext.events;
+        const events = this.deps.events;
 
         // Collection arrays
         const results: any[] = [];
@@ -62,8 +63,8 @@ export class Pipeline {
             events.emit('run:start', config);
             events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)` });
 
-            this.globalContext.taskQueue.concurrency = taskConcurrency;
-            this.globalContext.gptQueue.concurrency = concurrency;
+            this.deps.taskQueue.concurrency = taskConcurrency;
+            this.deps.gptQueue.concurrency = concurrency;
 
             // --- Phase 1: Compilation ---
             await this.init(steps);
@@ -75,7 +76,7 @@ export class Pipeline {
 
             events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Processing ${dataToProcess.length} rows.` });
 
-            const queue = this.globalContext.taskQueue;
+            const queue = this.deps.taskQueue;
 
             const enqueueNext = (items: PipelineItem[], nextStepIndex: number) => {
                 if (nextStepIndex >= this.steps.length) {

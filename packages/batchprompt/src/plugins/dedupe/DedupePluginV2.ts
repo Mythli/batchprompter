@@ -68,7 +68,7 @@ export class DedupePluginV2 extends BasePlugin<DedupeConfig> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
-            stepRow.step.globalContext.events.emit(event, ...args);
+            stepRow.step.deps.events.emit(event, ...args);
         };
 
         const scope = new PluginScope({
