@@ -2,11 +2,16 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import {
     BasePlugin,
-    LlmFactory,
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
+import {
+    OutputConfigSchema,
+    RawModelConfigSchema,
+    DEFAULT_PLUGIN_OUTPUT,
+    resolveModelConfig,
+    GlobalConfig, StepConfig
+} from '../../config/index.js';
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ImageSearch } from './ImageSearch.js';
@@ -42,7 +47,7 @@ export class ImageSearchPluginV2 extends BasePlugin<ImageSearchConfig> {
         super();
     }
 
-    getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
+    getSchema(step: StepConfig, globals: GlobalConfig) {
         return ImageSearchConfigSchemaV2.transform(config => {
             return {
                 ...config,
