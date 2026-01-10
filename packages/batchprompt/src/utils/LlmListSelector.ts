@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { BoundLlmClient } from '../core/BoundLlmClient.js';
+import { BoundLlmClient } from '../BoundLlmClient.js';
 
 export interface SelectionOptions<T> {
     /** Maximum number of items to select */

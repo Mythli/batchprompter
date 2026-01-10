@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import { EventEmitter } from 'eventemitter3';
-import { BoundLlmClient } from '../../core/BoundLlmClient.js';
+import { BoundLlmClient } from '../../BoundLlmClient.js';
 import { ImageSearch, ImageSearchResult } from './ImageSearch.js';
 import { SpriteGenerator } from '../../utils/SpriteGenerator.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';

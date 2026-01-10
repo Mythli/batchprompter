@@ -1,19 +1,15 @@
 import JSZip from 'jszip';
-import { 
-    ActionRunner, 
-    PluginRegistryV2, 
-    GlobalContext, 
-    ContentResolver, 
+import {
+    PluginRegistryV2,
+    GlobalContext,
     Pipeline,
     createPipelineSchemaFactory
 } from 'batchprompt';
 
 export class ExecutionService {
     constructor(
-        private actionRunner: ActionRunner,
         private pluginRegistry: PluginRegistryV2,
         private globalContext: GlobalContext,
-        private contentResolver: ContentResolver
     ) {}
 
     async runConfig(config: any, initialRows?: any[]): Promise<{ results: any[], artifacts: any[], zip: string }> {

@@ -9,7 +9,7 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "watch": "pnpm build && tsc -b -w",
+    "watch": "tsc -b -w",
     "build": "tsc",
     "compile-samples": "tsx scripts/create-docs-ts.ts",
     "test": "vitest"

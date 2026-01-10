@@ -3,7 +3,7 @@ import PQueue from 'p-queue';
 import TurndownService from 'turndown';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
-import { BoundLlmClient } from '../../core/BoundLlmClient.js';
+import { BoundLlmClient } from '../../BoundLlmClient.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import { LinkData } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 import { compressHtml } from '../../utils/compressHtml.js';

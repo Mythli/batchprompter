@@ -1,5 +1,5 @@
 import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from '../core/events.js';
+import { BatchPromptEvents } from '../events.js';
 
 export class DebugLogger {
     constructor(private events: EventEmitter<BatchPromptEvents>) {

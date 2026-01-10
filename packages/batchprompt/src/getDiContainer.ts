@@ -8,13 +8,17 @@ import { WebSearch } from './plugins/web-search/WebSearch.js';
 import { createPluginRegistry, PluginRegistryV2 } from './plugins/index.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import { createAiLoggingFetcher, createCachedFetcher, createLlm, CacheLike } from "llm-fns";
-import { ServiceCapabilities, ModelConfig } from './config/types.js';
 import { LlmClientFactory } from './LlmClientFactory.js';
 import { attachQueueLogger } from "./debug/queue.js";
 import { LlmFactory } from './plugins/types.js';
-import { createPipelineSchemaFactory } from './config/schema.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './events.js';
+
+interface ServiceCapabilities {
+    hasSerper: boolean;
+    hasPuppeteer: boolean;
+}
+
 
 function getEnvVar(env: Record<string, any>, keys: string[]): string | undefined {
     for (const key of keys) {

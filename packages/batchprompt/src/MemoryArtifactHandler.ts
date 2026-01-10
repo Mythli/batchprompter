@@ -1,5 +1,5 @@
 import { EventEmitter } from 'eventemitter3';
-import { BatchPromptEvents } from '../core/events.js';
+import { BatchPromptEvents } from './events.js';
 
 export interface Artifact {
     path: string;
@@ -21,7 +21,7 @@ export class MemoryArtifactHandler {
             type: payload.type
         });
     }
-    
+
     clear() {
         this.artifacts = [];
     }
