@@ -1,5 +1,4 @@
-import { StepConfig } from './config/index.js';
-import { PipelineItem } from './types.js';
+import { StepConfig, PipelineItem } from './types.js';
 import { StepRow } from './StepRow.js';
 import { BatchPromptDeps } from './getDiContainer.js';
 

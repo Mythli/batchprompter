@@ -5,9 +5,6 @@
 // Export everything from schemas (Prompt, Output, Model)
 export * from './schemas/index.js';
 
-// Export base schemas and types
-export * from './base.js';
-
 // Export everything from the main schema definition (Step, Globals, Factory, Inferred Types)
 export * from './schema.js';
 

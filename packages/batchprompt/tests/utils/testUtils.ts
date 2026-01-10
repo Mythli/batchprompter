@@ -7,7 +7,7 @@ import { Plugin, createPluginRegistry } from '../../src/plugins/index.js';
 import { createMockOpenAI } from 'llm-fns';
 import { DebugLogger } from "../../src/index.js";
 import { Pipeline } from '../../src/Pipeline.js';
-import { createPipelineSchema } from '../../src/config/index.js';
+import { createPipelineSchemaFactory } from '../../src/config/index.js';
 import { BatchPromptDeps } from '../../src/getDiContainer.js';
 import { BatchPromptEvents } from '../../src/events.js';
 
@@ -115,7 +115,8 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
                 configWithData.data = initialRows;
             }
 
-            const schema = createPipelineSchema(pluginRegistry);
+            const buildSchema = createPipelineSchemaFactory(pluginRegistry);
+            const schema = await buildSchema(configWithData);
             const runtimeConfig = await schema.parseAsync(configWithData);
 
             const pipeline = new Pipeline(deps);
