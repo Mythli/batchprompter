@@ -166,7 +166,7 @@ export class StepRow {
 
     async getTempDir() {
         const config = await this.hydratedConfig();
-        return config.resolvedTempDir || '/tmp';
+        return config.tmpDir
     }
 
     async getOutputBasename() {
@@ -290,8 +290,8 @@ export class StepRow {
             } else {
                 // Standard: Update current row with the data
                 const dataToApply = config.explode ? dataArray[0] : dataArray;
-                
-                // We can reuse 'spawn' to create the next state even for single items, 
+
+                // We can reuse 'spawn' to create the next state even for single items,
                 // effectively treating it as a mutation of the flow
                 nextRows.push(this.spawn(dataToApply, this.state.variationIndex, config, namespace, nextHistory, nextContent));
             }
@@ -301,9 +301,9 @@ export class StepRow {
     }
 
     private spawn(
-        data: any, 
-        variationIndex: number | undefined, 
-        config: OutputConfig, 
+        data: any,
+        variationIndex: number | undefined,
+        config: OutputConfig,
         namespace: string,
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         content: OpenAI.Chat.Completions.ChatCompletionContentPart[]
@@ -346,7 +346,7 @@ export class StepRow {
         const config = await this.hydratedConfig();
         // Create LLM Client using hydrated model config
         const llm = await this.createLlm(config.model);
-        
+
         // Execution Strategy
         let strategy: GenerationStrategy = new StandardStrategy(this);
         if (config.candidates > 1) {
