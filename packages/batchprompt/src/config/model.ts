@@ -1,17 +1,10 @@
 import { z } from 'zod';
-
-export type RawModel = {
-
-}
+import OpenAI from "openai";
 
 export const PromptSchema = z.union([
     z.string(),
     z.array(z.any()) // ContentPart[]
 ]).describe("Prompt definition: string or ContentPart[]");
-
-const createModelSchema = (dat) => {
-
-}
 
 export const RawModelConfigSchema = z.object({
     model: z.string().optional(),
@@ -19,7 +12,15 @@ export const RawModelConfigSchema = z.object({
     thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     system: PromptSchema.optional(),
     prompt: PromptSchema.optional()
-})
+});
+
+export type RawModel = z.infer<(typeof RawModelConfigSchema)>;
+
+export function normalizePromptToParts(prompt: any): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
+    if (!prompt) return [];
+    if (Array.isArray(prompt)) return prompt;
+    return [{ type: 'text', text: prompt }];
+}
 
 export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema>) {
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
@@ -39,6 +40,10 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
         }
     }
 
+    if(!messages.length) {
+        throw new Error('')
+    }
+
     return {
         model: config.model,
         temperature: config.temperature,
@@ -46,3 +51,5 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
         messages
     };
 }
+
+export const ModelConfigSchema = RawModelConfigSchema.transform(transformModelConfig);
