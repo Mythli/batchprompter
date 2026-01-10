@@ -5,13 +5,12 @@ import { StepRow } from '../../StepRow.js';
 import { UrlHandlerRegistry } from './utils/UrlHandlerRegistry.js';
 import {
     UrlExpanderConfig,
-    UrlExpanderResolvedConfig,
     UrlExpanderConfigSchema,
     UrlExpanderStepExtension
 } from './UrlExpanderConfig.js';
 import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
 
-export class UrlExpanderPlugin extends BasePlugin<UrlExpanderResolvedConfig> {
+export class UrlExpanderPlugin extends BasePlugin<UrlExpanderConfig> {
     readonly type = 'url-expander';
 
     constructor(private registry: UrlHandlerRegistry) {
@@ -57,7 +56,7 @@ export class UrlExpanderPlugin extends BasePlugin<UrlExpanderResolvedConfig> {
         return step;
     }
 
-    async prepare(stepRow: StepRow, config: UrlExpanderResolvedConfig): Promise<PluginPacket[]> {
+    async prepare(stepRow: StepRow, config: UrlExpanderConfig): Promise<PluginPacket[]> {
         const { mode, maxChars } = config;
         const messages = stepRow.history;
 

@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
-import { ResolvedModelConfig } from './config/schemas/model.js';
+import { ModelConfig } from './config/schemas/model.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 
 export class LlmClientFactory {
@@ -18,7 +18,7 @@ export class LlmClientFactory {
      * @param messages The fully hydrated messages to bind
      */
     create(
-        config: ResolvedModelConfig,
+        config: ModelConfig,
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
     ): BoundLlmClient {
         const modelConfig: Record<string, any> = {

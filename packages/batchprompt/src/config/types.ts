@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { OutputConfigSchema, ResolvedModelConfig } from './schemas/index.js';
+import { OutputConfigSchema, ModelConfig } from './schemas/index.js';
 
 // =============================================================================
 // Base Types
 // =============================================================================
 
-export type { ResolvedModelConfig };
+export type { ModelConfig };
 export type { OutputConfig } from './schemas/index.js';
 
 // =============================================================================
@@ -25,9 +25,6 @@ export interface ServiceCapabilities {
 // to avoid manual duplication.
 export type {
     StepConfig,
-    ResolvedStepConfig,
     GlobalsConfig,
     RuntimeConfig,
-    ResolvedPipelineConfig,
-    ResolvedPluginBase
 } from './schema.js';

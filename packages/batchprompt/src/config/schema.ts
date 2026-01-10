@@ -8,7 +8,7 @@ import {
     transformModelConfig,
     mergeModelConfigs,
     resolveModelConfig,
-    ModelConfig
+    RawModelConfig
 } from './schemas/index.js';
 import { zHandlebars } from './validationRules.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
@@ -99,7 +99,7 @@ export type ResolvedPluginBase = z.infer<typeof ResolvedPluginBaseSchema>;
 export function resolveStep(
     step: StepBaseConfig & { plugins: ResolvedPluginBase[], [key: string]: any },
     globals: GlobalsConfig,
-    contextModel: ModelConfig
+    contextModel: RawModelConfig
 ) {
     // Finalize Step Model (Prompt -> Messages)
     const resolvedModel = transformModelConfig(contextModel);
@@ -135,13 +135,10 @@ export function resolveStep(
 // =============================================================================
 
 export type StepConfig = ReturnType<typeof resolveStep>;
-export type ResolvedStepConfig = StepConfig;
 
 export type RuntimeConfig = GlobalsConfig & {
     steps: StepConfig[];
 };
-
-export type ResolvedPipelineConfig = RuntimeConfig;
 
 // =============================================================================
 // Preprocessing Logic

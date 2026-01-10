@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
 import { Step } from './Step.js';
-import { PipelineItem, OutputConfig, StepConfig, ResolvedModelConfig } from './types.js';
+import { PipelineItem, OutputConfig, StepConfig, ModelConfig } from './types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 import { ensureDir, aggressiveSanitize } from './utils/fileUtils.js';
 import { renderSchemaObject } from './utils/schemaUtils.js';
@@ -112,7 +112,7 @@ export class StepRow {
         }
 
         // 3. Resolve Model Messages
-        const hydrateModel = (m?: ResolvedModelConfig): ResolvedModelConfig | undefined => {
+        const hydrateModel = (m?: ModelConfig): ModelConfig | undefined => {
             if (!m) return undefined;
             return {
                 ...m,
@@ -359,7 +359,7 @@ export class StepRow {
      * Creates a BoundLlmClient.
      * If config is provided, it uses that. Otherwise it uses the hydrated model config.
      */
-    async createLlm(config?: ResolvedModelConfig): Promise<BoundLlmClient> {
+    async createLlm(config?: ModelConfig): Promise<BoundLlmClient> {
         const targetConfig = config || (await this.hydratedConfig()).model;
         return this.step.deps.llmFactory.create(targetConfig, targetConfig.messages);
     }
@@ -367,7 +367,7 @@ export class StepRow {
     /**
      * Helper to get a client bound to specific messages (used by CandidateStrategy/Judge)
      */
-    async getBoundClient(config: ResolvedModelConfig): Promise<BoundLlmClient> {
+    async getBoundClient(config: ModelConfig): Promise<BoundLlmClient> {
         return this.createLlm(config);
     }
 

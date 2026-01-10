@@ -4,7 +4,7 @@ import { StepRow } from '../StepRow.js';
 import { ResolvedPluginBase } from '../config/types.js';
 import { BatchPromptEvents } from '../events.js';
 import { LlmClient } from 'llm-fns';
-import { ModelConfig } from '../config/schemas/model.js';
+import { RawModelConfig } from '../config/schemas/model.js';
 import { StepBaseConfig, GlobalsConfig } from '../config/schema.js';
 
 export interface PluginExecutionContext {
@@ -134,4 +134,4 @@ export class PluginRegistryV2 {
     }
 }
 
-export type LlmFactory = (config: Partial<ModelConfig>) => LlmClient;
+export type LlmFactory = (config: Partial<RawModelConfig>) => LlmClient;

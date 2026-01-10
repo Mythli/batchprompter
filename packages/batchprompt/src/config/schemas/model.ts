@@ -50,21 +50,22 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
     };
 }
 
-export const ResolvedModelConfigSchema = RawModelConfigSchema.transform(transformModelConfig);
+export const ModelConfigSchema = RawModelConfigSchema.transform(transformModelConfig);
 
-export type ModelConfig = z.input<typeof ResolvedModelConfigSchema>;
-export type ResolvedModelConfig = z.output<typeof ResolvedModelConfigSchema>;
+// Input type (what the user writes)
+export type RawModelConfig = z.input<typeof ModelConfigSchema>;
 
-// For backward compatibility/aliases
-export type BaseModelConfig = ModelConfig;
-export type PluginModelConfig = ModelConfig;
+// Runtime type (what the app uses)
+export type ModelConfig = z.output<typeof ModelConfigSchema>;
+
+// For backward compatibility/aliases (if needed, but trying to remove)
+export type BaseModelConfig = RawModelConfig;
 export const BaseModelConfigSchema = RawModelConfigSchema;
-export const ModelConfigSchema = RawModelConfigSchema;
 
 /**
  * Merges a child config with a parent config, with the child taking precedence.
  */
-export function mergeModelConfigs(child?: ModelConfig, parent?: ModelConfig): ModelConfig {
+export function mergeModelConfigs(child?: RawModelConfig, parent?: RawModelConfig): RawModelConfig {
     return {
         model: child?.model ?? parent?.model,
         temperature: child?.temperature ?? parent?.temperature,
@@ -75,8 +76,8 @@ export function mergeModelConfigs(child?: ModelConfig, parent?: ModelConfig): Mo
 }
 
 /**
- * Merges a child config with a parent config and transforms it into a ResolvedModelConfig.
+ * Merges a child config with a parent config and transforms it into a ModelConfig.
  */
-export function resolveModelConfig(child?: ModelConfig, parent?: ModelConfig): ResolvedModelConfig {
+export function resolveModelConfig(child?: RawModelConfig, parent?: RawModelConfig): ModelConfig {
     return transformModelConfig(mergeModelConfigs(child, parent));
 }

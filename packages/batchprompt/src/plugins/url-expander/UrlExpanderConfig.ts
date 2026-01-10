@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { OutputConfigSchema } from '../../config/common.js';
-import { ResolvedOutputConfig } from '../../config/types.js';
+import { OutputConfig } from '../../config/types.js';
 
 export const UrlExpanderConfigSchema = z.object({
     type: z.literal('url-expander').describe("Identifies this as a URL expander plugin."),
@@ -14,14 +14,6 @@ export const UrlExpanderConfigSchema = z.object({
 });
 
 export type UrlExpanderConfig = z.infer<typeof UrlExpanderConfigSchema>;
-
-export interface UrlExpanderResolvedConfig {
-    type: 'url-expander';
-    id: string;
-    output: ResolvedOutputConfig;
-    mode: 'fetch' | 'puppeteer';
-    maxChars: number;
-}
 
 // The extension schema for the StepConfig
 export const UrlExpanderStepExtension = z.object({
