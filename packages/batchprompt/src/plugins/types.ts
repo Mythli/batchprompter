@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import OpenAI from 'openai';
 import { StepRow } from '../StepRow.js';
-import { ResolvedPluginBase, RawModelConfig, StepBaseConfig, GlobalsConfig } from '../config/index.js';
+import { GlobalsConfig } from '../config/index.js';
 import { BatchPromptEvents } from '../events.js';
 import { LlmClient } from 'llm-fns';
 
@@ -20,13 +20,13 @@ export interface PluginExecutionContext {
  * Standardized output from a plugin or LLM operation.
  */
 export interface PluginPacket {
-    /** 
-     * The structured results. 
+    /**
+     * The structured results.
      * - [] (Empty): Signals a filter/drop.
      * - [item]: Standard continuation.
      * - [item1, item2, ...]: Signals an explosion (if config.explode is true).
      */
-    data: any[]; 
+    data: any[];
     /** Content parts to be added to the prompt for subsequent operations in the step */
     contentParts: any[];
     /** Optional: Overrides the conversation history */
@@ -35,15 +35,9 @@ export interface PluginPacket {
     artifacts?: any[];
 }
 
-export interface ResolvedPlugin {
-    instance: Plugin<any>;
-    config: any;
-    def: ResolvedPluginBase;
-}
-
 export interface Plugin<TConfig = any> {
     readonly type: string;
-    
+
     /**
      * Returns the Zod schema used to validate and resolve the plugin configuration.
      * This schema should handle inheritance from the step and global configurations.
@@ -85,7 +79,7 @@ export interface Plugin<TConfig = any> {
 
 export abstract class BasePlugin<TConfig = any> implements Plugin<TConfig> {
     abstract readonly type: string;
-    
+
     abstract getSchema(step: StepBaseConfig, globals: GlobalsConfig): z.ZodType<TConfig>;
 
     async hydrate(config: TConfig, context: Record<string, any>): Promise<TConfig> {
@@ -131,5 +125,3 @@ export class PluginRegistryV2 {
         return Array.from(this.plugins.values());
     }
 }
-
-export type LlmFactory = (config: Partial<RawModelConfig>) => LlmClient;

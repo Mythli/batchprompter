@@ -8,28 +8,14 @@ import {
     transformModelConfig,
     mergeModelConfigs,
     resolveModelConfig,
-    RawModelConfig
 } from './schemas/index.js';
 import { zHandlebars } from './validationRules.js';
 import { PluginRegistryV2 } from '../plugins/types.js';
-
-// =============================================================================
-// Re-exports
-// =============================================================================
-
-export { PromptSchema as PromptDefSchema, RawModelConfigSchema as ModelConfigSchema, OutputConfigSchema };
-
-// =============================================================================
-// Feedback Schema
-// =============================================================================
+import {RawModelConfig} from "./schemas/model.js";
 
 export const FeedbackConfigSchema = RawModelConfigSchema.extend({
     loops: z.number().int().min(0).default(0).describe("Number of feedback iterations to run.")
 });
-
-// =============================================================================
-// Global Configuration Schema
-// =============================================================================
 
 export const GlobalsConfigSchema = z.object({
     model: z.string().default('google/gemini-3-flash-preview'),
@@ -68,25 +54,7 @@ export const StepBaseSchema = z.object({
     schema: z.any().optional(),
 });
 
-export type StepBaseConfig = z.infer<typeof StepBaseSchema>;
 
-// =============================================================================
-// Resolved Plugin Base
-// =============================================================================
-
-export const ResolvedPluginBaseSchema = z.object({
-    type: z.string(),
-    id: z.string(),
-    output: OutputConfigSchema,
-    config: z.any(),
-    instance: z.any() // This is the Plugin<T> instance
-});
-
-export type ResolvedPluginBase = z.infer<typeof ResolvedPluginBaseSchema>;
-
-// =============================================================================
-// Step Resolution Logic
-// =============================================================================
 
 /**
  * Resolves a raw step configuration into its final runtime state.
@@ -113,35 +81,21 @@ export function resolveStep(
         resolvedFeedback = { ...fbConfig, loops: step.feedback.loops };
     }
 
-    const outputPathTemplate = step.outputPath ?? globals.outputPath;
-
     return {
-        // Pass-throughs
+        ...globals,
         ...step,
-        timeout: step.timeout ?? globals.timeout,
-
-        // Resolved
-        outputPath: outputPathTemplate,
-        tmpDir: globals.tmpDir,
         model: resolvedModel,
         judge: resolvedJudge,
         feedback: resolvedFeedback,
     };
 }
 
-// =============================================================================
-// Inferred Runtime Types
-// =============================================================================
 
 export type StepConfig = ReturnType<typeof resolveStep>;
 
 export type RuntimeConfig = GlobalsConfig & {
     steps: StepConfig[];
 };
-
-// =============================================================================
-// Preprocessing Logic
-// =============================================================================
 
 function preprocessConfig(config: any, registry: PluginRegistryV2): any {
     if (!config || typeof config !== 'object') return config;
@@ -240,7 +194,7 @@ export const createPipelineSchemaFactory = (pluginRegistry: PluginRegistryV2) =>
     };
 
     // 4. The Main Schema Creator
-    return async (rawInput: unknown): Promise<RuntimeConfig> => {
+    return async (rawInput: unknown) => {
         // --- Stage 0: Preprocess ---
         const preprocessedInput = preprocessConfig(rawInput, pluginRegistry);
 

@@ -160,6 +160,7 @@ export class StepRow {
     }
 
     async getPlugins() {
+        config.outputPath
         const config = await this.hydratedConfig();
         return config.plugins || [];
     }
