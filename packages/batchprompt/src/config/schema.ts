@@ -91,7 +91,7 @@ export type ResolvedPluginBase = z.infer<typeof ResolvedPluginBaseSchema>;
 /**
  * Resolves a raw step configuration into its final runtime state.
  * This function is used by the Zod transform to infer the output type.
- * 
+ *
  * @param step The raw step configuration (with plugins already resolved to objects)
  * @param globals The global configuration
  * @param contextModel The merged model configuration (Global + Step Raw)
@@ -117,23 +117,16 @@ export function resolveStep(
 
     return {
         // Pass-throughs
-        output: step.output,
-        candidates: step.candidates,
-        aspectRatio: step.aspectRatio,
-        schema: step.schema,
+        ...step,
+        timeout: step.timeout ?? globals.timeout,
 
         // Resolved
         outputPath: outputPathTemplate,
         outputTemplate: outputPathTemplate,
-        timeout: step.timeout ?? globals.timeout,
         tmpDir: globals.tmpDir,
         model: resolvedModel,
         judge: resolvedJudge,
         feedback: resolvedFeedback,
-        plugins: step.plugins,
-
-        // Raw
-        rawConfig: step
     };
 }
 
