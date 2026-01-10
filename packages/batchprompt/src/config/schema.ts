@@ -66,25 +66,38 @@ export type GlobalConfig = z.infer<typeof GlobalsSchema>;
 export const createPipelineSchema = (pluginRegistry: PluginRegistryV2) => {
     const plugins = pluginRegistry.getAll();
 
-     const pluginSchemas: Array<z.ZodType<any>> = [];
-     let lastSchema: z.ZodObject = StepSchema;
+    const pluginSchemas = plugins.map(plugin => {
+        const schema = plugin.getSchema();
+        if (schema instanceof z.ZodObject) {
+            return schema.extend({
+                type: z.literal(plugin.type)
+            });
+        }
+        return schema;
+    });
+
+    let stepSchemaWithExtensions = StepSchema;
 
     for (const plugin of plugins) {
-        pluginSchemas.push(plugin.getSchema());
-
         if (plugin.getStepExtensionSchema) {
             const extension = plugin.getStepExtensionSchema();
-            if (extension) {
-                lastSchema = lastSchema.extend(extension);
+            if (extension instanceof z.ZodObject) {
+                stepSchemaWithExtensions = stepSchemaWithExtensions.extend(extension.shape);
             }
         }
     }
 
-    lastSchema.extend({
-        plugins: z.any()
+    const pluginUnion = pluginSchemas.length > 0
+        ? (pluginSchemas.length === 1
+            ? pluginSchemas[0]
+            : z.union(pluginSchemas as [z.ZodType<any>, z.ZodType<any>, ...z.ZodType<any>[]]))
+        : z.any();
+
+    const finalStepSchema = stepSchemaWithExtensions.extend({
+        plugins: z.array(pluginUnion).default([])
     });
 
     return GlobalsSchema.extend({
-        steps: z.array(lastSchema)
+        steps: z.array(finalStepSchema)
     });
 }
