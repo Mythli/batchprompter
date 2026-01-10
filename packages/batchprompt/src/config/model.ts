@@ -12,6 +12,8 @@ export const RawModelConfigSchema = z.object({
     thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     system: PromptSchema.optional(),
     prompt: PromptSchema.optional()
+}).refine(data => data.system || data.prompt, {
+    message: "no messages"
 });
 
 export type RawModel = z.infer<(typeof RawModelConfigSchema)>;
@@ -38,10 +40,6 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
         if (parts.length > 0) {
             messages.push({ role: 'user', content: parts });
         }
-    }
-
-    if(!messages.length) {
-        throw new Error('')
     }
 
     return {
