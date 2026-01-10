@@ -7,17 +7,12 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
 import { PuppeteerPageHelper } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
-
-// =============================================================================
-// Config Schema
-// =============================================================================
 
 export const StyleScraperConfigSchemaV2 = z.object({
     type: z.literal('style-scraper').describe("Identifies this as a Style Scraper plugin."),
@@ -33,19 +28,7 @@ export const StyleScraperConfigSchemaV2 = z.object({
     interactive: z.boolean().default(false).describe("Find interactive elements, hover them, and capture screenshots + CSS.")
 }).strict().describe("Configuration for the Style Scraper plugin.");
 
-export interface StyleScraperConfig {
-    type: 'style-scraper';
-    id: string;
-    output: ResolvedOutputConfig;
-    url: string;
-    resolution: { width: number; height: number };
-    mobile: boolean;
-    interactive: boolean;
-}
-
-// =============================================================================
-// Plugin
-// =============================================================================
+export type StyleScraperConfig = z.output<typeof StyleScraperConfigSchemaV2>;
 
 export class StyleScraperPluginV2 extends BasePlugin<StyleScraperConfig> {
     readonly type = 'style-scraper';

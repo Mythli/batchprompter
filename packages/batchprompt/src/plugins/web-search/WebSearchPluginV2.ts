@@ -6,7 +6,6 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
 import { AiWebSearch } from './AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
@@ -30,22 +29,7 @@ export const WebSearchConfigSchemaV2 = z.object({
     hl: z.string().optional()
 }).strict();
 
-export interface WebSearchConfig {
-    type: 'web-search';
-    id: string;
-    output: ResolvedOutputConfig;
-    query?: string;
-    queryModel?: ResolvedModelConfig;
-    selectModel?: ResolvedModelConfig;
-    compressModel?: ResolvedModelConfig;
-    limit: number;
-    mode: 'none' | 'markdown' | 'html';
-    queryCount: number;
-    maxPages: number;
-    dedupeStrategy: 'none' | 'domain' | 'url';
-    gl?: string;
-    hl?: string;
-}
+export type WebSearchConfig = z.output<typeof WebSearchConfigSchemaV2>;
 
 export class WebSearchPluginV2 extends BasePlugin<WebSearchConfig> {
     readonly type = 'web-search';
@@ -86,7 +70,7 @@ export class WebSearchPluginV2 extends BasePlugin<WebSearchConfig> {
 
     async prepare(stepRow: StepRow, config: WebSearchConfig): Promise<PluginPacket[]> {
         const { context } = stepRow;
-        const emit = stepRow.step.deps.events.emit.bind(stepRow.step.deps.events);
+        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
         const webSearch = this.deps.webSearch;
 
         const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;
@@ -170,9 +154,8 @@ export class WebSearchPluginV2 extends BasePlugin<WebSearchConfig> {
             hl: config.hl
         });
 
-        // Return packet
         return [{
-            data: result.data, // Array of results
+            data: result.data,
             contentParts: result.contentParts
         }];
     }

@@ -6,15 +6,10 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
 import { StepBaseConfig, GlobalsConfig } from '../../config/schema.js';
-
-// =============================================================================
-// Config Schema
-// =============================================================================
 
 export const DedupeConfigSchemaV2 = z.object({
     type: z.literal('dedupe').describe("Identifies this as a Dedupe plugin."),
@@ -25,17 +20,7 @@ export const DedupeConfigSchemaV2 = z.object({
     key: zHandlebars.describe("Deduplication key (Handlebars template). Items with the same key are dropped.")
 }).strict().describe("Configuration for the Dedupe plugin.");
 
-export interface DedupeConfig {
-    type: 'dedupe';
-    id: string;
-    output: ResolvedOutputConfig;
-    keyTemplate: string;
-    key: string;
-}
-
-// =============================================================================
-// Plugin (Stateless - state managed externally)
-// =============================================================================
+export type DedupeConfig = z.output<typeof DedupeConfigSchemaV2>;
 
 // Global deduplication state - shared across all instances
 const globalSeenKeys = new Map<string, Set<string>>();
@@ -68,7 +53,7 @@ export class DedupePluginV2 extends BasePlugin<DedupeConfig> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
-            stepRow.step.deps.events.emit(event, ...args);
+            stepRow.step.globalContext.events.emit(event, ...args);
         };
 
         const scope = new PluginScope({

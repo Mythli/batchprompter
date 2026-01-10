@@ -7,8 +7,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
 import { AiWebsiteAgent } from './AiWebsiteAgent.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
@@ -34,18 +33,7 @@ export const WebsiteAgentConfigSchemaV2 = LooseWebsiteAgentConfigSchemaV2.extend
     schema: zJsonSchemaObject
 }).strict();
 
-export interface WebsiteAgentConfig {
-    type: 'website-agent';
-    id: string;
-    output: ResolvedOutputConfig;
-    url: string;
-    schema: any;
-    budget: number;
-    batchSize: number;
-    navigatorModel: ResolvedModelConfig;
-    extractModel: ResolvedModelConfig;
-    mergeModel: ResolvedModelConfig;
-}
+export type WebsiteAgentConfig = z.output<typeof WebsiteAgentConfigSchemaV2>;
 
 export class WebsiteAgentPluginV2 extends BasePlugin<WebsiteAgentConfig> {
     readonly type = 'website-agent';
@@ -61,7 +49,8 @@ export class WebsiteAgentPluginV2 extends BasePlugin<WebsiteAgentConfig> {
     }
     
     override getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
-         return LooseWebsiteAgentConfigSchemaV2.transform(config => {
+         return LooseWebsiteAgentConfigSchemaV2.transform(async (config) => {
+            const { resolveModelConfig } = await import('../../config/schemas/index.js');
             return {
                 type: 'website-agent' as const,
                 id: config.id ?? `website-agent-${Date.now()}`,
@@ -81,7 +70,7 @@ export class WebsiteAgentPluginV2 extends BasePlugin<WebsiteAgentConfig> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
-            stepRow.step.deps.events.emit(event, ...args);
+            stepRow.step.globalContext.events.emit(event, ...args);
         };
 
         const puppeteerHelper = this.deps.puppeteerHelper;

@@ -21,24 +21,10 @@ export const RawModelConfigSchema = z.object({
     prompt: PromptSchema.optional()
 });
 
-export type ModelConfig = z.infer<typeof RawModelConfigSchema>;
-export type BaseModelConfig = ModelConfig;
-export type PluginModelConfig = ModelConfig;
-
-/**
- * The final resolved model configuration used at runtime.
- */
-export interface ResolvedModelConfig {
-    model?: string;
-    temperature?: number;
-    thinkingLevel?: 'low' | 'medium' | 'high';
-    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-}
-
 /**
  * Transforms a raw model config into a resolved one with messages.
  */
-export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema>): ResolvedModelConfig {
+export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema>) {
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
     if (config.system) {
@@ -64,6 +50,17 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
     };
 }
 
+export const ResolvedModelConfigSchema = RawModelConfigSchema.transform(transformModelConfig);
+
+export type ModelConfig = z.input<typeof ResolvedModelConfigSchema>;
+export type ResolvedModelConfig = z.output<typeof ResolvedModelConfigSchema>;
+
+// For backward compatibility/aliases
+export type BaseModelConfig = ModelConfig;
+export type PluginModelConfig = ModelConfig;
+export const BaseModelConfigSchema = RawModelConfigSchema;
+export const ModelConfigSchema = RawModelConfigSchema;
+
 /**
  * Merges a child config with a parent config, with the child taking precedence.
  */
@@ -83,7 +80,3 @@ export function mergeModelConfigs(child?: ModelConfig, parent?: ModelConfig): Mo
 export function resolveModelConfig(child?: ModelConfig, parent?: ModelConfig): ResolvedModelConfig {
     return transformModelConfig(mergeModelConfigs(child, parent));
 }
-
-// For backward compatibility with imports
-export const BaseModelConfigSchema = RawModelConfigSchema;
-export const ModelConfigSchema = RawModelConfigSchema;

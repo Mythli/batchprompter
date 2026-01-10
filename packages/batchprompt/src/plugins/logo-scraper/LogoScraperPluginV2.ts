@@ -7,7 +7,6 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
 import { aggressiveSanitize } from '../../utils/fileUtils.js';
 import { AiLogoScraper, LogoScraperResult, AnalyzedLogo } from './utils/AiLogoScraper.js';
@@ -32,20 +31,7 @@ export const LogoScraperConfigSchemaV2 = z.object({
     faviconLimit: z.number().int().positive().default(1)
 }).strict();
 
-export interface LogoScraperConfig {
-    type: 'logo-scraper';
-    id: string;
-    output: ResolvedOutputConfig;
-    url: string;
-    analyzeModel: ResolvedModelConfig;
-    extractModel: ResolvedModelConfig;
-    maxCandidates: number;
-    minScore: number;
-    logoPath?: string;
-    faviconPath?: string;
-    logoLimit: number;
-    faviconLimit: number;
-}
+export type LogoScraperConfig = z.output<typeof LogoScraperConfigSchemaV2>;
 
 export class LogoScraperPluginV2 extends BasePlugin<LogoScraperConfig> {
     readonly type = 'logo-scraper';

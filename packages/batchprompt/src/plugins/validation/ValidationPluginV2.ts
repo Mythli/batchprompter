@@ -7,7 +7,6 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT } from '../../config/schemas/index.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { PluginScope } from '../PluginScope.js';
@@ -22,14 +21,9 @@ export const LooseValidationConfigSchemaV2 = z.object({
     target: zHandlebars.optional()
 });
 
-export interface ValidationConfig {
-    type: 'validation';
-    id: string;
-    output: ResolvedOutputConfig;
-    schema: any;
-    target?: string;
+export type ValidationConfig = z.output<typeof LooseValidationConfigSchemaV2> & {
     schemaSource: string;
-}
+};
 
 export class ValidationPluginV2 extends BasePlugin<ValidationConfig> {
     readonly type = 'validation';

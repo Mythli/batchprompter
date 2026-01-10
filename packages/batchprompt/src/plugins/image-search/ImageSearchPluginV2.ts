@@ -6,7 +6,6 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { ResolvedModelConfig, ResolvedOutputConfig } from '../../config/types.js';
 import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig } from '../../config/schemas/index.js';
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
@@ -30,22 +29,7 @@ export const ImageSearchConfigSchemaV2 = z.object({
     hl: z.string().optional()
 }).strict();
 
-export interface ImageSearchConfig {
-    type: 'image-search';
-    id: string;
-    output: ResolvedOutputConfig;
-    query?: string;
-    queryModel?: ResolvedModelConfig;
-    selectModel?: ResolvedModelConfig;
-    limit: number;
-    select: number;
-    queryCount: number;
-    spriteSize: number;
-    maxPages: number;
-    dedupeStrategy: 'none' | 'domain' | 'url';
-    gl?: string;
-    hl?: string;
-}
+export type ImageSearchConfig = z.output<typeof ImageSearchConfigSchemaV2>;
 
 export class ImageSearchPluginV2 extends BasePlugin<ImageSearchConfig> {
     readonly type = 'image-search';
@@ -207,8 +191,6 @@ export class ImageSearchPluginV2 extends BasePlugin<ImageSearchConfig> {
 
         const validItems = processedPackets.filter((p): p is { data: any, contentParts: any[] } => p !== null);
 
-        // We return a single packet containing all items.
-        // The StepRow will handle exploding them if config.explode is true.
         return [{
             data: validItems.map(p => p.data),
             contentParts: validItems.flatMap(p => p.contentParts)
