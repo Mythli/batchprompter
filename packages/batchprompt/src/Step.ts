@@ -150,10 +150,16 @@ export class Step {
         const context = { ...item.workspace, ...item.row };
         const hydratedConfig = await this.hydrate(context, item.originalIndex);
 
+        // Bake model messages into initial history
+        const initialHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+            ...item.history,
+            ...(hydratedConfig.model?.messages || [])
+        ];
+
         return new StepRow(this, hydratedConfig, {
             data: item.row,
             context: context,
-            history: item.history,
+            history: initialHistory,
             content: [],
             originalIndex: item.originalIndex,
             variationIndex: item.variationIndex,

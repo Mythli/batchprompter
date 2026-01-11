@@ -5,7 +5,7 @@ import { BoundLlmClient } from './BoundLlmClient.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
-import { PluginPacket, BasePluginRow } from './plugins/types.js';
+import { PluginResult, PluginItem } from './plugins/types.js';
 import { OutputConfig, StepConfig } from "./config/schema.js";
 import { ModelConfig } from "./config/model.js";
 
@@ -20,7 +20,7 @@ export interface StepRowState {
     data: Record<string, any>;
     // The view context (workspace + data + ephemeral plugin outputs)
     context: Record<string, any>;
-    // Conversation history
+    // Conversation history (includes model messages, baked in at step creation)
     history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     // Accumulated content for the current step
     content: OpenAI.Chat.Completions.ChatCompletionContentPart[];
@@ -77,13 +77,16 @@ export class StepRow {
         return this.config.schema;
     }
 
-    async getPreparedMessages() {
-        // Combine hydrated model messages with dynamic content and history
-        const messages = [...this.state.history, ...this.config.model.messages];
+    /**
+     * Returns the complete prepared messages for LLM/plugin consumption.
+     * History already includes model messages (baked in at step creation).
+     * Appends accumulated content as a user message if present.
+     */
+    async getPreparedMessages(): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
         if (this.state.content.length > 0) {
-            messages.push({ role: 'user', content: this.state.content });
+            return [...this.state.history, { role: 'user' as const, content: this.state.content }];
         }
-        return messages;
+        return [...this.state.history];
     }
 
     // --- Core Logic ---
@@ -96,8 +99,8 @@ export class StepRow {
         for (const { instance, config } of plugins) {
             currentRows = await flatMapAsync(currentRows, async (row) => {
                 const pluginRow = instance.createRow(row, config);
-                const packets = await pluginRow.prepare();
-                return row.applyPackets(packets, config.output, instance.type);
+                const result = await pluginRow.prepare();
+                return row.applyResult(result, config.output, instance.type);
             });
         }
 
@@ -106,8 +109,8 @@ export class StepRow {
 
         if (hasMessages) {
             currentRows = await flatMapAsync(currentRows, async (row) => {
-                const packets = await row.executeLlm();
-                return row.applyPackets(packets, this.step.config.output, 'modelOutput');
+                const result = await row.executeLlm();
+                return row.applyResult(result, this.step.config.output, 'modelOutput');
             });
         }
 
@@ -115,8 +118,8 @@ export class StepRow {
         for (const { instance, config } of plugins) {
             currentRows = await flatMapAsync(currentRows, async (row) => {
                 const pluginRow = instance.createRow(row, config);
-                const packets = await pluginRow.postProcess(row.lastResult);
-                return row.applyPackets(packets, config.output, instance.type);
+                const result = await pluginRow.postProcess(row.lastResult);
+                return row.applyResult(result, config.output, instance.type);
             });
         }
 
@@ -136,56 +139,53 @@ export class StepRow {
     }
 
     /**
-     * Applies a list of packets to the current row, potentially spawning new StepRow instances.
+     * Applies a plugin result to the current row, potentially spawning new StepRow instances.
      */
-    public applyPackets(packets: PluginPacket[], outputConfig: OutputConfig, namespace: string): StepRow[] {
-        const nextRows: StepRow[] = [];
+    public applyResult(result: PluginResult, outputConfig: OutputConfig, namespace: string): StepRow[] {
+        const { history, items } = result;
 
-        for (const packet of packets) {
-            // 1. Update History if provided
-            let nextHistory = this.state.history;
-            if (packet.history) {
-                nextHistory = [...packet.history];
-            }
-
-            // 2. Append Content
-            let nextContent = this.state.content;
-            if (packet.contentParts && packet.contentParts.length > 0) {
-                nextContent = [...nextContent, ...packet.contentParts];
-            }
-
-            // 3. Handle Data (Branching/Explosion)
-            const dataArray = packet.data;
-
-            if (dataArray.length === 0) {
-                // Filter/Drop: Do nothing, effectively dropping this branch
-                continue;
-            }
-
-            if (outputConfig.explode && dataArray.length > 1) {
-                // Explode: Spawn new rows for each item
-                this.getEvents().emit('step:progress', {
-                    row: this.state.originalIndex,
-                    step: this.step.stepIndex + 1,
-                    type: 'explode',
-                    message: `Exploding ${dataArray.length} items`,
-                    data: { total: dataArray.length }
-                });
-
-                dataArray.forEach((itemData, idx) => {
-                    nextRows.push(this.spawn(itemData, idx, outputConfig, namespace, nextHistory, nextContent));
-                });
-            } else {
-                // Standard: Update current row with the data
-                const dataToApply = outputConfig.explode ? dataArray[0] : dataArray;
-
-                // We can reuse 'spawn' to create the next state even for single items,
-                // effectively treating it as a mutation of the flow
-                nextRows.push(this.spawn(dataToApply, this.state.variationIndex, outputConfig, namespace, nextHistory, nextContent));
-            }
+        // Filter/drop case: no items = row disappears
+        if (items.length === 0) {
+            return [];
         }
 
-        return nextRows;
+        // Explode case: multiple items with explode=true
+        if (outputConfig.explode && items.length > 1) {
+            this.getEvents().emit('step:progress', {
+                row: this.state.originalIndex,
+                step: this.step.stepIndex + 1,
+                type: 'explode',
+                message: `Exploding ${items.length} items`,
+                data: { total: items.length }
+            });
+
+            return items.map((item, idx) =>
+                this.spawn(
+                    item.data,
+                    idx,
+                    outputConfig,
+                    namespace,
+                    history,
+                    [...this.state.content, ...item.contentParts]
+                )
+            );
+        }
+
+        // Non-explode case: combine all items into single row
+        // Data: single item uses its data directly, multiple items combine into array
+        const combinedData = items.length === 1 ? items[0].data : items.map(i => i.data);
+
+        // ContentParts: concatenate all
+        const combinedContent = items.flatMap(i => i.contentParts);
+
+        return [this.spawn(
+            combinedData,
+            this.state.variationIndex,
+            outputConfig,
+            namespace,
+            history,
+            [...this.state.content, ...combinedContent]
+        )];
     }
 
     private spawn(
@@ -230,7 +230,7 @@ export class StepRow {
         return newRow;
     }
 
-    public async executeLlm(): Promise<PluginPacket[]> {
+    public async executeLlm(): Promise<PluginResult> {
         // Create LLM Client using hydrated model config
         const llm = await this.createLlm(this.config.model);
 

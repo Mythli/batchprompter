@@ -1,4 +1,4 @@
-import { BasePluginRow, PluginPacket } from '../types.js';
+import { BasePluginRow, PluginResult, PluginItem } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { WebSearchConfig } from './WebSearchPlugin.js';
 import { AiWebSearch } from './AiWebSearch.js';
@@ -14,7 +14,7 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
         super(stepRow, config);
     }
 
-    async prepare(): Promise<PluginPacket[]> {
+    async prepare(): Promise<PluginResult> {
         const { stepRow, config } = this;
         const { context } = stepRow;
         const emit = stepRow.step.deps.events.emit.bind(stepRow.step.deps.events);
@@ -100,9 +100,30 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
             hl: config.hl
         });
 
-        return [{
-            data: result.data,
-            contentParts: result.contentParts
-        }];
+        const history = await stepRow.getPreparedMessages();
+
+        // Build items: each search result becomes a separate item
+        // This allows proper explosion with matched data + content
+        const items: PluginItem[] = result.data.map((searchResult, idx) => {
+            // Build content parts specific to this result
+            const contentText = `Source: ${searchResult.title} (${searchResult.link})\nContent:\n${searchResult.content || searchResult.snippet || ''}`;
+            return {
+                data: searchResult,
+                contentParts: [{ type: 'text' as const, text: `\n--- Web Search Result ---\n${contentText}\n--------------------------\n` }]
+            };
+        });
+
+        // If no results, return single item with empty data
+        if (items.length === 0) {
+            return {
+                history,
+                items: [{ data: null, contentParts: [{ type: 'text', text: 'No search results found.' }] }]
+            };
+        }
+
+        return {
+            history,
+            items
+        };
     }
 }

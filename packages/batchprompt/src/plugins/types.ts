@@ -1,8 +1,7 @@
 import { z } from 'zod';
-import OpenAI from 'openai';
-import { StepRow } from '../StepRow.js';
-import { BatchPromptEvents } from '../events.js';
-import { StepConfig } from "../config/schema.js";
+import type OpenAI from 'openai';
+import type { StepRow } from '../StepRow.js';
+import type { StepConfig } from "../config/schema.js";
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -12,26 +11,33 @@ export interface PluginExecutionContext {
     outputDirectory?: string;
     outputBasename?: string;
     outputExtension?: string;
-    emit: <K extends keyof BatchPromptEvents>(event: K, ...args: Parameters<BatchPromptEvents[K]>) => void;
+}
+
+/**
+ * A single item in a plugin result.
+ * When exploding, each item becomes a separate row.
+ */
+export interface PluginItem {
+    /** The data value for this item */
+    data: any;
+    /** Content parts specific to this item */
+    contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[];
 }
 
 /**
  * Standardized output from a plugin or LLM operation.
  */
-export interface PluginPacket {
+export interface PluginResult {
+    /** The complete message history. Always replaces existing history. */
+    history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
     /**
-     * The structured results.
-     * - [] (Empty): Signals a filter/drop.
-     * - [item]: Standard continuation.
-     * - [item1, item2, ...]: Signals an explosion (if config.explode is true).
+     * The result items.
+     * - [] (Empty): Signals a filter/drop - row disappears.
+     * - [item]: Standard continuation - one row out.
+     * - [item1, item2, ...] + explode=false: One row, data combined, contentParts concatenated.
+     * - [item1, item2, ...] + explode=true: N rows, each gets its own data + contentParts.
      */
-    data: any[];
-    /** Content parts to be added to the prompt for subsequent operations in the step */
-    contentParts: any[];
-    /** Optional: Overrides the conversation history */
-    history?: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-    /** Optional artifacts generated during the operation */
-    artifacts?: any[];
+    items: PluginItem[];
 }
 
 /**
@@ -46,16 +52,24 @@ export abstract class BasePluginRow<TConfig = any> {
 
     /**
      * Pre-LLM execution logic.
+     * Default: pass-through (history unchanged, single null item)
      */
-    async prepare(): Promise<PluginPacket[]> {
-        return [{ data: [null], contentParts: [] }];
+    async prepare(): Promise<PluginResult> {
+        return {
+            history: await this.stepRow.getPreparedMessages(),
+            items: [{ data: null, contentParts: [] }]
+        };
     }
 
     /**
      * Post-LLM execution logic.
+     * Default: pass-through (history unchanged, result as single item)
      */
-    async postProcess(result: any): Promise<PluginPacket[]> {
-        return [{ data: [result], contentParts: [] }];
+    async postProcess(result: any): Promise<PluginResult> {
+        return {
+            history: await this.stepRow.getPreparedMessages(),
+            items: [{ data: result, contentParts: [] }]
+        };
     }
 }
 
@@ -85,7 +99,7 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
         return config;
     }
 
-    getStepExtensionSchema(): z.ZodObject | undefined {
+    getStepExtensionSchema(): z.ZodObject<any> | undefined {
         return undefined;
     }
 
@@ -95,52 +109,9 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
 
     /**
      * Creates a row-level execution instance for this plugin.
-     * Override this method to provide custom PluginRow implementations.
-     * 
-     * Default implementation returns a LegacyPluginRow that wraps
-     * the deprecated prepare/postProcess methods for backward compatibility.
+     * Must be implemented by all plugins.
      */
-    createRow(stepRow: StepRow, config: TNormalizedConfig): BasePluginRow<TNormalizedConfig> {
-        return new LegacyPluginRow(stepRow, config, this);
-    }
-
-    /**
-     * @deprecated Override createRow() and return a BasePluginRow subclass instead.
-     * Pre-LLM execution logic.
-     */
-    async prepare(stepRow: StepRow, config: TNormalizedConfig): Promise<PluginPacket[]> {
-        return [{ data: [null], contentParts: [] }];
-    }
-
-    /**
-     * @deprecated Override createRow() and return a BasePluginRow subclass instead.
-     * Post-LLM execution logic.
-     */
-    async postProcess(stepRow: StepRow, config: TNormalizedConfig, result: any): Promise<PluginPacket[]> {
-        return [{ data: [result], contentParts: [] }];
-    }
-}
-
-/**
- * Default PluginRow implementation that wraps legacy prepare/postProcess methods.
- * Used for backward compatibility with plugins that haven't migrated to the new pattern.
- */
-export class LegacyPluginRow<TConfig = any> extends BasePluginRow<TConfig> {
-    constructor(
-        stepRow: StepRow,
-        config: TConfig,
-        private plugin: BasePlugin<any, TConfig>
-    ) {
-        super(stepRow, config);
-    }
-
-    async prepare(): Promise<PluginPacket[]> {
-        return this.plugin.prepare(this.stepRow, this.config);
-    }
-
-    async postProcess(result: any): Promise<PluginPacket[]> {
-        return this.plugin.postProcess(this.stepRow, this.config, result);
-    }
+    abstract createRow(stepRow: StepRow, config: TNormalizedConfig): BasePluginRow<TNormalizedConfig>;
 }
 
 export class PluginRegistryV2 {

@@ -1,9 +1,8 @@
-import OpenAI from 'openai';
 import Ajv from 'ajv';
 import { SchemaValidationError } from 'llm-fns';
 import { GenerationStrategy } from './GenerationStrategy.js';
 import { StepRow } from '../StepRow.js';
-import { PluginPacket } from '../plugins/types.js';
+import { PluginResult, PluginItem } from '../plugins/types.js';
 
 export class StandardStrategy implements GenerationStrategy {
     private ajv: any;
@@ -15,7 +14,7 @@ export class StandardStrategy implements GenerationStrategy {
         this.ajv = new Ajv.default ? new Ajv.default({ strict: false }) : new Ajv({ strict: false });
     }
 
-    async execute(cacheSalt?: string | number): Promise<PluginPacket[]> {
+    async execute(cacheSalt?: string | number): Promise<PluginResult> {
         const config = this.stepRow.config;
         const rowIndex = this.stepRow.getOriginalIndex();
         const stepIndex = this.stepRow.step.stepIndex;
@@ -66,26 +65,16 @@ export class StandardStrategy implements GenerationStrategy {
             });
         }
 
-        // Standard strategy returns a single packet with the result
-        // If the result is an array (e.g. from JSON schema), it will be in data[0] if explode=false
-        // or data=[...items] if explode=true.
-        // However, the LLM returns ONE "thing" (object, array, or string).
-        // We wrap it in an array for the PluginPacket data contract.
-        
-        // If the LLM returned an array (e.g. JSON list), we treat that as the data payload.
-        // The StepRow.applyPacket logic will handle exploding it if config.explode is true.
-        
-        let dataPayload: any[] = [];
-        if (Array.isArray(finalResult)) {
-            dataPayload = finalResult;
-        } else {
-            dataPayload = [finalResult];
-        }
+        // Convert result to items
+        // If result is array, each element becomes an item (for potential explosion)
+        // Otherwise, single item with the result
+        const items: PluginItem[] = Array.isArray(finalResult)
+            ? finalResult.map(item => ({ data: item, contentParts: [] }))
+            : [{ data: finalResult, contentParts: [] }];
 
-        return [{
-            data: dataPayload,
-            contentParts: [],
-            history: undefined // Standard strategy doesn't modify history
-        }];
+        return {
+            history: finalMessages,
+            items
+        };
     }
 }

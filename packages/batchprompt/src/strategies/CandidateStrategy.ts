@@ -4,10 +4,10 @@ import { createCandidateSelector } from 'llm-fns';
 import { GenerationStrategy } from './GenerationStrategy.js';
 import { StandardStrategy } from './StandardStrategy.js';
 import { StepRow } from '../StepRow.js';
-import { PluginPacket } from '../plugins/types.js';
+import { PluginResult } from '../plugins/types.js';
 
 type CandidateType = {
-    packet: PluginPacket;
+    result: PluginResult;
     candidateIndex: number;
 };
 
@@ -21,7 +21,7 @@ export class CandidateStrategy implements GenerationStrategy {
         return this.stepRow.getEvents();
     }
 
-    async execute(cacheSalt?: string | number): Promise<PluginPacket[]> {
+    async execute(cacheSalt?: string | number): Promise<PluginResult> {
         const config = this.stepRow.config;
         const index = this.stepRow.getOriginalIndex();
         const stepIndex = this.stepRow.step.stepIndex;
@@ -33,9 +33,8 @@ export class CandidateStrategy implements GenerationStrategy {
         const selector = createCandidateSelector<void, CandidateType>({
             candidateCount,
             generate: async (_, i, salt) => {
-                const packets = await this.standardStrategy.execute(salt);
-                // Standard strategy returns 1 packet usually.
-                return { packet: packets[0], candidateIndex: i };
+                const result = await this.standardStrategy.execute(salt);
+                return { result, candidateIndex: i };
             },
             judge: async (_, candidates) => {
                 if (!judgeConfig) {
@@ -70,19 +69,20 @@ export class CandidateStrategy implements GenerationStrategy {
                 this.events.emit('step:progress', { row: index, step: stepIndex, type: 'warn', message: `Only 1 candidate succeeded. Skipping judge.` });
             }
 
-            return [selection.winner.packet];
+            return selection.winner.result;
         } else {
             // NO JUDGE: Return all candidates to explode
             this.events.emit('step:progress', { row: index, step: stepIndex, type: 'info', message: `No judge configured. Returning all ${selection.candidates.length} candidates.` });
 
-            // We merge all candidate data into a single array for the packet
-            const allData = selection.candidates.flatMap(c => c.packet.data);
-            
-            return [{
-                data: allData,
-                contentParts: [],
-                history: undefined
-            }];
+            // Merge all candidate items
+            const allItems = selection.candidates.flatMap(c => c.result.items);
+            // Use the last candidate's history (all should be equivalent)
+            const history = selection.candidates[selection.candidates.length - 1].result.history;
+
+            return {
+                history,
+                items: allItems
+            };
         }
     }
 
@@ -104,17 +104,18 @@ export class CandidateStrategy implements GenerationStrategy {
             const cand = candidates[i];
             candidatePresentationParts.push({ type: 'text', text: `\n--- Candidate ${i} ---\n` });
 
-            const val = cand.packet.data[0]; // Assuming single item per candidate packet
+            // Get first item's data from the result
+            const val = cand.result.items[0]?.data;
             const valStr = typeof val === 'string' ? val : JSON.stringify(val);
 
             // Heuristic for images
-            if (valStr.startsWith('http') || valStr.startsWith('data:image')) {
+            if (valStr && (valStr.startsWith('http') || valStr.startsWith('data:image'))) {
                 candidatePresentationParts.push({
                     type: 'image_url',
                     image_url: { url: valStr }
                 });
             } else {
-                candidatePresentationParts.push({ type: 'text', text: valStr });
+                candidatePresentationParts.push({ type: 'text', text: valStr || '' });
             }
         }
 

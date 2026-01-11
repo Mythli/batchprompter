@@ -1,10 +1,5 @@
-import OpenAI from 'openai';
-import { PluginPacket } from '../plugins/types.js';
-
-export interface GenerationResult extends PluginPacket {
-    historyMessage?: OpenAI.Chat.Completions.ChatCompletionMessageParam;
-}
+import { PluginResult } from '../plugins/types.js';
 
 export interface GenerationStrategy {
-    execute(cacheSalt?: string | number): Promise<PluginPacket[]>;
+    execute(cacheSalt?: string | number): Promise<PluginResult>;
 }
