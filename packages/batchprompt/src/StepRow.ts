@@ -3,13 +3,21 @@ import Handlebars from 'handlebars';
 import path from 'path';
 import { Step } from './Step.js';
 import { PipelineItem } from './types.js';
-import { OutputConfig, StepConfig, ModelConfig } from './config/index.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
 import { ensureDir, aggressiveSanitize } from './utils/fileUtils.js';
 import { renderSchemaObject } from './utils/schemaUtils.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
+import { PluginPacket } from './plugins/types.js';
+import {OutputConfig, StepConfig} from "./config/schema.js";
+import {ModelConfig} from "llm-fns";
+
+// Helper for async flatMap
+async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]>): Promise<U[]> {
+    const results = await Promise.all(array.map(callback));
+    return results.flat();
+}
 
 export interface StepRowState {
     // The persistent data record that is being processed and saved
@@ -69,8 +77,8 @@ export class StepRow {
         let outputExtension = config.aspectRatio ? '.png' : '.txt';
         let tempDir = '/tmp';
 
-        if (config.output?.path) {
-            const rendered = this.render(config.output.path, sanitizedContext);
+        if (config.outputPath) {
+            const rendered = this.render(config.outputPath, sanitizedContext);
             outputDir = path.resolve(path.dirname(rendered));
             await ensureDir(outputDir);
 
@@ -79,8 +87,8 @@ export class StepRow {
             outputExtension = parsed.ext;
         }
 
-        if (config.output?.tmpDir) {
-            const rendered = this.render(config.output.tmpDir, sanitizedContext);
+        if (config.tmpDir) {
+            const rendered = this.render(config.tmpDir, sanitizedContext);
             tempDir = path.resolve(rendered);
             await ensureDir(tempDir);
         }
@@ -127,6 +135,15 @@ export class StepRow {
             };
         };
 
+        // 4. Hydrate Plugins
+        const hydratedPlugins = await Promise.all(config.plugins.map(async (p) => {
+            const hydratedConfig = await p.instance.hydrate(p.config, this.state.context);
+            return {
+                ...p,
+                config: hydratedConfig
+            };
+        }));
+
         this._hydratedConfig = {
             ...config,
             resolvedOutputDir: outputDir,
@@ -137,29 +154,36 @@ export class StepRow {
             model: hydrateModel(config.model)!,
             judge: hydrateModel(config.judge),
             feedback: config.feedback ? { ...hydrateModel(config.feedback)!, loops: config.feedback.loops } : undefined,
-        } as any;
+            plugins: hydratedPlugins
+        };
 
-        return this._hydratedConfig!;
+        return this._hydratedConfig;
+    }
+
+    async getPlugins() {
+        config.outputPath
+        const config = await this.hydratedConfig();
+        return config.plugins || [];
     }
 
     async getTempDir() {
         const config = await this.hydratedConfig();
-        return (config as any).resolvedTempDir;
+        return config.tmpDir
     }
 
     async getOutputBasename() {
         const config = await this.hydratedConfig();
-        return (config as any).outputBasename;
+        return config.outputBasename;
     }
 
     async getOutputExtension() {
         const config = await this.hydratedConfig();
-        return (config as any).outputExtension;
+        return config.outputExtension;
     }
 
     async getResolvedOutputDir() {
         const config = await this.hydratedConfig();
-        return (config as any).resolvedOutputDir;
+        return config.resolvedOutputDir;
     }
 
     async getResolvedSchema() {
@@ -180,9 +204,38 @@ export class StepRow {
     // --- Core Logic ---
 
     async run(): Promise<PipelineItem[]> {
-        const packets = await this.executeLlm();
-        const nextRows = this.applyPackets(packets, this.step.config.output);
-        return nextRows.map(row => row.toPipelineItem());
+        let currentRows: StepRow[] = [this];
+
+        // --- Stage 1: Plugin Preparation ---
+        const plugins = await this.getPlugins();
+        for (const { instance, config } of plugins) {
+            currentRows = await flatMapAsync(currentRows, async (row) => {
+                const packets = await instance.prepare(row, config);
+                return row.applyPackets(packets, config.output, instance.type);
+            });
+        }
+
+        // --- Stage 2: Model Execution ---
+        const hydratedConfig = await this.hydratedConfig();
+        const hasMessages = hydratedConfig.model.messages.length > 0;
+
+        if (hasMessages) {
+            currentRows = await flatMapAsync(currentRows, async (row) => {
+                const packets = await row.executeLlm();
+                return row.applyPackets(packets, this.step.config.output, 'modelOutput');
+            });
+        }
+
+        // --- Stage 3: Plugin Post-Processing ---
+        for (const { instance, config } of plugins) {
+            currentRows = await flatMapAsync(currentRows, async (row) => {
+                const packets = await instance.postProcess(row, config, row.lastResult);
+                return row.applyPackets(packets, config.output, instance.type);
+            });
+        }
+
+        // Convert StepRows back to PipelineItems
+        return currentRows.map(row => row.toPipelineItem());
     }
 
     public toPipelineItem(): PipelineItem {
@@ -199,7 +252,7 @@ export class StepRow {
     /**
      * Applies a list of packets to the current row, potentially spawning new StepRow instances.
      */
-    public applyPackets(packets: any[], config: OutputConfig): StepRow[] {
+    public applyPackets(packets: PluginPacket[], config: OutputConfig, namespace: string): StepRow[] {
         const nextRows: StepRow[] = [];
 
         for (const packet of packets) {
@@ -234,7 +287,7 @@ export class StepRow {
                 });
 
                 dataArray.forEach((itemData, idx) => {
-                    nextRows.push(this.spawn(itemData, idx, config, nextHistory, nextContent));
+                    nextRows.push(this.spawn(itemData, idx, config, namespace, nextHistory, nextContent));
                 });
             } else {
                 // Standard: Update current row with the data
@@ -242,7 +295,7 @@ export class StepRow {
 
                 // We can reuse 'spawn' to create the next state even for single items,
                 // effectively treating it as a mutation of the flow
-                nextRows.push(this.spawn(dataToApply, this.state.variationIndex, config, nextHistory, nextContent));
+                nextRows.push(this.spawn(dataToApply, this.state.variationIndex, config, namespace, nextHistory, nextContent));
             }
         }
 
@@ -253,6 +306,7 @@ export class StepRow {
         data: any,
         variationIndex: number | undefined,
         config: OutputConfig,
+        namespace: string,
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         content: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): StepRow {
@@ -261,6 +315,8 @@ export class StepRow {
         const newContext = { ...this.state.context };
 
         // 2. Apply New Data
+        newContext[namespace] = data;
+
         if (config.mode === 'merge') {
             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
                 Object.assign(newData, data);
@@ -288,7 +344,7 @@ export class StepRow {
         return newRow;
     }
 
-    public async executeLlm(): Promise<any[]> {
+    public async executeLlm(): Promise<PluginPacket[]> {
         const config = await this.hydratedConfig();
         // Create LLM Client using hydrated model config
         const llm = await this.createLlm(config.model);

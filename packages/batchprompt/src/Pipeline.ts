@@ -1,6 +1,7 @@
-import { StepConfig, RuntimeConfig, PipelineItem } from './types.js';
+import { PipelineItem } from './types.js';
 import { Step } from './Step.js';
 import { BatchPromptDeps } from './getDiContainer.js';
+import {GlobalConfig, StepSchema} from "./config/schema.js";
 
 interface TaskPayload {
     item: PipelineItem;
@@ -8,24 +9,14 @@ interface TaskPayload {
 }
 
 export class Pipeline {
-    public readonly steps: Step[] = [];
-
     constructor(
-        private deps: BatchPromptDeps
+        private deps: BatchPromptDeps,
+        private steps: Step[],
+        private globalConfig: GlobalConfig
     ) {}
 
-    private async init(stepConfigs: StepConfig[]) {
-        this.steps.length = 0;
-        for (let i = 0; i < stepConfigs.length; i++) {
-            const stepConfig = stepConfigs[i];
-            const step = new Step(stepConfig, this.deps, i);
-            await step.init();
-            this.steps.push(step);
-        }
-    }
-
-    async run(config: RuntimeConfig): Promise<{ results: any[], artifacts: any[] }> {
-        const { concurrency, taskConcurrency, data, steps, offset = 0, limit } = config;
+    async run(): Promise<{ results: any[], artifacts: any[] }> {
+        const { concurrency, taskConcurrency, data, steps, offset = 0, limit } = this.globalConfig;
         const events = this.deps.events;
 
         // Collection arrays
@@ -60,14 +51,11 @@ export class Pipeline {
         events.on('plugin:artifact', onArtifact);
 
         try {
-            events.emit('run:start', config);
+            events.emit('run:start', this.globalConfig);
             events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)` });
 
             this.deps.taskQueue.concurrency = taskConcurrency;
             this.deps.gptQueue.concurrency = concurrency;
-
-            // --- Phase 1: Compilation ---
-            await this.init(steps);
 
             events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initialized ${this.steps.length} steps.` });
 
