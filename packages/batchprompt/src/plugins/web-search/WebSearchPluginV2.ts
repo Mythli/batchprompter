@@ -2,11 +2,11 @@ import { z } from 'zod';
 import Handlebars from 'handlebars';
 import {
     BasePlugin,
-    LlmFactory,
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, resolveModelConfig, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
+import { OutputConfigSchema, StepConfig } from '../../config/schema.js';
+import { ModelConfigSchema, ModelConfig } from '../../config/model.js';
 import { AiWebSearch } from './AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { WebSearch } from './WebSearch.js';
@@ -14,11 +14,11 @@ import { WebSearch } from './WebSearch.js';
 export const WebSearchConfigSchemaV2 = z.object({
     type: z.literal('web-search'),
     id: z.string().optional(),
-    output: OutputConfigSchema.default(DEFAULT_PLUGIN_OUTPUT),
+    output: OutputConfigSchema.default({ mode: 'ignore' }),
     query: z.string().optional(),
-    queryModel: RawModelConfigSchema.optional(),
-    selectModel: RawModelConfigSchema.optional(),
-    compressModel: RawModelConfigSchema.optional(),
+    queryModel: ModelConfigSchema.optional(),
+    selectModel: ModelConfigSchema.optional(),
+    compressModel: ModelConfigSchema.optional(),
     limit: z.number().int().positive().default(5),
     mode: z.enum(['none', 'markdown', 'html']).default('none'),
     queryCount: z.number().int().positive().default(3),
@@ -30,31 +30,45 @@ export const WebSearchConfigSchemaV2 = z.object({
 
 export type WebSearchConfig = z.output<typeof WebSearchConfigSchemaV2>;
 
-export class WebSearchPluginV2 extends BasePlugin<WebSearchConfig> {
+export class WebSearchPluginV2 extends BasePlugin<WebSearchConfig, WebSearchConfig> {
     readonly type = 'web-search';
 
     constructor(
         private deps: {
             webSearch: WebSearch;
-            createLlm: LlmFactory;
         }
     ) {
         super();
     }
 
     getSchema() {
-        return WebSearchConfigSchemaV2.transform(config => {
-            return {
-                ...config,
-                id: config.id ?? `web-search-${Date.now()}`,
-                queryModel: config.queryModel ? resolveModelConfig(config.queryModel, step.model) : undefined,
-                selectModel: config.selectModel ? resolveModelConfig(config.selectModel, step.model) : undefined,
-                compressModel: config.compressModel ? resolveModelConfig(config.compressModel, step.model) : undefined,
-            };
-        });
+        return WebSearchConfigSchemaV2;
     }
 
-    async hydrate(config: WebSearchConfig, context: Record<string, any>): Promise<WebSearchConfig> {
+    normalizeConfig(config: WebSearchConfig, stepConfig: StepConfig): WebSearchConfig {
+        const base = super.normalizeConfig(config, stepConfig);
+
+        return {
+            ...base,
+            id: config.id ?? `web-search-${Date.now()}`,
+            queryModel: this.mergeModels(stepConfig.model, config.queryModel),
+            selectModel: this.mergeModels(stepConfig.model, config.selectModel),
+            compressModel: this.mergeModels(stepConfig.model, config.compressModel),
+        };
+    }
+
+    private mergeModels(base?: ModelConfig, override?: ModelConfig): ModelConfig | undefined {
+        if (!base && !override) return undefined;
+        if (!override) return base;
+        if (!base) return override;
+        return {
+            ...base,
+            ...override,
+            messages: override.messages.length > 0 ? override.messages : base.messages
+        };
+    }
+
+    async hydrate(stepConfig: StepConfig, config: WebSearchConfig, context: Record<string, any>): Promise<WebSearchConfig> {
         let query: string | undefined;
         if (config.query) {
             const template = Handlebars.compile(config.query, { noEscape: true });
@@ -69,12 +83,12 @@ export class WebSearchPluginV2 extends BasePlugin<WebSearchConfig> {
 
     async prepare(stepRow: StepRow, config: WebSearchConfig): Promise<PluginPacket[]> {
         const { context } = stepRow;
-        const emit = stepRow.step.globalContext.events.emit.bind(stepRow.step.globalContext.events);
+        const emit = stepRow.step.deps.events.emit.bind(stepRow.step.deps.events);
         const webSearch = this.deps.webSearch;
 
-        const queryLlm = config.queryModel ? stepRow.createLlm(config.queryModel) : undefined;
-        const selectLlm = config.selectModel ? stepRow.createLlm(config.selectModel) : undefined;
-        const compressLlm = config.compressModel ? stepRow.createLlm(config.compressModel) : undefined;
+        const queryLlm = config.queryModel ? await stepRow.createLlm(config.queryModel) : undefined;
+        const selectLlm = config.selectModel ? await stepRow.createLlm(config.selectModel) : undefined;
+        const compressLlm = config.compressModel ? await stepRow.createLlm(config.compressModel) : undefined;
 
         const selector = selectLlm ? new LlmListSelector(selectLlm) : undefined;
 

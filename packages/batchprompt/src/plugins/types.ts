@@ -39,14 +39,28 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
     abstract readonly type: string;
 
     abstract getSchema(): z.ZodType<TBaseConfig>;
-    abstract hydrate(stepConfig: StepConfig, config: TBaseConfig, context: Record<string, any>): TNormalizedConfig;
+
+    /**
+     * Inherits configuration from the step.
+     * By default, merges the output configuration.
+     */
+    normalizeConfig(config: TBaseConfig, stepConfig: StepConfig): TNormalizedConfig {
+        return {
+            ...config,
+            output: {
+                ...stepConfig.output,
+                ...(config as any).output
+            }
+        } as any;
+    }
+
+    /**
+     * Renders templates and resolves dynamic values for a specific row.
+     */
+    abstract hydrate(stepConfig: StepConfig, config: TNormalizedConfig, context: Record<string, any>): Promise<TNormalizedConfig> | TNormalizedConfig;
 
     getStepExtensionSchema(): z.ZodObject | undefined {
         return undefined;
-    }
-
-    normalizeConfig: () => {
-
     }
 
     preprocessStep(stepConfig: StepConfig): StepConfig {

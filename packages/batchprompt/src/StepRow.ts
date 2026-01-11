@@ -76,8 +76,8 @@ export class StepRow {
         let outputExtension = config.aspectRatio ? '.png' : '.txt';
         let tempDir = '/tmp';
 
-        if (config.outputPath) {
-            const rendered = this.render(config.outputPath, sanitizedContext);
+        if (config.output?.path) {
+            const rendered = this.render(config.output.path, sanitizedContext);
             outputDir = path.resolve(path.dirname(rendered));
             await ensureDir(outputDir);
 
@@ -86,8 +86,8 @@ export class StepRow {
             outputExtension = parsed.ext;
         }
 
-        if (config.tmpDir) {
-            const rendered = this.render(config.tmpDir, sanitizedContext);
+        if (config.output?.tmpDir) {
+            const rendered = this.render(config.output.tmpDir, sanitizedContext);
             tempDir = path.resolve(rendered);
             await ensureDir(tempDir);
         }
@@ -135,11 +135,11 @@ export class StepRow {
         };
 
         // 4. Hydrate Plugins
-        const hydratedPlugins = await Promise.all(config.plugins.map(async (p) => {
-            const hydratedConfig = await p.instance.hydrate(p.config, this.state.context);
+        const hydratedPlugins = await Promise.all(this.step.plugins.map(async (p) => {
+            const hydratedPluginConfig = await p.instance.hydrate(config, p.config, this.state.context);
             return {
                 ...p,
-                config: hydratedConfig
+                config: hydratedPluginConfig
             };
         }));
 
@@ -154,35 +154,34 @@ export class StepRow {
             judge: hydrateModel(config.judge),
             feedback: config.feedback ? { ...hydrateModel(config.feedback)!, loops: config.feedback.loops } : undefined,
             plugins: hydratedPlugins
-        };
+        } as any;
 
-        return this._hydratedConfig;
+        return this._hydratedConfig!;
     }
 
     async getPlugins() {
-        config.outputPath
         const config = await this.hydratedConfig();
         return config.plugins || [];
     }
 
     async getTempDir() {
         const config = await this.hydratedConfig();
-        return config.tmpDir
+        return (config as any).resolvedTempDir;
     }
 
     async getOutputBasename() {
         const config = await this.hydratedConfig();
-        return config.outputBasename;
+        return (config as any).outputBasename;
     }
 
     async getOutputExtension() {
         const config = await this.hydratedConfig();
-        return config.outputExtension;
+        return (config as any).outputExtension;
     }
 
     async getResolvedOutputDir() {
         const config = await this.hydratedConfig();
-        return config.resolvedOutputDir;
+        return (config as any).resolvedOutputDir;
     }
 
     async getResolvedSchema() {
