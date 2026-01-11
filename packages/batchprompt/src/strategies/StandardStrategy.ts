@@ -54,7 +54,7 @@ export class StandardStrategy implements GenerationStrategy {
 
             finalResult = await rawClient.promptJson(finalMessages, schema, {
                 requestOptions,
-                maxRetries: 3 + (config.feedback?.loops || 0),
+                maxRetries: 3 + (config.feedbackLoops ?? 0),
                 validator,
                 ...additionalParams
             });

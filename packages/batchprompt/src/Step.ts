@@ -141,7 +141,7 @@ export class Step {
             schema,
             model: hydrateModel(config.model)!,
             judge: hydrateModel(config.judge),
-            feedback: config.feedback ? { ...hydrateModel(config.feedback)!, loops: config.feedback.loops } : undefined,
+            feedback: hydrateModel(config.feedback),
             plugins: hydratedPlugins
         } as StepConfig;
     }

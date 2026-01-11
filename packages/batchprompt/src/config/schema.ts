@@ -28,9 +28,8 @@ export const OutputConfigSchema = z.object({
 
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
 
-export const FeedbackConfigSchema = RawModelConfigSchema.extend({
-    loops: z.number().int().positive().default(3)
-}).transform(transformModelConfig);
+// Feedback is now just a model config (same as judge)
+export const FeedbackConfigSchema = ModelConfigSchema;
 
 export type FeedbackConfig = z.infer<typeof FeedbackConfigSchema>;
 
@@ -43,6 +42,8 @@ export const StepSchema = z.object({
     candidates: z.number().int().positive().default(1),
     judge: ModelConfigSchema.optional(),
     feedback: FeedbackConfigSchema.optional(),
+    feedbackLoops: z.number().int().positive().default(3)
+        .describe("Number of feedback loops for iterative refinement."),
     aspectRatio: z.string().optional(),
     schema: zJsonSchemaObject.optional(),
     output: OutputConfigSchema,
@@ -83,6 +84,8 @@ export function normalizePipelineConfig(config: any): any {
             model: mergeModels(globalDefaults.model, step.model),
             judge: mergeModels(globalDefaults.judge, step.judge),
             feedback: mergeModels(globalDefaults.feedback, step.feedback),
+            // feedbackLoops inherits from global if not set on step
+            feedbackLoops: step.feedbackLoops ?? globalDefaults.feedbackLoops,
             output: {
                 ...globalDefaults.output,
                 ...step.output
