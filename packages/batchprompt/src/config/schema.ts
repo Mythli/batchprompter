@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import {zHandlebars, zJsonSchemaObject} from './validationRules.js';
 import {PluginRegistryV2} from '../plugins/types.js';
-import {ModelConfigSchema, RawModelConfigSchema, transformModelConfig} from "./model.js";
+import {ModelConfigSchema, RawModelConfigSchema, transformModelConfig, mergeModels} from "./model.js";
 
 export const OutputConfigSchema = z.object({
     mode: z.enum(['merge', 'column', 'ignore']).default('ignore')
@@ -79,16 +79,10 @@ export function normalizePipelineConfig(config: any): any {
         return {
             ...globalDefaults,
             ...step,
-            // Nested object merges
-            model: (globalDefaults.model || step.model)
-                ? { ...globalDefaults.model, ...step.model }
-                : undefined,
-            judge: (globalDefaults.judge || step.judge)
-                ? { ...globalDefaults.judge, ...step.judge }
-                : undefined,
-            feedback: (globalDefaults.feedback || step.feedback)
-                ? { ...globalDefaults.feedback, ...step.feedback }
-                : undefined,
+            // Nested object merges using mergeModels for proper message handling
+            model: mergeModels(globalDefaults.model, step.model),
+            judge: mergeModels(globalDefaults.judge, step.judge),
+            feedback: mergeModels(globalDefaults.feedback, step.feedback),
             output: {
                 ...globalDefaults.output,
                 ...step.output

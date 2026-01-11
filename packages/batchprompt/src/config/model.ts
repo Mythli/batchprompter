@@ -53,3 +53,18 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
 export const ModelConfigSchema = RawModelConfigSchema.transform(transformModelConfig);
 
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
+
+/**
+ * Merges two ModelConfig objects.
+ * Override takes precedence, but messages are only overridden if the override has non-empty messages.
+ */
+export function mergeModels(base?: ModelConfig, override?: ModelConfig): ModelConfig | undefined {
+    if (!base && !override) return undefined;
+    if (!override) return base;
+    if (!base) return override;
+    return {
+        ...base,
+        ...override,
+        messages: (override.messages && override.messages.length > 0) ? override.messages : base.messages
+    };
+}
