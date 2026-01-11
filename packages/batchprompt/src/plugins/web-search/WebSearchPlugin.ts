@@ -6,7 +6,7 @@ import {
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { OutputConfigSchema, StepConfig } from '../../config/schema.js';
-import { ModelConfigSchema, ModelConfig } from '../../config/model.js';
+import { ModelConfigSchema, ModelConfig, mergeModels } from '../../config/model.js';
 import { WebSearch } from './WebSearch.js';
 import { WebSearchPluginRow } from './WebSearchPluginRow.js';
 
@@ -50,20 +50,9 @@ export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig
         return {
             ...base,
             id: config.id ?? `web-search-${Date.now()}`,
-            queryModel: this.mergeModels(stepConfig.model, config.queryModel),
-            selectModel: this.mergeModels(stepConfig.model, config.selectModel),
-            compressModel: this.mergeModels(stepConfig.model, config.compressModel),
-        };
-    }
-
-    private mergeModels(base?: ModelConfig, override?: ModelConfig): ModelConfig | undefined {
-        if (!base && !override) return undefined;
-        if (!override) return base;
-        if (!base) return override;
-        return {
-            ...base,
-            ...override,
-            messages: override.messages.length > 0 ? override.messages : base.messages
+            queryModel: mergeModels(stepConfig.model, config.queryModel),
+            selectModel: mergeModels(stepConfig.model, config.selectModel),
+            compressModel: mergeModels(stepConfig.model, config.compressModel),
         };
     }
 
