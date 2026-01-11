@@ -1,7 +1,7 @@
 import { PipelineItem } from './types.js';
 import { Step } from './Step.js';
 import { BatchPromptDeps } from './getDiContainer.js';
-import {GlobalConfig, StepSchema} from "./config/schema.js";
+import { GlobalConfig, StepSchema } from "./config/schema.js";
 
 interface TaskPayload {
     item: PipelineItem;
@@ -94,7 +94,7 @@ export class Pipeline {
                     });
 
                     // --- Phase 2: Processing ---
-                    const stepRow = step.createRow(item);
+                    const stepRow = await step.createRow(item);
                     const executionPromise = stepRow.run();
 
                     const nextItems = await Promise.race([executionPromise, timeoutPromise]);

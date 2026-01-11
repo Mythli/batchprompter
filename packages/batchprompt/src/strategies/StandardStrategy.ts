@@ -16,7 +16,7 @@ export class StandardStrategy implements GenerationStrategy {
     }
 
     async execute(cacheSalt?: string | number): Promise<PluginPacket[]> {
-        const config = await this.stepRow.hydratedConfig();
+        const config = this.stepRow.config;
         const rowIndex = this.stepRow.getOriginalIndex();
         const stepIndex = this.stepRow.step.stepIndex;
         const finalMessages = await this.stepRow.getPreparedMessages();

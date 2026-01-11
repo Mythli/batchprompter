@@ -1,17 +1,13 @@
 import OpenAI from 'openai';
-import Handlebars from 'handlebars';
-import path from 'path';
 import { Step } from './Step.js';
 import { PipelineItem } from './types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
-import { ensureDir, aggressiveSanitize } from './utils/fileUtils.js';
-import { renderSchemaObject } from './utils/schemaUtils.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { PluginPacket } from './plugins/types.js';
-import {OutputConfig, StepConfig} from "./config/schema.js";
-import {ModelConfig} from "llm-fns";
+import { OutputConfig, StepConfig } from "./config/schema.js";
+import { ModelConfig } from "./config/model.js";
 
 // Helper for async flatMap
 async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]>): Promise<U[]> {
@@ -37,11 +33,9 @@ export interface StepRowState {
 export class StepRow {
     public lastResult: any = null;
 
-    // Hydrated Configuration State
-    private _hydratedConfig?: StepConfig;
-
     constructor(
         public readonly step: Step,
+        public readonly config: StepConfig,
         private readonly state: StepRowState
     ) {}
 
@@ -59,142 +53,33 @@ export class StepRow {
         return this.state.originalIndex;
     }
 
-    public async hydratedConfig(): Promise<StepConfig> {
-        if (this._hydratedConfig) return this._hydratedConfig;
-
-        const { config, stepIndex } = this.step;
-        const stepNum = stepIndex + 1;
-
-        // 1. Resolve Paths
-        const sanitizedContext: Record<string, any> = {};
-        for (const [key, val] of Object.entries(this.state.context)) {
-             const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-             sanitizedContext[key] = aggressiveSanitize(stringVal);
-        }
-
-        let outputDir = '';
-        let outputBasename = `output_${this.state.originalIndex}_${stepNum}`;
-        let outputExtension = config.aspectRatio ? '.png' : '.txt';
-        let tempDir = '/tmp';
-
-        if (config.outputPath) {
-            const rendered = this.render(config.outputPath, sanitizedContext);
-            outputDir = path.resolve(path.dirname(rendered));
-            await ensureDir(outputDir);
-
-            const parsed = path.parse(rendered);
-            outputBasename = parsed.name;
-            outputExtension = parsed.ext;
-        }
-
-        if (config.tmpDir) {
-            const rendered = this.render(config.tmpDir, sanitizedContext);
-            tempDir = path.resolve(rendered);
-            await ensureDir(tempDir);
-        }
-
-        // 2. Resolve Schema
-        let schema = config.schema;
-        if (schema) {
-            if (typeof schema === 'string') {
-                try {
-                    const template = Handlebars.compile(schema, { noEscape: true });
-                    const renderedSchema = template(this.state.context);
-                    schema = JSON.parse(renderedSchema);
-                } catch (e) {
-                    console.warn(`[Row ${this.state.originalIndex}] Failed to parse schema template:`, e);
-                }
-            } else {
-                try {
-                    schema = renderSchemaObject(schema, this.state.context);
-                } catch (e: any) {
-                    console.warn(`[Row ${this.state.originalIndex}] Failed to render schema templates:`, e);
-                }
-            }
-        }
-
-        // 3. Resolve Model Messages
-        const hydrateModel = (m?: ModelConfig): ModelConfig | undefined => {
-            if (!m) return undefined;
-            return {
-                ...m,
-                messages: m.messages.map(msg => {
-                    if (typeof msg.content === 'string') {
-                        return { ...msg, content: this.render(msg.content) };
-                    } else if (Array.isArray(msg.content)) {
-                        const hydratedContent = msg.content.map(part => {
-                            if (part.type === 'text') {
-                                return { ...part, text: this.render(part.text) };
-                            }
-                            return part;
-                        });
-                        return { ...msg, content: hydratedContent };
-                    }
-                    return msg;
-                }) as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-            };
-        };
-
-        // 4. Hydrate Plugins
-        const hydratedPlugins = await Promise.all(config.plugins.map(async (p) => {
-            const hydratedConfig = await p.instance.hydrate(p.config, this.state.context);
-            return {
-                ...p,
-                config: hydratedConfig
-            };
-        }));
-
-        this._hydratedConfig = {
-            ...config,
-            resolvedOutputDir: outputDir,
-            resolvedTempDir: tempDir,
-            outputBasename,
-            outputExtension,
-            schema,
-            model: hydrateModel(config.model)!,
-            judge: hydrateModel(config.judge),
-            feedback: config.feedback ? { ...hydrateModel(config.feedback)!, loops: config.feedback.loops } : undefined,
-            plugins: hydratedPlugins
-        };
-
-        return this._hydratedConfig;
-    }
-
     async getPlugins() {
-        config.outputPath
-        const config = await this.hydratedConfig();
-        return config.plugins || [];
+        return this.config.plugins || [];
     }
 
     async getTempDir() {
-        const config = await this.hydratedConfig();
-        return config.tmpDir
+        return (this.config as any).resolvedTempDir || '/tmp';
     }
 
     async getOutputBasename() {
-        const config = await this.hydratedConfig();
-        return config.outputBasename;
+        return (this.config as any).outputBasename;
     }
 
     async getOutputExtension() {
-        const config = await this.hydratedConfig();
-        return config.outputExtension;
+        return (this.config as any).outputExtension;
     }
 
     async getResolvedOutputDir() {
-        const config = await this.hydratedConfig();
-        return config.resolvedOutputDir;
+        return (this.config as any).resolvedOutputDir;
     }
 
     async getResolvedSchema() {
-        const config = await this.hydratedConfig();
-        return config.schema;
+        return this.config.schema;
     }
 
     async getPreparedMessages() {
-        const config = await this.hydratedConfig();
         // Combine hydrated model messages with dynamic content and history
-        const messages = [...this.state.history, ...config.model.messages];
+        const messages = [...this.state.history, ...this.config.model.messages];
         if (this.state.content.length > 0) {
             messages.push({ role: 'user', content: this.state.content });
         }
@@ -216,8 +101,7 @@ export class StepRow {
         }
 
         // --- Stage 2: Model Execution ---
-        const hydratedConfig = await this.hydratedConfig();
-        const hasMessages = hydratedConfig.model.messages.length > 0;
+        const hasMessages = this.config.model?.messages?.length > 0;
 
         if (hasMessages) {
             currentRows = await flatMapAsync(currentRows, async (row) => {
@@ -252,7 +136,7 @@ export class StepRow {
     /**
      * Applies a list of packets to the current row, potentially spawning new StepRow instances.
      */
-    public applyPackets(packets: PluginPacket[], config: OutputConfig, namespace: string): StepRow[] {
+    public applyPackets(packets: PluginPacket[], outputConfig: OutputConfig, namespace: string): StepRow[] {
         const nextRows: StepRow[] = [];
 
         for (const packet of packets) {
@@ -276,7 +160,7 @@ export class StepRow {
                 continue;
             }
 
-            if (config.explode && dataArray.length > 1) {
+            if (outputConfig.explode && dataArray.length > 1) {
                 // Explode: Spawn new rows for each item
                 this.getEvents().emit('step:progress', {
                     row: this.state.originalIndex,
@@ -287,15 +171,15 @@ export class StepRow {
                 });
 
                 dataArray.forEach((itemData, idx) => {
-                    nextRows.push(this.spawn(itemData, idx, config, namespace, nextHistory, nextContent));
+                    nextRows.push(this.spawn(itemData, idx, outputConfig, namespace, nextHistory, nextContent));
                 });
             } else {
                 // Standard: Update current row with the data
-                const dataToApply = config.explode ? dataArray[0] : dataArray;
+                const dataToApply = outputConfig.explode ? dataArray[0] : dataArray;
 
                 // We can reuse 'spawn' to create the next state even for single items,
                 // effectively treating it as a mutation of the flow
-                nextRows.push(this.spawn(dataToApply, this.state.variationIndex, config, namespace, nextHistory, nextContent));
+                nextRows.push(this.spawn(dataToApply, this.state.variationIndex, outputConfig, namespace, nextHistory, nextContent));
             }
         }
 
@@ -305,7 +189,7 @@ export class StepRow {
     private spawn(
         data: any,
         variationIndex: number | undefined,
-        config: OutputConfig,
+        outputConfig: OutputConfig,
         namespace: string,
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         content: OpenAI.Chat.Completions.ChatCompletionContentPart[]
@@ -317,14 +201,14 @@ export class StepRow {
         // 2. Apply New Data
         newContext[namespace] = data;
 
-        if (config.mode === 'merge') {
+        if (outputConfig.mode === 'merge') {
             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
                 Object.assign(newData, data);
                 Object.assign(newContext, data);
             }
-        } else if (config.mode === 'column' && config.column) {
-            newData[config.column] = data;
-            newContext[config.column] = data;
+        } else if (outputConfig.mode === 'column' && outputConfig.column) {
+            newData[outputConfig.column] = data;
+            newContext[outputConfig.column] = data;
         }
 
         // 3. Create New State
@@ -339,19 +223,18 @@ export class StepRow {
         };
 
         // 4. Return New Row
-        const newRow = new StepRow(this.step, newState);
+        const newRow = new StepRow(this.step, this.config, newState);
         newRow.lastResult = data;
         return newRow;
     }
 
     public async executeLlm(): Promise<PluginPacket[]> {
-        const config = await this.hydratedConfig();
         // Create LLM Client using hydrated model config
-        const llm = await this.createLlm(config.model);
+        const llm = await this.createLlm(this.config.model);
 
         // Execution Strategy
         let strategy: GenerationStrategy = new StandardStrategy(this);
-        if (config.candidates > 1) {
+        if (this.config.candidates > 1) {
             strategy = new CandidateStrategy(strategy as StandardStrategy, this);
         }
 
@@ -363,7 +246,7 @@ export class StepRow {
      * If config is provided, it uses that. Otherwise it uses the hydrated model config.
      */
     async createLlm(config?: ModelConfig): Promise<BoundLlmClient> {
-        const targetConfig = config || (await this.hydratedConfig()).model;
+        const targetConfig = config || this.config.model;
         return this.step.deps.llmFactory.create(targetConfig, targetConfig.messages);
     }
 
@@ -372,11 +255,5 @@ export class StepRow {
      */
     async getBoundClient(config: ModelConfig): Promise<BoundLlmClient> {
         return this.createLlm(config);
-    }
-
-    render(template: string, context: Record<string, any> = this.state.context): string {
-        if (!template) return '';
-        const t = Handlebars.compile(template, { noEscape: true });
-        return t(context);
     }
 }

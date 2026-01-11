@@ -7,7 +7,7 @@ import {
     PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, zJsonSchemaObject, zHandlebars, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
+import { OutputConfigSchema, RawModelConfigSchema, DEFAULT_PLUGIN_OUTPUT, zJsonSchemaObject, zHandlebars, StepBaseConfig, GlobalsConfig, StepConfig } from '../../config/index.js';
 import { makeSchemaOptional, renderSchemaObject } from '../../utils/schemaUtils.js';
 import { AiWebsiteAgent } from './AiWebsiteAgent.js';
 import { PluginScope } from '../PluginScope.js';
@@ -64,31 +64,47 @@ export class WebsiteAgentPluginV2 extends BasePlugin<WebsiteAgentConfig> {
         });
     }
 
+    async hydrate(stepConfig: StepConfig, config: WebsiteAgentConfig, context: Record<string, any>): Promise<WebsiteAgentConfig> {
+        // Resolve url template
+        const urlTemplate = Handlebars.compile(config.url, { noEscape: true });
+        const url = urlTemplate(context);
+
+        // Resolve schema template if it's a string
+        let schema = config.schema;
+        if (typeof schema === 'string') {
+            try {
+                const template = Handlebars.compile(schema, { noEscape: true });
+                const resolvedSchema = template(context);
+                schema = JSON.parse(resolvedSchema);
+            } catch (e: any) {
+                console.warn(`[WebsiteAgent] Failed to parse schema template:`, e);
+            }
+        } else {
+            schema = renderSchemaObject(schema, context);
+        }
+
+        return {
+            ...config,
+            url,
+            schema
+        };
+    }
+
     async prepare(stepRow: StepRow, config: WebsiteAgentConfig): Promise<PluginPacket[]> {
         const { context } = stepRow;
 
         const emit = (event: any, ...args: any[]) => {
-            stepRow.step.globalContext.events.emit(event, ...args);
+            stepRow.step.deps.events.emit(event, ...args);
         };
 
         const puppeteerHelper = this.deps.puppeteerHelper;
         const puppeteerQueue = this.deps.puppeteerQueue;
 
-        const url = stepRow.render(config.url);
+        // URL is now pre-hydrated
+        const url = config.url;
 
-        let schema = config.schema;
-        if (typeof schema === 'string') {
-             try {
-                 const template = Handlebars.compile(schema, { noEscape: true });
-                 const resolvedSchema = template(context);
-                 schema = JSON.parse(resolvedSchema);
-             } catch (e: any) {
-                 console.warn(`[WebsiteAgent] Failed to parse schema template:`, e);
-             }
-        } else {
-            schema = renderSchemaObject(schema, context);
-        }
-
+        // Schema is now pre-hydrated
+        const schema = config.schema;
         const extractionSchema = makeSchemaOptional(schema);
 
         const navigatorLlm = await stepRow.createLlm(config.navigatorModel);

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import OpenAI from 'openai';
 import { StepRow } from '../StepRow.js';
 import { BatchPromptEvents } from '../events.js';
-import {StepConfig} from "../config/schema.js";
+import { StepConfig } from "../config/schema.js";
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -57,7 +57,9 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
     /**
      * Renders templates and resolves dynamic values for a specific row.
      */
-    abstract hydrate(stepConfig: StepConfig, config: TNormalizedConfig, context: Record<string, any>): Promise<TNormalizedConfig> | TNormalizedConfig;
+    hydrate(stepConfig: StepConfig, config: TNormalizedConfig, context: Record<string, any>): Promise<TNormalizedConfig> | TNormalizedConfig {
+        return config;
+    }
 
     getStepExtensionSchema(): z.ZodObject | undefined {
         return undefined;

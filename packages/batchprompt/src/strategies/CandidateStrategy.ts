@@ -22,7 +22,7 @@ export class CandidateStrategy implements GenerationStrategy {
     }
 
     async execute(cacheSalt?: string | number): Promise<PluginPacket[]> {
-        const config = await this.stepRow.hydratedConfig();
+        const config = this.stepRow.config;
         const index = this.stepRow.getOriginalIndex();
         const stepIndex = this.stepRow.step.stepIndex;
         const candidateCount = config.candidates;
@@ -89,7 +89,7 @@ export class CandidateStrategy implements GenerationStrategy {
     private async performJudging(
         candidates: CandidateType[]
     ): Promise<{ best_candidate_index: number; reason: string }> {
-        const config = await this.stepRow.hydratedConfig();
+        const config = this.stepRow.config;
         const judgeConfig = config.judge;
         if (!judgeConfig) throw new Error("No judge configuration found");
 
