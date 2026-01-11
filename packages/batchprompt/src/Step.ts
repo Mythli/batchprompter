@@ -9,6 +9,7 @@ import { BatchPromptEvents } from "./events.js";
 import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
 import { renderSchemaObject } from './utils/schemaUtils.js';
 import { ModelConfig } from './config/model.js';
+import {EventEmitter} from "eventemitter3";
 
 export interface StepPlugin {
     instance: BasePlugin;
@@ -22,7 +23,7 @@ export class Step {
         public readonly config: StepConfig,
         public readonly deps: {
             pluginRegistry: PluginRegistryV2,
-            events: BatchPromptEvents,
+            events: EventEmitter<BatchPromptEvents>,
             llmFactory: { create: (config: any, messages: any) => any }
         },
         public readonly stepIndex: number
