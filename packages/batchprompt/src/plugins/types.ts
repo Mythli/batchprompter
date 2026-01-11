@@ -1,9 +1,8 @@
 import { z } from 'zod';
 import OpenAI from 'openai';
 import { StepRow } from '../StepRow.js';
-import { GlobalsConfig } from '../config/index.js';
 import { BatchPromptEvents } from '../events.js';
-import { LlmClient } from 'llm-fns';
+import {StepConfig} from "../config/schema.js";
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -35,93 +34,53 @@ export interface PluginPacket {
     artifacts?: any[];
 }
 
-export interface Plugin<TConfig = any> {
-    readonly type: string;
 
-    /**
-     * Returns the Zod schema used to validate and resolve the plugin configuration.
-     * This schema should handle inheritance from the step and global configurations.
-     */
-    getSchema(step: StepBaseConfig, globals: GlobalsConfig): z.ZodType<TConfig>;
-
-    /**
-     * Hydrates the resolved configuration with runtime data (e.g. rendering Handlebars templates).
-     */
-    hydrate(config: TConfig, context: Record<string, any>): Promise<TConfig>;
-
-    /**
-     * Prepares data before the LLM call.
-     * Must return an array of packets.
-     * To do nothing, return [{ data: [null], contentParts: [] }]
-     * To filter, return []
-     */
-    prepare(stepRow: StepRow, config: TConfig): Promise<PluginPacket[]>;
-
-    /**
-     * Processes the result after the LLM call.
-     * Must return an array of packets.
-     */
-    postProcess(stepRow: StepRow, config: TConfig, result: any): Promise<PluginPacket[]>;
-
-    /**
-     * Optional: Returns a Zod schema to extend the base step configuration.
-     * This allows plugins to add top-level properties to a step (e.g. 'expandUrls').
-     */
-    getStepExtensionSchema?(): z.ZodType<any>;
-
-    /**
-     * Optional: Pre-processes a raw step configuration before validation.
-     * Useful for converting shortcuts (like 'expandUrls') into actual plugin configurations.
-     * Must return the modified step configuration.
-     */
-    preprocessStep?(stepConfig: any): any;
-}
-
-export abstract class BasePlugin<TConfig = any> implements Plugin<TConfig> {
+export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
     abstract readonly type: string;
 
-    abstract getSchema(step: StepBaseConfig, globals: GlobalsConfig): z.ZodType<TConfig>;
+    abstract getSchema(): z.ZodType<TBaseConfig>;
+    abstract hydrate(stepConfig: StepConfig, config: TBaseConfig, context: Record<string, any>): TNormalizedConfig;
 
-    async hydrate(config: TConfig, context: Record<string, any>): Promise<TConfig> {
-        return config;
-    }
-
-    async prepare(stepRow: StepRow, config: TConfig): Promise<PluginPacket[]> {
-        return [{ data: [null], contentParts: [] }];
-    }
-
-    async postProcess(stepRow: StepRow, config: TConfig, result: any): Promise<PluginPacket[]> {
-        return [{ data: [result], contentParts: [] }];
-    }
-
-    getStepExtensionSchema(): z.ZodType<any> | undefined {
+    getStepExtensionSchema(): z.ZodObject | undefined {
         return undefined;
     }
 
-    preprocessStep(stepConfig: any): any {
+    normalizeConfig: () => {
+
+    }
+
+    preprocessStep(stepConfig: StepConfig): StepConfig {
         return stepConfig;
+    }
+
+    async prepare(stepRow: StepRow, config: TNormalizedConfig): Promise<PluginPacket[]> {
+        return [{ data: [null], contentParts: [] }];
+    }
+
+    async postProcess(stepRow: StepRow, config: TNormalizedConfig, result: any): Promise<PluginPacket[]> {
+        return [{ data: [result], contentParts: [] }];
     }
 }
 
 export class PluginRegistryV2 {
-    private plugins = new Map<string, Plugin<any>>();
+    private plugins = new Map<string, BasePlugin<any>>();
 
-    register(plugin: Plugin<any>): void {
+    register(plugin: BasePlugin): void {
         if (this.plugins.has(plugin.type)) {
             throw new Error(`Plugin '${plugin.type}' is already registered`);
         }
         this.plugins.set(plugin.type, plugin);
     }
 
-    override(plugin: Plugin<any>): void {
+    override(plugin: BasePlugin): void {
         this.plugins.set(plugin.type, plugin);
     }
 
-    get(type: string): Plugin<any> | undefined {
+    get(type: string): BasePlugin | undefined {
         return this.plugins.get(type);
     }
 
-    getAll(): Plugin<any>[] {
+    getAll(): BasePlugin[] {
         return Array.from(this.plugins.values());
     }
 }

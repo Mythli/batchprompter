@@ -42,7 +42,7 @@ export class WebSearchPluginV2 extends BasePlugin<WebSearchConfig> {
         super();
     }
 
-    getSchema(step: StepBaseConfig, globals: GlobalsConfig) {
+    getSchema() {
         return WebSearchConfigSchemaV2.transform(config => {
             return {
                 ...config,
