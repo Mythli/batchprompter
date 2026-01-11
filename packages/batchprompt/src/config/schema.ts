@@ -20,6 +20,10 @@ export const OutputConfigSchema = z.object({
     path: zHandlebars.optional(),
     dataPath: zHandlebars.optional(),
     tmpDir: zHandlebars.default(path.join(os.tmpdir(), 'batchprompt')),
+}).default({
+    mode: 'ignore',
+    explode: false,
+    tmpDir: path.join(os.tmpdir(), 'batchprompt'),
 }).describe("Configuration for output handling.");
 
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
