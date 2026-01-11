@@ -1,4 +1,4 @@
-import { PluginRegistryV2, LlmFactory } from './types.js';
+import { PluginRegistryV2, BasePluginRow, LegacyPluginRow } from './types.js';
 import { WebSearchPluginV2 } from './web-search/WebSearchPluginV2.js';
 import { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
 import { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
@@ -22,6 +22,7 @@ export * from './types.js';
 
 // Re-export plugin classes
 export { WebSearchPluginV2 } from './web-search/WebSearchPluginV2.js';
+export { WebSearchPluginRow } from './web-search/WebSearchPluginRow.js';
 export { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
 export { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
 export { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
@@ -40,6 +41,7 @@ export interface PluginDependencies {
 }
 
 import PQueue from 'p-queue';
+import { LlmFactory } from './types.js';
 
 /**
  * Create a plugin registry with all built-in plugins registered and dependencies injected.
@@ -50,8 +52,7 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     // 1. Web Search (Requires Serper)
     if (deps.webSearch) {
         registry.register(new WebSearchPluginV2({
-            webSearch: deps.webSearch,
-            createLlm: deps.createLlm
+            webSearch: deps.webSearch
         }));
     }
 

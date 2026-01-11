@@ -34,6 +34,30 @@ export interface PluginPacket {
     artifacts?: any[];
 }
 
+/**
+ * Base class for row-level plugin execution.
+ * Each row gets its own instance, allowing for per-row state.
+ */
+export abstract class BasePluginRow<TConfig = any> {
+    constructor(
+        protected readonly stepRow: StepRow,
+        protected readonly config: TConfig
+    ) {}
+
+    /**
+     * Pre-LLM execution logic.
+     */
+    async prepare(): Promise<PluginPacket[]> {
+        return [{ data: [null], contentParts: [] }];
+    }
+
+    /**
+     * Post-LLM execution logic.
+     */
+    async postProcess(result: any): Promise<PluginPacket[]> {
+        return [{ data: [result], contentParts: [] }];
+    }
+}
 
 export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
     abstract readonly type: string;
@@ -69,12 +93,53 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
         return stepConfig;
     }
 
+    /**
+     * Creates a row-level execution instance for this plugin.
+     * Override this method to provide custom PluginRow implementations.
+     * 
+     * Default implementation returns a LegacyPluginRow that wraps
+     * the deprecated prepare/postProcess methods for backward compatibility.
+     */
+    createRow(stepRow: StepRow, config: TNormalizedConfig): BasePluginRow<TNormalizedConfig> {
+        return new LegacyPluginRow(stepRow, config, this);
+    }
+
+    /**
+     * @deprecated Override createRow() and return a BasePluginRow subclass instead.
+     * Pre-LLM execution logic.
+     */
     async prepare(stepRow: StepRow, config: TNormalizedConfig): Promise<PluginPacket[]> {
         return [{ data: [null], contentParts: [] }];
     }
 
+    /**
+     * @deprecated Override createRow() and return a BasePluginRow subclass instead.
+     * Post-LLM execution logic.
+     */
     async postProcess(stepRow: StepRow, config: TNormalizedConfig, result: any): Promise<PluginPacket[]> {
         return [{ data: [result], contentParts: [] }];
+    }
+}
+
+/**
+ * Default PluginRow implementation that wraps legacy prepare/postProcess methods.
+ * Used for backward compatibility with plugins that haven't migrated to the new pattern.
+ */
+export class LegacyPluginRow<TConfig = any> extends BasePluginRow<TConfig> {
+    constructor(
+        stepRow: StepRow,
+        config: TConfig,
+        private plugin: BasePlugin<any, TConfig>
+    ) {
+        super(stepRow, config);
+    }
+
+    async prepare(): Promise<PluginPacket[]> {
+        return this.plugin.prepare(this.stepRow, this.config);
+    }
+
+    async postProcess(result: any): Promise<PluginPacket[]> {
+        return this.plugin.postProcess(this.stepRow, this.config, result);
     }
 }
 

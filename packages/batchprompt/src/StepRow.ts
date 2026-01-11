@@ -5,7 +5,7 @@ import { BoundLlmClient } from './BoundLlmClient.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
-import { PluginPacket } from './plugins/types.js';
+import { PluginPacket, BasePluginRow } from './plugins/types.js';
 import { OutputConfig, StepConfig } from "./config/schema.js";
 import { ModelConfig } from "./config/model.js";
 
@@ -95,7 +95,8 @@ export class StepRow {
         const plugins = await this.getPlugins();
         for (const { instance, config } of plugins) {
             currentRows = await flatMapAsync(currentRows, async (row) => {
-                const packets = await instance.prepare(row, config);
+                const pluginRow = instance.createRow(row, config);
+                const packets = await pluginRow.prepare();
                 return row.applyPackets(packets, config.output, instance.type);
             });
         }
@@ -113,7 +114,8 @@ export class StepRow {
         // --- Stage 3: Plugin Post-Processing ---
         for (const { instance, config } of plugins) {
             currentRows = await flatMapAsync(currentRows, async (row) => {
-                const packets = await instance.postProcess(row, config, row.lastResult);
+                const pluginRow = instance.createRow(row, config);
+                const packets = await pluginRow.postProcess(row.lastResult);
                 return row.applyPackets(packets, config.output, instance.type);
             });
         }
