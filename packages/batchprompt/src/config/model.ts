@@ -67,3 +67,21 @@ export function mergeModels(base?: ModelConfig, override?: ModelConfig): ModelCo
         ...override,
     };
 }
+
+/**
+ * Merges two ModelConfig objects and ensures at least one is provided.
+ * Throws an error if both base and override are undefined.
+ * 
+ * @param base - The base model configuration
+ * @param override - The override model configuration
+ * @param context - Optional context string for the error message (e.g., "queryModel", "selectModel")
+ * @throws Error if both base and override are undefined
+ */
+export function requireModel(base?: ModelConfig, override?: ModelConfig, context?: string): ModelConfig {
+    const result = mergeModels(base, override);
+    if (!result) {
+        const contextMsg = context ? ` for ${context}` : '';
+        throw new Error(`Model configuration is required${contextMsg}, but none was provided.`);
+    }
+    return result;
+}
