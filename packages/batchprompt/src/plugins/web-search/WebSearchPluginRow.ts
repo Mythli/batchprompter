@@ -1,7 +1,6 @@
-import OpenAI from 'openai';
 import { BasePluginRow, PluginPacket } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { WebSearchConfig } from './WebSearchPluginV2.js';
+import { WebSearchConfig } from './WebSearchPlugin.js';
 import { AiWebSearch } from './AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { WebSearch } from './WebSearch.js';

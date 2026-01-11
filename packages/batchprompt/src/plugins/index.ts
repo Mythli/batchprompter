@@ -1,5 +1,5 @@
 import { PluginRegistryV2, BasePluginRow, LegacyPluginRow } from './types.js';
-import { WebSearchPluginV2 } from './web-search/WebSearchPluginV2.js';
+import { WebSearchPlugin } from './web-search/WebSearchPlugin.js';
 import { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
 import { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
 import { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
@@ -21,7 +21,7 @@ import { GenericHandler } from './url-expander/utils/types.js';
 export * from './types.js';
 
 // Re-export plugin classes
-export { WebSearchPluginV2 } from './web-search/WebSearchPluginV2.js';
+export { WebSearchPlugin } from './web-search/WebSearchPlugin.js';
 export { WebSearchPluginRow } from './web-search/WebSearchPluginRow.js';
 export { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
 export { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
@@ -51,7 +51,7 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
 
     // 1. Web Search (Requires Serper)
     if (deps.webSearch) {
-        registry.register(new WebSearchPluginV2({
+        registry.register(new WebSearchPlugin({
             webSearch: deps.webSearch
         }));
     }
@@ -92,14 +92,14 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     // 6. URL Expander (Requires Fetcher for basic functionality)
     if (deps.fetcher) {
         const fetchHandler = new GenericFetchHandler(deps.fetcher);
-        
-        const pHandler = deps.puppeteerHelper 
+
+        const pHandler = deps.puppeteerHelper
             ? new GenericPuppeteerHandler(deps.puppeteerHelper, deps.puppeteerQueue)
             : { name: 'puppeteer-disabled', handle: async () => null } as GenericHandler;
 
         const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, pHandler);
         urlHandlerRegistry.registerSpecific(new WikipediaHandler());
-        
+
         registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
     }
 
