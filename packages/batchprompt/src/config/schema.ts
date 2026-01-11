@@ -5,12 +5,6 @@ import {zHandlebars, zJsonSchemaObject} from './validationRules.js';
 import {PluginRegistryV2} from '../plugins/types.js';
 import {ModelConfigSchema, RawModelConfigSchema, transformModelConfig} from "./model.js";
 
-// we take env, we take model defaults from env
-// this allows us to build a full model schema with defaults which come from env, this means this needs to be in the container already, it cant infer types? --> no it can, they are mandatory
-// we take global stuff, merge it into the step
-//
-// we as
-
 export const OutputConfigSchema = z.object({
     mode: z.enum(['merge', 'column', 'ignore']).default('ignore')
         .describe("How to handle the result: merge into row, save to column, or ignore."),
@@ -49,7 +43,7 @@ export const StepSchema = z.object({
     schema: zJsonSchemaObject.optional(),
     output: OutputConfigSchema,
     plugins: z.array(z.any()).default([])
-});
+}).loose();
 
 export type StepConfig = z.infer<typeof StepSchema>;
 
@@ -76,12 +70,12 @@ export const createPipelineSchema = (pluginRegistry: PluginRegistryV2) => {
         return schema;
     });
 
-    let stepSchemaWithExtensions = StepSchema;
+    let stepSchemaWithExtensions: z.ZodObject = StepSchema;
 
     for (const plugin of plugins) {
         if (plugin.getStepExtensionSchema) {
             const extension = plugin.getStepExtensionSchema();
-            if (extension instanceof z.ZodObject) {
+            if (extension) {
                 stepSchemaWithExtensions = stepSchemaWithExtensions.extend(extension.shape);
             }
         }
