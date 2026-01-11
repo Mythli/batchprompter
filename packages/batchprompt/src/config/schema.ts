@@ -57,6 +57,47 @@ export const GlobalsSchema = StepSchema.extend({
 
 export type GlobalConfig = z.infer<typeof GlobalsSchema>;
 
+/**
+ * Merges global step defaults into individual steps.
+ * Step-level configuration always takes precedence over global defaults.
+ */
+export function normalizePipelineConfig(config: any): any {
+    const {
+        steps,
+        concurrency,
+        taskConcurrency,
+        inputLimit,
+        inputOffset,
+        ...globalDefaults
+    } = config;
+
+    const normalizedSteps = (steps || []).map((step: any) => {
+        return {
+            ...globalDefaults,
+            ...step,
+            // Nested object merges
+            model: (globalDefaults.model || step.model)
+                ? { ...globalDefaults.model, ...step.model }
+                : undefined,
+            judge: (globalDefaults.judge || step.judge)
+                ? { ...globalDefaults.judge, ...step.judge }
+                : undefined,
+            feedback: (globalDefaults.feedback || step.feedback)
+                ? { ...globalDefaults.feedback, ...step.feedback }
+                : undefined,
+            output: {
+                ...globalDefaults.output,
+                ...step.output
+            },
+        };
+    });
+
+    return {
+        ...config,
+        steps: normalizedSteps
+    };
+}
+
 export const createPipelineSchema = (pluginRegistry: PluginRegistryV2) => {
     const plugins = pluginRegistry.getAll();
 
@@ -93,5 +134,5 @@ export const createPipelineSchema = (pluginRegistry: PluginRegistryV2) => {
 
     return GlobalsSchema.extend({
         steps: z.array(finalStepSchema)
-    });
+    }).transform(normalizePipelineConfig);
 }
