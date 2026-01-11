@@ -62,15 +62,15 @@ export class StepRow {
     }
 
     async getOutputBasename() {
-        return (this.config as any).outputBasename;
+        return this.config.outputBasename;
     }
 
     async getOutputExtension() {
-        return (this.config as any).outputExtension;
+        return this.config.outputExtension;
     }
 
     async getResolvedOutputDir() {
-        return (this.config as any).resolvedOutputDir;
+        return this.config.resolvedOutputDir;
     }
 
     async getResolvedSchema() {

@@ -14,7 +14,7 @@ import { WebSearch } from './WebSearch.js';
 export const WebSearchConfigSchemaV2 = z.object({
     type: z.literal('web-search'),
     id: z.string().optional(),
-    output: OutputConfigSchema.default({ mode: 'ignore' }),
+    output: OutputConfigSchema,
     query: z.string().optional(),
     queryModel: ModelConfigSchema.optional(),
     selectModel: ModelConfigSchema.optional(),
