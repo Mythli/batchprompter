@@ -65,6 +65,5 @@ export function mergeModels(base?: ModelConfig, override?: ModelConfig): ModelCo
     return {
         ...base,
         ...override,
-        messages: (override.messages && override.messages.length > 0) ? override.messages : base.messages
     };
 }
