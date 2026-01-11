@@ -10,13 +10,6 @@ import { renderSchemaObject } from './utils/schemaUtils.js';
 import { StandardStrategy } from './strategies/StandardStrategy.js';
 import { CandidateStrategy } from './strategies/CandidateStrategy.js';
 import { GenerationStrategy } from './strategies/GenerationStrategy.js';
-import { PluginPacket } from './plugins/types.js';
-
-// Helper for async flatMap
-async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]>): Promise<U[]> {
-    const results = await Promise.all(array.map(callback));
-    return results.flat();
-}
 
 export interface StepRowState {
     // The persistent data record that is being processed and saved
@@ -134,15 +127,6 @@ export class StepRow {
             };
         };
 
-        // 4. Hydrate Plugins
-        const hydratedPlugins = await Promise.all(this.step.plugins.map(async (p) => {
-            const hydratedPluginConfig = await p.instance.hydrate(config, p.config, this.state.context);
-            return {
-                ...p,
-                config: hydratedPluginConfig
-            };
-        }));
-
         this._hydratedConfig = {
             ...config,
             resolvedOutputDir: outputDir,
@@ -153,15 +137,9 @@ export class StepRow {
             model: hydrateModel(config.model)!,
             judge: hydrateModel(config.judge),
             feedback: config.feedback ? { ...hydrateModel(config.feedback)!, loops: config.feedback.loops } : undefined,
-            plugins: hydratedPlugins
         } as any;
 
         return this._hydratedConfig!;
-    }
-
-    async getPlugins() {
-        const config = await this.hydratedConfig();
-        return config.plugins || [];
     }
 
     async getTempDir() {
@@ -202,38 +180,9 @@ export class StepRow {
     // --- Core Logic ---
 
     async run(): Promise<PipelineItem[]> {
-        let currentRows: StepRow[] = [this];
-
-        // --- Stage 1: Plugin Preparation ---
-        const plugins = await this.getPlugins();
-        for (const { instance, config } of plugins) {
-            currentRows = await flatMapAsync(currentRows, async (row) => {
-                const packets = await instance.prepare(row, config);
-                return row.applyPackets(packets, config.output, instance.type);
-            });
-        }
-
-        // --- Stage 2: Model Execution ---
-        const hydratedConfig = await this.hydratedConfig();
-        const hasMessages = hydratedConfig.model.messages.length > 0;
-
-        if (hasMessages) {
-            currentRows = await flatMapAsync(currentRows, async (row) => {
-                const packets = await row.executeLlm();
-                return row.applyPackets(packets, this.step.config.output, 'modelOutput');
-            });
-        }
-
-        // --- Stage 3: Plugin Post-Processing ---
-        for (const { instance, config } of plugins) {
-            currentRows = await flatMapAsync(currentRows, async (row) => {
-                const packets = await instance.postProcess(row, config, row.lastResult);
-                return row.applyPackets(packets, config.output, instance.type);
-            });
-        }
-
-        // Convert StepRows back to PipelineItems
-        return currentRows.map(row => row.toPipelineItem());
+        const packets = await this.executeLlm();
+        const nextRows = this.applyPackets(packets, this.step.config.output);
+        return nextRows.map(row => row.toPipelineItem());
     }
 
     public toPipelineItem(): PipelineItem {
@@ -250,7 +199,7 @@ export class StepRow {
     /**
      * Applies a list of packets to the current row, potentially spawning new StepRow instances.
      */
-    public applyPackets(packets: PluginPacket[], config: OutputConfig, namespace: string): StepRow[] {
+    public applyPackets(packets: any[], config: OutputConfig): StepRow[] {
         const nextRows: StepRow[] = [];
 
         for (const packet of packets) {
@@ -285,7 +234,7 @@ export class StepRow {
                 });
 
                 dataArray.forEach((itemData, idx) => {
-                    nextRows.push(this.spawn(itemData, idx, config, namespace, nextHistory, nextContent));
+                    nextRows.push(this.spawn(itemData, idx, config, nextHistory, nextContent));
                 });
             } else {
                 // Standard: Update current row with the data
@@ -293,7 +242,7 @@ export class StepRow {
 
                 // We can reuse 'spawn' to create the next state even for single items,
                 // effectively treating it as a mutation of the flow
-                nextRows.push(this.spawn(dataToApply, this.state.variationIndex, config, namespace, nextHistory, nextContent));
+                nextRows.push(this.spawn(dataToApply, this.state.variationIndex, config, nextHistory, nextContent));
             }
         }
 
@@ -304,7 +253,6 @@ export class StepRow {
         data: any,
         variationIndex: number | undefined,
         config: OutputConfig,
-        namespace: string,
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         content: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): StepRow {
@@ -313,8 +261,6 @@ export class StepRow {
         const newContext = { ...this.state.context };
 
         // 2. Apply New Data
-        newContext[namespace] = data;
-
         if (config.mode === 'merge') {
             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
                 Object.assign(newData, data);
@@ -342,7 +288,7 @@ export class StepRow {
         return newRow;
     }
 
-    public async executeLlm(): Promise<PluginPacket[]> {
+    public async executeLlm(): Promise<any[]> {
         const config = await this.hydratedConfig();
         // Create LLM Client using hydrated model config
         const llm = await this.createLlm(config.model);
