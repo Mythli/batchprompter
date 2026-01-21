@@ -3,11 +3,11 @@ import Handlebars from 'handlebars';
 import { EventEmitter } from 'eventemitter3';
 import {
     BasePlugin,
-    PluginPacket
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, DEFAULT_PLUGIN_OUTPUT, zHandlebars, StepBaseConfig, GlobalsConfig } from '../../config/index.js';
 import { PluginScope } from '../PluginScope.js';
+import {zHandlebars} from "../../config/validationRules.js";
+import {OutputConfigSchema} from "../../config/schema.js";
 
 export const DedupeConfigSchemaV2 = z.object({
     type: z.literal('dedupe').describe("Identifies this as a Dedupe plugin."),

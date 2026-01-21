@@ -15,6 +15,7 @@ import {
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ImageSearch } from './ImageSearch.js';
+import {LlmFactory} from "../index.js";
 
 export const ImageSearchConfigSchemaV2 = z.object({
     type: z.literal('image-search'),

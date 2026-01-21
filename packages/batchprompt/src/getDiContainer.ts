@@ -5,14 +5,14 @@ import OpenAI from "openai";
 import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
 import { WebSearch } from './plugins/web-search/WebSearch.js';
-import { createPluginRegistry, PluginRegistryV2 } from './plugins/index.js';
+import { createPluginRegistry } from './plugins/index.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
-import { createAiLoggingFetcher, createCachedFetcher, createLlm, CacheLike } from "llm-fns";
+import {createAiLoggingFetcher, createCachedFetcher, createLlm, CacheLike } from "llm-fns";
 import { LlmClientFactory } from './LlmClientFactory.js';
 import { attachQueueLogger } from "./debug/queue.js";
-import { LlmFactory } from './plugins/types.js';
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './events.js';
+import {ModelConfig} from "./config/model.js";
 
 interface ServiceCapabilities {
     hasSerper: boolean;
@@ -65,25 +65,7 @@ class KeyvCacheAdapter implements CacheLike {
     store: any = {};
 }
 
-export type BatchPromptDeps = {
-    openai: OpenAI;
-    events: EventEmitter<BatchPromptEvents>;
-    cache?: CacheLike;
-    gptQueue: PQueue;
-    taskQueue: PQueue;
-    serperQueue: PQueue;
-    puppeteerQueue: PQueue;
-    puppeteerHelper: PuppeteerHelper;
-    fetcher: any; // Fetcher from llm-fns
-    imageSearch?: ImageSearch;
-    webSearch?: WebSearch;
-    capabilities: ServiceCapabilities;
-    defaultModel: string;
-    pluginRegistry: PluginRegistryV2;
-    llmFactory: LlmClientFactory;
-};
-
-export const initConfig = async (env: Record<string, any>, overrides: ConfigOverrides = {}): Promise<BatchPromptDeps> => {
+export const initConfig = async (env: Record<string, any>, overrides: ConfigOverrides = {}) => {
     const rawConfig = {
         ...env,
         AI_API_KEY: getEnvVar(env, ['BATCHPROMPT_OPENAI_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY']),
@@ -130,16 +112,16 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         fetch: fetcher as any
     });
 
-    const gptQueue = new PQueue({ concurrency: overrides.concurrency ?? config.GPT_CONCURRENCY });
+    const gptQueue: PQueue = new PQueue({ concurrency: overrides.concurrency ?? config.GPT_CONCURRENCY });
     attachQueueLogger(gptQueue, 'GPT');
 
-    const taskQueue = new PQueue({ concurrency: config.TASK_CONCURRENCY });
+    const taskQueue: PQueue = new PQueue({ concurrency: config.TASK_CONCURRENCY });
     attachQueueLogger(taskQueue, 'Task');
 
-    const serperQueue = new PQueue({ concurrency: config.SERPER_CONCURRENCY });
+    const serperQueue: PQueue = new PQueue({ concurrency: config.SERPER_CONCURRENCY });
     attachQueueLogger(serperQueue, 'Serper');
 
-    const puppeteerQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
+    const puppeteerQueue: PQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
     attachQueueLogger(puppeteerQueue, 'Puppeteer');
 
     const defaultModel = config.MODEL || 'google/gemini-3-flash-preview';
@@ -166,22 +148,10 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
 
     // The "Upgraded" createLlm factory for plugins
-    const createTheLlm: LlmFactory = (config: Partial<ModelConfig>) => {
-        const modelConfig: Record<string, any> = {
-            model: config.model || defaultModel
-        };
-
-        if (config.temperature !== undefined) {
-            modelConfig.temperature = config.temperature;
-        }
-
-        if (config.thinkingLevel) {
-            modelConfig.reasoning_effort = config.thinkingLevel;
-        }
-
+    const createTheLlm = (config: Partial<ModelConfig>) => {
         return createLlm({
-            openai: openai as any,
-            defaultModel: modelConfig,
+            openai,
+            defaultModel: config,
             queue: gptQueue,
             retryBaseDelay: overrides.retryBaseDelay,
         });
@@ -217,7 +187,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     };
 }
 
-export type TheConfig = Awaited<ReturnType<typeof initConfig>>;
+export type BatchPromptDeps = Awaited<ReturnType<typeof initConfig>>;
 
 let configInstance: null | BatchPromptDeps = null;
 export const getDiContainer = async (env: Record<string, any>, overrides?: ConfigOverrides) => {
