@@ -3,7 +3,7 @@ import Handlebars from 'handlebars';
 import path from 'path';
 import { PipelineItem } from './types.js';
 import { StepRow, StepRowState } from './StepRow.js';
-import { StepConfig } from "./config/schema.js";
+import { StepConfig, GlobalConfig } from "./config/schema.js";
 import { PluginRegistryV2, BasePlugin } from "./plugins/types.js";
 import { BatchPromptEvents } from "./events.js";
 import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
@@ -26,7 +26,8 @@ export class Step {
             events: EventEmitter<BatchPromptEvents>,
             llmFactory: { create: (config: any, messages: any) => any }
         },
-        public readonly stepIndex: number
+        public readonly stepIndex: number,
+        public readonly globalConfig: GlobalConfig
     ) {
         // Normalize plugins once during initialization
         this.plugins = (config.plugins || []).map(pluginConfig => {
@@ -34,7 +35,7 @@ export class Step {
             if (!instance) {
                 throw new Error(`Plugin '${pluginConfig.type}' not found in registry.`);
             }
-            const normalizedConfig = instance.normalizeConfig(pluginConfig, config);
+            const normalizedConfig = instance.normalizeConfig(pluginConfig, config, globalConfig);
             return {
                 instance,
                 config: normalizedConfig
@@ -49,7 +50,7 @@ export class Step {
     }
 
     private async hydrate(context: Record<string, any>, originalIndex: number): Promise<StepConfig> {
-        const { config, stepIndex } = this;
+        const { config, stepIndex, globalConfig } = this;
         const stepNum = stepIndex + 1;
 
         // 1. Sanitize context for file paths
@@ -125,7 +126,7 @@ export class Step {
 
         // 5. Hydrate Plugins
         const hydratedPlugins = await Promise.all(this.plugins.map(async (p) => {
-            const hydratedConfig = await p.instance.hydrate(config, p.config, context);
+            const hydratedConfig = await p.instance.hydrate(config, globalConfig, p.config, context);
             return {
                 ...p,
                 config: hydratedConfig

@@ -8,7 +8,7 @@ import {
     UrlExpanderConfigSchema,
     UrlExpanderStepExtension
 } from './UrlExpanderConfig.js';
-import { StepConfig } from '../../config/schema.js';
+import { StepConfig, GlobalConfig } from '../../config/schema.js';
 
 export class UrlExpanderPlugin extends BasePlugin<UrlExpanderConfig> {
     readonly type = 'urlExpander';
@@ -54,6 +54,10 @@ export class UrlExpanderPlugin extends BasePlugin<UrlExpanderConfig> {
             }
         }
         return step;
+    }
+
+    normalizeConfig(config: UrlExpanderConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): UrlExpanderConfig {
+        return super.normalizeConfig(config, stepConfig, globalConfig) as UrlExpanderConfig;
     }
 
     createRow(stepRow: StepRow, config: UrlExpanderConfig): BasePluginRow<UrlExpanderConfig> {

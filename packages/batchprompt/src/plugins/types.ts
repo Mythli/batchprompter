@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type OpenAI from 'openai';
 import type { StepRow } from '../StepRow.js';
-import type { StepConfig, OutputConfig, PartialOutputConfig } from "../config/schema.js";
+import type { StepConfig, OutputConfig, PartialOutputConfig, GlobalConfig } from "../config/schema.js";
 import { mergeOutputConfigs } from "../config/schema.js";
 import type { ModelConfig } from "../config/model.js";
 import type { LlmClient } from 'llm-fns';
@@ -106,15 +106,19 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
      * NOT the step-level output config. This prevents step settings from
      * affecting plugin behavior unexpectedly.
      * 
-     * Only tmpDir is inherited from step config for convenience.
+     * Plugins inherit tmpDir from global config for convenience.
+     * 
+     * @param config - The raw plugin config
+     * @param stepConfig - The step-level config (for step-specific context)
+     * @param globalConfig - The full global config (for inheriting defaults)
      */
-    normalizeConfig(config: TBaseConfig, stepConfig: StepConfig): TNormalizedConfig {
+    normalizeConfig(config: TBaseConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): TNormalizedConfig {
         const pluginOutput = (config as any).output as PartialOutputConfig | undefined;
         
-        // Use default plugin output, only inheriting tmpDir from step
+        // Use default plugin output, inheriting tmpDir from global config (not step)
         const baseOutput: OutputConfig = {
             ...DEFAULT_PLUGIN_OUTPUT,
-            tmpDir: stepConfig.output?.tmpDir || DEFAULT_PLUGIN_OUTPUT.tmpDir,
+            tmpDir: globalConfig.output?.tmpDir || DEFAULT_PLUGIN_OUTPUT.tmpDir,
         };
         
         const mergedOutput = mergeOutputConfigs(baseOutput, pluginOutput);
@@ -127,8 +131,13 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
 
     /**
      * Renders templates and resolves dynamic values for a specific row.
+     * 
+     * @param stepConfig - The step-level config
+     * @param globalConfig - The full global config
+     * @param config - The normalized plugin config
+     * @param context - The row context for template rendering
      */
-    hydrate(stepConfig: StepConfig, config: TNormalizedConfig, context: Record<string, any>): Promise<TNormalizedConfig> | TNormalizedConfig {
+    hydrate(stepConfig: StepConfig, globalConfig: GlobalConfig, config: TNormalizedConfig, context: Record<string, any>): Promise<TNormalizedConfig> | TNormalizedConfig {
         return config;
     }
 

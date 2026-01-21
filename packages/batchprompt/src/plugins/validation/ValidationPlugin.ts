@@ -5,7 +5,7 @@ import {
     BasePluginRow
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { PartialOutputConfigSchema, StepConfig } from '../../config/schema.js';
+import { PartialOutputConfigSchema, StepConfig, GlobalConfig } from '../../config/schema.js';
 import { zJsonSchemaObject, zHandlebars } from '../../config/validationRules.js';
 import { ValidationPluginRow } from './ValidationPluginRow.js';
 
@@ -28,8 +28,8 @@ export class ValidationPlugin extends BasePlugin<ValidationConfig, ValidationCon
         return ValidationConfigSchema;
     }
 
-    normalizeConfig(config: ValidationConfig, stepConfig: StepConfig): ValidationConfig {
-        const base = super.normalizeConfig(config, stepConfig);
+    normalizeConfig(config: ValidationConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): ValidationConfig {
+        const base = super.normalizeConfig(config, stepConfig, globalConfig);
 
         return {
             ...base,
@@ -37,7 +37,7 @@ export class ValidationPlugin extends BasePlugin<ValidationConfig, ValidationCon
         };
     }
 
-    async hydrate(_stepConfig: StepConfig, config: ValidationConfig, context: Record<string, any>): Promise<ValidationConfig> {
+    async hydrate(_stepConfig: StepConfig, _globalConfig: GlobalConfig, config: ValidationConfig, context: Record<string, any>): Promise<ValidationConfig> {
         // Hydrate target template if provided
         let target: string | undefined;
         if (config.target) {

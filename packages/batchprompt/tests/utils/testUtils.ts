@@ -120,14 +120,14 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
             const schema = createPipelineSchema(pluginRegistry);
             const runtimeConfig = await schema.parseAsync(configWithData);
 
-            // Create Step instances from the parsed config
+            // Create Step instances from the parsed config, passing globalConfig
             const stepDeps = {
                 pluginRegistry: deps.pluginRegistry,
                 events: deps.events,
                 llmFactory: deps.llmFactory
             };
             const steps = runtimeConfig.steps.map((stepConfig: any, index: number) => 
-                new Step(stepConfig, stepDeps, index)
+                new Step(stepConfig, stepDeps, index, runtimeConfig)
             );
 
             const pipeline = new Pipeline(deps, steps, runtimeConfig);

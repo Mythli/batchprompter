@@ -5,8 +5,8 @@ import {
     BasePluginRow
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { PartialOutputConfigSchema, StepConfig } from '../../config/schema.js';
-import { ModelConfigSchema, ModelConfig, mergeModels } from '../../config/model.js';
+import { PartialOutputConfigSchema, StepConfig, GlobalConfig } from '../../config/schema.js';
+import { ModelConfigSchema, ModelConfig } from '../../config/model.js';
 import { WebSearch } from './WebSearch.js';
 import { WebSearchPluginRow } from './WebSearchPluginRow.js';
 
@@ -29,6 +29,26 @@ export const WebSearchConfigSchemaV2 = z.object({
 
 export type WebSearchConfig = z.output<typeof WebSearchConfigSchemaV2>;
 
+/**
+ * Fills in missing model parameters (model name, temperature, reasoning_effort) from global defaults.
+ * If pluginModel is undefined, returns undefined (feature disabled).
+ * If pluginModel is defined but missing model name, fills from global.
+ * Never inherits messages/prompts - those are operation-specific.
+ */
+function fillModelDefaults(
+    pluginModel: ModelConfig | undefined,
+    globalModel: ModelConfig | undefined
+): ModelConfig | undefined {
+    if (!pluginModel) return undefined;
+    
+    return {
+        ...pluginModel,
+        model: pluginModel.model || globalModel?.model,
+        temperature: pluginModel.temperature ?? globalModel?.temperature,
+        reasoning_effort: pluginModel.reasoning_effort ?? globalModel?.reasoning_effort,
+    };
+}
+
 export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig> {
     readonly type = 'webSearch';
 
@@ -44,19 +64,24 @@ export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig
         return WebSearchConfigSchemaV2;
     }
 
-    normalizeConfig(config: WebSearchConfig, stepConfig: StepConfig): WebSearchConfig {
-        const base = super.normalizeConfig(config, stepConfig);
+    normalizeConfig(config: WebSearchConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): WebSearchConfig {
+        const base = super.normalizeConfig(config, stepConfig, globalConfig);
+
+        // Get global model defaults (without messages/prompts)
+        const globalModel = globalConfig.model;
 
         return {
             ...base,
             id: config.id ?? `webSearch-${Date.now()}`,
-            queryModel: mergeModels(stepConfig.model, config.queryModel),
-            selectModel: mergeModels(stepConfig.model, config.selectModel),
-            compressModel: mergeModels(stepConfig.model, config.compressModel),
+            // Fill model defaults from global config, NOT step config
+            // If plugin model is undefined, feature stays disabled (undefined)
+            queryModel: fillModelDefaults(config.queryModel, globalModel),
+            selectModel: fillModelDefaults(config.selectModel, globalModel),
+            compressModel: fillModelDefaults(config.compressModel, globalModel),
         };
     }
 
-    async hydrate(_stepConfig: StepConfig, config: WebSearchConfig, context: Record<string, any>): Promise<WebSearchConfig> {
+    async hydrate(_stepConfig: StepConfig, _globalConfig: GlobalConfig, config: WebSearchConfig, context: Record<string, any>): Promise<WebSearchConfig> {
         let query: string | undefined;
         if (config.query) {
             const template = Handlebars.compile(config.query, { noEscape: true });

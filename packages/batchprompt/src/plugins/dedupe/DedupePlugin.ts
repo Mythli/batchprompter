@@ -5,7 +5,7 @@ import {
     BasePluginRow
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { PartialOutputConfigSchema, StepConfig } from '../../config/schema.js';
+import { PartialOutputConfigSchema, StepConfig, GlobalConfig } from '../../config/schema.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import { DedupePluginRow } from './DedupePluginRow.js';
 
@@ -36,8 +36,8 @@ export class DedupePlugin extends BasePlugin<DedupeConfig, DedupeConfig> {
         return DedupeConfigSchema;
     }
 
-    normalizeConfig(config: DedupeConfig, stepConfig: StepConfig): DedupeConfig {
-        const base = super.normalizeConfig(config, stepConfig);
+    normalizeConfig(config: DedupeConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): DedupeConfig {
+        const base = super.normalizeConfig(config, stepConfig, globalConfig);
         const id = config.id ?? `dedupe-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
         // Initialize seen keys set for this instance
@@ -51,7 +51,7 @@ export class DedupePlugin extends BasePlugin<DedupeConfig, DedupeConfig> {
         };
     }
 
-    async hydrate(_stepConfig: StepConfig, config: DedupeConfig, context: Record<string, any>): Promise<DedupeConfig & { _renderedKey: string }> {
+    async hydrate(_stepConfig: StepConfig, _globalConfig: GlobalConfig, config: DedupeConfig, context: Record<string, any>): Promise<DedupeConfig & { _renderedKey: string }> {
         // Render the key template against context
         const template = Handlebars.compile(config.key, { noEscape: true });
         const renderedKey = template(context);
