@@ -23,3 +23,11 @@ export function aggressiveSanitize(input: string): string {
     // 3. Truncate to 100 chars
     return sanitized.substring(0, 100);
 }
+
+/**
+ * Converts a kebab-case string to camelCase.
+ * e.g., 'web-search' -> 'webSearch'
+ */
+export function kebabToCamelCase(str: string): string {
+    return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+}

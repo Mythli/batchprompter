@@ -8,6 +8,7 @@ import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { PluginResult, PluginItem } from './plugins/types.js';
 import { OutputConfig, StepConfig } from "./config/schema.js";
 import { ModelConfig } from "./config/model.js";
+import { kebabToCamelCase } from './utils/fileUtils.js';
 
 // Helper for async flatMap
 async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]>): Promise<U[]> {
@@ -97,10 +98,11 @@ export class StepRow {
         // --- Stage 1: Plugin Preparation ---
         const plugins = await this.getPlugins();
         for (const { instance, config } of plugins) {
+            const namespace = kebabToCamelCase(instance.type);
             currentRows = await flatMapAsync(currentRows, async (row) => {
                 const pluginRow = instance.createRow(row, config);
                 const result = await pluginRow.prepare();
-                return row.applyResult(result, config.output, instance.type);
+                return row.applyResult(result, config.output, namespace);
             });
         }
 
@@ -117,10 +119,11 @@ export class StepRow {
 
         // --- Stage 3: Plugin Post-Processing ---
         for (const { instance, config } of plugins) {
+            const namespace = kebabToCamelCase(instance.type);
             currentRows = await flatMapAsync(currentRows, async (row) => {
                 const pluginRow = instance.createRow(row, config);
                 const result = await pluginRow.postProcess(row.lastResult);
-                return row.applyResult(result, config.output, instance.type);
+                return row.applyResult(result, config.output, namespace);
             });
         }
 
@@ -201,18 +204,22 @@ export class StepRow {
         const newData = JSON.parse(JSON.stringify(this.state.data));
         const newContext = { ...this.state.context };
 
-        // 2. Apply New Data
+        // 2. Apply New Data based on output mode
+        // Always namespace in context for template access
         newContext[namespace] = data;
 
         if (outputConfig.mode === 'merge') {
+            // Merge mode: namespace the plugin output under its name
+            newData[namespace] = data;
+            // Also spread object properties to context for easy template access
             if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-                Object.assign(newData, data);
                 Object.assign(newContext, data);
             }
         } else if (outputConfig.mode === 'column' && outputConfig.column) {
             newData[outputConfig.column] = data;
             newContext[outputConfig.column] = data;
         }
+        // mode === 'ignore': data is only in context, not persisted to row
 
         // 3. Create New State
         const newState: StepRowState = {
