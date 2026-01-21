@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import os from 'os';
+import path from 'path';
 import { OutputConfigSchema } from '../../config/schema.js';
 
 export const UrlExpanderConfigSchema = z.object({
@@ -6,7 +8,8 @@ export const UrlExpanderConfigSchema = z.object({
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
         mode: 'ignore',
-        explode: false
+        explode: false,
+        tmpDir: path.join(os.tmpdir(), 'batchprompt')
     }).describe("How to save the expanded content (usually ignored as it modifies prompt)."),
     mode: z.enum(['fetch', 'puppeteer']).default('fetch').describe("Method used to fetch the URL content."),
     maxChars: z.number().int().positive().default(30000).describe("Maximum number of characters to include from the expanded content.")
