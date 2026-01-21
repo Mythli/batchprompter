@@ -5,7 +5,7 @@ import {
     BasePluginRow
 } from '../types.js';
 import { StepRow } from '../../StepRow.js';
-import { OutputConfigSchema, StepConfig } from '../../config/schema.js';
+import { PartialOutputConfigSchema, StepConfig } from '../../config/schema.js';
 import { ModelConfigSchema, ModelConfig, mergeModels } from '../../config/model.js';
 import { WebSearch } from './WebSearch.js';
 import { WebSearchPluginRow } from './WebSearchPluginRow.js';
@@ -13,7 +13,7 @@ import { WebSearchPluginRow } from './WebSearchPluginRow.js';
 export const WebSearchConfigSchemaV2 = z.object({
     type: z.literal('webSearch'),
     id: z.string().optional(),
-    output: OutputConfigSchema,
+    output: PartialOutputConfigSchema.optional(),
     query: z.string().optional(),
     queryModel: ModelConfigSchema.optional(),
     selectModel: ModelConfigSchema.optional(),

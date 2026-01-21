@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type OpenAI from 'openai';
 import type { StepRow } from '../StepRow.js';
-import type { StepConfig } from "../config/schema.js";
+import type { StepConfig, OutputConfig, PartialOutputConfig } from "../config/schema.js";
+import { mergeOutputConfigs } from "../config/schema.js";
 import type { ModelConfig } from "../config/model.js";
 import type { LlmClient } from 'llm-fns';
 
@@ -88,15 +89,15 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
 
     /**
      * Inherits configuration from the step.
-     * By default, merges the output configuration.
+     * Uses smart merging for output config to preserve step-level settings.
      */
     normalizeConfig(config: TBaseConfig, stepConfig: StepConfig): TNormalizedConfig {
+        const pluginOutput = (config as any).output as PartialOutputConfig | undefined;
+        const mergedOutput = mergeOutputConfigs(stepConfig.output, pluginOutput);
+        
         return {
             ...config,
-            output: {
-                ...stepConfig.output,
-                ...(config as any).output
-            }
+            output: mergedOutput
         } as any;
     }
 

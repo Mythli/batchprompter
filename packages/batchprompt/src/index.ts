@@ -35,7 +35,6 @@ export * from './utils/LlmListSelector.js';
 export * from './utils/SpriteGenerator.js';
 export * from './utils/compressHtml.js';
 
-
-// Ddebug
+// Debug
 export * from './debug/DebugLogger.js';
 export * from './debug/queue.js';

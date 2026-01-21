@@ -1,10 +1,10 @@
 import { PluginRegistryV2, BasePluginRow, LlmFactory } from './types.js';
 import { WebSearchPlugin } from './web-search/WebSearchPlugin.js';
+import { ValidationPlugin } from './validation/ValidationPlugin.js';
+import { DedupePlugin } from './dedupe/DedupePlugin.js';
 // import { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
 // import { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
 // import { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
-// import { ValidationPluginV2 } from './validation/ValidationPluginV2.js';
-// import { DedupePluginV2 } from './dedupe/DedupePluginV2.js';
 // import { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
 import { UrlExpanderPlugin } from './url-expander/UrlExpanderPlugin.js';
 import { UrlHandlerRegistry } from './url-expander/utils/UrlHandlerRegistry.js';
@@ -23,11 +23,13 @@ export * from './types.js';
 // Re-export plugin classes
 export { WebSearchPlugin } from './web-search/WebSearchPlugin.js';
 export { WebSearchPluginRow } from './web-search/WebSearchPluginRow.js';
+export { ValidationPlugin } from './validation/ValidationPlugin.js';
+export { ValidationPluginRow } from './validation/ValidationPluginRow.js';
+export { DedupePlugin } from './dedupe/DedupePlugin.js';
+export { DedupePluginRow } from './dedupe/DedupePluginRow.js';
 // export { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
 // export { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
 // export { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
-// export { ValidationPluginV2 } from './validation/ValidationPluginV2.js';
-// export { DedupePluginV2 } from './dedupe/DedupePluginV2.js';
 // export { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
 export { UrlExpanderPlugin } from './url-expander/UrlExpanderPlugin.js';
 export { UrlExpanderPluginRow } from './url-expander/UrlExpanderPluginRow.js';
@@ -56,7 +58,13 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
         }));
     }
 
-    // 2. Image Search (Requires Serper)
+    // 2. Validation (No external deps)
+    registry.register(new ValidationPlugin());
+
+    // 3. Dedupe (No external deps)
+    registry.register(new DedupePlugin());
+
+    // 4. Image Search (Requires Serper)
     // Note: ImageSearchPluginV2 needs migration to new architecture
     // if (deps.imageSearch) {
     //     registry.register(new ImageSearchPluginV2({
@@ -65,7 +73,7 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     //     }));
     // }
 
-    // 3. Website Agent (Requires Puppeteer)
+    // 5. Website Agent (Requires Puppeteer)
     // Note: WebsiteAgentPluginV2 needs migration to new architecture
     // if (deps.puppeteerHelper && deps.puppeteerQueue) {
     //     registry.register(new WebsiteAgentPluginV2({
@@ -75,7 +83,7 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     //     }));
     // }
 
-    // 4. Style Scraper (Requires Puppeteer)
+    // 6. Style Scraper (Requires Puppeteer)
     // Note: StyleScraperPluginV2 needs migration to new architecture
     // if (deps.puppeteerHelper) {
     //     registry.register(new StyleScraperPluginV2({
@@ -83,7 +91,7 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     //     }));
     // }
 
-    // 5. Logo Scraper (Requires Puppeteer + Fetcher)
+    // 7. Logo Scraper (Requires Puppeteer + Fetcher)
     // Note: LogoScraperPluginV2 needs migration to new architecture
     // if (deps.puppeteerHelper && deps.fetcher) {
     //     registry.register(new LogoScraperPluginV2({
@@ -93,7 +101,7 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     //     }));
     // }
 
-    // 6. URL Expander (Requires Fetcher for basic functionality)
+    // 8. URL Expander (Requires Fetcher for basic functionality)
     if (deps.fetcher) {
         const fetchHandler = new GenericFetchHandler(deps.fetcher);
 
@@ -106,11 +114,6 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
 
         registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
     }
-
-    // 7. Logic Plugins (No external deps)
-    // Note: These plugins need migration to new architecture
-    // registry.register(new ValidationPluginV2());
-    // registry.register(new DedupePluginV2());
 
     return registry;
 }

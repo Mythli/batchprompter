@@ -5,6 +5,28 @@ import {zHandlebars, zJsonSchemaObject} from './validationRules.js';
 import {PluginRegistryV2} from '../plugins/types.js';
 import {ModelConfigSchema, RawModelConfigSchema, transformModelConfig, mergeModels} from "./model.js";
 
+/**
+ * Partial output config for plugins - all fields optional, no defaults.
+ * This allows plugins to inherit step-level output config without overriding.
+ */
+export const PartialOutputConfigSchema = z.object({
+    mode: z.enum(['merge', 'column', 'ignore']).optional()
+        .describe("How to handle the result: merge into row, save to column, or ignore."),
+    column: z.string().optional()
+        .describe("Column name when mode is 'column'."),
+    explode: z.boolean().optional()
+        .describe("If true, array results create multiple rows."),
+    limit: z.number().int().positive().optional()
+        .describe("Max items to keep when exploding."),
+    offset: z.number().int().min(0).optional()
+        .describe("Starting index when exploding."),
+    path: zHandlebars.optional(),
+    dataPath: zHandlebars.optional(),
+    tmpDir: zHandlebars.optional(),
+});
+
+export type PartialOutputConfig = z.infer<typeof PartialOutputConfigSchema>;
+
 export const OutputConfigSchema = z.object({
     mode: z.enum(['merge', 'column', 'ignore']).default('ignore')
         .describe("How to handle the result: merge into row, save to column, or ignore."),
@@ -27,6 +49,58 @@ export const OutputConfigSchema = z.object({
 }).describe("Configuration for output handling.");
 
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
+
+/**
+ * Merges step-level output config with plugin-level output config.
+ * Plugin values only override if they are explicitly defined (not undefined).
+ * Step values serve as the base, with final defaults applied.
+ */
+export function mergeOutputConfigs(
+    stepOutput: OutputConfig | undefined,
+    pluginOutput: PartialOutputConfig | undefined
+): OutputConfig {
+    const defaults: OutputConfig = {
+        mode: 'ignore',
+        explode: false,
+        tmpDir: path.join(os.tmpdir(), 'batchprompt'),
+    };
+
+    const base = stepOutput || defaults;
+    
+    if (!pluginOutput) {
+        return base;
+    }
+
+    // Only override with plugin values that are explicitly defined
+    const result: OutputConfig = { ...base };
+    
+    if (pluginOutput.mode !== undefined) {
+        result.mode = pluginOutput.mode;
+    }
+    if (pluginOutput.column !== undefined) {
+        result.column = pluginOutput.column;
+    }
+    if (pluginOutput.explode !== undefined) {
+        result.explode = pluginOutput.explode;
+    }
+    if (pluginOutput.limit !== undefined) {
+        result.limit = pluginOutput.limit;
+    }
+    if (pluginOutput.offset !== undefined) {
+        result.offset = pluginOutput.offset;
+    }
+    if (pluginOutput.path !== undefined) {
+        result.path = pluginOutput.path;
+    }
+    if (pluginOutput.dataPath !== undefined) {
+        result.dataPath = pluginOutput.dataPath;
+    }
+    if (pluginOutput.tmpDir !== undefined) {
+        result.tmpDir = pluginOutput.tmpDir;
+    }
+
+    return result;
+}
 
 // Feedback is now just a model config (same as judge)
 export const FeedbackConfigSchema = ModelConfigSchema;
