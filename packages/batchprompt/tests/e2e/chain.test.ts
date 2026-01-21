@@ -13,19 +13,24 @@ describe('E2E Chain', () => {
             mockResponses
         });
 
-        // 3. Define Config
+        // 2. Define Config - model is now an object with model + prompt
         const config = {
-            model: "gpt-mock",
             steps: [
                 {
-                    prompt: "Generate a cool game name",
+                    model: {
+                        model: "gpt-mock",
+                        prompt: "Generate a cool game name"
+                    },
                     output: {
                         mode: "column",
                         column: "gameName"
                     }
                 },
                 {
-                    prompt: "Generate a slogan for {{gameName}}",
+                    model: {
+                        model: "gpt-mock",
+                        prompt: "Generate a slogan for {{gameName}}"
+                    },
                     output: {
                         mode: "column",
                         column: "slogan"
@@ -36,15 +41,15 @@ describe('E2E Chain', () => {
 
         const initialRows = [{ id: 1 }];
 
-        // 4. Execute
+        // 3. Execute
         const { results } = await executor.runConfig(config, initialRows);
 
-        // 5. Verify Results
+        // 4. Verify Results
         expect(results).toHaveLength(1);
         expect(results[0].gameName).toBe("CyberPunk 2077");
         expect(results[0].slogan).toBe("Wake the f*** up, Samurai");
 
-        // 6. Verify Chain Logic
+        // 5. Verify Chain Logic
         const createCall = (openai.chat.completions.create as any);
         expect(createCall).toHaveBeenCalledTimes(2);
 

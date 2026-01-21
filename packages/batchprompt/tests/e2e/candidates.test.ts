@@ -20,12 +20,14 @@ describe('E2E Candidates with Judge', () => {
             mockResponses
         });
 
-        // 2. Define Config
+        // 2. Define Config - model is now an object
         const config = {
-            model: "gpt-mock",
             steps: [
                 {
-                    prompt: "Generate a creative animal name",
+                    model: {
+                        model: "gpt-mock",
+                        prompt: "Generate a creative animal name"
+                    },
                     candidates: 3,
                     judge: {
                         model: "gpt-judge",
@@ -59,7 +61,6 @@ describe('E2E Candidates with Judge', () => {
         const messages = judgeCallArgs.messages;
         
         // The judge prompt should contain the candidates
-        // Messages structure: [System, User(Context), User(Candidates)] or similar depending on BoundLlmClient
         const fullContent = JSON.stringify(messages);
         expect(fullContent).toContain("Option A: The Red Fox");
         expect(fullContent).toContain("Option B: The Blue Dog");

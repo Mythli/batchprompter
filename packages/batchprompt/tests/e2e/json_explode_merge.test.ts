@@ -35,7 +35,7 @@ describe('E2E JSON Explode and Merge', () => {
                 ? lastMsg.content.map((c: any) => c.text).join('')
                 : lastMsg.content) || "";
 
-            if (content.includes("Generate users" )) {
+            if (content.includes("Generate users")) {
                 step1CallCount++;
                 return step1ResponseFail;
             }
@@ -60,14 +60,16 @@ describe('E2E JSON Explode and Merge', () => {
             mockResponses: mockResolver
         });
 
-        // 3. Config
+        // 2. Config - model is now an object with model + prompt
         const config = {
-            model: "gpt-mock",
             limit: 2, // Global limit to test explosion capping
             steps: [
                 {
                     // Step 1: Generate Array -> Explode
-                    prompt: "Generate users",
+                    model: {
+                        model: "gpt-mock",
+                        prompt: "Generate users"
+                    },
                     schema: {
                         type: "array",
                         items: {
@@ -82,7 +84,10 @@ describe('E2E JSON Explode and Merge', () => {
                 },
                 {
                     // Step 2: Generate Details -> Merge
-                    prompt: "Details for {{name}}",
+                    model: {
+                        model: "gpt-mock",
+                        prompt: "Details for {{name}}"
+                    },
                     schema: {
                         type: "object",
                         properties: {
@@ -98,25 +103,25 @@ describe('E2E JSON Explode and Merge', () => {
             ]
         };
 
-        // 4. Run
+        // 3. Run
         const { results } = await executor.runConfig(config, [{}]);
 
-        // 5. Assertions
+        // 4. Assertions
         // We expect 2 results because the successful retry of Step 1 returned 3 items but limit was 2.
         expect(results).toHaveLength(2);
         expect(step1CallCount).toBe(2); // Verify that Step 1 was indeed called twice (initial + retry)
 
-        const alice = results.find(r => r.name === "Alice");
+        const alice = results.find((r: any) => r.name === "Alice");
         expect(alice).toBeDefined();
         expect(alice.age).toBe(25);
         expect(alice.city).toBe("Aliceland");
 
-        const bob = results.find(r => r.name === "Bob");
+        const bob = results.find((r: any) => r.name === "Bob");
         expect(bob).toBeDefined();
         expect(bob.age).toBe(30);
         expect(bob.city).toBe("Bobland");
 
-        const charlie = results.find(r => r.name === "Charlie");
+        const charlie = results.find((r: any) => r.name === "Charlie");
         expect(charlie).toBeUndefined();
     });
 });

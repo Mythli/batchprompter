@@ -33,25 +33,28 @@ describe('E2E Plugin Explosion', () => {
         });
 
         const config = {
-            model: "gpt-mock",
             limit: 2, // Global limit - should cap explosion to 2 items
             steps: [
                 {
-                    // Step 1: Search and Explode
+                    // Step 1: Search and Explode (Pass-through, no model)
+                    output: { 
+                        mode: "merge", 
+                        explode: true 
+                    },
                     plugins: [
                         {
                             type: "web-search",
                             query: "test query",
-                            // Disable internal LLM steps of web-search to keep test simple
-                            mode: "none", 
-                            output: { 
-                                mode: "merge", 
-                                explode: true 
-                            }
+                            mode: "none"
                         }
-                    ],
-                    // The prompt that runs for EACH exploded result
-                    prompt: "Summarize this", 
+                    ]
+                },
+                {
+                    // Step 2: Summarize (Runs for each exploded row)
+                    model: {
+                        model: "gpt-mock",
+                        prompt: "Summarize this: {{snippet}}"
+                    },
                     output: {
                         mode: "column",
                         column: "summary"

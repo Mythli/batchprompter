@@ -28,12 +28,14 @@ describe('UrlExpanderPlugin', () => {
             mockResponses: ["Mock response"]
         });
 
-        // 4. Execute Config
+        // 4. Execute Config - model is now an object
         const config = {
             steps: [{
-                prompt: "Read this: https://example.com/article",
-                // Implicitly active via expandUrls: true (default).
-                // But we need to set mode to 'puppeteer' to match the mock handler we injected.
+                model: {
+                    model: "gpt-mock",
+                    prompt: "Read this: https://example.com/article"
+                },
+                // Set mode to 'puppeteer' to match the mock handler we injected.
                 expandUrls: { mode: 'puppeteer' }
             }]
         };
@@ -46,21 +48,17 @@ describe('UrlExpanderPlugin', () => {
         
         const callArgs = createCall.mock.calls[0][0];
         const messages = callArgs.messages;
-        const lastMessage = messages[messages.length - 1];
         
-        // The content is usually an array of parts in this architecture
-        const contentParts = lastMessage.content;
-        const textContent = Array.isArray(contentParts) 
-            ? contentParts.map((p: any) => p.text).join('') 
-            : contentParts;
+        // Check all messages for content
+        const fullContent = JSON.stringify(messages);
 
         // Check that the URL was found and expanded content was injected
-        expect(textContent).toContain('Read this: https://example.com/article');
-        expect(textContent).toContain('--- Content of https://example.com/article ---');
+        expect(fullContent).toContain('Read this: https://example.com/article');
+        expect(fullContent).toContain('--- Content of https://example.com/article ---');
         
         // Check for Markdown conversion (h1 -> #)
         // Turndown converts <h1> to # 
-        expect(textContent).toContain('Content for https://example.com/article');
-        expect(textContent).toContain('This is mocked.');
+        expect(fullContent).toContain('Content for https://example.com/article');
+        expect(fullContent).toContain('This is mocked.');
     });
 });

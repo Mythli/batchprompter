@@ -3,10 +3,11 @@ import OpenAI from 'openai';
 import PQueue from 'p-queue';
 import { EventEmitter } from 'eventemitter3';
 import { LlmClientFactory } from '../../src/LlmClientFactory.js';
-import { Plugin, createPluginRegistry } from '../../src/plugins/index.js';
+import { BasePlugin, createPluginRegistry } from '../../src/plugins/index.js';
 import { createMockOpenAI } from 'llm-fns';
 import { DebugLogger } from "../../src/index.js";
 import { Pipeline } from '../../src/Pipeline.js';
+import { Step } from '../../src/Step.js';
 import { createPipelineSchema } from '../../src/config/index.js';
 import { BatchPromptDeps } from '../../src/getDiContainer.js';
 import { BatchPromptEvents } from '../../src/events.js';
@@ -27,6 +28,7 @@ export function createTestContext(options: TestContextOptions = {}) {
     const deps: BatchPromptDeps = {
         openai,
         events: events as any,
+        cache: undefined,
         gptQueue: new PQueue(),
         taskQueue: new PQueue(),
         serperQueue: new PQueue(),
@@ -35,7 +37,6 @@ export function createTestContext(options: TestContextOptions = {}) {
             getPageHelper: vi.fn(),
             close: vi.fn()
         } as any,
-        // Default mock fetcher that returns 404 to prevent crashes if not overridden
         fetcher: vi.fn().mockResolvedValue({
             ok: false,
             status: 404,
@@ -51,8 +52,8 @@ export function createTestContext(options: TestContextOptions = {}) {
         defaultModel: 'gpt-mock',
         webSearch,
         imageSearch,
-        pluginRegistry: null as any, // Injected later
-        llmFactory: null as any // Injected later
+        pluginRegistry: null as any,
+        llmFactory: null as any
     };
 
     return { deps, openai, events };
@@ -60,7 +61,7 @@ export function createTestContext(options: TestContextOptions = {}) {
 
 export interface TestEnvOptions {
     mockResponses?: (string | any)[] | MockResponseResolver;
-    plugins?: Plugin[];
+    plugins?: BasePlugin[];
     schemaLoader?: any;
     webSearch?: any;
     imageSearch?: any;
@@ -81,12 +82,10 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         imageSearch
     });
 
-    // Add DebugLogger to see events in test output
     new DebugLogger(events as any);
 
     const llmFactory = new LlmClientFactory(openai, deps.gptQueue, 'gpt-mock', 0);
 
-    // Create registry with injected dependencies
     const createLlm = (config: any) => llmFactory.create(config, []).getRawClient();
 
     const pluginRegistry = createPluginRegistry({
@@ -98,16 +97,13 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         fetcher: deps.fetcher
     });
 
-    // Apply overrides
     for (const plugin of plugins) {
         pluginRegistry.override(plugin);
     }
 
-    // Complete deps construction
     deps.pluginRegistry = pluginRegistry;
     deps.llmFactory = llmFactory;
 
-    // Helper to run config using the new Pipeline flow
     const executor = {
         runConfig: async (config: any, initialRows?: any[]) => {
             const configWithData = { ...config };
@@ -118,8 +114,18 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
             const schema = createPipelineSchema(pluginRegistry);
             const runtimeConfig = await schema.parseAsync(configWithData);
 
-            const pipeline = new Pipeline(deps);
-            return pipeline.run(runtimeConfig);
+            // Create Step instances from the parsed config
+            const stepDeps = {
+                pluginRegistry: deps.pluginRegistry,
+                events: deps.events,
+                llmFactory: deps.llmFactory
+            };
+            const steps = runtimeConfig.steps.map((stepConfig: any, index: number) => 
+                new Step(stepConfig, stepDeps, index)
+            );
+
+            const pipeline = new Pipeline(deps, steps, runtimeConfig);
+            return pipeline.run();
         }
     };
 
