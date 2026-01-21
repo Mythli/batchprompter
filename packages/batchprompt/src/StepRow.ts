@@ -8,7 +8,6 @@ import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { PluginResult, PluginItem } from './plugins/types.js';
 import { OutputConfig, StepConfig } from "./config/schema.js";
 import { ModelConfig } from "./config/model.js";
-import { kebabToCamelCase } from './utils/fileUtils.js';
 
 // Helper for async flatMap
 async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]>): Promise<U[]> {
@@ -98,7 +97,7 @@ export class StepRow {
         // --- Stage 1: Plugin Preparation ---
         const plugins = await this.getPlugins();
         for (const { instance, config } of plugins) {
-            const namespace = kebabToCamelCase(instance.type);
+            const namespace = instance.type;
             currentRows = await flatMapAsync(currentRows, async (row) => {
                 const pluginRow = instance.createRow(row, config);
                 const result = await pluginRow.prepare();
@@ -119,7 +118,7 @@ export class StepRow {
 
         // --- Stage 3: Plugin Post-Processing ---
         for (const { instance, config } of plugins) {
-            const namespace = kebabToCamelCase(instance.type);
+            const namespace = instance.type;
             currentRows = await flatMapAsync(currentRows, async (row) => {
                 const pluginRow = instance.createRow(row, config);
                 const result = await pluginRow.postProcess(row.lastResult);

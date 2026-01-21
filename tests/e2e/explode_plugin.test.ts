@@ -44,7 +44,7 @@ describe('E2E Plugin Explosion', () => {
                     },
                     plugins: [
                         {
-                            type: "web-search",
+                            type: "webSearch",
                             query: "test query",
                             mode: "none"
                         }

@@ -4,7 +4,7 @@ import path from 'path';
 import { OutputConfigSchema } from '../../config/schema.js';
 
 export const UrlExpanderConfigSchema = z.object({
-    type: z.literal('url-expander').describe("Identifies this as a URL expander plugin."),
+    type: z.literal('urlExpander').describe("Identifies this as a URL expander plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: OutputConfigSchema.default({
         mode: 'ignore',

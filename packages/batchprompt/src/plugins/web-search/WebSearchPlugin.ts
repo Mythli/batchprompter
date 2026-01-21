@@ -11,7 +11,7 @@ import { WebSearch } from './WebSearch.js';
 import { WebSearchPluginRow } from './WebSearchPluginRow.js';
 
 export const WebSearchConfigSchemaV2 = z.object({
-    type: z.literal('web-search'),
+    type: z.literal('webSearch'),
     id: z.string().optional(),
     output: OutputConfigSchema,
     query: z.string().optional(),
@@ -30,7 +30,7 @@ export const WebSearchConfigSchemaV2 = z.object({
 export type WebSearchConfig = z.output<typeof WebSearchConfigSchemaV2>;
 
 export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig> {
-    readonly type = 'web-search';
+    readonly type = 'webSearch';
 
     constructor(
         private deps: {
@@ -49,7 +49,7 @@ export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig
 
         return {
             ...base,
-            id: config.id ?? `web-search-${Date.now()}`,
+            id: config.id ?? `webSearch-${Date.now()}`,
             queryModel: mergeModels(stepConfig.model, config.queryModel),
             selectModel: mergeModels(stepConfig.model, config.selectModel),
             compressModel: mergeModels(stepConfig.model, config.compressModel),

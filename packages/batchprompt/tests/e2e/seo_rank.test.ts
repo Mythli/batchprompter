@@ -40,7 +40,7 @@ describe('E2E SEO Rank', () => {
                 {
                     plugins: [
                         {
-                            type: "web-search",
+                            type: "webSearch",
                             query: "{{keyword}}",
                             maxPages: 1,
                             limit: 30,
