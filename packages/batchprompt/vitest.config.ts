@@ -14,7 +14,7 @@ export default defineConfig({
     // Enable type checking before running tests
     typecheck: {
       enabled: true,
-      tsconfig: './tsconfig.json'
+      tsconfig: './tsconfig.test.json'
     }
   }
 });
