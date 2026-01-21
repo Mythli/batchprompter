@@ -154,18 +154,30 @@ export class StepRow {
 
         // Explode case: multiple items with explode=true
         if (outputConfig.explode && items.length > 1) {
+            const total = items.length;
+            const offset = outputConfig.offset ?? 0;
+            const limit = outputConfig.limit;
+
+            // Apply offset and limit
+            let itemsToExplode = items.slice(offset);
+            if (limit !== undefined && limit > 0) {
+                itemsToExplode = itemsToExplode.slice(0, limit);
+            }
+
+            const count = itemsToExplode.length;
+
             this.getEvents().emit('step:progress', {
                 row: this.state.originalIndex,
                 step: this.step.stepIndex + 1,
                 type: 'explode',
-                message: `Exploding ${items.length} items`,
-                data: { total: items.length }
+                message: `Exploding ${count} items`,
+                data: { total, count, limit, offset }
             });
 
-            return items.map((item, idx) =>
+            return itemsToExplode.map((item, idx) =>
                 this.spawn(
                     item.data,
-                    idx,
+                    offset + idx,
                     outputConfig,
                     namespace,
                     history,
