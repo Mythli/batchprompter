@@ -5,6 +5,8 @@ import type { StepConfig, OutputConfig, PartialOutputConfig } from "../config/sc
 import { mergeOutputConfigs } from "../config/schema.js";
 import type { ModelConfig } from "../config/model.js";
 import type { LlmClient } from 'llm-fns';
+import os from 'os';
+import path from 'path';
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -82,18 +84,40 @@ export abstract class BasePluginRow<TConfig = any> {
     }
 }
 
+/**
+ * Default output configuration for plugins.
+ * Plugins do NOT inherit from step-level output config to prevent
+ * step settings (like mode: "column") from bleeding into plugins.
+ */
+const DEFAULT_PLUGIN_OUTPUT: OutputConfig = {
+    mode: 'ignore',
+    explode: false,
+    tmpDir: path.join(os.tmpdir(), 'batchprompt'),
+};
+
 export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
     abstract readonly type: string;
 
     abstract getSchema(): z.ZodType<TBaseConfig>;
 
     /**
-     * Inherits configuration from the step.
-     * Uses smart merging for output config to preserve step-level settings.
+     * Normalizes plugin configuration.
+     * Plugins use a default output config (mode: 'ignore', explode: false),
+     * NOT the step-level output config. This prevents step settings from
+     * affecting plugin behavior unexpectedly.
+     * 
+     * Only tmpDir is inherited from step config for convenience.
      */
     normalizeConfig(config: TBaseConfig, stepConfig: StepConfig): TNormalizedConfig {
         const pluginOutput = (config as any).output as PartialOutputConfig | undefined;
-        const mergedOutput = mergeOutputConfigs(stepConfig.output, pluginOutput);
+        
+        // Use default plugin output, only inheriting tmpDir from step
+        const baseOutput: OutputConfig = {
+            ...DEFAULT_PLUGIN_OUTPUT,
+            tmpDir: stepConfig.output?.tmpDir || DEFAULT_PLUGIN_OUTPUT.tmpDir,
+        };
+        
+        const mergedOutput = mergeOutputConfigs(baseOutput, pluginOutput);
         
         return {
             ...config,
