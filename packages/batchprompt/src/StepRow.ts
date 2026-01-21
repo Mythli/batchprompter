@@ -112,7 +112,8 @@ export class StepRow {
         if (hasMessages) {
             currentRows = await flatMapAsync(currentRows, async (row) => {
                 const result = await row.executeLlm();
-                return row.applyResult(result, this.step.config.output, 'modelOutput');
+                // No namespace for model output - it merges directly into the row
+                return row.applyResult(result, this.step.config.output);
             });
         }
 
@@ -143,8 +144,11 @@ export class StepRow {
 
     /**
      * Applies a plugin result to the current row, potentially spawning new StepRow instances.
+     * @param result The plugin result containing history and items
+     * @param outputConfig How to handle the output (merge, column, ignore)
+     * @param namespace Optional namespace for plugins. When undefined (model output), data merges directly.
      */
-    public applyResult(result: PluginResult, outputConfig: OutputConfig, namespace: string): StepRow[] {
+    public applyResult(result: PluginResult, outputConfig: OutputConfig, namespace?: string): StepRow[] {
         const { history, items } = result;
 
         // Filter/drop case: no items = row disappears
@@ -207,7 +211,7 @@ export class StepRow {
         data: any,
         variationIndex: number | undefined,
         outputConfig: OutputConfig,
-        namespace: string,
+        namespace: string | undefined,
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         content: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): StepRow {
@@ -215,22 +219,35 @@ export class StepRow {
         const newData = JSON.parse(JSON.stringify(this.state.data));
         const newContext = { ...this.state.context };
 
-        // 2. Apply New Data based on output mode
-        // Always namespace in context for template access
-        newContext[namespace] = data;
+        // 2. Apply New Data based on output mode and namespace
+        
+        // If namespace is provided (plugin output), add to context for template access
+        if (namespace) {
+            newContext[namespace] = data;
+        }
 
         if (outputConfig.mode === 'merge') {
-            // Merge mode: namespace the plugin output under its name
-            newData[namespace] = data;
-            // Also spread object properties to context for easy template access
-            if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-                Object.assign(newContext, data);
+            if (namespace) {
+                // Plugin merge: namespace the plugin output under its name
+                newData[namespace] = data;
+                // Also spread object properties to context for easy template access
+                if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+                    Object.assign(newContext, data);
+                }
+            } else {
+                // Model merge (no namespace): spread directly into row
+                if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+                    Object.assign(newData, data);
+                    Object.assign(newContext, data);
+                }
+                // Note: Non-object data (string, array) can't be spread directly.
+                // It will still be available via lastResult but not merged into row.
             }
         } else if (outputConfig.mode === 'column' && outputConfig.column) {
             newData[outputConfig.column] = data;
             newContext[outputConfig.column] = data;
         }
-        // mode === 'ignore': data is only in context, not persisted to row
+        // mode === 'ignore': data is only in context (if namespace provided), not persisted to row
 
         // 3. Create New State
         const newState: StepRowState = {
