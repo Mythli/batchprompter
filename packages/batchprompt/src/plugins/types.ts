@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type OpenAI from 'openai';
 import type { StepRow } from '../StepRow.js';
 import type { StepConfig } from "../config/schema.js";
+import type { ModelConfig } from "../config/model.js";
+import type { LlmClient } from 'llm-fns';
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -11,6 +13,7 @@ export interface PluginExecutionContext {
     outputDirectory?: string;
     outputBasename?: string;
     outputExtension?: string;
+    emit?: (event: string, ...args: any[]) => void;
 }
 
 /**
@@ -39,6 +42,11 @@ export interface PluginResult {
      */
     items: PluginItem[];
 }
+
+/**
+ * Factory function type for creating LLM clients
+ */
+export type LlmFactory = (config: Partial<ModelConfig>) => LlmClient;
 
 /**
  * Base class for row-level plugin execution.

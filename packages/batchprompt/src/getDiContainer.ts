@@ -13,6 +13,7 @@ import { attachQueueLogger } from "./debug/queue.js";
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './events.js';
 import {ModelConfig} from "./config/model.js";
+import { PluginRegistryV2 } from './plugins/types.js';
 
 interface ServiceCapabilities {
     hasSerper: boolean;
@@ -65,7 +66,25 @@ class KeyvCacheAdapter implements CacheLike {
     store: any = {};
 }
 
-export const initConfig = async (env: Record<string, any>, overrides: ConfigOverrides = {}) => {
+export interface BatchPromptDeps {
+    openai: OpenAI;
+    events: EventEmitter<BatchPromptEvents>;
+    cache: CacheLike | undefined;
+    gptQueue: PQueue;
+    taskQueue: PQueue;
+    serperQueue: PQueue;
+    puppeteerQueue: PQueue;
+    puppeteerHelper: PuppeteerHelper;
+    fetcher: ReturnType<typeof createCachedFetcher>;
+    imageSearch: ImageSearch | undefined;
+    webSearch: WebSearch | undefined;
+    capabilities: ServiceCapabilities;
+    defaultModel: string;
+    pluginRegistry: PluginRegistryV2;
+    llmFactory: LlmClientFactory;
+}
+
+export const initConfig = async (env: Record<string, any>, overrides: ConfigOverrides = {}): Promise<BatchPromptDeps> => {
     const rawConfig = {
         ...env,
         AI_API_KEY: getEnvVar(env, ['BATCHPROMPT_OPENAI_API_KEY', 'OPENAI_API_KEY', 'AI_API_KEY']),
@@ -187,10 +206,8 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     };
 }
 
-export type BatchPromptDeps = Awaited<ReturnType<typeof initConfig>>;
-
 let configInstance: null | BatchPromptDeps = null;
-export const getDiContainer = async (env: Record<string, any>, overrides?: ConfigOverrides) => {
+export const getDiContainer = async (env: Record<string, any>, overrides?: ConfigOverrides): Promise<BatchPromptDeps> => {
     if(!configInstance) {
         configInstance = await initConfig(env, overrides);
     }

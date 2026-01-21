@@ -1,11 +1,11 @@
-import { PluginRegistryV2, BasePluginRow } from './types.js';
+import { PluginRegistryV2, BasePluginRow, LlmFactory } from './types.js';
 import { WebSearchPlugin } from './web-search/WebSearchPlugin.js';
-import { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
-import { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
-import { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
-import { ValidationPluginV2 } from './validation/ValidationPluginV2.js';
-import { DedupePluginV2 } from './dedupe/DedupePluginV2.js';
-import { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
+// import { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
+// import { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
+// import { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
+// import { ValidationPluginV2 } from './validation/ValidationPluginV2.js';
+// import { DedupePluginV2 } from './dedupe/DedupePluginV2.js';
+// import { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
 import { UrlExpanderPlugin } from './url-expander/UrlExpanderPlugin.js';
 import { UrlHandlerRegistry } from './url-expander/utils/UrlHandlerRegistry.js';
 import { GenericFetchHandler } from './url-expander/utils/GenericFetchHandler.js';
@@ -16,8 +16,6 @@ import { ImageSearch } from './image-search/ImageSearch.js';
 import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
 import { Fetcher } from 'llm-fns';
 import { GenericHandler } from './url-expander/utils/types.js';
-import { ModelConfig } from '../config/model.js';
-import { LlmClient } from 'llm-fns';
 
 // Re-export types
 export * from './types.js';
@@ -25,12 +23,12 @@ export * from './types.js';
 // Re-export plugin classes
 export { WebSearchPlugin } from './web-search/WebSearchPlugin.js';
 export { WebSearchPluginRow } from './web-search/WebSearchPluginRow.js';
-export { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
-export { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
-export { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
-export { ValidationPluginV2 } from './validation/ValidationPluginV2.js';
-export { DedupePluginV2 } from './dedupe/DedupePluginV2.js';
-export { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
+// export { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
+// export { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
+// export { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
+// export { ValidationPluginV2 } from './validation/ValidationPluginV2.js';
+// export { DedupePluginV2 } from './dedupe/DedupePluginV2.js';
+// export { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
 export { UrlExpanderPlugin } from './url-expander/UrlExpanderPlugin.js';
 export { UrlExpanderPluginRow } from './url-expander/UrlExpanderPluginRow.js';
 
@@ -44,8 +42,6 @@ export interface PluginDependencies {
 }
 
 import PQueue from 'p-queue';
-
-export type LlmFactory = (config: Partial<ModelConfig>) => LlmClient;
 
 /**
  * Create a plugin registry with all built-in plugins registered and dependencies injected.

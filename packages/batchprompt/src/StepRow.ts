@@ -105,7 +105,8 @@ export class StepRow {
         }
 
         // --- Stage 2: Model Execution ---
-        const hasMessages = this.config.model?.messages?.length > 0;
+        const modelMessages = this.config.model?.messages;
+        const hasMessages = modelMessages && modelMessages.length > 0;
 
         if (hasMessages) {
             currentRows = await flatMapAsync(currentRows, async (row) => {
@@ -249,6 +250,9 @@ export class StepRow {
      */
     async createLlm(config?: ModelConfig): Promise<BoundLlmClient> {
         const targetConfig = config || this.config.model;
+        if (!targetConfig) {
+            throw new Error('No model configuration provided and no default model config available');
+        }
         return this.step.deps.llmFactory.create(targetConfig, targetConfig.messages);
     }
 

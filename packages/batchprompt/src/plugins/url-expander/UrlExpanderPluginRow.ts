@@ -140,10 +140,18 @@ export class UrlExpanderPluginRow extends BasePluginRow<UrlExpanderConfig> {
         }
 
         // Update the last message with modified content
-        clonedMessages[lastMessageIndex] = {
-            ...lastMessage,
-            content: newParts
-        };
+        // Handle the type correctly based on message role
+        const updatedMessage = clonedMessages[lastMessageIndex];
+        if (updatedMessage.role === 'user') {
+            (updatedMessage as OpenAI.Chat.Completions.ChatCompletionUserMessageParam).content = newParts;
+        } else if (updatedMessage.role === 'system') {
+            // System messages only support string or array of text parts
+            const textContent = newParts
+                .filter((p): p is OpenAI.Chat.Completions.ChatCompletionContentPartText => p.type === 'text')
+                .map(p => p.text)
+                .join('\n');
+            (updatedMessage as OpenAI.Chat.Completions.ChatCompletionSystemMessageParam).content = textContent;
+        }
 
         return {
             history: clonedMessages,

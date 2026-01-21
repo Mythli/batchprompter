@@ -8,13 +8,15 @@ export class PluginScope {
     ) {}
 
     emit(event: string, data: any = {}) {
-        this.context.emit('plugin:event', {
-            row: this.context.row.index,
-            step: this.context.stepIndex,
-            plugin: this.pluginName,
-            event,
-            data
-        });
+        if (this.context.emit) {
+            this.context.emit('plugin:event', {
+                row: this.context.row.index,
+                step: this.context.stepIndex,
+                plugin: this.pluginName,
+                event,
+                data
+            });
+        }
     }
 
     artifact(payload: {
@@ -24,16 +26,18 @@ export class PluginScope {
         tags?: string[];
         metadata?: Record<string, any>;
     }) {
-        this.context.emit('plugin:artifact', {
-            row: this.context.row.index,
-            step: this.context.stepIndex,
-            plugin: this.pluginName,
-            type: payload.type,
-            filename: payload.filename,
-            content: payload.content,
-            tags: payload.tags || [],
-            metadata: payload.metadata
-        });
+        if (this.context.emit) {
+            this.context.emit('plugin:artifact', {
+                row: this.context.row.index,
+                step: this.context.stepIndex,
+                plugin: this.pluginName,
+                type: payload.type,
+                filename: payload.filename,
+                content: payload.content,
+                tags: payload.tags || [],
+                metadata: payload.metadata
+            });
+        }
     }
 
     bridge(emitter: EventEmitter) {

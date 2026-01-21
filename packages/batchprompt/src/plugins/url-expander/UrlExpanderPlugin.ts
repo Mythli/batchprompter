@@ -8,7 +8,7 @@ import {
     UrlExpanderConfigSchema,
     UrlExpanderStepExtension
 } from './UrlExpanderConfig.js';
-import { StepConfig } from '../../config/index.js';
+import { StepConfig } from '../../config/schema.js';
 
 export class UrlExpanderPlugin extends BasePlugin<UrlExpanderConfig> {
     readonly type = 'url-expander';
