@@ -1,8 +1,8 @@
 import OpenAI from 'openai';
 import { createLlm } from 'llm-fns';
 import PQueue from 'p-queue';
-import { ModelConfig } from './config/index.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
+import {ModelConfig} from "./config/model.js";
 
 export class LlmClientFactory {
     constructor(
@@ -29,8 +29,8 @@ export class LlmClientFactory {
             modelConfig.temperature = config.temperature;
         }
 
-        if (config.thinkingLevel) {
-            modelConfig.reasoning_effort = config.thinkingLevel;
+        if (config.reasoning_effort) {
+            modelConfig.reasoning_effort = config.reasoning_effort;
         }
 
         const rawClient = createLlm({

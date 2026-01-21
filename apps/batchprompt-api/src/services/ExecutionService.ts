@@ -1,7 +1,6 @@
 import JSZip from 'jszip';
 import {
     PluginRegistryV2,
-    GlobalContext,
     Pipeline,
     createPipelineSchemaFactory
 } from 'batchprompt';

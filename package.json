@@ -14,7 +14,7 @@
     "test": "vitest"
   },
   "devDependencies": {
-    "syncpack": "^13.0.4",
+    "syncpack": "14.0.0-alpha.36",
     "typescript": "^5.9.3"
   }
 }

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import type OpenAI from 'openai';
 import { createIterativeRefiner, EvaluationResult, LlmClient } from 'llm-fns';
-import { GlobalsConfigSchema } from '../config/index.js';
 import { CONFIG_DOCUMENTATION } from '../generated/ConfigDocumentation.js';
 
 export interface ConfigRefinerInput {

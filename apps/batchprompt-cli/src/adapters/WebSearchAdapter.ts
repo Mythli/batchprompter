@@ -1,16 +1,16 @@
 import { Command } from 'commander';
-import { WebSearchPluginV2 } from 'batchprompt';
+import { WebSearchPlugin } from 'batchprompt';
 import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 import { ModelFlags } from '../ModelFlags.js';
 
 export class WebSearchAdapter implements CliPluginAdapter {
-    constructor(public plugin: WebSearchPluginV2) {}
+    constructor(public plugin: WebSearchPlugin) {}
 
     registerOptions(program: Command) {
         ModelFlags.register(program, 'web-query', { includePrompt: true, includeSystem: true });
         ModelFlags.register(program, 'web-select', { includePrompt: true, includeSystem: true });
         ModelFlags.register(program, 'web-compress', { includePrompt: true, includeSystem: true });
-        
+
         program.option('--web-search-query <text>', 'Static search query');
         program.option('--web-search-limit <number>', 'Max total results (default: 5)', parseInt);
         program.option('--web-search-mode <mode>', 'Content mode: none/markdown/html (default: none)');
@@ -54,7 +54,7 @@ export class WebSearchAdapter implements CliPluginAdapter {
         };
 
         const query = getOpt('webSearchQuery');
-        
+
         const queryConfig = ModelFlags.extractPluginModel(options, 'webQuery', stepIndex);
         const selectConfig = ModelFlags.extractPluginModel(options, 'webSelect', stepIndex);
         const compressConfig = ModelFlags.extractPluginModel(options, 'webCompress', stepIndex);

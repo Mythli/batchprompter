@@ -62,7 +62,9 @@ describe('E2E JSON Explode and Merge', () => {
 
         // 2. Config - model is now an object with model + prompt
         const config = {
-            limit: 2, // Global limit to test explosion capping
+            output: {
+                limit: 2, // Global limit to test explosion capping
+            },
             steps: [
                 {
                     // Step 1: Generate Array -> Explode

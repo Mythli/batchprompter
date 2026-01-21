@@ -12,7 +12,7 @@ import {
     ConfigRefiner,
     InMemoryConfigExecutor,
     getUniqueRows,
-    WebSearchPluginV2,
+    WebSearchPlugin,
     ImageSearchPluginV2,
     WebsiteAgentPluginV2,
     StyleScraperPluginV2,
@@ -65,7 +65,7 @@ const cliRegistry = createDefaultRegistry(cliCapabilities, promptLoader);
 // Initialize Plugins and Adapters
 const shellPlugin = new ShellPlugin();
 const adapters = [
-    new WebSearchAdapter(new WebSearchPluginV2(promptLoader)),
+    new WebSearchAdapter(new WebSearchPlugin(promptLoader)),
     new ImageSearchAdapter(new ImageSearchPluginV2(promptLoader)),
     new WebsiteAgentAdapter(new WebsiteAgentPluginV2(promptLoader)),
     new StyleScraperAdapter(new StyleScraperPluginV2()),

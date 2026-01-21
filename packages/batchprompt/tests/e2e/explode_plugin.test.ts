@@ -33,13 +33,15 @@ describe('E2E Plugin Explosion', () => {
         });
 
         const config = {
-            limit: 2, // Global limit - should cap explosion to 2 items
+            output: {
+                limit: 2
+            },
             steps: [
                 {
                     // Step 1: Search and Explode (Pass-through, no model)
-                    output: { 
-                        mode: "merge", 
-                        explode: true 
+                    output: {
+                        mode: "merge",
+                        explode: true
                     },
                     plugins: [
                         {
@@ -73,11 +75,11 @@ describe('E2E Plugin Explosion', () => {
         // Verify LLM calls - only 2 due to limit
         const createCall = (openai.chat.completions.create as any);
         expect(createCall).toHaveBeenCalledTimes(2);
-        
+
         // Verify context of calls
         const call1 = createCall.mock.calls[0][0];
         expect(JSON.stringify(call1.messages)).toContain("Snippet 1");
-        
+
         const call2 = createCall.mock.calls[1][0];
         expect(JSON.stringify(call2.messages)).toContain("Snippet 2");
     });
