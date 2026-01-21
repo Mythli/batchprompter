@@ -15,6 +15,46 @@ async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]
     return results.flat();
 }
 
+/**
+ * Helper to apply data to a target object based on mode/namespace/column.
+ * 
+ * @param target - The object to apply data to (newData or newContext)
+ * @param data - The data to apply
+ * @param options - Configuration for how to apply
+ *   - namespace: If provided, data is stored under this key
+ *   - column: If provided, data is stored under this key (column mode)
+ *   - spreadObject: If true and data is a plain object, spread properties directly into target
+ */
+function applyDataToTarget(
+    target: Record<string, any>,
+    data: any,
+    options: {
+        namespace?: string;
+        column?: string;
+        spreadObject?: boolean;
+    } = {}
+): void {
+    const { namespace, column, spreadObject = false } = options;
+    const isPlainObject = typeof data === 'object' && data !== null && !Array.isArray(data);
+
+    if (column) {
+        // Column mode: store under the column key
+        target[column] = data;
+    } else if (namespace) {
+        // Plugin output: store under namespace
+        target[namespace] = data;
+        // Also spread object properties if requested
+        if (spreadObject && isPlainObject) {
+            Object.assign(target, data);
+        }
+    } else {
+        // Direct merge (model output): spread if data is a plain object
+        if (isPlainObject) {
+            Object.assign(target, data);
+        }
+    }
+}
+
 export interface StepRowState {
     // The persistent data record that is being processed and saved
     data: Record<string, any>;
@@ -113,7 +153,7 @@ export class StepRow {
             currentRows = await flatMapAsync(currentRows, async (row) => {
                 const result = await row.executeLlm();
                 // No namespace for model output - it merges directly into the row
-                return row.applyResult(result, this.step.config.output);
+                return row.applyResult(result, row.config.output);
             });
         }
 
@@ -219,37 +259,33 @@ export class StepRow {
         const newData = JSON.parse(JSON.stringify(this.state.data));
         const newContext = { ...this.state.context };
 
-        // 2. Apply New Data based on output mode and namespace
-        
-        // If namespace is provided (plugin output), add to context for template access
+        // 2. Apply to context (always)
+        // Context always gets the data for template access
         if (namespace) {
-            newContext[namespace] = data;
+            // Plugin output: namespace it and spread for easy template access
+            applyDataToTarget(newContext, data, { namespace, spreadObject: true });
+        } else {
+            // Model output: spread directly into context
+            applyDataToTarget(newContext, data, {});
         }
 
+        // 3. Apply to data (based on mode)
         if (outputConfig.mode === 'merge') {
             if (namespace) {
                 // Plugin merge: namespace the plugin output under its name
-                newData[namespace] = data;
-                // Also spread object properties to context for easy template access
-                if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-                    Object.assign(newContext, data);
-                }
+                applyDataToTarget(newData, data, { namespace });
             } else {
                 // Model merge (no namespace): spread directly into row
-                if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-                    Object.assign(newData, data);
-                    Object.assign(newContext, data);
-                }
-                // Note: Non-object data (string, array) can't be spread directly.
-                // It will still be available via lastResult but not merged into row.
+                applyDataToTarget(newData, data, {});
             }
         } else if (outputConfig.mode === 'column' && outputConfig.column) {
-            newData[outputConfig.column] = data;
-            newContext[outputConfig.column] = data;
+            // Column mode: store under column key in both data and context
+            applyDataToTarget(newData, data, { column: outputConfig.column });
+            applyDataToTarget(newContext, data, { column: outputConfig.column });
         }
-        // mode === 'ignore': data is only in context (if namespace provided), not persisted to row
+        // mode === 'ignore': data is only in context, not persisted to row
 
-        // 3. Create New State
+        // 4. Create New State
         const newState: StepRowState = {
             data: newData,
             context: newContext,
@@ -260,7 +296,7 @@ export class StepRow {
             stepHistory: this.state.stepHistory
         };
 
-        // 4. Return New Row
+        // 5. Return New Row
         const newRow = new StepRow(this.step, this.config, newState);
         newRow.lastResult = data;
         return newRow;
