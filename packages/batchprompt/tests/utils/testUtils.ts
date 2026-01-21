@@ -23,6 +23,12 @@ export interface TestContextOptions {
 export function createTestContext(options: TestContextOptions = {}) {
     const { responses = [], webSearch, imageSearch } = options;
     const openai = createMockOpenAI(responses);
+    
+    // Wrap the create method with a Vitest spy so we can use toHaveBeenCalledTimes() etc.
+    const originalCreate = openai.chat.completions.create.bind(openai.chat.completions);
+    const createSpy = vi.fn(originalCreate);
+    openai.chat.completions.create = createSpy as any;
+
     const events = new EventEmitter<BatchPromptEvents>();
 
     const deps: BatchPromptDeps = {
