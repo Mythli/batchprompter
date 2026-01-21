@@ -4,8 +4,5 @@
     "noEmit": true,
     "rootDir": "."
   },
-  "references": [
-    { "path": "../llm-fns" }
-  ],
   "include": ["src/**/*", "tests/**/*"]
 }
