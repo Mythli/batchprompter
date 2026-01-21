@@ -10,6 +10,11 @@ export default defineConfig({
     },
     // Only run .ts test files, ignoring stale .js artifacts
     include: ['tests/**/*.test.ts', 'src/**/*.spec.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**']
+    exclude: ['**/node_modules/**', '**/dist/**'],
+    // Enable type checking before running tests
+    typecheck: {
+      enabled: true,
+      tsconfig: './tsconfig.json'
+    }
   }
 });
