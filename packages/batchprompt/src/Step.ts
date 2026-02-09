@@ -41,6 +41,8 @@ export class Step {
                 config: normalizedConfig
             };
         });
+
+        const a = 4;
     }
 
     private render(template: string, context: Record<string, any>): string {
