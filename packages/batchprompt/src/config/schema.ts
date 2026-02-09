@@ -225,7 +225,28 @@ export const createPipelineSchema = (pluginRegistry: PluginRegistryV2) => {
         plugins: z.array(pluginUnion).default([])
     });
 
-    return GlobalsSchema.extend({
+    // Wrap the main schema with a preprocess step that runs each plugin's
+    // preprocessStep() on every raw step config BEFORE Zod validation.
+    // This allows plugins like UrlExpanderPlugin to convert step-level
+    // shorthands (e.g. `expandUrls`) into explicit plugin entries.
+    const mainSchema = GlobalsSchema.extend({
         steps: z.array(finalStepSchema)
     }).transform(normalizePipelineConfig);
+
+    return z.preprocess((val: unknown) => {
+        if (val && typeof val === 'object' && 'steps' in val && Array.isArray((val as any).steps)) {
+            const raw = val as Record<string, any>;
+            return {
+                ...raw,
+                steps: raw.steps.map((step: any) => {
+                    let processedStep = step;
+                    for (const plugin of plugins) {
+                        processedStep = plugin.preprocessStep(processedStep);
+                    }
+                    return processedStep;
+                })
+            };
+        }
+        return val;
+    }, mainSchema);
 }
