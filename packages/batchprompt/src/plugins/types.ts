@@ -84,16 +84,26 @@ export abstract class BasePluginRow<TConfig = any> {
     }
 }
 
+const DEFAULT_TMP_DIR = path.join(os.tmpdir(), 'batchprompt');
+
 /**
- * Default output configuration for plugins.
- * Plugins do NOT inherit from step-level output config to prevent
- * step settings (like mode: "column") from bleeding into plugins.
+ * Builds a base OutputConfig for plugins by selectively inheriting from global config.
+ *
+ * Inherited from global: explode, limit, offset, tmpDir
+ * Always defaulted (never inherited): mode ('ignore'), column, path, dataPath
+ *
+ * Step-level output is completely irrelevant for plugins.
  */
-const DEFAULT_PLUGIN_OUTPUT: OutputConfig = {
-    mode: 'ignore',
-    explode: false,
-    tmpDir: path.join(os.tmpdir(), 'batchprompt'),
-};
+function buildPluginBaseOutput(globalConfig: GlobalConfig): OutputConfig {
+    const globalOutput = globalConfig.output;
+    return {
+        mode: 'ignore',
+        explode: globalOutput?.explode ?? false,
+        limit: globalOutput?.limit,
+        offset: globalOutput?.offset,
+        tmpDir: globalOutput?.tmpDir || DEFAULT_TMP_DIR,
+    };
+}
 
 export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
     abstract readonly type: string;
@@ -102,24 +112,24 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
 
     /**
      * Normalizes plugin configuration.
-     * Plugins use a default output config (mode: 'ignore', explode: false),
-     * NOT the step-level output config. This prevents step settings from
-     * affecting plugin behavior unexpectedly.
      * 
-     * Plugins inherit tmpDir from global config for convenience.
+     * Plugins inherit output defaults from the GLOBAL config (not step config):
+     * - explode, limit, offset, tmpDir are inherited from global output
+     * - mode always defaults to 'ignore' (never inherited)
+     * - column, path, dataPath are never inherited (step-specific)
+     * 
+     * The plugin's own explicit output config overrides the global-derived base.
      * 
      * @param config - The raw plugin config
-     * @param stepConfig - The step-level config (for step-specific context)
-     * @param globalConfig - The full global config (for inheriting defaults)
+     * @param stepConfig - The step-level config (not used for output inheritance)
+     * @param globalConfig - The full global config (source of output defaults)
      */
     normalizeConfig(config: TBaseConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): TNormalizedConfig {
         const pluginOutput = (config as any).output as PartialOutputConfig | undefined;
         
-        // Use default plugin output, inheriting tmpDir from global config (not step)
-        const baseOutput: OutputConfig = {
-            ...DEFAULT_PLUGIN_OUTPUT,
-            tmpDir: globalConfig.output?.tmpDir || DEFAULT_PLUGIN_OUTPUT.tmpDir,
-        };
+        // Build base from global config, selectively inheriting fields.
+        // Step-level output is intentionally ignored for plugins.
+        const baseOutput = buildPluginBaseOutput(globalConfig);
         
         const mergedOutput = mergeOutputConfigs(baseOutput, pluginOutput);
         

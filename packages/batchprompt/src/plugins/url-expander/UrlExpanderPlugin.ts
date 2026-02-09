@@ -41,7 +41,7 @@ export class UrlExpanderPlugin extends BasePlugin<UrlExpanderConfig> {
             if (!isExplicitlyConfigured) {
                 let pluginConfig: any = {
                     type: 'urlExpander',
-                    output: { mode: 'ignore', explode: false },
+                    output: { mode: 'ignore' },
                     mode: 'fetch',
                     maxChars: 30000
                 };

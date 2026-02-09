@@ -7,12 +7,6 @@ export * from './validationRules.js';
 export type StepBaseConfig = import('./schema.js').StepConfig;
 export type GlobalsConfig = import('./schema.js').GlobalConfig;
 
-// Default output configuration constant
-export const DEFAULT_PLUGIN_OUTPUT = {
-    mode: 'ignore' as const,
-    explode: false
-};
-
 /**
  * Resolves a model config by merging with step defaults.
  * If override is provided, it takes precedence.
