@@ -5,6 +5,8 @@ import {zHandlebars, zJsonSchemaObject} from './validationRules.js';
 import {PluginRegistryV2} from '../plugins/types.js';
 import {ModelConfigSchema, RawModelConfigSchema, transformModelConfig, mergeModels} from "./model.js";
 
+const DEFAULT_TMP_DIR = path.join(os.tmpdir(), 'batchprompt');
+
 /**
  * Partial output config for plugins - all fields optional, no defaults.
  * This allows plugins to inherit step-level output config without overriding.
@@ -27,24 +29,65 @@ export const PartialOutputConfigSchema = z.object({
 
 export type PartialOutputConfig = z.infer<typeof PartialOutputConfigSchema>;
 
-export const OutputConfigSchema = z.object({
-    mode: z.enum(['merge', 'column', 'ignore'])
+/**
+ * Raw output config for parsing — all fields optional, zero defaults.
+ * Used in StepSchema and GlobalsSchema so Zod does NOT fill in default values.
+ * This preserves the ability to distinguish "user didn't set this" from "user set to X".
+ */
+export const RawOutputConfigSchema = z.object({
+    mode: z.enum(['merge', 'column', 'ignore']).optional()
         .describe("How to handle the result: merge into row, save to column, or ignore."),
     column: z.string().optional()
         .describe("Column name when mode is 'column'."),
-    explode: z.boolean().default(false)
+    explode: z.boolean().optional()
         .describe("If true, array results create multiple rows."),
     limit: z.number().int().positive().optional()
         .describe("Max items to keep when exploding."),
     offset: z.number().int().min(0).optional()
         .describe("Starting index when exploding."),
-
     path: zHandlebars.optional(),
     dataPath: zHandlebars.optional(),
-    tmpDir: zHandlebars.default(path.join(os.tmpdir(), 'batchprompt')),
+    tmpDir: zHandlebars.optional(),
 }).describe("Configuration for output handling.");
 
-export type OutputConfig = z.infer<typeof OutputConfigSchema>;
+export type RawOutputConfig = z.infer<typeof RawOutputConfigSchema>;
+
+/**
+ * Fully resolved output config type — used at runtime.
+ * `mode` is always defined; other fields have sensible defaults.
+ */
+export interface OutputConfig {
+    mode: 'merge' | 'column' | 'ignore';
+    column?: string;
+    explode: boolean;
+    limit?: number;
+    offset?: number;
+    path?: string;
+    dataPath?: string;
+    tmpDir: string;
+}
+
+/**
+ * Resolves a fully populated OutputConfig from optional global and step raw configs.
+ *
+ * Cascade: stepOutput → globalOutput → hardcoded defaults.
+ * Each field is resolved independently via `??` so partial overrides work correctly.
+ */
+export function resolveOutputConfig(
+    globalOutput?: RawOutputConfig,
+    stepOutput?: RawOutputConfig
+): OutputConfig {
+    return {
+        mode: stepOutput?.mode ?? globalOutput?.mode ?? 'merge',
+        column: stepOutput?.column ?? globalOutput?.column,
+        explode: stepOutput?.explode ?? globalOutput?.explode ?? false,
+        limit: stepOutput?.limit ?? globalOutput?.limit,
+        offset: stepOutput?.offset ?? globalOutput?.offset,
+        path: stepOutput?.path ?? globalOutput?.path,
+        dataPath: stepOutput?.dataPath ?? globalOutput?.dataPath,
+        tmpDir: stepOutput?.tmpDir ?? globalOutput?.tmpDir ?? DEFAULT_TMP_DIR,
+    };
+}
 
 // Feedback is now just a model config (same as judge)
 export const FeedbackConfigSchema = ModelConfigSchema;
@@ -64,11 +107,14 @@ export const StepSchema = z.object({
         .describe("Number of feedback loops for iterative refinement."),
     aspectRatio: z.string().optional(),
     schema: zJsonSchemaObject.optional(),
-    output: OutputConfigSchema,
+    output: RawOutputConfigSchema.optional(),
     plugins: z.array(z.any()).default([])
 }).loose();
 
-export type StepConfig = z.infer<typeof StepSchema>;
+export type StepConfig = Omit<z.infer<typeof StepSchema>, 'output'> & {
+    output: OutputConfig;
+    [key: string]: any;
+};
 
 export const GlobalsSchema = StepSchema.extend({
     concurrency: z.number().int().positive().default(50),
@@ -78,11 +124,17 @@ export const GlobalsSchema = StepSchema.extend({
     steps: z.array(StepSchema)
 });
 
-export type GlobalConfig = z.infer<typeof GlobalsSchema>;
+export type GlobalConfig = Omit<z.infer<typeof GlobalsSchema>, 'output' | 'steps'> & {
+    output: OutputConfig;
+    steps: StepConfig[];
+    [key: string]: any;
+};
 
 /**
  * Merges global step defaults into individual steps.
  * Step-level configuration always takes precedence over global defaults.
+ *
+ * Output is resolved field-by-field: step → global → hardcoded defaults.
  */
 export function normalizePipelineConfig(config: any): any {
     const {
@@ -94,7 +146,13 @@ export function normalizePipelineConfig(config: any): any {
         ...globalDefaults
     } = config;
 
+    // Resolve the global-level output so it's always fully populated
+    const resolvedGlobalOutput = resolveOutputConfig(globalDefaults.output);
+
     const normalizedSteps = (steps || []).map((step: any) => {
+        // Resolve step output: step → global → hardcoded defaults
+        const resolvedStepOutput = resolveOutputConfig(globalDefaults.output, step.output);
+
         return {
             ...globalDefaults,
             ...step,
@@ -104,16 +162,32 @@ export function normalizePipelineConfig(config: any): any {
             feedback: mergeModels(globalDefaults.feedback, step.feedback),
             // feedbackLoops inherits from global if not set on step
             feedbackLoops: step.feedbackLoops ?? globalDefaults.feedbackLoops,
-            output: {
-                ...globalDefaults.output,
-                ...step.output
-            },
+            output: resolvedStepOutput,
         };
     });
 
     return {
         ...config,
+        output: resolvedGlobalOutput,
         steps: normalizedSteps
+    };
+}
+
+/**
+ * Merges a resolved base OutputConfig with a partial plugin override.
+ * The partial override wins for any field it defines.
+ */
+export function mergeOutputConfigs(base: OutputConfig, override?: PartialOutputConfig): OutputConfig {
+    if (!override) return base;
+    return {
+        mode: override.mode ?? base.mode,
+        column: override.column ?? base.column,
+        explode: override.explode ?? base.explode,
+        limit: override.limit ?? base.limit,
+        offset: override.offset ?? base.offset,
+        path: override.path ?? base.path,
+        dataPath: override.dataPath ?? base.dataPath,
+        tmpDir: override.tmpDir ?? base.tmpDir,
     };
 }
 
