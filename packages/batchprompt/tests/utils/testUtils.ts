@@ -35,10 +35,10 @@ export function createTestContext(options: TestContextOptions = {}) {
         openai,
         events: events as any,
         cache: undefined,
-        gptQueue: new PQueue(),
-        taskQueue: new PQueue(),
-        serperQueue: new PQueue(),
-        puppeteerQueue: new PQueue(),
+        gptQueue: new PQueue({ concurrency: 1 }),
+        taskQueue: new PQueue({ concurrency: 1 }),
+        serperQueue: new PQueue({ concurrency: 1 }),
+        puppeteerQueue: new PQueue({ concurrency: 1 }),
         puppeteerHelper: {
             getPageHelper: vi.fn(),
             close: vi.fn()
