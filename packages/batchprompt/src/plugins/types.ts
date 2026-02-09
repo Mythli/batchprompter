@@ -97,7 +97,7 @@ const DEFAULT_TMP_DIR = path.join(os.tmpdir(), 'batchprompt');
 function buildPluginBaseOutput(globalConfig: GlobalConfig): OutputConfig {
     const globalOutput = globalConfig.output;
     return {
-        mode: 'ignore',
+        mode: globalOutput?.mode ?? 'ignore',
         explode: globalOutput?.explode ?? false,
         limit: globalOutput?.limit,
         offset: globalOutput?.offset,
@@ -112,27 +112,27 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
 
     /**
      * Normalizes plugin configuration.
-     * 
+     *
      * Plugins inherit output defaults from the GLOBAL config (not step config):
      * - explode, limit, offset, tmpDir are inherited from global output
      * - mode always defaults to 'ignore' (never inherited)
      * - column, path, dataPath are never inherited (step-specific)
-     * 
+     *
      * The plugin's own explicit output config overrides the global-derived base.
-     * 
+     *
      * @param config - The raw plugin config
      * @param stepConfig - The step-level config (not used for output inheritance)
      * @param globalConfig - The full global config (source of output defaults)
      */
     normalizeConfig(config: TBaseConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): TNormalizedConfig {
         const pluginOutput = (config as any).output as PartialOutputConfig | undefined;
-        
+
         // Build base from global config, selectively inheriting fields.
         // Step-level output is intentionally ignored for plugins.
         const baseOutput = buildPluginBaseOutput(globalConfig);
-        
+
         const mergedOutput = mergeOutputConfigs(baseOutput, pluginOutput);
-        
+
         return {
             ...config,
             output: mergedOutput
@@ -141,7 +141,7 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
 
     /**
      * Renders templates and resolves dynamic values for a specific row.
-     * 
+     *
      * @param stepConfig - The step-level config
      * @param globalConfig - The full global config
      * @param config - The normalized plugin config

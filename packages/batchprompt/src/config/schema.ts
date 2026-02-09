@@ -28,7 +28,7 @@ export const PartialOutputConfigSchema = z.object({
 export type PartialOutputConfig = z.infer<typeof PartialOutputConfigSchema>;
 
 export const OutputConfigSchema = z.object({
-    mode: z.enum(['merge', 'column', 'ignore']).default('ignore')
+    mode: z.enum(['merge', 'column', 'ignore'])
         .describe("How to handle the result: merge into row, save to column, or ignore."),
     column: z.string().optional()
         .describe("Column name when mode is 'column'."),
@@ -42,65 +42,9 @@ export const OutputConfigSchema = z.object({
     path: zHandlebars.optional(),
     dataPath: zHandlebars.optional(),
     tmpDir: zHandlebars.default(path.join(os.tmpdir(), 'batchprompt')),
-}).default({
-    mode: 'ignore',
-    explode: false,
-    tmpDir: path.join(os.tmpdir(), 'batchprompt'),
 }).describe("Configuration for output handling.");
 
 export type OutputConfig = z.infer<typeof OutputConfigSchema>;
-
-/**
- * Merges step-level output config with plugin-level output config.
- * Plugin values only override if they are explicitly defined (not undefined).
- * Step values serve as the base, with final defaults applied.
- */
-export function mergeOutputConfigs(
-    stepOutput: OutputConfig | undefined,
-    pluginOutput: PartialOutputConfig | undefined
-): OutputConfig {
-    const defaults: OutputConfig = {
-        mode: 'ignore',
-        explode: false,
-        tmpDir: path.join(os.tmpdir(), 'batchprompt'),
-    };
-
-    const base = stepOutput || defaults;
-    
-    if (!pluginOutput) {
-        return base;
-    }
-
-    // Only override with plugin values that are explicitly defined
-    const result: OutputConfig = { ...base };
-    
-    if (pluginOutput.mode !== undefined) {
-        result.mode = pluginOutput.mode;
-    }
-    if (pluginOutput.column !== undefined) {
-        result.column = pluginOutput.column;
-    }
-    if (pluginOutput.explode !== undefined) {
-        result.explode = pluginOutput.explode;
-    }
-    if (pluginOutput.limit !== undefined) {
-        result.limit = pluginOutput.limit;
-    }
-    if (pluginOutput.offset !== undefined) {
-        result.offset = pluginOutput.offset;
-    }
-    if (pluginOutput.path !== undefined) {
-        result.path = pluginOutput.path;
-    }
-    if (pluginOutput.dataPath !== undefined) {
-        result.dataPath = pluginOutput.dataPath;
-    }
-    if (pluginOutput.tmpDir !== undefined) {
-        result.tmpDir = pluginOutput.tmpDir;
-    }
-
-    return result;
-}
 
 // Feedback is now just a model config (same as judge)
 export const FeedbackConfigSchema = ModelConfigSchema;
