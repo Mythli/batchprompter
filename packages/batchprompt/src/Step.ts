@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
 import { PipelineItem } from './types.js';
-import { StepRow, StepRowState } from './StepRow.js';
+import { StepRow, StepRowState, StageDescriptor } from './StepRow.js';
 import { StepConfig, GlobalConfig } from "./config/schema.js";
 import { PluginRegistryV2, BasePlugin } from "./plugins/types.js";
 import { BatchPromptEvents } from "./events.js";
@@ -43,6 +43,48 @@ export class Step {
         });
 
         const a = 4;
+    }
+
+    /**
+     * Builds the ordered list of processing stages for a step.
+     * 
+     * The sequence is:
+     *   plugin-prepare(0), plugin-prepare(1), ..., model, plugin-post(0), plugin-post(1), ...
+     * 
+     * This is used by Pipeline to process stages individually, allowing
+     * explosion branches to be routed through the task queue.
+     * 
+     * @param hydratedConfig The hydrated step config (from createRow)
+     */
+    buildStages(hydratedConfig: StepConfig): StageDescriptor[] {
+        const plugins = hydratedConfig.plugins || [];
+        const stages: StageDescriptor[] = [];
+
+        // Plugin prepare stages
+        for (const plugin of plugins) {
+            stages.push({
+                type: 'plugin-prepare',
+                instance: plugin.instance,
+                config: plugin.config
+            });
+        }
+
+        // Model stage (only if there are messages to send)
+        const modelMessages = hydratedConfig.model?.messages;
+        if (modelMessages && modelMessages.length > 0) {
+            stages.push({ type: 'model' });
+        }
+
+        // Plugin post-process stages
+        for (const plugin of plugins) {
+            stages.push({
+                type: 'plugin-post',
+                instance: plugin.instance,
+                config: plugin.config
+            });
+        }
+
+        return stages;
     }
 
     private render(template: string, context: Record<string, any>): string {

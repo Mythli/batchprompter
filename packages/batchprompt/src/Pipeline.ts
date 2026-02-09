@@ -2,11 +2,7 @@ import { PipelineItem } from './types.js';
 import { Step } from './Step.js';
 import { BatchPromptDeps } from './getDiContainer.js';
 import { GlobalConfig, StepSchema } from "./config/schema.js";
-
-interface TaskPayload {
-    item: PipelineItem;
-    stepIndex: number;
-}
+import type { StepRow, StageDescriptor } from './StepRow.js';
 
 export class Pipeline {
     constructor(
@@ -66,42 +62,125 @@ export class Pipeline {
 
             const queue = this.deps.taskQueue;
 
-            const enqueueNext = (items: PipelineItem[], nextStepIndex: number) => {
+            /**
+             * Enqueues a single completed item for the next step, or emits row:end
+             * if all steps are done. Uses priority = stepIndex for depth-first scheduling.
+             */
+            const enqueueNext = (item: PipelineItem, nextStepIndex: number) => {
                 if (nextStepIndex >= this.steps.length) {
-                    for (const item of items) {
-                        events.emit('row:end', { index: item.originalIndex, result: item.row });
-                    }
+                    events.emit('row:end', { index: item.originalIndex, result: item.row });
                 } else {
-                    for (const item of items) {
-                        queue.add(() => processTask({ item, stepIndex: nextStepIndex }));
-                    }
+                    queue.add(
+                        () => processTask({ item, stepIndex: nextStepIndex }),
+                        { priority: nextStepIndex }
+                    );
                 }
             };
 
-            const processTask = async (payload: TaskPayload) => {
+            /**
+             * Processes a StepRow through its remaining stages.
+             * 
+             * For each stage:
+             * - Single result → continues inline to next stage (no queue overhead)
+             * - Multiple results (explosion) → enqueues each branch through the task queue
+             * - Zero results (dropped) → returns without further processing
+             * 
+             * This ensures explosion branches are proper queue citizens with
+             * depth-first priority, backpressure, and concurrency control.
+             */
+            const processStepRow = async (
+                stepRow: StepRow,
+                stepIndex: number,
+                stages: StageDescriptor[],
+                currentStage: number,
+                deadline: number
+            ) => {
+                for (let i = currentStage; i < stages.length; i++) {
+                    // Check timeout at each stage boundary
+                    if (Date.now() > deadline) {
+                        const step = this.steps[stepIndex];
+                        throw new Error(`Step timed out after ${step.config.timeout || 180}s`);
+                    }
+
+                    const resultRows = await stepRow.executeStage(stages[i]);
+
+                    if (resultRows.length === 0) {
+                        // Row dropped (e.g., by dedupe or validation)
+                        return;
+                    }
+
+                    if (resultRows.length === 1) {
+                        // Single result — continue inline to next stage
+                        stepRow = resultRows[0];
+                        continue;
+                    }
+
+                    // Multiple results (explosion) — enqueue each for remaining stages
+                    // Each branch becomes an independent task in the queue with
+                    // priority = stepIndex for depth-first scheduling
+                    for (const row of resultRows) {
+                        queue.add(
+                            () => processStepRowSafe(row, stepIndex, stages, i + 1, deadline),
+                            { priority: stepIndex }
+                        );
+                    }
+                    return; // This branch is done; sub-branches continue through queue
+                }
+
+                // All stages complete for this branch — enqueue for next step
+                const item = stepRow.toPipelineItem();
+                events.emit('step:finish', { row: item.originalIndex, step: stepIndex + 1, result: 1 });
+                enqueueNext(item, stepIndex + 1);
+            };
+
+            /**
+             * Error-handling wrapper for processStepRow.
+             * Used for queued sub-tasks (explosion branches) which don't have
+             * an outer try/catch from processTask.
+             */
+            const processStepRowSafe = async (
+                stepRow: StepRow,
+                stepIndex: number,
+                stages: StageDescriptor[],
+                currentStage: number,
+                deadline: number
+            ) => {
+                try {
+                    await processStepRow(stepRow, stepIndex, stages, currentStage, deadline);
+                } catch (err: any) {
+                    const originalIndex = stepRow.getOriginalIndex();
+                    events.emit('row:error', { index: originalIndex, error: err });
+                    events.emit('step:progress', {
+                        row: originalIndex,
+                        step: stepIndex + 1,
+                        type: 'error',
+                        message: `Step ${stepIndex + 1} Error: ${err.message}`,
+                        data: err
+                    });
+                }
+            };
+
+            /**
+             * Top-level task handler. Creates a StepRow, builds stages, and
+             * begins processing through processStepRow.
+             */
+            const processTask = async (payload: { item: PipelineItem; stepIndex: number }) => {
                 const { item, stepIndex } = payload;
                 const step = this.steps[stepIndex];
                 const stepNum = stepIndex + 1;
                 const timeoutMs = (step.config.timeout || 180) * 1000;
+                const deadline = Date.now() + timeoutMs;
 
                 events.emit('step:start', { row: item.originalIndex, step: stepNum });
 
                 try {
-                    // Execute with Timeout
-                    let timer: NodeJS.Timeout;
-                    const timeoutPromise = new Promise<never>((_, reject) => {
-                        timer = setTimeout(() => reject(new Error(`Step timed out after ${step.config.timeout || 180}s`)), timeoutMs);
-                    });
-
-                    // --- Phase 2: Processing ---
+                    // --- Phase 1: Hydrate config and create row ---
                     const stepRow = await step.createRow(item);
-                    const executionPromise = stepRow.run();
+                    const stages = step.buildStages(stepRow.config);
 
-                    const nextItems = await Promise.race([executionPromise, timeoutPromise]);
-                    clearTimeout(timer!);
-
-                    events.emit('step:finish', { row: item.originalIndex, step: stepNum, result: nextItems.length });
-                    enqueueNext(nextItems, stepIndex + 1);
+                    // --- Phase 2: Process stages ---
+                    // Inline for single results, queue for explosions
+                    await processStepRow(stepRow, stepIndex, stages, 0, deadline);
 
                 } catch (err: any) {
                     events.emit('row:error', { index: item.originalIndex, error: err });
@@ -125,7 +204,10 @@ export class Pipeline {
                     originalIndex: originalIndex
                 };
                 events.emit('row:start', { index: originalIndex, row: initialItem.row });
-                queue.add(() => processTask({ item: initialItem, stepIndex: 0 }));
+                queue.add(
+                    () => processTask({ item: initialItem, stepIndex: 0 }),
+                    { priority: 0 }
+                );
             }
 
             await queue.onIdle();

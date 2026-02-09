@@ -9,11 +9,18 @@ import { PluginResult, PluginItem } from './plugins/types.js';
 import { OutputConfig, StepConfig } from "./config/schema.js";
 import { ModelConfig } from "./config/model.js";
 
-// Helper for async flatMap
-async function flatMapAsync<T, U>(array: T[], callback: (item: T) => Promise<U[]>): Promise<U[]> {
-    const results = await Promise.all(array.map(callback));
-    return results.flat();
-}
+/**
+ * Describes a single processing stage within a step.
+ * Steps are broken into a sequence of stages:
+ *   plugin-prepare(0), plugin-prepare(1), ..., model, plugin-post(0), plugin-post(1), ...
+ * 
+ * This allows the Pipeline to process stages individually, enqueuing
+ * explosion branches through the task queue instead of using Promise.all.
+ */
+export type StageDescriptor =
+    | { type: 'plugin-prepare'; instance: any; config: any }
+    | { type: 'model' }
+    | { type: 'plugin-post'; instance: any; config: any };
 
 /**
  * Helper to apply data to a target object based on mode/namespace/column.
@@ -131,43 +138,55 @@ export class StepRow {
 
     // --- Core Logic ---
 
+    /**
+     * Executes a single stage on this row, returning the resulting StepRow(s).
+     * 
+     * Returns:
+     * - [] : Row was dropped (e.g., by dedupe or validation)
+     * - [row] : Single result, continue to next stage
+     * - [row1, row2, ...] : Explosion, each row continues independently
+     */
+    public async executeStage(stage: StageDescriptor): Promise<StepRow[]> {
+        switch (stage.type) {
+            case 'plugin-prepare': {
+                const namespace = stage.instance.type;
+                const pluginRow = stage.instance.createRow(this, stage.config);
+                const result = await pluginRow.prepare();
+                return this.applyResult(result, stage.config.output, namespace);
+            }
+            case 'model': {
+                const result = await this.executeLlm();
+                return this.applyResult(result, this.config.output);
+            }
+            case 'plugin-post': {
+                const namespace = stage.instance.type;
+                const pluginRow = stage.instance.createRow(this, stage.config);
+                const result = await pluginRow.postProcess(this.lastResult);
+                return this.applyResult(result, stage.config.output, namespace);
+            }
+        }
+    }
+
+    /**
+     * Processes all stages for this row, returning the final pipeline items.
+     * 
+     * Processes rows sequentially within each stage. For queue-based parallel
+     * execution with proper backpressure and depth-first scheduling, use
+     * Pipeline which routes explosion branches through the task queue.
+     */
     async run(): Promise<PipelineItem[]> {
         let currentRows: StepRow[] = [this];
+        const stages = this.step.buildStages(this.config);
 
-        // --- Stage 1: Plugin Preparation ---
-        const plugins = await this.getPlugins();
-        for (const { instance, config } of plugins) {
-            const namespace = instance.type;
-            currentRows = await flatMapAsync(currentRows, async (row) => {
-                const pluginRow = instance.createRow(row, config);
-                const result = await pluginRow.prepare();
-                return row.applyResult(result, config.output, namespace);
-            });
+        for (const stage of stages) {
+            const nextRows: StepRow[] = [];
+            for (const row of currentRows) {
+                const results = await row.executeStage(stage);
+                nextRows.push(...results);
+            }
+            currentRows = nextRows;
         }
 
-        // --- Stage 2: Model Execution ---
-        const modelMessages = this.config.model?.messages;
-        const hasMessages = modelMessages && modelMessages.length > 0;
-
-        if (hasMessages) {
-            currentRows = await flatMapAsync(currentRows, async (row) => {
-                const result = await row.executeLlm();
-                // No namespace for model output - it merges directly into the row
-                return row.applyResult(result, row.config.output);
-            });
-        }
-
-        // --- Stage 3: Plugin Post-Processing ---
-        for (const { instance, config } of plugins) {
-            const namespace = instance.type;
-            currentRows = await flatMapAsync(currentRows, async (row) => {
-                const pluginRow = instance.createRow(row, config);
-                const result = await pluginRow.postProcess(row.lastResult);
-                return row.applyResult(result, config.output, namespace);
-            });
-        }
-
-        // Convert StepRows back to PipelineItems
         return currentRows.map(row => row.toPipelineItem());
     }
 
