@@ -157,7 +157,8 @@ describe('E2E Website Agent', () => {
         const { results } = await executor.runConfig(config, [{}]);
 
         expect(results).toHaveLength(1);
-        expect(results[0].ceo).toBe("Alice");
+        // Plugin output is namespaced under the plugin type: 'website-agent'
+        expect(results[0]['website-agent'].ceo).toBe("Alice");
         
         // Verify navigation flow
         expect(mockPageHelper.navigateAndCache).toHaveBeenCalledTimes(2);
