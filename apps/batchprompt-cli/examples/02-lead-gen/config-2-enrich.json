@@ -11,7 +11,7 @@
     {
       "plugins": [
         {
-          "type": "website-agent",
+          "type": "websiteAgent",
           "url": "{{link}}",
           "schema": {
             "type": "object",

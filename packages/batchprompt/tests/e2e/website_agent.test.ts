@@ -140,7 +140,7 @@ describe('E2E Website Agent', () => {
                 {
                     plugins: [
                         {
-                            type: "website-agent",
+                            type: "websiteAgent",
                             url: "http://example.com",
                             schema: {
                                 type: "object",
@@ -157,8 +157,8 @@ describe('E2E Website Agent', () => {
         const { results } = await executor.runConfig(config, [{}]);
 
         expect(results).toHaveLength(1);
-        // Plugin output is namespaced under the plugin type: 'website-agent'
-        expect(results[0]['website-agent'].ceo).toBe("Alice");
+        // Plugin output is namespaced under the plugin type: 'websiteAgent'
+        expect(results[0]['websiteAgent'].ceo).toBe("Alice");
         
         // Verify navigation flow
         expect(mockPageHelper.navigateAndCache).toHaveBeenCalledTimes(2);

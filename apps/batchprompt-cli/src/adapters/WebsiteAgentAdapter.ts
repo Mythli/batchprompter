@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 
 export class WebsiteAgentAdapter implements CliPluginAdapter {
-    readonly pluginType = 'website-agent';
+    readonly pluginType = 'websiteAgent';
 
     registerOptions(program: Command) {
         program.option('--website-agent-url <url>', 'Starting URL to scrape');
@@ -45,7 +45,7 @@ export class WebsiteAgentAdapter implements CliPluginAdapter {
         if (!url) return null;
 
         const result: Record<string, any> = {
-            type: 'website-agent',
+            type: 'websiteAgent',
             url,
         };
 

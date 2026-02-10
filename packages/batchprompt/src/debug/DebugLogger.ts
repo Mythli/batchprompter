@@ -82,8 +82,7 @@ export class DebugLogger {
             const prefix = `[Row ${payload.row}] [${payload.plugin}]`;
             const data = payload.data;
 
-            // Formatter Registry — using kebab-case plugin type names
-            if (payload.plugin === 'website-agent') {
+            if (payload.plugin === 'websiteAgent') {
                 if (payload.event === 'page:scraped') {
                     console.log(`${prefix} 🌍 Visited ${data.url} (${data.html?.length || 0} chars)`);
                 } else if (payload.event === 'decision:made') {
@@ -113,7 +112,7 @@ export class DebugLogger {
                 } else if (payload.event === 'validation:passed') {
                     console.log(`${prefix} ✅ Passed (${data.source})`);
                 }
-            } else if (payload.plugin === 'image-search') {
+            } else if (payload.plugin === 'imageSearch') {
                 if (payload.event === 'query:generated') {
                     console.log(`${prefix} 🔍 Generated queries: ${data.queries?.join(', ')}`);
                 } else if (payload.event === 'search:result') {
@@ -129,7 +128,7 @@ export class DebugLogger {
                 } else if (payload.event === 'content:enrich') {
                     console.log(`${prefix} 📄 Enriched ${data.url}`);
                 }
-            } else if (payload.plugin === 'logo-scraper') {
+            } else if (payload.plugin === 'logoScraper') {
                 if (payload.event === 'found') {
                     console.log(`${prefix} 🎨 Found ${data.count} potential logos.`);
                 } else if (payload.event === 'downloading') {
@@ -137,7 +136,7 @@ export class DebugLogger {
                 } else if (payload.event === 'analyzing') {
                     console.log(`${prefix} 🧠 Analyzing ${data.count} logos...`);
                 }
-            } else if (payload.plugin === 'style-scraper') {
+            } else if (payload.plugin === 'styleScraper') {
                 if (payload.event === 'scraping') {
                     console.log(`${prefix} 🎨 Scraping styles from ${data.url}`);
                 } else if (payload.event === 'interactive') {
