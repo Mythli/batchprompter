@@ -12,7 +12,7 @@
       "plugins": [
         {
           "type": "websiteAgent",
-          "url": "{{link}}",
+          "url": "{{webSearch.link}}",
           "schema": {
             "type": "object",
             "description": "Extract contact details, decision maker info, and identify the Top Offer of the business.",
@@ -78,11 +78,7 @@
           "output": {
             "mode": "merge"
           }
-        }
-      ]
-    },
-    {
-      "plugins": [
+        },
         {
           "type": "validation",
           "schema": {
@@ -100,13 +96,14 @@
               }
             },
             "required": ["companyName", "decisionMaker", "isIndustry"]
-          }
+          },
+          "failMode": "drop"
         }
       ]
     },
     {
       "model": {
-        "prompt": "You are a data extraction engine. Extract the LinkedIn URL for {{decisionMaker.firstName}} {{decisionMaker.lastName}} from the search results.\n\nOutput Rules:\n\n1. Return ONLY the URL (starting with https://).\n\n2. If no valid personal profile is found, return an empty string.\n\n3. Do NOT return JSON, Markdown, quotes, or explanations.\n"
+        "prompt": "You are a data extraction engine. Extract the LinkedIn URL for {{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}} from the search results.\n\nOutput Rules:\n\n1. Return ONLY the URL (starting with https://).\n\n2. If no valid personal profile is found, return an empty string.\n\n3. Do NOT return JSON, Markdown, quotes, or explanations.\n"
       },
       "output": {
         "mode": "column",
@@ -115,10 +112,10 @@
       "plugins": [
         {
           "type": "webSearch",
-          "query": "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company",
+          "query": "site:linkedin.com/in/ {{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}} {{websiteAgent.companyName}} -inurl:company",
           "limit": 5,
           "selectModel": {
-            "prompt": "Select the LinkedIn personal profile for {{decisionMaker.firstName}} {{decisionMaker.lastName}} at {{companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything.\n"
+            "prompt": "Select the LinkedIn personal profile for {{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}} at {{websiteAgent.companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything.\n"
           }
         }
       ]
