@@ -36,7 +36,7 @@ function fillModelDefaults(
     globalModel: ModelConfig | undefined
 ): ModelConfig | undefined {
     if (!pluginModel) return undefined;
-    
+
     return {
         ...pluginModel,
         model: pluginModel.model || globalModel?.model,
@@ -46,7 +46,7 @@ function fillModelDefaults(
 }
 
 export class WebsiteAgentPlugin extends BasePlugin<WebsiteAgentConfig, WebsiteAgentConfig> {
-    readonly type = 'website-agent';
+    readonly type = 'websiteAgent';
 
     constructor(
         private deps: {
