@@ -32,11 +32,15 @@ class ShellPluginRow extends BasePluginRow<ShellConfig> {
         super(stepRow, config);
     }
 
-    async postProcess(response: any): Promise<PluginResult> {
+    async postProcess(): Promise<PluginResult> {
         const { stepRow, config } = this;
         const row = stepRow.context;
         const tempDir = await stepRow.getTempDir();
         const history = await stepRow.getPreparedMessages();
+
+        // Read the accumulated row data as the response to operate on
+        const rowData = stepRow.getData();
+        const response = rowData;
 
         // 1. Verify Command (Runs inside retry loop)
         if (config.verifyCommand) {
@@ -76,9 +80,10 @@ class ShellPluginRow extends BasePluginRow<ShellConfig> {
             }
         }
 
+        // Return null data to preserve existing row state
         return {
             history,
-            items: [{ data: response, contentParts: [] }]
+            items: [{ data: null, contentParts: [] }]
         };
     }
 }

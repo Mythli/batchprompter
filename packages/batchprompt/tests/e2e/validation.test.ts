@@ -203,6 +203,8 @@ describe('E2E Validation Plugin', () => {
 
         expect(results).toHaveLength(1);
         expect(results[0].name).toBe("Alice");
+        // Validation metadata is now namespaced under 'validation' plugin type
+        expect(results[0].validation).toBeDefined();
         expect(results[0].validation._validationError).toBeDefined();
         expect(results[0].validation._validationError.valid).toBe(false);
     });

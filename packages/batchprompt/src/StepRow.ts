@@ -78,8 +78,6 @@ export interface StepRowState {
 }
 
 export class StepRow {
-    public lastResult: any = null;
-
     constructor(
         public readonly step: Step,
         public readonly config: StepConfig,
@@ -91,6 +89,14 @@ export class StepRow {
     get context() { return this.state.context; }
     get content() { return this.state.content; }
     get history() { return this.state.history; }
+
+    /**
+     * Returns the current accumulated row data.
+     * This is the single source of truth for the row being built up across stages.
+     */
+    getData(): Record<string, any> {
+        return this.state.data;
+    }
 
     getEvents() {
         return this.step.deps.events;
@@ -161,7 +167,7 @@ export class StepRow {
             case 'plugin-post': {
                 const namespace = stage.instance.type;
                 const pluginRow = stage.instance.createRow(this, stage.config);
-                const result = await pluginRow.postProcess(this.lastResult);
+                const result = await pluginRow.postProcess();
                 return this.applyResult(result, stage.config.output, namespace);
             }
         }
@@ -196,7 +202,7 @@ export class StepRow {
             history: this.state.history,
             originalIndex: this.state.originalIndex,
             variationIndex: this.state.variationIndex,
-            stepHistory: [...this.state.stepHistory, this.lastResult],
+            stepHistory: [...this.state.stepHistory],
             workspace: this.state.context
         };
     }
@@ -278,33 +284,30 @@ export class StepRow {
         const newData = JSON.parse(JSON.stringify(this.state.data));
         const newContext = { ...this.state.context };
 
-        // 2. Apply to context (always)
-        // Context always gets the data for template access
-        if (namespace) {
-            // Plugin output: namespace it and spread for easy template access
-            applyDataToTarget(newContext, data, { namespace, spreadObject: true });
-        } else {
-            // Model output: spread directly into context
-            applyDataToTarget(newContext, data, {});
-        }
-
-        // 3. Apply to data (based on mode)
-        if (outputConfig.mode === 'merge') {
+        // 2. Skip applying null data (no-op stages should not clobber existing state)
+        if (data != null) {
+            // Apply to context (always, for template access)
             if (namespace) {
-                // Plugin merge: namespace the plugin output under its name
-                applyDataToTarget(newData, data, { namespace });
+                applyDataToTarget(newContext, data, { namespace, spreadObject: true });
             } else {
-                // Model merge (no namespace): spread directly into row
-                applyDataToTarget(newData, data, {});
+                applyDataToTarget(newContext, data, {});
             }
-        } else if (outputConfig.mode === 'column' && outputConfig.column) {
-            // Column mode: store under column key in both data and context
-            applyDataToTarget(newData, data, { column: outputConfig.column });
-            applyDataToTarget(newContext, data, { column: outputConfig.column });
-        }
-        // mode === 'ignore': data is only in context, not persisted to row
 
-        // 4. Create New State
+            // Apply to data (based on mode)
+            if (outputConfig.mode === 'merge') {
+                if (namespace) {
+                    applyDataToTarget(newData, data, { namespace });
+                } else {
+                    applyDataToTarget(newData, data, {});
+                }
+            } else if (outputConfig.mode === 'column' && outputConfig.column) {
+                applyDataToTarget(newData, data, { column: outputConfig.column });
+                applyDataToTarget(newContext, data, { column: outputConfig.column });
+            }
+            // mode === 'ignore': data is only in context, not persisted to row
+        }
+
+        // 3. Create New State
         const newState: StepRowState = {
             data: newData,
             context: newContext,
@@ -315,10 +318,8 @@ export class StepRow {
             stepHistory: this.state.stepHistory
         };
 
-        // 5. Return New Row
-        const newRow = new StepRow(this.step, this.config, newState);
-        newRow.lastResult = data;
-        return newRow;
+        // 4. Return New Row
+        return new StepRow(this.step, this.config, newState);
     }
 
     public async executeLlm(): Promise<PluginResult> {

@@ -42,6 +42,8 @@ export interface PluginResult {
      * - [item]: Standard continuation - one row out.
      * - [item1, item2, ...] + explode=false: One row, data combined, contentParts concatenated.
      * - [item1, item2, ...] + explode=true: N rows, each gets its own data + contentParts.
+     *
+     * When data is null, the stage is a no-op: existing row data is preserved untouched.
      */
     items: PluginItem[];
 }
@@ -63,7 +65,7 @@ export abstract class BasePluginRow<TConfig = any> {
 
     /**
      * Pre-LLM execution logic.
-     * Default: pass-through (history unchanged, single null item)
+     * Default: pass-through (history unchanged, single null item — preserves existing row data)
      */
     async prepare(): Promise<PluginResult> {
         return {
@@ -74,12 +76,13 @@ export abstract class BasePluginRow<TConfig = any> {
 
     /**
      * Post-LLM execution logic.
-     * Default: pass-through (history unchanged, result as single item)
+     * Plugins read the current accumulated row data via this.stepRow.getData().
+     * Default: pass-through (history unchanged, single null item — preserves existing row data)
      */
-    async postProcess(result: any): Promise<PluginResult> {
+    async postProcess(): Promise<PluginResult> {
         return {
             history: await this.stepRow.getPreparedMessages(),
-            items: [{ data: result, contentParts: [] }]
+            items: [{ data: null, contentParts: [] }]
         };
     }
 }

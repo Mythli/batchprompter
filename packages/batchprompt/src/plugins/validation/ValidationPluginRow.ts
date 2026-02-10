@@ -16,16 +16,18 @@ export class ValidationPluginRow extends BasePluginRow<ValidationConfig> {
     }
 
     /**
-     * Validation happens in postProcess after LLM execution
+     * Validation happens in postProcess after LLM execution.
+     * Reads the accumulated row data from stepRow.getData() — the single source of truth.
      */
-    async postProcess(result: any): Promise<PluginResult> {
+    async postProcess(): Promise<PluginResult> {
         const { stepRow, config } = this;
         const events = stepRow.getEvents();
         const rowIndex = stepRow.getOriginalIndex();
         const stepIndex = stepRow.step.stepIndex;
+        const rowData = stepRow.getData();
 
         // Determine what data to validate
-        let dataToValidate = result;
+        let dataToValidate: any = rowData;
         if (config.target) {
             // Target was already hydrated, but it's a template result string
             // We need to parse it as JSON or use it to access context
@@ -33,7 +35,7 @@ export class ValidationPluginRow extends BasePluginRow<ValidationConfig> {
                 dataToValidate = JSON.parse(config.target);
             } catch {
                 // If not JSON, try to get from context
-                dataToValidate = stepRow.context[config.target] ?? result;
+                dataToValidate = stepRow.context[config.target] ?? rowData;
             }
         }
 
@@ -51,9 +53,10 @@ export class ValidationPluginRow extends BasePluginRow<ValidationConfig> {
                 data: { source: 'postProcess' }
             });
 
+            // Pass through — null data preserves existing row state
             return {
                 history,
-                items: [{ data: result, contentParts: [] }]
+                items: [{ data: null, contentParts: [] }]
             };
         }
 
@@ -96,17 +99,18 @@ export class ValidationPluginRow extends BasePluginRow<ValidationConfig> {
 
             case 'continue':
             default:
-                // Return result with validation metadata attached
-                const resultWithMeta = {
-                    ...(typeof result === 'object' && result !== null ? result : { value: result }),
-                    _validationError: {
-                        valid: false,
-                        errors: errorDetails
-                    }
-                };
+                // Return validation metadata — this gets merged into the row
                 return {
                     history,
-                    items: [{ data: resultWithMeta, contentParts: [] }]
+                    items: [{
+                        data: {
+                            _validationError: {
+                                valid: false,
+                                errors: errorDetails
+                            }
+                        },
+                        contentParts: []
+                    }]
                 };
         }
     }
