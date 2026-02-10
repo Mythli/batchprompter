@@ -47,7 +47,7 @@ describe('E2E Dedupe Plugin', () => {
 
         // Should only have 2 results (duplicate Alice dropped)
         expect(results).toHaveLength(2);
-        
+
         const names = results.map((r: any) => r.name);
         expect(names).toContain("Alice");
         expect(names).toContain("Bob");
@@ -60,7 +60,8 @@ describe('E2E Dedupe Plugin', () => {
     it('should support complex key templates', async () => {
         const mockResponses = [
             "Result 1",
-            "Result 2"
+            "Result 2",
+            "Result 3"
         ];
 
         const { executor } = setupTestEnvironment({

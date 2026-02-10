@@ -150,7 +150,7 @@ describe('E2E Validation Plugin', () => {
 
         // Should complete but row will have error (errors are caught at row level)
         const { results } = await executor.runConfig(config, [{}]);
-        
+
         // Row errored out, so no results
         expect(results).toHaveLength(0);
     });
@@ -165,6 +165,9 @@ describe('E2E Validation Plugin', () => {
         });
 
         const config = {
+            output: {
+                mode: "merge"
+            },
             steps: [
                 {
                     model: {
@@ -177,9 +180,6 @@ describe('E2E Validation Plugin', () => {
                             name: { type: "string" },
                             age: { type: "number" }
                         }
-                    },
-                    output: {
-                        mode: "merge"
                     },
                     plugins: [
                         {
@@ -203,7 +203,7 @@ describe('E2E Validation Plugin', () => {
 
         expect(results).toHaveLength(1);
         expect(results[0].name).toBe("Alice");
-        expect(results[0]._validationError).toBeDefined();
-        expect(results[0]._validationError.valid).toBe(false);
+        expect(results[0].validation._validationError).toBeDefined();
+        expect(results[0].validation._validationError.valid).toBe(false);
     });
 });

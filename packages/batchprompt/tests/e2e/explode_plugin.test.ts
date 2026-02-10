@@ -38,16 +38,14 @@ describe('E2E Plugin Explosion', () => {
             },
             steps: [
                 {
-                    // Step 1: Search and Explode (Pass-through, no model)
-                    output: {
-                        mode: "merge",
-                        explode: true
-                    },
                     plugins: [
                         {
                             type: "webSearch",
                             query: "test query",
-                            mode: "none"
+                            output: {
+                                mode: "merge",
+                                explode: true,
+                            }
                         }
                     ]
                 },

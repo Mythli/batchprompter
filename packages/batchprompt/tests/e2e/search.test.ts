@@ -13,18 +13,18 @@ class MockWebSearch extends WebSearch {
     }
     async search(query: string) {
         if (query.includes('investor')) {
-            return [{ 
-                title: 'Tesla Investor Relations', 
-                link: 'https://tesla.com/ir', 
-                snippet: 'Official Tesla Investor Relations page with financial reports.', 
-                type: 'seo' as const 
+            return [{
+                title: 'Tesla Investor Relations',
+                link: 'https://tesla.com/ir',
+                snippet: 'Official Tesla Investor Relations page with financial reports.',
+                type: 'seo' as const
             }];
         }
-        return [{ 
-            title: 'Tesla Official Site', 
-            link: 'https://tesla.com', 
-            snippet: 'Electric Cars, Solar & Clean Energy', 
-            type: 'seo' as const 
+        return [{
+            title: 'Tesla Official Site',
+            link: 'https://tesla.com',
+            snippet: 'Electric Cars, Solar & Clean Energy',
+            type: 'seo' as const
         }];
     }
     async fetchContent(url: string) {
@@ -40,25 +40,25 @@ class MockImageSearch extends ImageSearch {
         // Return a valid 1x1 red pixel PNG
         const buffer = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", 'base64');
         return [
-            { 
-                metadata: { 
-                    title: 'Tesla Model S', 
-                    imageUrl: 'https://example.com/s.jpg', 
-                    imageWidth: 100, 
-                    imageHeight: 100, 
-                    position: 1 
-                }, 
-                buffer 
+            {
+                metadata: {
+                    title: 'Tesla Model S',
+                    imageUrl: 'https://example.com/s.jpg',
+                    imageWidth: 100,
+                    imageHeight: 100,
+                    position: 1
+                },
+                buffer
             },
-            { 
-                metadata: { 
-                    title: 'Tesla Model 3', 
-                    imageUrl: 'https://example.com/3.jpg', 
-                    imageWidth: 100, 
-                    imageHeight: 100, 
-                    position: 2 
-                }, 
-                buffer 
+            {
+                metadata: {
+                    title: 'Tesla Model 3',
+                    imageUrl: 'https://example.com/3.jpg',
+                    imageWidth: 100,
+                    imageHeight: 100,
+                    position: 2
+                },
+                buffer
             }
         ];
     }
@@ -114,6 +114,7 @@ describe('E2E Search Plugins', () => {
                                 prompt: "Select the official investor relations page"
                             },
                             mode: "markdown",
+
                             limit: 1
                         }
                     ],
@@ -191,7 +192,7 @@ describe('E2E Search Plugins', () => {
         const finalCallArgs = (openai.chat.completions.create as any).mock.calls[2][0];
         const lastMessage = finalCallArgs.messages[finalCallArgs.messages.length - 1];
         const imagePart = lastMessage.content.find((p: any) => p.type === 'image_url');
-        
+
         expect(imagePart).toBeDefined();
         expect(imagePart.image_url.url).toContain('data:image/jpeg;base64,');
     });

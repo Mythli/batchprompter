@@ -15,7 +15,6 @@ export * from './generated/ConfigDocumentation.js';
 export * from './events.js';
 export * from './LlmClientFactory.js';
 export * from './BoundLlmClient.js';
-export * from './ResultProcessor.js';
 
 // Plugins
 export * from './plugins/index.js';
