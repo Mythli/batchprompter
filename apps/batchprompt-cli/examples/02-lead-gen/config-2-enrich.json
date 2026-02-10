@@ -114,7 +114,7 @@
       },
       "plugins": [
         {
-          "type": "web-search",
+          "type": "webSearch",
           "query": "site:linkedin.com/in/ {{decisionMaker.firstName}} {{decisionMaker.lastName}} {{companyName}} -inurl:company",
           "limit": 5,
           "selectModel": {
