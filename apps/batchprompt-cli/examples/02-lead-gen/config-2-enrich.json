@@ -15,7 +15,7 @@
           "url": "{{webSearch.link}}",
           "schema": {
             "type": "object",
-            "description": "Extract contact details, decision maker info, and identify the Top Offer of the business.",
+            "description": "Extract contact details, decision maker info, and identify the Top Offer of the business. IMPORTANT: All free-text answers (descriptions, reasons, offer names, etc.) MUST be written in German.",
             "properties": {
               "isIndustry": {
                 "type": ["boolean", "null"],
