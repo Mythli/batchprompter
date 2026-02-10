@@ -33,10 +33,6 @@
                 "type": ["string", "null"],
                 "description": "The legal form / company type of the business (e.g. 'GmbH', 'e.V.', 'AG', 'UG', 'Einzelunternehmen', 'GbR', 'OHG', 'KG', 'gGmbH'). Look in the imprint (Impressum), footer, or about page. Optional."
               },
-              "hasFixedAppointments": {
-                "type": ["integer", "null"],
-                "description": "Does the business model rely on fixed appointments / scheduled courses? A fixed appointment is for example a language course that starts at a specific date and ends at a specific date (e.g. 'Intensivkurs Deutsch A1 - 01.09.2025 bis 30.09.2025'). Return 1 if yes, 0 if no. If unsure, return null."
-              },
               "approximateFixedAppointments": {
                 "type": ["integer", "null"],
                 "description": "Approximate number of fixed/scheduled appointments or courses currently listed on the website. A fixed appointment is a course or event with a concrete start date and end date (e.g. 'B2 Kurs ab 15.07.2025'). Count individual scheduled course instances, not course types. Return null if the business does not use fixed appointments or if the count cannot be determined."
