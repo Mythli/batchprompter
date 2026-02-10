@@ -81,6 +81,7 @@
         },
         {
           "type": "validation",
+          "target": "websiteAgent",
           "schema": {
             "type": "object",
             "properties": {
