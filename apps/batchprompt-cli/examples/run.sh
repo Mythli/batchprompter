@@ -7,9 +7,9 @@ set -e
 cd "$(dirname "$0")/.."
 
 echo "=========================================="
-echo "Running Example 01: RAG Image Generation"
+echo "Skipping Example 01: RAG Image Generation"
+echo "(Requires image-search plugin - not yet available)"
 echo "=========================================="
-bash examples/01-rag-imagegen/run.sh
 
 echo ""
 echo "=========================================="
@@ -25,9 +25,9 @@ bash examples/03-seo-rank/run.sh
 
 echo ""
 echo "=========================================="
-echo "Running Example 04: Website Style Analysis"
+echo "Skipping Example 04: Website Style Analysis"
+echo "(Requires style-scraper plugin - not yet available)"
 echo "=========================================="
-bash examples/04-describe-website-css/run.sh
 
 echo ""
 echo "=========================================="
@@ -36,4 +36,10 @@ echo "=========================================="
 bash examples/05-simple-chain/run.sh
 
 echo ""
-echo "All examples finished successfully!"
+echo "=========================================="
+echo "Skipping Example 05: Logo Downloader"
+echo "(Requires logo-scraper plugin - not yet available)"
+echo "=========================================="
+
+echo ""
+echo "All available examples finished successfully!"

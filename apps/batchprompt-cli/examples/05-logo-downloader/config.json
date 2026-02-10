@@ -1,4 +1,5 @@
 {
+  "_NOTE": "This example requires the logo-scraper plugin which is not yet available in the new architecture. It will fail at runtime.",
   "concurrency": 2,
   "output": {
     "tmpDir": "out/05-logo-downloader/.tmp"
@@ -6,21 +7,12 @@
   "dataOutputPath": "out/05-logo-downloader/results.csv",
   "steps": [
     {
-      "plugins": [
-        {
-          "type": "logo-scraper",
-          "url": "{{website_url}}",
-          "maxCandidates": 10,
-          "minScore": 6,
-          "logoPath": "out/05-logo-downloader/logos/{{website_url}}.png",
-          "faviconPath": "out/05-logo-downloader/favicons/{{website_url}}.png",
-          "output": {
-            "mode": "merge"
-          }
-        }
-      ],
+      "model": {
+        "prompt": "Describe the brand identity of {{website_url}}."
+      },
       "output": {
-        "mode": "ignore"
+        "mode": "column",
+        "column": "brand_description"
       }
     }
   ]

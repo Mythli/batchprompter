@@ -1,7 +1,11 @@
 {
-  "model": "google/gemini-3-flash-preview",
-  "thinkingLevel": "high",
-  "tmpDir": "out/02-lead-gen/.tmp",
+  "model": {
+    "model": "google/gemini-3-flash-preview",
+    "thinkingLevel": "high"
+  },
+  "output": {
+    "tmpDir": "out/02-lead-gen/.tmp"
+  },
   "dataOutputPath": "out/02-lead-gen/companies_enriched.csv",
   "steps": [
     {

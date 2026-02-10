@@ -82,8 +82,8 @@ export class DebugLogger {
             const prefix = `[Row ${payload.row}] [${payload.plugin}]`;
             const data = payload.data;
 
-            // Formatter Registry
-            if (payload.plugin === 'websiteAgent') {
+            // Formatter Registry — using kebab-case plugin type names
+            if (payload.plugin === 'website-agent') {
                 if (payload.event === 'page:scraped') {
                     console.log(`${prefix} 🌍 Visited ${data.url} (${data.html?.length || 0} chars)`);
                 } else if (payload.event === 'decision:made') {
@@ -113,7 +113,7 @@ export class DebugLogger {
                 } else if (payload.event === 'validation:passed') {
                     console.log(`${prefix} ✅ Passed (${data.source})`);
                 }
-            } else if (payload.plugin === 'imageSearch') {
+            } else if (payload.plugin === 'image-search') {
                 if (payload.event === 'query:generated') {
                     console.log(`${prefix} 🔍 Generated queries: ${data.queries?.join(', ')}`);
                 } else if (payload.event === 'search:result') {
@@ -121,7 +121,7 @@ export class DebugLogger {
                 } else if (payload.event === 'result:selected') {
                     console.log(`${prefix} ✨ Selected ${data.results?.length || 0} images.`);
                 }
-            } else if (payload.plugin === 'webSearch') {
+            } else if (payload.plugin === 'web-search') {
                 if (payload.event === 'query:generated') {
                     console.log(`${prefix} 🔍 Generated queries: ${data.queries?.join(', ')}`);
                 } else if (payload.event === 'search:result') {
@@ -129,7 +129,7 @@ export class DebugLogger {
                 } else if (payload.event === 'content:enrich') {
                     console.log(`${prefix} 📄 Enriched ${data.url}`);
                 }
-            } else if (payload.plugin === 'logoScraper') {
+            } else if (payload.plugin === 'logo-scraper') {
                 if (payload.event === 'found') {
                     console.log(`${prefix} 🎨 Found ${data.count} potential logos.`);
                 } else if (payload.event === 'downloading') {
@@ -137,7 +137,7 @@ export class DebugLogger {
                 } else if (payload.event === 'analyzing') {
                     console.log(`${prefix} 🧠 Analyzing ${data.count} logos...`);
                 }
-            } else if (payload.plugin === 'styleScraper') {
+            } else if (payload.plugin === 'style-scraper') {
                 if (payload.event === 'scraping') {
                     console.log(`${prefix} 🎨 Scraping styles from ${data.url}`);
                 } else if (payload.event === 'interactive') {

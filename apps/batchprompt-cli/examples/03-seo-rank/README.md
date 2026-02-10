@@ -1,39 +1,58 @@
-# SEO Rank Tracker Tutorial
+# SEO Rank Tracker
 
-This example shows how to use `batchprompt` as a flexible SEO tool. It demonstrates how to use the **Web Search Plugin** with an **AI Selector** to perform intelligent rank tracking.
+This example uses `batchprompt` to check if a specific domain appears in Google search results for a list of keywords.
 
-> **💡 Tip:** This tutorial is the primary reference for understanding and configuring the **Web Search Plugin**.
+## Goal
 
-## 🎯 Goal
-Check a list of keywords (from `data.csv`) and determine if a specific domain (e.g., `butlerapp.de`) appears in the top Google search results.
+Check keywords from `data.csv` and determine if `butlerapp.de` appears in the top Google search results.
 
-## ⚙️ Configuration
+## Configuration
 
-The pipeline is defined in `config.json`.
+The pipeline is defined in `config.json`:
 
 ```json
 {
-  "type": "web-search",
-  "query": "{{keyword}}",
-  "maxPages": 3,
-  "limit": 30,
-  "selectPrompt": "Select up to 10 links that point to Butlerapp (butlerapp.de). If no Butlerapp link exists, select nothing.",
+  "model": "google/gemini-3-flash-preview",
   "output": {
-    "mode": "merge",
-    "explode": true
-  }
+    "tmpDir": "out/03-seo-rank/.tmp"
+  },
+  "dataOutputPath": "out/03-seo-rank/results.csv",
+  "inputLimit": 10,
+  "steps": [
+    {
+      "plugins": [
+        {
+          "type": "web-search",
+          "query": "{{keyword}}",
+          "maxPages": 3,
+          "limit": 30,
+          "mode": "none",
+          "gl": "de",
+          "hl": "de",
+          "selectModel": {
+            "prompt": "Select up to 10 links that point to Butlerapp..."
+          },
+          "output": {
+            "mode": "merge",
+            "explode": true
+          }
+        }
+      ]
+    }
+  ]
 }
 ```
 
-### Key Settings Explained
+### Key Settings
 
-| Setting | Value in Example | Description |
-| :--- | :--- | :--- |
-| `query` | `{{keyword}}` | This pulls the search term from the input CSV row. |
-| `maxPages` | `3` | We tell the scraper to fetch the first 3 pages of Google results (approx. 30 results). |
-| `selectPrompt` | *"Select up to 10 links..."* | **This is the filter.** Normally, `web-search` returns the most relevant results for the *query*. By setting a `selectPrompt`, we tell the AI to look at those 30 results and **only return the ones that match our criteria** (links to `butlerapp.de`). If the domain isn't found, the AI returns nothing, effectively telling us we are not ranking for that keyword. |
+| Setting | Value | Description |
+|:--------|:------|:------------|
+| `query` | `{{keyword}}` | Pulls the search term from the input CSV row |
+| `maxPages` | `3` | Fetches first 3 pages of Google results (~30 results) |
+| `selectModel.prompt` | *"Select up to 10 links..."* | AI filter: looks at results and returns only links matching criteria (butlerapp.de). Uses a nested model config object. |
+| `gl` / `hl` | `"de"` | Country and language for Google search |
 
-### 💾 Output Configuration
+### Output Configuration
 
 ```json
 "output": {
@@ -42,117 +61,47 @@ The pipeline is defined in `config.json`.
 }
 ```
 
-*   **`mode: "merge"`**: This ensures the search result data (Title, Link, Snippet) is added to your CSV row. If you set this to `ignore` (default), the search would happen, but the data wouldn't appear in your final CSV.
-*   **`explode: true`**: The search returns an **Array** of results.
-    *   **True:** Creates 1 row per search result (e.g., 10 rows for 1 keyword). Useful for analyzing every ranking.
-    *   **False:** Keeps 1 row per keyword. The search results are stored as a JSON array inside that row. Useful if you just want to store the data without expanding the CSV.
+- **`mode: "merge"`**: Search result data (Title, Link, Snippet) is added to the CSV row
+- **`explode: true`**: Creates 1 row per search result. Set to `false` to keep results as a JSON array in one row.
 
-#### 🤖 How the Web Search Plugin Works Internally
-The plugin uses a **Map-Reduce** approach to handle large volumes of search results efficiently:
+### Web Search Plugin Config
 
-1.  **Generate Queries:** If configured, an LLM generates multiple search variations (e.g., "Language school", "German courses") to cast a wide net.
-2.  **Scatter (Search & Filter):** It executes all searches in parallel. If a `selectPrompt` is provided, it applies a **Local Filter** to each page of results immediately. This discards irrelevant results (like directories or ads) before they clog up the pipeline.
-3.  **Gather & Dedupe:** It collects all surviving results and removes duplicates based on the `dedupeStrategy` (e.g., keeping only one result per domain).
-4.  **Reduce (Global Selection):** If the number of unique results still exceeds the `limit`, it runs a final **Global Selection** step to pick the absolute best matches.
-5.  **Enrich:** Finally, if `mode` is set to `markdown` or `html`, it visits the selected URLs to fetch their full content.
-
-#### ⚙️ Web Search Configuration Schema
+The `web-search` plugin uses nested model config objects for its AI operations:
 
 ```json
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "properties": {
-    "type": {
-      "const": "web-search",
-      "description": "Must be 'web-search'"
-    },
-    "query": {
-      "type": "string",
-      "description": "The search query. Supports Handlebars (e.g., '{{keyword}}')."
-    },
-    "limit": {
-      "type": "integer",
-      "default": 5,
-      "description": "Max total results to return."
-    },
-    "mode": {
-      "enum": ["none", "markdown", "html"],
-      "default": "none",
-      "description": "Content fetching mode: 'none' (snippets only), 'markdown', 'html'."
-    },
-    "queryCount": {
-      "type": "integer",
-      "default": 3,
-      "description": "Number of queries to generate (if using query model)."
-    },
-    "maxPages": {
-      "type": "integer",
-      "default": 1,
-      "description": "Max pages of search results to fetch per query."
-    },
-    "dedupeStrategy": {
-      "enum": ["none", "domain", "url"],
-      "default": "none",
-      "description": "Deduplication strategy."
-    },
-    "gl": {
-      "type": "string",
-      "description": "Google Search country code (e.g. 'de', 'us')."
-    },
-    "hl": {
-      "type": "string",
-      "description": "Google Search language code (e.g. 'de', 'en')."
-    },
-    "queryModel": {
-      "type": "string",
-      "description": "Model used to generate search queries."
-    },
-    "queryThinkingLevel": {
-      "enum": ["low", "medium", "high"],
-      "description": "Reasoning effort for the query model."
-    },
-    "queryTemperature": {
-      "type": "number",
-      "description": "Temperature for the query model."
-    },
-    "queryPrompt": {
-      "type": "string",
-      "description": "Instructions for generating search queries."
-    },
-    "selectModel": {
-      "type": "string",
-      "description": "Model used to select/filter results."
-    },
-    "selectThinkingLevel": {
-      "enum": ["low", "medium", "high"],
-      "description": "Reasoning effort for the selection model."
-    },
-    "selectTemperature": {
-      "type": "number",
-      "description": "Temperature for the selection model."
-    },
-    "selectPrompt": {
-      "type": "string",
-      "description": "Criteria for selecting results."
-    },
-    "compressModel": {
-      "type": "string",
-      "description": "Model used to summarize page content (if mode is not 'none')."
-    },
-    "compressThinkingLevel": {
-      "enum": ["low", "medium", "high"],
-      "description": "Reasoning effort for the compression model."
-    },
-    "compressTemperature": {
-      "type": "number",
-      "description": "Temperature for the compression model."
-    },
-    "compressPrompt": {
-      "type": "string",
-      "description": "Instructions for summarizing content."
-    }
+  "type": "web-search",
+  "query": "{{keyword}}",
+  "selectModel": {
+    "model": "google/gemini-3-flash-preview",
+    "prompt": "Select links matching criteria..."
   },
-  "required": ["type"]
+  "queryModel": {
+    "model": "google/gemini-3-flash-preview",
+    "prompt": "Generate search queries for..."
+  }
 }
+```
+
+Each model config (`queryModel`, `selectModel`, `compressModel`) accepts:
+- `model`: Model name (inherits from global if not set)
+- `prompt`: Instructions for the AI
+- `system`: System prompt
+- `temperature`: Temperature setting
+- `thinkingLevel`: Reasoning effort (`low` / `medium` / `high`)
+
+### How Web Search Works Internally
+
+1. **Generate Queries**: LLM generates search variations (if `queryModel` configured)
+2. **Scatter**: Executes searches in parallel, applies local filter via `selectModel`
+3. **Gather & Dedupe**: Collects results, removes duplicates per `dedupeStrategy`
+4. **Reduce**: If results exceed `limit`, runs global selection
+5. **Enrich**: If `mode` is `markdown` or `html`, fetches full page content
+
+## Running
+
+```bash
+export BATCHPROMPT_OPENAI_API_KEY="sk-..."
+export BATCHPROMPT_SERPER_API_KEY="..."
+bash examples/03-seo-rank/run.sh
 ```
