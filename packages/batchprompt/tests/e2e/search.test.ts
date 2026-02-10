@@ -111,7 +111,7 @@ describe('E2E Search Plugins', () => {
                             },
                             selectModel: {
                                 model: "gpt-mock",
-                                prompt: "Select the official investor relations page"
+                                prompt: "Select the official investor relations page for {{company}}"
                             },
                             mode: "markdown",
 
@@ -132,11 +132,96 @@ describe('E2E Search Plugins', () => {
         const createCall = (openai.chat.completions.create as any);
         expect(createCall).toHaveBeenCalledTimes(3);
 
+        // --- Verify that plugin model prompts were properly hydrated ---
+
+        // Call 0: Query generation — queryModel prompt should contain "Tesla", not "{{company}}"
+        const queryCallArgs = createCall.mock.calls[0][0];
+        const queryMessages = JSON.stringify(queryCallArgs.messages);
+        expect(queryMessages).toContain("Generate queries for Tesla");
+        expect(queryMessages).not.toContain("{{company}}");
+
+        // Call 1: Selection — selectModel prompt should contain "Tesla", not "{{company}}"
+        const selectCallArgs = createCall.mock.calls[1][0];
+        const selectMessages = JSON.stringify(selectCallArgs.messages);
+        expect(selectMessages).toContain("Select the official investor relations page for Tesla");
+        expect(selectMessages).not.toContain("{{company}}");
+
         // Verify that the final prompt contained the enriched content
         const finalCallArgs = createCall.mock.calls[2][0];
         const content = JSON.stringify(finalCallArgs.messages);
         expect(content).toContain("Content for https://tesla.com/ir");
         expect(content).toContain("mock markdown content");
+    });
+
+    it('should hydrate plugin model prompts per-row with different context values', async () => {
+        const mockResponses = [
+            // Row 1 (Tesla): query gen, selection, final
+            JSON.stringify({ queries: ["tesla info"] }),
+            JSON.stringify({ selected_indices: [0], reasoning: "Good result." }),
+            "Tesla CEO is Elon Musk.",
+            // Row 2 (Apple): query gen, selection, final
+            JSON.stringify({ queries: ["apple info"] }),
+            JSON.stringify({ selected_indices: [0], reasoning: "Good result." }),
+            "Apple CEO is Tim Cook."
+        ];
+
+        const { executor, openai } = await setupSearchTest(mockResponses);
+
+        const config = {
+            steps: [
+                {
+                    model: {
+                        model: "gpt-mock",
+                        prompt: "Who is the CEO of {{company}}?"
+                    },
+                    plugins: [
+                        {
+                            type: "webSearch",
+                            queryModel: {
+                                model: "gpt-mock",
+                                prompt: "Generate queries about {{company}}"
+                            },
+                            selectModel: {
+                                model: "gpt-mock",
+                                prompt: "Select best result for {{company}}"
+                            },
+                            mode: "markdown",
+                            limit: 1
+                        }
+                    ],
+                    output: { mode: "column", column: "ceo" }
+                }
+            ]
+        };
+
+        const { results } = await executor.runConfig(config, [
+            { company: "Tesla" },
+            { company: "Apple" }
+        ]);
+
+        expect(results).toHaveLength(2);
+
+        const createCall = (openai.chat.completions.create as any);
+        // 3 calls per row × 2 rows = 6 calls
+        expect(createCall).toHaveBeenCalledTimes(6);
+
+        // Verify Row 1 (Tesla) hydration — calls 0, 1, 2
+        const row1QueryMessages = JSON.stringify(createCall.mock.calls[0][0].messages);
+        expect(row1QueryMessages).toContain("Generate queries about Tesla");
+        expect(row1QueryMessages).not.toContain("{{company}}");
+
+        const row1SelectMessages = JSON.stringify(createCall.mock.calls[1][0].messages);
+        expect(row1SelectMessages).toContain("Select best result for Tesla");
+        expect(row1SelectMessages).not.toContain("{{company}}");
+
+        // Verify Row 2 (Apple) hydration — calls 3, 4, 5
+        const row2QueryMessages = JSON.stringify(createCall.mock.calls[3][0].messages);
+        expect(row2QueryMessages).toContain("Generate queries about Apple");
+        expect(row2QueryMessages).not.toContain("{{company}}");
+
+        const row2SelectMessages = JSON.stringify(createCall.mock.calls[4][0].messages);
+        expect(row2SelectMessages).toContain("Select best result for Apple");
+        expect(row2SelectMessages).not.toContain("{{company}}");
     });
 
     // Image Search plugin is currently disabled (needs migration to new architecture)

@@ -30,7 +30,7 @@ describe('E2E SEO Rank', () => {
         ];
 
         const mockWebSearch = new MockWebSearch();
-        const { executor } = setupTestEnvironment({
+        const { executor, openai } = setupTestEnvironment({
             mockResponses,
             webSearch: mockWebSearch
         });
@@ -45,10 +45,10 @@ describe('E2E SEO Rank', () => {
                             maxPages: 1,
                             limit: 30,
                             mode: "none",
-                            // selectModel is now an object with model + prompt
+                            // selectModel prompt includes a template variable to verify hydration
                             selectModel: {
                                 model: "gpt-mock",
-                                prompt: "Select links for Butlerapp"
+                                prompt: "Select links for Butlerapp matching {{keyword}}"
                             },
                             output: {
                                 mode: "merge",
@@ -78,5 +78,14 @@ describe('E2E SEO Rank', () => {
         expect(results[1]['webSearch'].title).toBe("Butlerapp Pricing");
         expect(results[1]['webSearch'].link).toBe("https://butlerapp.de/pricing");
         expect(results[1].keyword).toBe("kursverwaltung");
+
+        // --- Verify selectModel prompt was properly hydrated ---
+        const createCall = (openai.chat.completions.create as any);
+        expect(createCall).toHaveBeenCalledTimes(1);
+
+        const selectCallArgs = createCall.mock.calls[0][0];
+        const selectMessages = JSON.stringify(selectCallArgs.messages);
+        expect(selectMessages).toContain("Select links for Butlerapp matching kursverwaltung");
+        expect(selectMessages).not.toContain("{{keyword}}");
     });
 });

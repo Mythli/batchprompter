@@ -1,3 +1,4 @@
+import OpenAI from 'openai';
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import {
@@ -49,6 +50,39 @@ function fillModelDefaults(
     };
 }
 
+/**
+ * Renders Handlebars templates inside a ModelConfig's messages.
+ * Mirrors the hydrateModel() logic in Step.hydrate(), but as a standalone function
+ * so plugins can reuse it.
+ */
+function hydrateModelMessages(
+    model: ModelConfig | undefined,
+    context: Record<string, any>
+): ModelConfig | undefined {
+    if (!model) return undefined;
+
+    return {
+        ...model,
+        messages: model.messages.map(msg => {
+            if (typeof msg.content === 'string') {
+                const compiled = Handlebars.compile(msg.content, { noEscape: true });
+                return { ...msg, content: compiled(context) };
+            }
+            if (Array.isArray(msg.content)) {
+                const hydratedContent = msg.content.map((part: any) => {
+                    if (part.type === 'text') {
+                        const compiled = Handlebars.compile(part.text, { noEscape: true });
+                        return { ...part, text: compiled(context) };
+                    }
+                    return part;
+                });
+                return { ...msg, content: hydratedContent };
+            }
+            return msg;
+        }) as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+    };
+}
+
 export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig> {
     readonly type = 'webSearch';
 
@@ -90,7 +124,10 @@ export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig
 
         return {
             ...config,
-            query
+            query,
+            queryModel: hydrateModelMessages(config.queryModel, context),
+            selectModel: hydrateModelMessages(config.selectModel, context),
+            compressModel: hydrateModelMessages(config.compressModel, context),
         };
     }
 
