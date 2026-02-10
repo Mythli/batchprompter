@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import PQueue from 'p-queue';
-import TurndownService from 'turndown';
 import OpenAI from 'openai';
 import { EventEmitter } from 'eventemitter3';
 import { BoundLlmClient } from '../../BoundLlmClient.js';
@@ -8,6 +7,7 @@ import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import { LinkData } from '../../utils/puppeteer/PuppeteerPageHelper.js';
 import { compressHtml } from '../../utils/compressHtml.js';
 import { truncateSingleMessage } from 'llm-fns';
+import { htmlToMarkdown } from '../../utils/htmlToMarkdown.js';
 
 export interface AiWebsiteAgentOptions {
     budget: number;
@@ -47,9 +47,7 @@ export class AiWebsiteAgent {
                         const links = await ph.extractLinksWithText();
 
                         const compressed = compressHtml(html);
-                        const turndownService = new TurndownService();
-                        turndownService.remove(['script', 'style', 'noscript', 'iframe']);
-                        const markdown = turndownService.turndown(compressed);
+                        const markdown = htmlToMarkdown(compressed);
 
                         return { html, markdown, links };
                     },

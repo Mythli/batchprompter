@@ -1,8 +1,8 @@
 import {Page, CDPSession, Viewport, ElementHandle, HTTPRequest} from 'puppeteer';
 import { Cache } from 'cache-manager';
 import {CachedResponse, Fetcher} from "llm-fns";
-import TurndownService from 'turndown';
 import { compressHtml } from '../compressHtml.js';
+import { htmlToMarkdown } from '../htmlToMarkdown.js';
 
 /** Defines the viewport dimensions for a screenshot. */
 export interface Resolution {
@@ -353,9 +353,7 @@ export class PuppeteerPageHelper {
 
         // Compression and Markdown conversion
         const compressed = compressHtml(html);
-        const turndownService = new TurndownService();
-        turndownService.remove(['script', 'style', 'noscript', 'iframe']);
-        const markdown = turndownService.turndown(compressed);
+        const markdown = htmlToMarkdown(compressed);
 
         return { html, markdown, links };
     }

@@ -3,7 +3,7 @@ import { WebSearchPlugin } from './web-search/WebSearchPlugin.js';
 import { ValidationPlugin } from './validation/ValidationPlugin.js';
 import { DedupePlugin } from './dedupe/DedupePlugin.js';
 // import { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
-// import { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
+import { WebsiteAgentPlugin } from './website-agent/WebsiteAgentPlugin.js';
 // import { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
 // import { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
 import { UrlExpanderPlugin } from './url-expander/UrlExpanderPlugin.js';
@@ -28,7 +28,8 @@ export { ValidationPluginRow } from './validation/ValidationPluginRow.js';
 export { DedupePlugin } from './dedupe/DedupePlugin.js';
 export { DedupePluginRow } from './dedupe/DedupePluginRow.js';
 // export { ImageSearchPluginV2 } from './image-search/ImageSearchPluginV2.js';
-// export { WebsiteAgentPluginV2 } from './website-agent/WebsiteAgentPluginV2.js';
+export { WebsiteAgentPlugin } from './website-agent/WebsiteAgentPlugin.js';
+export { WebsiteAgentPluginRow } from './website-agent/WebsiteAgentPluginRow.js';
 // export { StyleScraperPluginV2 } from './style-scraper/StyleScraperPluginV2.js';
 // export { LogoScraperPluginV2 } from './logo-scraper/LogoScraperPluginV2.js';
 export { UrlExpanderPlugin } from './url-expander/UrlExpanderPlugin.js';
@@ -74,14 +75,12 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     // }
 
     // 5. Website Agent (Requires Puppeteer)
-    // Note: WebsiteAgentPluginV2 needs migration to new architecture
-    // if (deps.puppeteerHelper && deps.puppeteerQueue) {
-    //     registry.register(new WebsiteAgentPluginV2({
-    //         puppeteerHelper: deps.puppeteerHelper,
-    //         puppeteerQueue: deps.puppeteerQueue,
-    //         createLlm: deps.createLlm
-    //     }));
-    // }
+    if (deps.puppeteerHelper && deps.puppeteerQueue) {
+        registry.register(new WebsiteAgentPlugin({
+            puppeteerHelper: deps.puppeteerHelper,
+            puppeteerQueue: deps.puppeteerQueue
+        }));
+    }
 
     // 6. Style Scraper (Requires Puppeteer)
     // Note: StyleScraperPluginV2 needs migration to new architecture
