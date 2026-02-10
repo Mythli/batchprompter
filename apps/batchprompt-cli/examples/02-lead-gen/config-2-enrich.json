@@ -33,14 +33,6 @@
                 "type": ["string", "null"],
                 "description": "The legal form / company type of the business (e.g. 'GmbH', 'e.V.', 'AG', 'UG', 'Einzelunternehmen', 'GbR', 'OHG', 'KG', 'gGmbH'). Look in the imprint (Impressum), footer, or about page. Optional."
               },
-              "hasFixedAppointments": {
-                "type": ["integer", "null"],
-                "description": "Does the business model rely on fixed-range scheduled appointments or courses with a clear START DATE and END DATE? A fixed appointment is a course or event that runs from a specific date to a specific date (e.g. 'Intensivkurs Deutsch A1 - 01.09.2025 bis 30.09.2025', 'B2 Abendkurs 14.07.2025 - 08.08.2025'). The key criterion is a concrete FROM-TO date range visible on the website. This does NOT include: recurring open classes anyone can join on any given day (e.g. 'Yoga every Monday 18:00'), drop-in sessions, rolling memberships, punch cards / 10er-Karten (e.g. '10x Yoga for 120€'), or ongoing weekly group classes without a defined end date. Return 1 if the website clearly shows courses/events with fixed from-to date ranges. Return 0 if the business only offers open/recurring/drop-in formats. Return null if unsure."
-              },
-              "hasFixedAppointmentsReason": {
-                "type": ["string", "null"],
-                "description": "Explain why hasFixedAppointments was set to 1, 0, or null. Describe what kind of scheduling format was found on the website. If fixed appointments exist, give 1-2 concrete examples with their date ranges. If not, explain what format the business uses instead (e.g. 'Only offers drop-in yoga classes every weekday', 'Uses a 10er-Karte system without fixed dates')."
-              },
               "approximateFixedAppointments": {
                 "type": ["integer", "null"],
                 "description": "Approximate number of individual fixed-range scheduled course instances currently listed on the website. Only count courses/events that have a concrete start date AND end date (a clear FROM-TO range). Count each individual scheduled instance separately, not course types. For example, if 'Intensivkurs A1' runs 3 times in the next months with different start dates, count 3. If 'B2 Abendkurs' runs once, count 1. Do NOT count recurring open classes, drop-in sessions, or undated course descriptions. Return 0 if the business exists but has no fixed appointments. Return null if hasFixedAppointments is null or if the count cannot be determined."
