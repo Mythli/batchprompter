@@ -343,7 +343,7 @@ export class StepRow {
         if (!targetConfig) {
             throw new Error('No model configuration provided and no default model config available');
         }
-        return this.step.deps.llmFactory.create(targetConfig, targetConfig.messages);
+        return this.step.deps.llmFactory.create(targetConfig, targetConfig.messages || []);
     }
 
     /**
