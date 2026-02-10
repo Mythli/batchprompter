@@ -88,6 +88,7 @@ export class DedupePlugin extends BasePlugin<DedupeConfig, DedupeConfig> {
     }
 
     createRow(stepRow: StepRow, config: DedupeConfig): BasePluginRow<DedupeConfig> {
-        return new DedupePluginRow(stepRow, config, this);
+        // Cast config to include the hydrated property since we know it comes from hydrate()
+        return new DedupePluginRow(stepRow, config as DedupeConfig & { _renderedKey: string }, this);
     }
 }

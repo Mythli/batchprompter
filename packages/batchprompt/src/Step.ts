@@ -30,7 +30,7 @@ export class Step {
         public readonly globalConfig: GlobalConfig
     ) {
         // Normalize plugins once during initialization
-        this.plugins = (config.plugins || []).map(pluginConfig => {
+        this.plugins = (config.plugins || []).map((pluginConfig: any) => {
             const instance = deps.pluginRegistry.get(pluginConfig.type);
             if (!instance) {
                 throw new Error(`Plugin '${pluginConfig.type}' not found in registry.`);
