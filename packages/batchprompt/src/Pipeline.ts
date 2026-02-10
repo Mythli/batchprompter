@@ -12,7 +12,7 @@ export class Pipeline {
     ) {}
 
     async run(): Promise<{ results: any[], artifacts: any[] }> {
-        const { concurrency, taskConcurrency, data, steps, offset = 0, limit } = this.globalConfig;
+        const { concurrency, taskConcurrency, data, steps, inputOffset: offset = 0, inputLimit: limit } = this.globalConfig;
         const events = this.deps.events;
 
         // Collection arrays
