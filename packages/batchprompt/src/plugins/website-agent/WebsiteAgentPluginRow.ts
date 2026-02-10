@@ -36,7 +36,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
         // Bridge events
         agent.events.on('page:scraped', (data) => {
             emit('plugin:event', {
-                row: context.index,
+                row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
                 plugin: 'website-agent',
                 event: 'page:scraped',
@@ -46,7 +46,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
 
         agent.events.on('decision:made', (data) => {
             emit('plugin:event', {
-                row: context.index,
+                row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
                 plugin: 'website-agent',
                 event: 'decision:made',
@@ -56,7 +56,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
 
         agent.events.on('results:merged', (data) => {
             emit('plugin:event', {
-                row: context.index,
+                row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
                 plugin: 'website-agent',
                 event: 'results:merged',
@@ -66,7 +66,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
 
         agent.events.on('start', (data) => {
             emit('plugin:event', {
-                row: context.index,
+                row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
                 plugin: 'website-agent',
                 event: 'start',
@@ -76,7 +76,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
 
         agent.events.on('stop', (data) => {
             emit('plugin:event', {
-                row: context.index,
+                row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
                 plugin: 'website-agent',
                 event: 'stop',
@@ -86,7 +86,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
 
         agent.events.on('batch', (data) => {
             emit('plugin:event', {
-                row: context.index,
+                row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
                 plugin: 'website-agent',
                 event: 'batch',
@@ -96,7 +96,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
 
         agent.events.on('error', (data) => {
             emit('plugin:event', {
-                row: context.index,
+                row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
                 plugin: 'website-agent',
                 event: 'error',

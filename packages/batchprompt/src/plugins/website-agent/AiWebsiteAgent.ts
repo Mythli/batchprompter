@@ -208,7 +208,7 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
                 }
             }
         } catch (e: any) {
-            this.events.emit('error', { message: `Failed to scrape initial URL ${initialUrl}: ${e.message}` });
+            this.events.emit('error', { message: `Failed to scrape initial URL ${initialUrl}: ${e.message}\n${e.stack}` });
             return {};
         }
 
@@ -243,7 +243,7 @@ If no relevant links are left or you have sufficient information, set 'is_done' 
                     );
                     return { url, data, links: page.links };
                 } catch (e: any) {
-                    this.events.emit('error', { message: `Failed to scrape ${url}: ${e.message}` });
+                    this.events.emit('error', { message: `Failed to scrape ${url}: ${e.message}\n${e.stack}` });
                     return null;
                 }
             });
