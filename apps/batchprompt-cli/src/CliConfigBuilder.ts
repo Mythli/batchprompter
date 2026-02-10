@@ -25,13 +25,15 @@ export class CliConfigBuilder {
         if (options.timeout) config.timeout = parseInt(String(options.timeout), 10);
 
         // Global output
-        if (options.outputPath || options.outputMode || options.outputColumn || options.outputExplode || options.outputTmpDir) {
+        if (options.outputPath || options.outputMode || options.outputColumn || options.outputExplode || options.outputTmpDir || options.outputLimit !== undefined || options.outputOffset !== undefined) {
             config.output = config.output || {};
             if (options.outputPath) config.output.path = options.outputPath;
             if (options.outputMode) config.output.mode = options.outputMode;
             if (options.outputColumn) config.output.column = options.outputColumn;
             if (options.outputExplode) config.output.explode = true;
             if (options.outputTmpDir) config.output.tmpDir = options.outputTmpDir;
+            if (options.outputLimit !== undefined) config.output.limit = parseInt(String(options.outputLimit), 10);
+            if (options.outputOffset !== undefined) config.output.offset = parseInt(String(options.outputOffset), 10);
         }
 
         // Global limits
@@ -109,13 +111,13 @@ export class CliConfigBuilder {
                 step.output = step.output || {};
                 step.output.explode = true;
             }
-            if (options[`${stepNum}Limit`] !== undefined) {
+            if (options[`${stepNum}OutputLimit`] !== undefined) {
                 step.output = step.output || {};
-                step.output.limit = parseInt(String(options[`${stepNum}Limit`]), 10);
+                step.output.limit = parseInt(String(options[`${stepNum}OutputLimit`]), 10);
             }
-            if (options[`${stepNum}Offset`] !== undefined) {
+            if (options[`${stepNum}OutputOffset`] !== undefined) {
                 step.output = step.output || {};
-                step.output.offset = parseInt(String(options[`${stepNum}Offset`]), 10);
+                step.output.offset = parseInt(String(options[`${stepNum}OutputOffset`]), 10);
             }
 
             // Other step settings

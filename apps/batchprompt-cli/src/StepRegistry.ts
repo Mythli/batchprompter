@@ -25,6 +25,8 @@ export class StepRegistry {
         program.option('--output-column <column>', 'Output column name');
         program.option('--output-explode', 'Explode array results');
         program.option('--output-tmp-dir <path>', 'Temp directory');
+        program.option('--output-limit <number>', 'Global output limit (caps explosion results)', parseInt);
+        program.option('--output-offset <number>', 'Global output offset (skips first N explosion results)', parseInt);
 
         // Global limits
         program.option('--input-limit <number>', 'Limit input rows', parseInt);
@@ -44,8 +46,8 @@ export class StepRegistry {
             program.option(`--${i}-output-mode <mode>`, `Output mode for step ${i}`);
             program.option(`--${i}-output-column <column>`, `Output column for step ${i}`);
             program.option(`--${i}-output-explode`, `Explode results for step ${i}`);
-            program.option(`--${i}-limit <number>`, `Output limit for step ${i}`, parseInt);
-            program.option(`--${i}-offset <number>`, `Output offset for step ${i}`, parseInt);
+            program.option(`--${i}-output-limit <number>`, `Output limit for step ${i}`, parseInt);
+            program.option(`--${i}-output-offset <number>`, `Output offset for step ${i}`, parseInt);
 
             // Other
             program.option(`--${i}-candidates <number>`, `Candidates for step ${i}`, parseInt);

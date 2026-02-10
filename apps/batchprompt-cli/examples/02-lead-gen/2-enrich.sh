@@ -8,4 +8,4 @@ cd "$(dirname "$0")/../.."
 
 # Run using config file
 # Input comes from the output of step 1
-cat out/02-lead-gen/companies.csv | node dist/index.js generate --config examples/02-lead-gen/config-2-enrich.json --limit 5
+cat out/02-lead-gen/companies.csv | node dist/index.js generate --config examples/02-lead-gen/config-2-enrich.json --input-limit 5
