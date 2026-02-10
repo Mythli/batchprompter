@@ -161,7 +161,7 @@ describe('E2E Website Agent', () => {
                 {
                     plugins: [
                         {
-                            type: "website-agent",
+                            type: "websiteAgent",
                             url: "http://example.com",
                             schema: {
                                 type: "object",

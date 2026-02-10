@@ -14,7 +14,7 @@ import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import PQueue from 'p-queue';
 
 export const WebsiteAgentConfigSchema = z.object({
-    type: z.literal('website-agent'),
+    type: z.literal('websiteAgent'),
     id: z.string().optional(),
     output: PartialOutputConfigSchema.optional(),
     url: zHandlebars.describe("The starting URL to scrape."),
