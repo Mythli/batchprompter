@@ -178,7 +178,8 @@ describe('E2E Website Agent', () => {
         const { results } = await executor.runConfig(config, [{}]);
 
         expect(results).toHaveLength(1);
-        expect(results[0].ceo).toBe("Alice");
+        // Plugin output is namespaced under camelCased plugin type: 'websiteAgent'
+        expect(results[0].websiteAgent.ceo).toBe("Alice");
         
         // Verify navigation flow
         expect(mockPageHelper.navigateAndCache).toHaveBeenCalledTimes(2);
