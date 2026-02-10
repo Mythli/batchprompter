@@ -2,6 +2,8 @@
 export * from './schema.js';
 export * from './model.js';
 export * from './validationRules.js';
+export * from './ContentResolver.js';
+export * from './resolveRawConfig.js';
 
 // Type aliases for backward compatibility
 export type StepBaseConfig = import('./schema.js').StepConfig;

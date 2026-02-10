@@ -10,10 +10,9 @@ export const RawModelConfigSchema = z.object({
     model: z.string().optional(),
     temperature: z.number().min(0).max(2).optional(),
     reasoning_effort: z.enum(['low', 'medium', 'high']).optional(),
+    thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
     system: PromptSchema.optional(),
     prompt: PromptSchema.optional()
-}).refine(data => data.system || data.prompt, {
-    message: "no messages"
 });
 
 export type RawModel = z.infer<(typeof RawModelConfigSchema)>;
@@ -42,10 +41,13 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
         }
     }
 
+    // Resolve thinkingLevel → reasoning_effort (thinkingLevel is the user-facing name)
+    const reasoning_effort = config.reasoning_effort ?? config.thinkingLevel;
+
     return {
         model: config.model,
         temperature: config.temperature,
-        reasoning_effort: config.reasoning_effort,
+        reasoning_effort,
         messages
     };
 }

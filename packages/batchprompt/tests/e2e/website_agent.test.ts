@@ -102,28 +102,7 @@ describe('E2E Website Agent', () => {
 
         const { executor } = setupTestEnvironment({
             mockResponses: mockResolver,
-            // Inject our mock puppeteer helper into the test environment
-            // The setupTestEnvironment uses deps.puppeteerHelper if provided
         });
-        
-        // Override the puppeteer helper in the deps
-        // We need to do this before runConfig because setupTestEnvironment creates the registry
-        // But setupTestEnvironment creates deps internally.
-        // Let's look at setupTestEnvironment implementation in testUtils.ts.
-        // It accepts webSearch/imageSearch but not puppeteerHelper override directly in options,
-        // but it uses createTestContext which creates a mock puppeteerHelper.
-        // We need to override that mock.
-        
-        // Actually, setupTestEnvironment creates a fresh registry.
-        // We can't easily inject the mock helper via options without modifying testUtils.
-        // However, createTestContext creates a mock object for puppeteerHelper.
-        // We can spy on that mock or modify testUtils.
-        
-        // Let's modify the test to use the default mock from testUtils and spy on it?
-        // No, the default mock in testUtils.ts is:
-        // puppeteerHelper: { getPageHelper: vi.fn(), close: vi.fn() }
-        
-        // We can access it via the returned deps.
     });
     
     // Re-implementing the test with proper injection
@@ -161,7 +140,7 @@ describe('E2E Website Agent', () => {
                 {
                     plugins: [
                         {
-                            type: "websiteAgent",
+                            type: "website-agent",
                             url: "http://example.com",
                             schema: {
                                 type: "object",
@@ -178,8 +157,7 @@ describe('E2E Website Agent', () => {
         const { results } = await executor.runConfig(config, [{}]);
 
         expect(results).toHaveLength(1);
-        // Plugin output is namespaced under camelCased plugin type: 'websiteAgent'
-        expect(results[0].websiteAgent.ceo).toBe("Alice");
+        expect(results[0].ceo).toBe("Alice");
         
         // Verify navigation flow
         expect(mockPageHelper.navigateAndCache).toHaveBeenCalledTimes(2);

@@ -41,8 +41,6 @@ export class Step {
                 config: normalizedConfig
             };
         });
-
-        const a = 4;
     }
 
     /**

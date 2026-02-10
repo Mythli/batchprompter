@@ -116,17 +116,42 @@ export type StepConfig = Omit<z.infer<typeof StepSchema>, 'output'> & {
     [key: string]: any;
 };
 
-export const GlobalsSchema = StepSchema.extend({
+/**
+ * Preprocess to allow `model` to be a plain string at the global level.
+ * If `model` is a string, it's wrapped as `{ model: theString }`.
+ */
+const coerceGlobalModel = z.preprocess((val: unknown) => {
+    if (val && typeof val === 'object' && 'model' in val) {
+        const raw = val as Record<string, any>;
+        if (typeof raw.model === 'string') {
+            return { ...raw, model: { model: raw.model } };
+        }
+    }
+    return val;
+}, z.any());
+
+export const GlobalsSchema = z.preprocess((val: unknown) => {
+    // Coerce string model to object
+    if (val && typeof val === 'object' && 'model' in val) {
+        const raw = val as Record<string, any>;
+        if (typeof raw.model === 'string') {
+            return { ...raw, model: { model: raw.model } };
+        }
+    }
+    return val;
+}, StepSchema.extend({
     concurrency: z.number().int().positive().default(50),
     taskConcurrency: z.number().int().positive().default(100),
     inputLimit: z.number().int().positive().optional(),
     inputOffset: z.number().int().min(0).optional(),
+    dataOutputPath: z.string().optional(),
     steps: z.array(StepSchema)
-});
+}));
 
 export type GlobalConfig = Omit<z.infer<typeof GlobalsSchema>, 'output' | 'steps'> & {
     output: OutputConfig;
     steps: StepConfig[];
+    dataOutputPath?: string;
     [key: string]: any;
 };
 
@@ -143,6 +168,7 @@ export function normalizePipelineConfig(config: any): any {
         taskConcurrency,
         inputLimit,
         inputOffset,
+        dataOutputPath,
         ...globalDefaults
     } = config;
 
@@ -225,13 +251,25 @@ export const createPipelineSchema = (pluginRegistry: PluginRegistryV2) => {
         plugins: z.array(pluginUnion).default([])
     });
 
-    // Wrap the main schema with a preprocess step that runs each plugin's
-    // preprocessStep() on every raw step config BEFORE Zod validation.
-    // This allows plugins like UrlExpanderPlugin to convert step-level
-    // shorthands (e.g. `expandUrls`) into explicit plugin entries.
-    const mainSchema = GlobalsSchema.extend({
+    // Wrap the main schema with a preprocess step that:
+    // 1. Coerces global string model to object
+    // 2. Runs plugin preprocessStep() hooks
+    const mainSchema = z.preprocess((val: unknown) => {
+        if (val && typeof val === 'object' && 'model' in val) {
+            const raw = val as Record<string, any>;
+            if (typeof raw.model === 'string') {
+                val = { ...raw, model: { model: raw.model } };
+            }
+        }
+        return val;
+    }, StepSchema.extend({
+        concurrency: z.number().int().positive().default(50),
+        taskConcurrency: z.number().int().positive().default(100),
+        inputLimit: z.number().int().positive().optional(),
+        inputOffset: z.number().int().min(0).optional(),
+        dataOutputPath: z.string().optional(),
         steps: z.array(finalStepSchema)
-    }).transform(normalizePipelineConfig);
+    })).transform(normalizePipelineConfig);
 
     return z.preprocess((val: unknown) => {
         if (val && typeof val === 'object' && 'steps' in val && Array.isArray((val as any).steps)) {

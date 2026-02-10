@@ -11,7 +11,7 @@ import {
 import { StepConfig, GlobalConfig } from '../../config/schema.js';
 
 export class UrlExpanderPlugin extends BasePlugin<UrlExpanderConfig> {
-    readonly type = 'urlExpander';
+    readonly type = 'url-expander';
 
     constructor(private registry: UrlHandlerRegistry) {
         super();
@@ -21,7 +21,7 @@ export class UrlExpanderPlugin extends BasePlugin<UrlExpanderConfig> {
         return UrlExpanderConfigSchema.transform(config => {
             return {
                 ...config,
-                id: config.id ?? `urlExpander-${Date.now()}`,
+                id: config.id ?? `url-expander-${Date.now()}`,
             };
         });
     }
@@ -35,12 +35,12 @@ export class UrlExpanderPlugin extends BasePlugin<UrlExpanderConfig> {
             step.plugins = step.plugins || [];
 
             const isExplicitlyConfigured = step.plugins.some(
-                (p: any) => p.type === 'urlExpander'
+                (p: any) => p.type === 'url-expander'
             );
 
             if (!isExplicitlyConfigured) {
                 let pluginConfig: any = {
-                    type: 'urlExpander',
+                    type: 'url-expander',
                     output: { mode: 'ignore' },
                     mode: 'fetch',
                     maxChars: 30000

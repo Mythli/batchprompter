@@ -40,7 +40,7 @@ describe('E2E Plugin Explosion', () => {
                 {
                     plugins: [
                         {
-                            type: "webSearch",
+                            type: "web-search",
                             query: "test query",
                             output: {
                                 mode: "merge",

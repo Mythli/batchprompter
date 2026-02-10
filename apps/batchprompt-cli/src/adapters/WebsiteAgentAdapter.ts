@@ -1,89 +1,99 @@
 import { Command } from 'commander';
-import { WebsiteAgentPluginV2 } from 'batchprompt';
 import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
-import { ModelFlags } from '../ModelFlags.js';
 
 export class WebsiteAgentAdapter implements CliPluginAdapter {
-    constructor(public plugin: WebsiteAgentPluginV2) {}
+    readonly pluginType = 'website-agent';
 
     registerOptions(program: Command) {
-        ModelFlags.register(program, 'website-navigator', { includePrompt: true, includeSystem: true });
-        ModelFlags.register(program, 'website-extract', { includePrompt: true, includeSystem: true });
-        ModelFlags.register(program, 'website-merge', { includePrompt: true, includeSystem: true });
-
         program.option('--website-agent-url <url>', 'Starting URL to scrape');
         program.option('--website-agent-schema <path>', 'JSON Schema for extraction');
         program.option('--website-agent-budget <number>', 'Max pages to visit (default: 10)', parseInt);
         program.option('--website-agent-batch-size <number>', 'Pages per batch (default: 3)', parseInt);
-        program.option('--website-agent-export', 'Merge results into row');
-        program.option('--website-agent-output <column>', 'Save to column');
+        program.option('--website-agent-navigator-model <model>', 'Navigator model');
+        program.option('--website-agent-navigator-prompt <text>', 'Navigator prompt');
+        program.option('--website-agent-extract-model <model>', 'Extract model');
+        program.option('--website-agent-extract-prompt <text>', 'Extract prompt');
+        program.option('--website-agent-merge-model <model>', 'Merge model');
+        program.option('--website-agent-merge-prompt <text>', 'Merge prompt');
+        program.option('--website-agent-output-mode <mode>', 'Output mode');
+        program.option('--website-agent-output-column <column>', 'Output column');
     }
 
     registerOptionsForStep(program: Command, stepIndex: number) {
-        const registerStep = (flags: string, desc: string, parser?: any) => {
-            const stepFlags = flags.replace(/^(--[\w-]+)/, `$1-${stepIndex}`);
-            program.option(stepFlags, `${desc} for step ${stepIndex}`, parser);
-        };
-
-        ModelFlags.register(program, `website-navigator-${stepIndex}`, { includePrompt: true, includeSystem: true });
-        ModelFlags.register(program, `website-extract-${stepIndex}`, { includePrompt: true, includeSystem: true });
-        ModelFlags.register(program, `website-merge-${stepIndex}`, { includePrompt: true, includeSystem: true });
-
-        registerStep('--website-agent-url <url>', 'Starting URL to scrape');
-        registerStep('--website-agent-schema <path>', 'JSON Schema for extraction');
-        registerStep('--website-agent-budget <number>', 'Max pages to visit', parseInt);
-        registerStep('--website-agent-batch-size <number>', 'Pages per batch', parseInt);
-        registerStep('--website-agent-export', 'Merge results into row');
-        registerStep('--website-agent-output <column>', 'Save to column');
+        const s = stepIndex;
+        program.option(`--${s}-website-agent-url <url>`, `URL for step ${s}`);
+        program.option(`--${s}-website-agent-schema <path>`, `Schema for step ${s}`);
+        program.option(`--${s}-website-agent-budget <number>`, `Budget for step ${s}`, parseInt);
+        program.option(`--${s}-website-agent-batch-size <number>`, `Batch size for step ${s}`, parseInt);
+        program.option(`--${s}-website-agent-navigator-model <model>`, `Navigator model for step ${s}`);
+        program.option(`--${s}-website-agent-navigator-prompt <text>`, `Navigator prompt for step ${s}`);
+        program.option(`--${s}-website-agent-extract-model <model>`, `Extract model for step ${s}`);
+        program.option(`--${s}-website-agent-extract-prompt <text>`, `Extract prompt for step ${s}`);
+        program.option(`--${s}-website-agent-merge-model <model>`, `Merge model for step ${s}`);
+        program.option(`--${s}-website-agent-merge-prompt <text>`, `Merge prompt for step ${s}`);
+        program.option(`--${s}-website-agent-output-mode <mode>`, `Output mode for step ${s}`);
+        program.option(`--${s}-website-agent-output-column <column>`, `Output column for step ${s}`);
     }
 
-    parseOptions(options: Record<string, any>, stepIndex: number) {
+    parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
+            const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
             return options[stepKey] ?? options[key];
         };
 
         const url = getOpt('websiteAgentUrl');
         if (!url) return null;
 
-        const navigatorConfig = ModelFlags.extractPluginModel(options, 'websiteNavigator', stepIndex);
-        const extractConfig = ModelFlags.extractPluginModel(options, 'websiteExtract', stepIndex);
-        const mergeConfig = ModelFlags.extractPluginModel(options, 'websiteMerge', stepIndex);
-
-        const exportFlag = getOpt('websiteAgentExport');
-        const outputColumn = getOpt('websiteAgentOutput');
-
-        let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) outputMode = 'column';
-        else if (exportFlag) outputMode = 'merge';
-
-        const buildModelConfig = (config: any) => {
-            if (!config.prompt && !config.model && !config.temperature && !config.thinkingLevel && !config.system) {
-                return undefined;
-            }
-            return {
-                model: config.model,
-                temperature: config.temperature,
-                thinkingLevel: config.thinkingLevel,
-                prompt: config.prompt,
-                system: config.system
-            };
-        };
-
-        return {
+        const result: Record<string, any> = {
             type: 'website-agent',
             url,
-            schema: getOpt('websiteAgentSchema'),
-            budget: getOpt('websiteAgentBudget'),
-            batchSize: getOpt('websiteAgentBatchSize'),
-            navigator: buildModelConfig(navigatorConfig),
-            extract: buildModelConfig(extractConfig),
-            merge: buildModelConfig(mergeConfig),
-            output: {
-                mode: outputMode,
-                column: outputColumn,
-                explode: false
-            }
         };
+
+        const schema = getOpt('websiteAgentSchema');
+        if (schema) result.schema = schema;
+
+        const budget = getOpt('websiteAgentBudget');
+        if (budget !== undefined) result.budget = budget;
+
+        const batchSize = getOpt('websiteAgentBatchSize');
+        if (batchSize !== undefined) result.batchSize = batchSize;
+
+        // Navigator model
+        const navModel = getOpt('websiteAgentNavigatorModel');
+        const navPrompt = getOpt('websiteAgentNavigatorPrompt');
+        if (navModel || navPrompt) {
+            result.navigatorModel = {};
+            if (navModel) result.navigatorModel.model = navModel;
+            if (navPrompt) result.navigatorModel.prompt = navPrompt;
+        }
+
+        // Extract model
+        const extModel = getOpt('websiteAgentExtractModel');
+        const extPrompt = getOpt('websiteAgentExtractPrompt');
+        if (extModel || extPrompt) {
+            result.extractModel = {};
+            if (extModel) result.extractModel.model = extModel;
+            if (extPrompt) result.extractModel.prompt = extPrompt;
+        }
+
+        // Merge model
+        const mrgModel = getOpt('websiteAgentMergeModel');
+        const mrgPrompt = getOpt('websiteAgentMergePrompt');
+        if (mrgModel || mrgPrompt) {
+            result.mergeModel = {};
+            if (mrgModel) result.mergeModel.model = mrgModel;
+            if (mrgPrompt) result.mergeModel.prompt = mrgPrompt;
+        }
+
+        // Output
+        const outputMode = getOpt('websiteAgentOutputMode');
+        const outputColumn = getOpt('websiteAgentOutputColumn');
+        if (outputMode || outputColumn) {
+            result.output = {};
+            if (outputMode) result.output.mode = outputMode;
+            if (outputColumn) result.output.column = outputColumn;
+        }
+
+        return result;
     }
 }

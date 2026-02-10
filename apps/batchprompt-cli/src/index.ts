@@ -5,38 +5,27 @@ import { z } from 'zod';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Parser, transforms } from 'json2csv';
+import YAML from 'yaml';
 import {
-    createDefaultRegistry,
-    ServiceCapabilities,
     DebugLogger,
     ConfigRefiner,
-    InMemoryConfigExecutor,
-    getUniqueRows,
-    WebSearchPlugin,
-    ImageSearchPluginV2,
-    WebsiteAgentPluginV2,
-    StyleScraperPluginV2,
-    ValidationPluginV2,
-    DedupePluginV2,
-    LogoScraperPluginV2,
-    PromptLoader,
+    loadData,
+    resolveRawConfig,
+    createPipeline,
     createPipelineSchema,
     zJsonSchemaObject
 } from 'batchprompt';
 import { getDiContainer } from './getDiContainer.js';
 import { StepRegistry } from './StepRegistry.js';
+import { CliConfigBuilder } from './CliConfigBuilder.js';
 import { FileSystemArtifactHandler } from './handlers/FileSystemArtifactHandler.js';
-import { FileSystemContentResolver } from './io/FileSystemContentResolver.js';
-import Papa from 'papaparse';
 
 // Adapters
 import { WebSearchAdapter } from './adapters/WebSearchAdapter.js';
-import { ImageSearchAdapter } from './adapters/ImageSearchAdapter.js';
 import { WebsiteAgentAdapter } from './adapters/WebsiteAgentAdapter.js';
-import { StyleScraperAdapter } from './adapters/StyleScraperAdapter.js';
 import { ValidationAdapter } from './adapters/ValidationAdapter.js';
 import { DedupeAdapter } from './adapters/DedupeAdapter.js';
-import { LogoScraperAdapter } from './adapters/LogoScraperAdapter.js';
+import { UrlExpanderAdapter } from './adapters/UrlExpanderAdapter.js';
 import { ShellAdapter } from './adapters/ShellAdapter.js';
 import { ShellPlugin, ShellConfigSchema } from './plugins/ShellPlugin.js';
 
@@ -46,86 +35,90 @@ program
     .name('batchprompt')
     .description('Generate images and text from CSV or JSON data using AI');
 
-const generateCmd = program.command('generate')
-    .description('Generate content (text and/or images) from data piped via stdin')
-    .argument('[template-files...]', 'Path to the prompt template files (text, image, audio, or directory)');
-
-// Create a registry for CLI configuration purposes only
-const cliCapabilities: ServiceCapabilities = {
-    hasSerper: true,
-    hasPuppeteer: true
-};
-
-// Initialize dependencies for CLI registry
-const contentResolver = new FileSystemContentResolver();
-const promptLoader = new PromptLoader(contentResolver);
-
-const cliRegistry = createDefaultRegistry(cliCapabilities, promptLoader);
-
-// Initialize Plugins and Adapters
-const shellPlugin = new ShellPlugin();
+// --- Adapters ---
 const adapters = [
-    new WebSearchAdapter(new WebSearchPlugin(promptLoader)),
-    new ImageSearchAdapter(new ImageSearchPluginV2(promptLoader)),
-    new WebsiteAgentAdapter(new WebsiteAgentPluginV2(promptLoader)),
-    new StyleScraperAdapter(new StyleScraperPluginV2()),
-    new ValidationAdapter(new ValidationPluginV2()),
-    new DedupeAdapter(new DedupePluginV2()),
-    new LogoScraperAdapter(new LogoScraperPluginV2(promptLoader)),
-    new ShellAdapter(shellPlugin)
+    new WebSearchAdapter(),
+    new WebsiteAgentAdapter(),
+    new ValidationAdapter(),
+    new DedupeAdapter(),
+    new UrlExpanderAdapter(),
+    new ShellAdapter()
 ];
 
-// Register all step arguments
-const stepRegistry = new StepRegistry(adapters);
-stepRegistry.registerStepArgs(generateCmd, cliRegistry);
+// --- Generate Command ---
+const generateCmd = program.command('generate')
+    .description('Generate content from data piped via stdin')
+    .argument('[prompts...]', 'Prompt text for each step');
 
-generateCmd.action(async (templateFilePaths, options) => {
+const stepRegistry = new StepRegistry(adapters);
+stepRegistry.registerFlags(generateCmd);
+
+generateCmd.action(async (prompts, options) => {
     let puppeteerHelperInstance;
     try {
-        const {
-            actionRunner,
-            puppeteerHelper,
-            config: resolvedConfig,
-            pluginRegistry,
-            globalContext
-        } = await getDiContainer();
+        const cliDeps = await getDiContainer();
+        puppeteerHelperInstance = cliDeps.puppeteerHelper;
 
         // Register ShellPlugin in the runtime registry
-        pluginRegistry.register(shellPlugin);
+        const shellPlugin = new ShellPlugin();
+        cliDeps.pluginRegistry.register(shellPlugin);
 
-        puppeteerHelperInstance = puppeteerHelper;
+        // 1. Load file config
+        let fileConfig = {};
+        if (options.config) {
+            const content = fs.readFileSync(options.config, 'utf-8');
+            try {
+                fileConfig = JSON.parse(content);
+            } catch {
+                fileConfig = YAML.parse(content);
+            }
+        }
 
-        const config = await stepRegistry.parseConfig(
-            options.config,
-            options,
-            templateFilePaths,
-            pluginRegistry
-        );
+        // 2. Load stdin data
+        const stdinData = await loadData();
 
-        new FileSystemArtifactHandler(globalContext.events, config.tmpDir);
-        new DebugLogger(globalContext.events);
+        // 3. Build raw config from file + CLI flags
+        const rawConfig = CliConfigBuilder.build(fileConfig, options, prompts, adapters);
 
+        // 4. Inject stdin data
+        if (stdinData && stdinData.length > 0) {
+            rawConfig.data = stdinData;
+        }
+
+        // 5. Extract CLI-only fields
+        const dataOutputPath = rawConfig.dataOutputPath;
+
+        // 6. Resolve (IO + validation)
+        const globalConfig = await resolveRawConfig(rawConfig, {
+            contentResolver: cliDeps.contentResolver,
+            pluginRegistry: cliDeps.pluginRegistry
+        });
+
+        // 7. Setup handlers
+        if (globalConfig.output?.tmpDir) {
+            new FileSystemArtifactHandler(cliDeps.events, globalConfig.output.tmpDir);
+        }
+        new DebugLogger(cliDeps.events);
+
+        // 8. Collect results
         const results: any[] = [];
-        globalContext.events.on('row:end', ({ result }) => {
+        cliDeps.events.on('row:end', ({ result }) => {
             results.push(result);
         });
 
-        const finalConfig = {
-            ...config,
-            concurrency: config.concurrency ?? resolvedConfig.GPT_CONCURRENCY,
-            taskConcurrency: config.taskConcurrency ?? resolvedConfig.TASK_CONCURRENCY
-        };
+        // 9. Run pipeline
+        const pipeline = createPipeline(cliDeps, globalConfig);
+        await pipeline.run();
 
-        await actionRunner.run(finalConfig);
-
-        if (config.dataOutputPath && results.length > 0) {
-            const outDir = path.dirname(config.dataOutputPath);
+        // 10. Write output
+        if (dataOutputPath && results.length > 0) {
+            const outDir = path.dirname(dataOutputPath);
             if (!fs.existsSync(outDir)) {
                 fs.mkdirSync(outDir, { recursive: true });
             }
 
-            if (config.dataOutputPath.endsWith('.json')) {
-                fs.writeFileSync(config.dataOutputPath, JSON.stringify(results, null, 2));
+            if (dataOutputPath.endsWith('.json')) {
+                fs.writeFileSync(dataOutputPath, JSON.stringify(results, null, 2));
             } else {
                 const parser = new Parser({
                     transforms: [
@@ -133,9 +126,9 @@ generateCmd.action(async (templateFilePaths, options) => {
                     ]
                 });
                 const csv = parser.parse(results);
-                fs.writeFileSync(config.dataOutputPath, csv);
+                fs.writeFileSync(dataOutputPath, csv);
             }
-            console.log(`\nData written to ${config.dataOutputPath}`);
+            console.log(`\nData written to ${dataOutputPath}`);
         }
 
         if (puppeteerHelperInstance) {
@@ -151,17 +144,17 @@ generateCmd.action(async (templateFilePaths, options) => {
     }
 });
 
+// --- Init Command ---
 program.command('init')
     .description('Initialize a new configuration file using AI')
     .argument('[prompt]', 'Description of what you want to do')
-    .option('-d, --data <file>', 'Path to sample data file (CSV/JSON) to infer schema')
+    .option('-d, --data <file>', 'Path to sample data file (CSV/JSON)')
     .option('-o, --output <file>', 'Output file path')
-    .option('--model <model>', 'Model to use for generation', 'google/gemini-3-flash-preview')
+    .option('--model <model>', 'Model to use', 'google/gemini-3-flash-preview')
     .action(async (promptArg, options) => {
         let puppeteerHelperInstance;
         try {
-            let prompt = promptArg;
-            if (!prompt) {
+            if (!promptArg) {
                 console.error('Error: Please provide a prompt description.');
                 process.exit(1);
             }
@@ -179,6 +172,8 @@ program.command('init')
                     const json = JSON.parse(content);
                     sampleRows = Array.isArray(json) ? json : [json];
                 } else if (dataPath.endsWith('.csv')) {
+                    // Simple CSV parsing
+                    const { default: Papa } = await import('papaparse');
                     const parsed = Papa.parse(content, {
                         header: true,
                         skipEmptyLines: true,
@@ -189,40 +184,46 @@ program.command('init')
                     }
                 }
 
+                const { getUniqueRows } = await import('batchprompt');
                 sampleRows = getUniqueRows(sampleRows, 5);
                 console.log(`Loaded ${sampleRows.length} sample rows from ${options.data}`);
             }
 
-            const { actionRunner, llmFactory, pluginRegistry, globalContext, puppeteerHelper } = await getDiContainer();
-            puppeteerHelperInstance = puppeteerHelper;
-            const contentResolver = globalContext.contentResolver;
+            const cliDeps = await getDiContainer();
+            puppeteerHelperInstance = cliDeps.puppeteerHelper;
 
-            const executor = new InMemoryConfigExecutor(
-                actionRunner,
-                pluginRegistry,
-                globalContext.events,
-                contentResolver
-            );
+            // Create LLM clients for the refiner
+            const generatorLlm = cliDeps.llmFactory.create(
+                { model: options.model, reasoning_effort: 'high', messages: [] },
+                []
+            ).getRawClient();
 
-            const generatorLlm = llmFactory.create({
-                model: options.model,
-                thinkingLevel: 'high',
-                systemParts: [],
-                promptParts: []
-            }).getRawClient();
+            const judgeLlm = cliDeps.llmFactory.create(
+                { model: options.model, reasoning_effort: 'high', messages: [] },
+                []
+            ).getRawClient();
 
-            const judgeLlm = llmFactory.create({
-                model: options.model,
-                thinkingLevel: 'high',
-                systemParts: [],
-                promptParts: []
-            }).getRawClient();
+            // Create executor that runs configs through the pipeline
+            const executor = {
+                async runConfig(config: any, initialRows?: any[]) {
+                    const configWithData = { ...config };
+                    if (initialRows && initialRows.length > 0) {
+                        configWithData.data = initialRows;
+                    }
+                    const globalConfig = await resolveRawConfig(configWithData, {
+                        contentResolver: cliDeps.contentResolver,
+                        pluginRegistry: cliDeps.pluginRegistry
+                    });
+                    const pipeline = createPipeline(cliDeps, globalConfig);
+                    return pipeline.run();
+                }
+            };
 
             console.error('Generating configuration... (this may take a minute)');
             const refiner = new ConfigRefiner(generatorLlm, judgeLlm, executor, { maxRetries: 3 });
 
             const result = await refiner.run({
-                prompt,
+                prompt: promptArg,
                 sampleRows,
                 partialConfig: {}
             });
@@ -232,13 +233,11 @@ program.command('init')
                 process.exit(1);
             }
 
-            const config = result.generated;
-
             if (options.output) {
-                fs.writeFileSync(options.output, JSON.stringify(config, null, 2));
+                fs.writeFileSync(options.output, JSON.stringify(result.generated, null, 2));
                 console.error(`\nConfiguration saved to ${options.output}`);
             } else {
-                console.log(JSON.stringify(config, null, 2));
+                console.log(JSON.stringify(result.generated, null, 2));
             }
 
             if (puppeteerHelperInstance) {
@@ -255,28 +254,29 @@ program.command('init')
         }
     });
 
+// --- Schema Command ---
 program.command('schema')
     .description('Print the JSON Schema for the configuration file')
-    .action(() => {
-        // Get all plugin schemas including CLI-only ShellPlugin
-        const allPluginSchemas = [
-            ...cliRegistry.getAll().map(p => p.configSchema),
-            ShellConfigSchema
-        ];
+    .action(async () => {
+        try {
+            const cliDeps = await getDiContainer();
 
-        const pluginUnion = allPluginSchemas.length > 0
-            ? z.discriminatedUnion('type', allPluginSchemas as any)
-            : z.object({ type: z.string() });
+            // Register ShellPlugin
+            const shellPlugin = new ShellPlugin();
+            cliDeps.pluginRegistry.register(shellPlugin);
 
-        // Allow string or object for schema field (input mode)
-        const schemaFieldType = z.union([z.string(), zJsonSchemaObject]);
+            const pipelineSchema = createPipelineSchema(cliDeps.pluginRegistry);
+            const jsonSchema = z.toJSONSchema(pipelineSchema, {
+                unrepresentable: 'any'
+            });
+            console.log(JSON.stringify(jsonSchema, null, 2));
 
-        const schema = createPipelineSchema(pluginUnion, schemaFieldType);
-        const jsonSchema = z.toJSONSchema(schema, {
-            unrepresentable: 'any'
-        });
-        console.log(JSON.stringify(jsonSchema, null, 2));
-        process.exit(0);
+            await cliDeps.puppeteerHelper.close();
+            process.exit(0);
+        } catch (e: any) {
+            console.error(e);
+            process.exit(1);
+        }
     });
 
 program.parse();

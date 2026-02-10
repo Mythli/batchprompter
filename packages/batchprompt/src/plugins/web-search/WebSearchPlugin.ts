@@ -11,7 +11,7 @@ import { WebSearch } from './WebSearch.js';
 import { WebSearchPluginRow } from './WebSearchPluginRow.js';
 
 export const WebSearchConfigSchemaV2 = z.object({
-    type: z.literal('webSearch'),
+    type: z.literal('web-search'),
     id: z.string().optional(),
     output: PartialOutputConfigSchema.optional(),
     query: z.string().optional(),
@@ -50,7 +50,7 @@ function fillModelDefaults(
 }
 
 export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig> {
-    readonly type = 'webSearch';
+    readonly type = 'web-search';
 
     constructor(
         private deps: {
@@ -72,7 +72,7 @@ export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig
 
         return {
             ...base,
-            id: config.id ?? `webSearch-${Date.now()}`,
+            id: config.id ?? `web-search-${Date.now()}`,
             // Fill model defaults from global config, NOT step config
             // If plugin model is undefined, feature stays disabled (undefined)
             queryModel: fillModelDefaults(config.queryModel, globalModel),

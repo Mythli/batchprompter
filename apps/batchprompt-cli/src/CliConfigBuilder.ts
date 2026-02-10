@@ -1,5 +1,10 @@
 import { CliPluginAdapter } from './interfaces/CliPluginAdapter.js';
 
+/**
+ * Builds a raw config object by deep-merging file config with CLI flag values.
+ * Places values at the exact paths where the library expects them.
+ * Zero transformation — just placement.
+ */
 export class CliConfigBuilder {
     static build(
         fileConfig: any,
@@ -12,36 +17,42 @@ export class CliConfigBuilder {
         // Ensure basic structure exists
         config.steps = config.steps || [];
 
-        // --- Global Overrides (Flat) ---
+        // --- Global Overrides ---
         if (options.model) config.model = options.model;
-        if (options.temperature !== undefined) config.temperature = parseFloat(String(options.temperature));
-        if (options.thinkingLevel) config.thinkingLevel = options.thinkingLevel;
         if (options.concurrency) config.concurrency = parseInt(String(options.concurrency), 10);
         if (options.taskConcurrency) config.taskConcurrency = parseInt(String(options.taskConcurrency), 10);
-        if (options.tmpDir) config.tmpDir = options.tmpDir;
-        if (options.output) config.outputPath = options.output;
-        if (options.dataOutput) config.dataOutputPath = options.dataOutput;
+        if (options.dataOutputPath) config.dataOutputPath = options.dataOutputPath;
         if (options.timeout) config.timeout = parseInt(String(options.timeout), 10);
 
-        // --- Limit & Offset Overrides ---
+        // Global output
+        if (options.outputPath || options.outputMode || options.outputColumn || options.outputExplode || options.outputTmpDir) {
+            config.output = config.output || {};
+            if (options.outputPath) config.output.path = options.outputPath;
+            if (options.outputMode) config.output.mode = options.outputMode;
+            if (options.outputColumn) config.output.column = options.outputColumn;
+            if (options.outputExplode) config.output.explode = true;
+            if (options.outputTmpDir) config.output.tmpDir = options.outputTmpDir;
+        }
+
+        // Global limits
         if (options.inputLimit !== undefined) config.inputLimit = parseInt(String(options.inputLimit), 10);
         if (options.inputOffset !== undefined) config.inputOffset = parseInt(String(options.inputOffset), 10);
-        if (options.limit !== undefined) config.limit = parseInt(String(options.limit), 10);
-        if (options.offset !== undefined) config.offset = parseInt(String(options.offset), 10);
 
         // --- Step Overrides ---
         let maxStepIndex = config.steps.length;
 
         if (args.length > maxStepIndex) maxStepIndex = args.length;
 
+        // Detect step indices from option keys (e.g., "1Prompt", "2Model")
         Object.keys(options).forEach(key => {
-            const match = key.match(/(\d+)(?:[A-Z]|$)/);
+            const match = key.match(/^(\d+)/);
             if (match) {
                 const stepNum = parseInt(match[1], 10);
                 if (stepNum > maxStepIndex) maxStepIndex = stepNum;
             }
         });
 
+        // Ensure steps array is large enough
         for (let i = 0; i < maxStepIndex; i++) {
             if (!config.steps[i]) {
                 config.steps[i] = {};
@@ -52,60 +63,79 @@ export class CliConfigBuilder {
             const stepNum = i + 1;
             const step = config.steps[i];
 
-            // Ensure model object exists
-            step.model = step.model || {};
-
+            // Positional args → step model prompt
             if (args[i]) {
+                step.model = step.model || {};
                 step.model.prompt = args[i];
             }
 
-            // Model Config (Nested)
-            if (options[`model${stepNum}`]) step.model.model = options[`model${stepNum}`];
-            if (options[`temperature${stepNum}`] !== undefined) step.model.temperature = parseFloat(String(options[`temperature${stepNum}`]));
-            if (options[`thinkingLevel${stepNum}`]) step.model.thinkingLevel = options[`thinkingLevel${stepNum}`];
-            if (options[`system${stepNum}`]) step.model.system = options[`system${stepNum}`];
-            if (options[`prompt${stepNum}`]) step.model.prompt = options[`prompt${stepNum}`];
+            // Step model config
+            if (options[`${stepNum}Model`]) {
+                step.model = step.model || {};
+                step.model.model = options[`${stepNum}Model`];
+            }
+            if (options[`${stepNum}Prompt`]) {
+                step.model = step.model || {};
+                step.model.prompt = options[`${stepNum}Prompt`];
+            }
+            if (options[`${stepNum}System`]) {
+                step.model = step.model || {};
+                step.model.system = options[`${stepNum}System`];
+            }
+            if (options[`${stepNum}Temperature`] !== undefined) {
+                step.model = step.model || {};
+                step.model.temperature = parseFloat(String(options[`${stepNum}Temperature`]));
+            }
+            if (options[`${stepNum}ThinkingLevel`]) {
+                step.model = step.model || {};
+                step.model.thinkingLevel = options[`${stepNum}ThinkingLevel`];
+            }
 
-            // Output Config
-            step.output = step.output || {};
-            if (options[`output${stepNum}`]) step.outputPath = options[`output${stepNum}`];
-            if (options[`outputColumn${stepNum}`]) {
+            // Step output config
+            if (options[`${stepNum}OutputPath`]) {
+                step.output = step.output || {};
+                step.output.path = options[`${stepNum}OutputPath`];
+            }
+            if (options[`${stepNum}OutputMode`]) {
+                step.output = step.output || {};
+                step.output.mode = options[`${stepNum}OutputMode`];
+            }
+            if (options[`${stepNum}OutputColumn`]) {
+                step.output = step.output || {};
                 step.output.mode = 'column';
-                step.output.column = options[`outputColumn${stepNum}`];
+                step.output.column = options[`${stepNum}OutputColumn`];
             }
-            if (options[`export${stepNum}`]) step.output.mode = 'merge';
-            if (options[`explode${stepNum}`]) step.output.explode = true;
-
-            if (options[`limit${stepNum}`] !== undefined) {
-                step.output.limit = parseInt(String(options[`limit${stepNum}`]), 10);
+            if (options[`${stepNum}OutputExplode`]) {
+                step.output = step.output || {};
+                step.output.explode = true;
             }
-            if (options[`offset${stepNum}`] !== undefined) {
-                step.output.offset = parseInt(String(options[`offset${stepNum}`]), 10);
+            if (options[`${stepNum}Limit`] !== undefined) {
+                step.output = step.output || {};
+                step.output.limit = parseInt(String(options[`${stepNum}Limit`]), 10);
+            }
+            if (options[`${stepNum}Offset`] !== undefined) {
+                step.output = step.output || {};
+                step.output.offset = parseInt(String(options[`${stepNum}Offset`]), 10);
             }
 
-            // Other Step Settings
-            if (options[`candidates${stepNum}`] !== undefined) step.candidates = parseInt(String(options[`candidates${stepNum}`]), 10);
-            if (options[`aspectRatio${stepNum}`]) step.aspectRatio = options[`aspectRatio${stepNum}`];
-            if (options[`timeout${stepNum}`] !== undefined) step.timeout = parseInt(String(options[`timeout${stepNum}`]), 10);
-            if (options[`jsonSchema${stepNum}`]) step.schema = options[`jsonSchema${stepNum}`];
+            // Other step settings
+            if (options[`${stepNum}Candidates`] !== undefined) step.candidates = parseInt(String(options[`${stepNum}Candidates`]), 10);
+            if (options[`${stepNum}AspectRatio`]) step.aspectRatio = options[`${stepNum}AspectRatio`];
+            if (options[`${stepNum}Timeout`] !== undefined) step.timeout = parseInt(String(options[`${stepNum}Timeout`]), 10);
+            if (options[`${stepNum}Schema`]) step.schema = options[`${stepNum}Schema`];
+            if (options[`${stepNum}FeedbackLoops`] !== undefined) step.feedbackLoops = parseInt(String(options[`${stepNum}FeedbackLoops`]), 10);
 
-            // Judge & Feedback
-            if (options[`judge${stepNum}Prompt`]) {
+            // Judge
+            if (options[`${stepNum}JudgePrompt`] || options[`${stepNum}JudgeModel`]) {
                 step.judge = step.judge || {};
-                step.judge.prompt = options[`judge${stepNum}Prompt`];
-            }
-            if (options[`judge${stepNum}Model`]) {
-                step.judge = step.judge || {};
-                step.judge.model = options[`judge${stepNum}Model`];
+                if (options[`${stepNum}JudgePrompt`]) step.judge.prompt = options[`${stepNum}JudgePrompt`];
+                if (options[`${stepNum}JudgeModel`]) step.judge.model = options[`${stepNum}JudgeModel`];
             }
 
-            if (options[`feedback${stepNum}Prompt`]) {
+            // Feedback
+            if (options[`${stepNum}FeedbackPrompt`]) {
                 step.feedback = step.feedback || {};
-                step.feedback.prompt = options[`feedback${stepNum}Prompt`];
-            }
-            if (options[`feedbackLoops${stepNum}`] !== undefined) {
-                step.feedback = step.feedback || {};
-                step.feedback.loops = parseInt(String(options[`feedbackLoops${stepNum}`]), 10);
+                step.feedback.prompt = options[`${stepNum}FeedbackPrompt`];
             }
 
             // --- Plugin Overrides via Adapters ---
@@ -114,10 +144,7 @@ export class CliConfigBuilder {
             for (const adapter of adapters) {
                 const pluginConfig = adapter.parseOptions(options, stepNum);
                 if (pluginConfig) {
-                    step.plugins.push({
-                        type: adapter.plugin.type,
-                        ...pluginConfig
-                    });
+                    step.plugins.push(pluginConfig);
                 }
             }
         }

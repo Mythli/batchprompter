@@ -29,6 +29,8 @@ export class LlmClientFactory {
             modelConfig.temperature = config.temperature;
         }
 
+        // reasoning_effort is set from either reasoning_effort or thinkingLevel
+        // (resolved in transformModelConfig)
         if (config.reasoning_effort) {
             modelConfig.reasoning_effort = config.reasoning_effort;
         }

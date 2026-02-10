@@ -1,6 +1,8 @@
 {
   "model": "google/gemini-3-flash-preview",
-  "tmpDir": "out/03-seo-rank/.tmp",
+  "output": {
+    "tmpDir": "out/03-seo-rank/.tmp"
+  },
   "dataOutputPath": "out/03-seo-rank/results.csv",
   "inputLimit": 10,
   "steps": [

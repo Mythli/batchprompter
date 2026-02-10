@@ -1,42 +1,42 @@
 import { Command } from 'commander';
-import { ValidationPluginV2 } from 'batchprompt';
 import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 
 export class ValidationAdapter implements CliPluginAdapter {
-    constructor(public plugin: ValidationPluginV2) {}
+    readonly pluginType = 'validation';
 
     registerOptions(program: Command) {
         program.option('--validate-schema <path>', 'JSON Schema for validation');
         program.option('--validate-target <template>', 'Data to validate (Handlebars template)');
+        program.option('--validate-fail-mode <mode>', 'Fail mode: drop/error/continue (default: error)');
     }
 
     registerOptionsForStep(program: Command, stepIndex: number) {
-        const registerStep = (flags: string, desc: string, parser?: any) => {
-            const stepFlags = flags.replace(/^(--[\w-]+)/, `$1-${stepIndex}`);
-            program.option(stepFlags, `${desc} for step ${stepIndex}`, parser);
-        };
-
-        registerStep('--validate-schema <path>', 'JSON Schema for validation');
-        registerStep('--validate-target <template>', 'Data to validate');
+        const s = stepIndex;
+        program.option(`--${s}-validate-schema <path>`, `Validation schema for step ${s}`);
+        program.option(`--${s}-validate-target <template>`, `Validation target for step ${s}`);
+        program.option(`--${s}-validate-fail-mode <mode>`, `Fail mode for step ${s}`);
     }
 
-    parseOptions(options: Record<string, any>, stepIndex: number) {
+    parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
+            const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
             return options[stepKey] ?? options[key];
         };
 
         const schema = getOpt('validateSchema');
         if (!schema) return null;
 
-        return {
+        const result: Record<string, any> = {
             type: 'validation',
             schema,
-            target: getOpt('validateTarget'),
-            output: {
-                mode: 'ignore',
-                explode: false
-            }
         };
+
+        const target = getOpt('validateTarget');
+        if (target) result.target = target;
+
+        const failMode = getOpt('validateFailMode');
+        if (failMode) result.failMode = failMode;
+
+        return result;
     }
 }

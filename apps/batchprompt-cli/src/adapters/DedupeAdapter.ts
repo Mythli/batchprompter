@@ -1,26 +1,21 @@
 import { Command } from 'commander';
-import { DedupePluginV2 } from 'batchprompt';
 import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 
 export class DedupeAdapter implements CliPluginAdapter {
-    constructor(public plugin: DedupePluginV2) {}
+    readonly pluginType = 'dedupe';
 
     registerOptions(program: Command) {
         program.option('--dedupe-key <template>', 'Deduplication key (Handlebars template)');
     }
 
     registerOptionsForStep(program: Command, stepIndex: number) {
-        const registerStep = (flags: string, desc: string, parser?: any) => {
-            const stepFlags = flags.replace(/^(--[\w-]+)/, `$1-${stepIndex}`);
-            program.option(stepFlags, `${desc} for step ${stepIndex}`, parser);
-        };
-
-        registerStep('--dedupe-key <template>', 'Deduplication key');
+        const s = stepIndex;
+        program.option(`--${s}-dedupe-key <template>`, `Deduplication key for step ${s}`);
     }
 
-    parseOptions(options: Record<string, any>, stepIndex: number) {
+    parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
+            const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
             return options[stepKey] ?? options[key];
         };
 
@@ -30,10 +25,6 @@ export class DedupeAdapter implements CliPluginAdapter {
         return {
             type: 'dedupe',
             key,
-            output: {
-                mode: 'ignore',
-                explode: false
-            }
         };
     }
 }

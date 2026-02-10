@@ -2,10 +2,14 @@
 export * from './types.js';
 export * from './getDiContainer.js';
 export * from './Pipeline.js';
+export * from './Step.js';
+export * from './createPipeline.js';
 
 // Config Utils
 export * from './config/validationRules.js';
 export * from './config/schema.js';
+export * from './config/ContentResolver.js';
+export * from './config/resolveRawConfig.js';
 
 // Generator
 export * from './generator/ConfigRefiner.js';

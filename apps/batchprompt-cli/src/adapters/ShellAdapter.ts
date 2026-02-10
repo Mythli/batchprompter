@@ -1,48 +1,38 @@
 import { Command } from 'commander';
-import { ShellPlugin } from '../plugins/ShellPlugin.js';
 import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 
 export class ShellAdapter implements CliPluginAdapter {
-    constructor(public plugin: ShellPlugin) {}
+    readonly pluginType = 'shell-command';
 
     registerOptions(program: Command) {
-        program.option('--verify-command <cmd>', 'Shell command to verify output');
-        program.option('--command <cmd>', 'Shell command to run after generation');
-        program.option('--skip-candidate-command', 'Skip commands for candidates');
+        program.option('--shell-command <cmd>', 'Shell command to run after generation');
+        program.option('--shell-verify-command <cmd>', 'Shell command to verify output');
+        program.option('--shell-skip-candidate-command', 'Skip commands for candidates');
     }
 
     registerOptionsForStep(program: Command, stepIndex: number) {
-        const registerStep = (flags: string, desc: string, parser?: any) => {
-            const stepFlags = flags.replace(/^(--[\w-]+)/, `$1-${stepIndex}`);
-            program.option(stepFlags, `${desc} for step ${stepIndex}`, parser);
-        };
-
-        registerStep('--verify-command <cmd>', 'Verify command');
-        registerStep('--command <cmd>', 'Post-process command');
-        registerStep('--skip-candidate-command', 'Skip candidate commands');
+        const s = stepIndex;
+        program.option(`--${s}-shell-command <cmd>`, `Shell command for step ${s}`);
+        program.option(`--${s}-shell-verify-command <cmd>`, `Verify command for step ${s}`);
+        program.option(`--${s}-shell-skip-candidate-command`, `Skip candidate commands for step ${s}`);
     }
 
-    parseOptions(options: Record<string, any>, stepIndex: number) {
+    parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
+            const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
             return options[stepKey] ?? options[key];
         };
 
-        const command = getOpt('command');
-        const verifyCommand = getOpt('verifyCommand');
-        const skipCandidateCommand = getOpt('skipCandidateCommand');
+        const command = getOpt('shellCommand');
+        const verifyCommand = getOpt('shellVerifyCommand');
 
         if (!command && !verifyCommand) return null;
 
-        return {
-            type: 'shell-command',
-            command,
-            verifyCommand,
-            skipCandidateCommand: !!skipCandidateCommand,
-            output: {
-                mode: 'ignore',
-                explode: false
-            }
-        };
+        const result: Record<string, any> = { type: 'shell-command' };
+        if (command) result.command = command;
+        if (verifyCommand) result.verifyCommand = verifyCommand;
+        if (getOpt('shellSkipCandidateCommand')) result.skipCandidateCommand = true;
+
+        return result;
     }
 }

@@ -104,7 +104,7 @@ describe('E2E Search Plugins', () => {
                     },
                     plugins: [
                         {
-                            type: "webSearch",
+                            type: "web-search",
                             queryModel: {
                                 model: "gpt-mock",
                                 prompt: "Generate queries for {{company}}"
@@ -161,7 +161,7 @@ describe('E2E Search Plugins', () => {
                     },
                     plugins: [
                         {
-                            type: "imageSearch",
+                            type: "image-search",
                             queryModel: {
                                 model: "gpt-mock",
                                 prompt: "Generate queries for {{product}}"

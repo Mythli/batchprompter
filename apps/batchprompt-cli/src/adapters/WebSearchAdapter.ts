@@ -1,16 +1,10 @@
 import { Command } from 'commander';
-import { WebSearchPlugin } from 'batchprompt';
 import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
-import { ModelFlags } from '../ModelFlags.js';
 
 export class WebSearchAdapter implements CliPluginAdapter {
-    constructor(public plugin: WebSearchPlugin) {}
+    readonly pluginType = 'web-search';
 
     registerOptions(program: Command) {
-        ModelFlags.register(program, 'web-query', { includePrompt: true, includeSystem: true });
-        ModelFlags.register(program, 'web-select', { includePrompt: true, includeSystem: true });
-        ModelFlags.register(program, 'web-compress', { includePrompt: true, includeSystem: true });
-
         program.option('--web-search-query <text>', 'Static search query');
         program.option('--web-search-limit <number>', 'Max total results (default: 5)', parseInt);
         program.option('--web-search-mode <mode>', 'Content mode: none/markdown/html (default: none)');
@@ -19,91 +13,95 @@ export class WebSearchAdapter implements CliPluginAdapter {
         program.option('--web-search-dedupe-strategy <strategy>', 'Deduplication: none/domain/url (default: none)');
         program.option('--web-search-gl <country>', 'Country code for search');
         program.option('--web-search-hl <lang>', 'Language code for search');
-        program.option('--web-search-export', 'Merge results into row');
-        program.option('--web-search-explode', 'Explode results into multiple rows');
-        program.option('--web-search-output <column>', 'Save results to column');
+        program.option('--web-search-query-model <model>', 'Model for query generation');
+        program.option('--web-search-query-prompt <text>', 'Prompt for query generation');
+        program.option('--web-search-select-model <model>', 'Model for result selection');
+        program.option('--web-search-select-prompt <text>', 'Prompt for result selection');
+        program.option('--web-search-compress-model <model>', 'Model for content compression');
+        program.option('--web-search-compress-prompt <text>', 'Prompt for content compression');
+        program.option('--web-search-output-mode <mode>', 'Output mode: merge/column/ignore');
+        program.option('--web-search-output-column <column>', 'Output column name');
+        program.option('--web-search-output-explode', 'Explode results into multiple rows');
     }
 
     registerOptionsForStep(program: Command, stepIndex: number) {
-        const registerStep = (flags: string, desc: string, parser?: any) => {
-            const stepFlags = flags.replace(/^(--[\w-]+)/, `$1-${stepIndex}`);
-            program.option(stepFlags, `${desc} for step ${stepIndex}`, parser);
-        };
-
-        ModelFlags.register(program, `web-query-${stepIndex}`, { includePrompt: true, includeSystem: true });
-        ModelFlags.register(program, `web-select-${stepIndex}`, { includePrompt: true, includeSystem: true });
-        ModelFlags.register(program, `web-compress-${stepIndex}`, { includePrompt: true, includeSystem: true });
-
-        registerStep('--web-search-query <text>', 'Static search query');
-        registerStep('--web-search-limit <number>', 'Max total results', parseInt);
-        registerStep('--web-search-mode <mode>', 'Content mode');
-        registerStep('--web-search-query-count <number>', 'Queries to generate', parseInt);
-        registerStep('--web-search-max-pages <number>', 'Max pages per query', parseInt);
-        registerStep('--web-search-dedupe-strategy <strategy>', 'Deduplication');
-        registerStep('--web-search-gl <country>', 'Country code');
-        registerStep('--web-search-hl <lang>', 'Language code');
-        registerStep('--web-search-export', 'Merge results into row');
-        registerStep('--web-search-explode', 'Explode results');
-        registerStep('--web-search-output <column>', 'Save results to column');
+        const s = stepIndex;
+        program.option(`--${s}-web-search-query <text>`, `Search query for step ${s}`);
+        program.option(`--${s}-web-search-limit <number>`, `Max results for step ${s}`, parseInt);
+        program.option(`--${s}-web-search-mode <mode>`, `Content mode for step ${s}`);
+        program.option(`--${s}-web-search-query-count <number>`, `Queries to generate for step ${s}`, parseInt);
+        program.option(`--${s}-web-search-max-pages <number>`, `Max pages for step ${s}`, parseInt);
+        program.option(`--${s}-web-search-dedupe-strategy <strategy>`, `Deduplication for step ${s}`);
+        program.option(`--${s}-web-search-gl <country>`, `Country code for step ${s}`);
+        program.option(`--${s}-web-search-hl <lang>`, `Language code for step ${s}`);
+        program.option(`--${s}-web-search-query-model <model>`, `Query model for step ${s}`);
+        program.option(`--${s}-web-search-query-prompt <text>`, `Query prompt for step ${s}`);
+        program.option(`--${s}-web-search-select-model <model>`, `Select model for step ${s}`);
+        program.option(`--${s}-web-search-select-prompt <text>`, `Select prompt for step ${s}`);
+        program.option(`--${s}-web-search-compress-model <model>`, `Compress model for step ${s}`);
+        program.option(`--${s}-web-search-compress-prompt <text>`, `Compress prompt for step ${s}`);
+        program.option(`--${s}-web-search-output-mode <mode>`, `Output mode for step ${s}`);
+        program.option(`--${s}-web-search-output-column <column>`, `Output column for step ${s}`);
+        program.option(`--${s}-web-search-output-explode`, `Explode results for step ${s}`);
     }
 
-    parseOptions(options: Record<string, any>, stepIndex: number) {
+    parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
-            const stepKey = `${key}${stepIndex}`;
+            const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
             return options[stepKey] ?? options[key];
         };
 
         const query = getOpt('webSearchQuery');
+        const queryPrompt = getOpt('webSearchQueryPrompt');
+        const selectPrompt = getOpt('webSearchSelectPrompt');
 
-        const queryConfig = ModelFlags.extractPluginModel(options, 'webQuery', stepIndex);
-        const selectConfig = ModelFlags.extractPluginModel(options, 'webSelect', stepIndex);
-        const compressConfig = ModelFlags.extractPluginModel(options, 'webCompress', stepIndex);
+        if (!query && !queryPrompt) return null;
 
-        // Only activate if query or queryModel.prompt is provided
-        if (!query && !queryConfig.prompt) {
-            return null;
+        const result: Record<string, any> = { type: 'web-search' };
+
+        if (query) result.query = query;
+        if (getOpt('webSearchLimit') !== undefined) result.limit = getOpt('webSearchLimit');
+        if (getOpt('webSearchMode')) result.mode = getOpt('webSearchMode');
+        if (getOpt('webSearchQueryCount') !== undefined) result.queryCount = getOpt('webSearchQueryCount');
+        if (getOpt('webSearchMaxPages') !== undefined) result.maxPages = getOpt('webSearchMaxPages');
+        if (getOpt('webSearchDedupeStrategy')) result.dedupeStrategy = getOpt('webSearchDedupeStrategy');
+        if (getOpt('webSearchGl')) result.gl = getOpt('webSearchGl');
+        if (getOpt('webSearchHl')) result.hl = getOpt('webSearchHl');
+
+        // Build nested model objects matching library schema exactly
+        const qModel = getOpt('webSearchQueryModel');
+        if (queryPrompt || qModel) {
+            result.queryModel = {};
+            if (qModel) result.queryModel.model = qModel;
+            if (queryPrompt) result.queryModel.prompt = queryPrompt;
         }
 
-        const exportFlag = getOpt('webSearchExport');
-        const explodeFlag = getOpt('webSearchExplode');
-        const outputColumn = getOpt('webSearchOutput');
+        const sModel = getOpt('webSearchSelectModel');
+        if (selectPrompt || sModel) {
+            result.selectModel = {};
+            if (sModel) result.selectModel.model = sModel;
+            if (selectPrompt) result.selectModel.prompt = selectPrompt;
+        }
 
-        let outputMode: 'merge' | 'column' | 'ignore' = 'ignore';
-        if (outputColumn) outputMode = 'column';
-        else if (exportFlag) outputMode = 'merge';
+        const cModel = getOpt('webSearchCompressModel');
+        const cPrompt = getOpt('webSearchCompressPrompt');
+        if (cPrompt || cModel) {
+            result.compressModel = {};
+            if (cModel) result.compressModel.model = cModel;
+            if (cPrompt) result.compressModel.prompt = cPrompt;
+        }
 
-        // Build nested model config objects
-        const buildModelConfig = (config: any) => {
-            if (!config.prompt && !config.model && !config.temperature && !config.thinkingLevel && !config.system) {
-                return undefined;
-            }
-            return {
-                model: config.model,
-                temperature: config.temperature,
-                thinkingLevel: config.thinkingLevel,
-                prompt: config.prompt,
-                system: config.system
-            };
-        };
+        // Output config
+        const outputMode = getOpt('webSearchOutputMode');
+        const outputColumn = getOpt('webSearchOutputColumn');
+        const outputExplode = getOpt('webSearchOutputExplode');
+        if (outputMode || outputColumn || outputExplode) {
+            result.output = {};
+            if (outputMode) result.output.mode = outputMode;
+            if (outputColumn) result.output.column = outputColumn;
+            if (outputExplode) result.output.explode = true;
+        }
 
-        return {
-            type: 'web-search',
-            query,
-            queryModel: buildModelConfig(queryConfig),
-            selectModel: buildModelConfig(selectConfig),
-            compressModel: buildModelConfig(compressConfig),
-            limit: getOpt('webSearchLimit'),
-            mode: getOpt('webSearchMode'),
-            queryCount: getOpt('webSearchQueryCount'),
-            maxPages: getOpt('webSearchMaxPages'),
-            dedupeStrategy: getOpt('webSearchDedupeStrategy'),
-            gl: getOpt('webSearchGl'),
-            hl: getOpt('webSearchHl'),
-            output: {
-                mode: outputMode,
-                column: outputColumn,
-                explode: explodeFlag
-            }
-        };
+        return result;
     }
 }
