@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { PartialOutputConfigSchema } from '../../config/schema.js';
 
 export const UrlExpanderConfigSchema = z.object({
-    type: z.literal('url-expander').describe("Identifies this as a URL expander plugin."),
+    type: z.literal('urlExpander').describe("Identifies this as a URL expander plugin."),
     id: z.string().optional().describe("Unique ID for this plugin instance."),
     output: PartialOutputConfigSchema.optional().describe("How to save the expanded content (usually ignored as it modifies prompt)."),
     mode: z.enum(['fetch', 'puppeteer']).default('fetch').describe("Method used to fetch the URL content."),

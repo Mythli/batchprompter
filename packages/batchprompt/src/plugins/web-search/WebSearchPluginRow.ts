@@ -31,11 +31,11 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
             emit('plugin:artifact', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'web-search',
+                plugin: 'webSearch',
                 type: 'json',
-                filename: `web_search/queries/queries_${Date.now()}.json`,
+                filename: `webSearch/queries/queries_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
-                tags: ['debug', 'web-search', 'queries']
+                tags: ['debug', 'webSearch', 'queries']
             });
         });
 
@@ -44,11 +44,11 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
             emit('plugin:artifact', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'web-search',
+                plugin: 'webSearch',
                 type: 'json',
-                filename: `web_search/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`,
+                filename: `webSearch/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
-                tags: ['debug', 'web-search', 'scatter']
+                tags: ['debug', 'webSearch', 'scatter']
             });
         });
 
@@ -56,11 +56,11 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
             emit('plugin:artifact', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'web-search',
+                plugin: 'webSearch',
                 type: 'json',
-                filename: `web_search/reduce/reduce_${Date.now()}.json`,
+                filename: `webSearch/reduce/reduce_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
-                tags: ['debug', 'web-search', 'reduce']
+                tags: ['debug', 'webSearch', 'reduce']
             });
         });
 
@@ -69,11 +69,11 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
             emit('plugin:artifact', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'web-search',
+                plugin: 'webSearch',
                 type: 'json',
-                filename: `web_search/enrich/enrich_${safeUrl}_${Date.now()}.json`,
+                filename: `webSearch/enrich/enrich_${safeUrl}_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
-                tags: ['debug', 'web-search', 'enrich']
+                tags: ['debug', 'webSearch', 'enrich']
             });
         });
 
@@ -81,11 +81,11 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
             emit('plugin:artifact', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'web-search',
+                plugin: 'webSearch',
                 type: 'json',
-                filename: `web_search/selected/selected_${Date.now()}.json`,
+                filename: `webSearch/selected/selected_${Date.now()}.json`,
                 content: JSON.stringify(data.results, null, 2),
-                tags: ['final', 'web-search', 'selected']
+                tags: ['final', 'webSearch', 'selected']
             });
         });
 

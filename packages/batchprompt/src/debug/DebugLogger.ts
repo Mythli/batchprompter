@@ -120,7 +120,7 @@ export class DebugLogger {
                 } else if (payload.event === 'result:selected') {
                     console.log(`${prefix} ✨ Selected ${data.results?.length || 0} images.`);
                 }
-            } else if (payload.plugin === 'web-search') {
+            } else if (payload.plugin === 'webSearch') {
                 if (payload.event === 'query:generated') {
                     console.log(`${prefix} 🔍 Generated queries: ${data.queries?.join(', ')}`);
                 } else if (payload.event === 'search:result') {

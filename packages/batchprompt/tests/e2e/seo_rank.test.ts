@@ -40,7 +40,7 @@ describe('E2E SEO Rank', () => {
                 {
                     plugins: [
                         {
-                            type: "web-search",
+                            type: "webSearch",
                             query: "{{keyword}}",
                             maxPages: 1,
                             limit: 30,
@@ -67,16 +67,16 @@ describe('E2E SEO Rank', () => {
         // We expect 2 results because 2 links were selected and exploded
         expect(results).toHaveLength(2);
 
-        expect(results[0]['web-search']).toBeDefined();
-        expect(typeof results[0]['web-search']).toBe('object');
-        expect(results[0]['web-search'].title).toBe("Butlerapp Home");
-        expect(results[0]['web-search'].link).toBe("https://butlerapp.de");
+        expect(results[0]['webSearch']).toBeDefined();
+        expect(typeof results[0]['webSearch']).toBe('object');
+        expect(results[0]['webSearch'].title).toBe("Butlerapp Home");
+        expect(results[0]['webSearch'].link).toBe("https://butlerapp.de");
         expect(results[0].keyword).toBe("kursverwaltung");
 
-        expect(results[1]['web-search']).toBeDefined();
-        expect(typeof results[1]['web-search']).toBe('object');
-        expect(results[1]['web-search'].title).toBe("Butlerapp Pricing");
-        expect(results[1]['web-search'].link).toBe("https://butlerapp.de/pricing");
+        expect(results[1]['webSearch']).toBeDefined();
+        expect(typeof results[1]['webSearch']).toBe('object');
+        expect(results[1]['webSearch'].title).toBe("Butlerapp Pricing");
+        expect(results[1]['webSearch'].link).toBe("https://butlerapp.de/pricing");
         expect(results[1].keyword).toBe("kursverwaltung");
     });
 });
