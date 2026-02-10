@@ -14,7 +14,7 @@ import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import PQueue from 'p-queue';
 
 export const WebsiteAgentConfigSchema = z.object({
-    type: z.literal('website-agent'),
+    type: z.literal('websiteAgent'),
     id: z.string().optional(),
     output: PartialOutputConfigSchema.optional(),
     url: zHandlebars.describe("The starting URL to scrape."),
@@ -46,7 +46,7 @@ function fillModelDefaults(
 }
 
 export class WebsiteAgentPlugin extends BasePlugin<WebsiteAgentConfig, WebsiteAgentConfig> {
-    readonly type = 'website-agent';
+    readonly type = 'websiteAgent';
 
     constructor(
         private deps: {
@@ -70,7 +70,7 @@ export class WebsiteAgentPlugin extends BasePlugin<WebsiteAgentConfig, WebsiteAg
 
         return {
             ...base,
-            id: config.id ?? `website-agent-${Date.now()}`,
+            id: config.id ?? `websiteAgent-${Date.now()}`,
             navigatorModel: fillModelDefaults(config.navigatorModel, globalModel) || defaultModelConfig,
             extractModel: fillModelDefaults(config.extractModel, globalModel) || defaultModelConfig,
             mergeModel: fillModelDefaults(config.mergeModel, globalModel) || defaultModelConfig,

@@ -38,7 +38,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
             emit('plugin:event', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
-                plugin: 'website-agent',
+                plugin: 'websiteAgent',
                 event: 'page:scraped',
                 data
             });
@@ -48,7 +48,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
             emit('plugin:event', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
-                plugin: 'website-agent',
+                plugin: 'websiteAgent',
                 event: 'decision:made',
                 data
             });
@@ -58,7 +58,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
             emit('plugin:event', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
-                plugin: 'website-agent',
+                plugin: 'websiteAgent',
                 event: 'results:merged',
                 data
             });
@@ -68,7 +68,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
             emit('plugin:event', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
-                plugin: 'website-agent',
+                plugin: 'websiteAgent',
                 event: 'start',
                 data
             });
@@ -78,7 +78,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
             emit('plugin:event', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
-                plugin: 'website-agent',
+                plugin: 'websiteAgent',
                 event: 'stop',
                 data
             });
@@ -88,7 +88,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
             emit('plugin:event', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
-                plugin: 'website-agent',
+                plugin: 'websiteAgent',
                 event: 'batch',
                 data
             });
@@ -98,7 +98,7 @@ export class WebsiteAgentPluginRow extends BasePluginRow<WebsiteAgentConfig> {
             emit('plugin:event', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
-                plugin: 'website-agent',
+                plugin: 'websiteAgent',
                 event: 'error',
                 data
             });

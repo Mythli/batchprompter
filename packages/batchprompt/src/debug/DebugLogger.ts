@@ -83,7 +83,7 @@ export class DebugLogger {
             const data = payload.data;
 
             // Formatter Registry
-            if (payload.plugin === 'website-agent') {
+            if (payload.plugin === 'websiteAgent') {
                 if (payload.event === 'page:scraped') {
                     console.log(`${prefix} 🌍 Visited ${data.url} (${data.html?.length || 0} chars)`);
                 } else if (payload.event === 'decision:made') {
