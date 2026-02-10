@@ -194,12 +194,12 @@ program.command('init')
 
             // Create LLM clients for the refiner
             const generatorLlm = cliDeps.llmFactory.create(
-                { model: options.model, reasoning_effort: 'high', messages: [] },
+                { model: options.model, temperature: undefined, reasoning_effort: 'high' as const, messages: [] },
                 []
             ).getRawClient();
 
             const judgeLlm = cliDeps.llmFactory.create(
-                { model: options.model, reasoning_effort: 'high', messages: [] },
+                { model: options.model, temperature: undefined, reasoning_effort: 'high' as const, messages: [] },
                 []
             ).getRawClient();
 

@@ -3,6 +3,7 @@ export * from './types.js';
 export * from './getDiContainer.js';
 export * from './Pipeline.js';
 export * from './Step.js';
+export * from './StepRow.js';
 export * from './createPipeline.js';
 
 // Config Utils

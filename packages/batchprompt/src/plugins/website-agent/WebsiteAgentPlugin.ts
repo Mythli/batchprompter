@@ -45,6 +45,15 @@ function fillModelDefaults(
     };
 }
 
+function makeDefaultModelConfig(globalModel: ModelConfig | undefined): ModelConfig {
+    return {
+        model: globalModel?.model,
+        temperature: undefined,
+        reasoning_effort: undefined,
+        messages: []
+    };
+}
+
 export class WebsiteAgentPlugin extends BasePlugin<WebsiteAgentConfig, WebsiteAgentConfig> {
     readonly type = 'websiteAgent';
 
@@ -66,7 +75,7 @@ export class WebsiteAgentPlugin extends BasePlugin<WebsiteAgentConfig, WebsiteAg
         const globalModel = globalConfig.model;
 
         // If models are not provided, create default configs inheriting from global
-        const defaultModelConfig = { model: globalModel?.model };
+        const defaultModelConfig = makeDefaultModelConfig(globalModel);
 
         return {
             ...base,

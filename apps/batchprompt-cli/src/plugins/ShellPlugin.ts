@@ -9,9 +9,9 @@ import {
     BasePluginRow,
     PluginResult,
     PartialOutputConfigSchema,
-    zHandlebars
+    zHandlebars,
+    StepRow
 } from 'batchprompt';
-import type { StepRow } from 'batchprompt';
 import type { StepConfig, GlobalConfig } from 'batchprompt';
 
 const execAsync = promisify(exec);

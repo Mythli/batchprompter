@@ -15,7 +15,7 @@ import { BatchPromptEvents } from './events.js';
 import {ModelConfig} from "./config/model.js";
 import { PluginRegistryV2 } from './plugins/types.js';
 
-interface ServiceCapabilities {
+export interface ServiceCapabilities {
     hasSerper: boolean;
     hasPuppeteer: boolean;
 }
