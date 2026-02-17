@@ -19,11 +19,11 @@
             "properties": {
               "isIndustry": {
                 "type": ["boolean", "null"],
-                "description": "Is this company offering {{industry}} as their core product?"
+                "description": "Is this a concrete, local 'Innung' (Guild) or 'Kreishandwerkerschaft'? It must be an official organization representing a specific trade in a specific region. Return FALSE if it is a national association (Bundesverband), a state association (Landesverband), a directory, an aggregator, a private company, or a general chamber of crafts (Handwerkskammer) without being a specific Innung/Kreishandwerkerschaft."
               },
               "isIndustryReason": {
                 "type": ["string", "null"],
-                "description": "Reason why this company is or is not offering {{industry}}."
+                "description": "Reason why this entity is or is not a concrete local Innung/Kreishandwerkerschaft. If false, specify what it is instead (e.g. 'National Association', 'Directory', 'Private Company')."
               },
               "companyName": {
                 "type": ["string", "null"],
