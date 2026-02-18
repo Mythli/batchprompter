@@ -8,4 +8,4 @@
 cd "$(dirname "$0")/../.."
 
 # Run using config file
-node dist/index.js generate --config examples/02-lead-gen/config-1-find.json --input-limit 5
+cat /Users/tobiasanhalt/Development/batchprompt/apps/batchprompt-cli/examples/02-lead-gen/focus-nische.csv | node dist/index.js generate --config examples/02-lead-gen/config-1-find.json
