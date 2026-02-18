@@ -100,15 +100,9 @@ generateCmd.action(async (prompts, options) => {
         }
         new DebugLogger(cliDeps.events);
 
-        // 8. Collect results
-        const results: any[] = [];
-        cliDeps.events.on('row:end', ({ result }) => {
-            results.push(result);
-        });
-
-        // 9. Run pipeline
+        // 8. Run pipeline
         const pipeline = createPipeline(cliDeps, globalConfig);
-        await pipeline.run();
+        const { results } = await pipeline.run();
 
         // 10. Write output
         if (dataOutputPath && results.length > 0) {
