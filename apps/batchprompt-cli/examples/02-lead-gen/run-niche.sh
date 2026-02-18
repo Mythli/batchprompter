@@ -30,6 +30,9 @@ do
     
     echo "2. Enriching data..."
     bash examples/02-lead-gen/2-enrich.sh "$FIND_OUTPUT" "$ENRICH_OUTPUT"
+
+    echo "3. Filtering existing customers..."
+    node examples/02-lead-gen/filter-customers.js "$ENRICH_OUTPUT" "$ENRICH_OUTPUT"
     
     echo "Done. Results saved to $ENRICH_OUTPUT"
     echo ""
