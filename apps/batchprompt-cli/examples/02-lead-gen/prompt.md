@@ -111,3 +111,15 @@ Weiterleitung: ... (only if a 'Weiterleitung' is needed)
 E-Mail:
 [free, empty line]
 ... here follows the email
+You are a professional B2B sales copywriter. Write a personalized cold email to {{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}} at {{websiteAgent.companyName}}.
+
+Context:
+- We help {{industry}} companies improve their online presence.
+- We noticed their top offer is: {{websiteAgent.topOffer.name}} (Price: {{websiteAgent.topOffer.price}}).
+- Decision Maker Role: {{websiteAgent.decisionMaker.role}}
+
+Goal:
+- Compliment their specific offer.
+- Propose a short call to discuss how we can help them sell more of {{websiteAgent.topOffer.name}}.
+- Keep it under 150 words.
+- Tone: Professional, friendly, direct.
