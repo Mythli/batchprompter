@@ -8,4 +8,12 @@
 cd "$(dirname "$0")/../.."
 
 # Run using config file
-cat /Users/tobiasanhalt/Development/batchprompt/apps/batchprompt-cli/examples/02-lead-gen/focus-nische.csv | node dist/index.js generate --config examples/02-lead-gen/config-1-find.json
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <industry> <output_json>"
+    exit 1
+fi
+
+INDUSTRY="$1"
+OUTPUT_FILE="$2"
+
+echo "[{\"industry\": \"$INDUSTRY\"}]" | node dist/index.js generate --config examples/02-lead-gen/config-1-find.json --data-output-path "$OUTPUT_FILE"
