@@ -91,6 +91,7 @@ const fs = require('fs');
 
     const filteredRows = [];
     const keptRows = [];
+    let idCounter = 1;
 
     for (const row of rows) {
         const url = row[urlCol];
@@ -99,7 +100,7 @@ const fs = require('fs');
             const name = row['websiteAgent.companyName'] || row['companyName'] || 'Unknown';
             console.log(`[FILTERED] Existing customer: ${url} (${name})`);
         } else {
-            keptRows.push(row);
+            keptRows.push({ id: idCounter++, ...row });
         }
     }
 
