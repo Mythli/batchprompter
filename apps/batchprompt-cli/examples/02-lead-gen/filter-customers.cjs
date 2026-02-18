@@ -45,20 +45,22 @@ const fs = require('fs');
     console.log(`Checking ${uniqueUrls.length} unique URLs against database...`);
 
     const batches = [];
-    for (let i = 0; i < uniqueUrls.length; i += 100) {
-        batches.push(uniqueUrls.slice(i, i + 100));
+    for (let i = 0; i < uniqueUrls.length; i += 50) {
+        batches.push(uniqueUrls.slice(i, i + 50));
     }
 
     const matchedDomains = new Set();
 
     for (const batch of batches) {
         try {
-            const response = await fetch('https://crisp-lamps-rest.app.taylordb.ai/api/trpc/domains.matchUrls', {
-                method: 'POST',
+            const input = JSON.stringify({ urls: batch });
+            const url = `https://crisp-lamps-rest.app.taylordb.ai/api/trpc/domains.matchUrls?input=${encodeURIComponent(input)}`;
+
+            const response = await fetch(url, {
+                method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ urls: batch })
+                }
             });
 
             if (!response.ok) {
