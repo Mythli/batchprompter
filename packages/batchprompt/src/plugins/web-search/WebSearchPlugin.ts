@@ -20,6 +20,7 @@ export const WebSearchConfigSchemaV2 = z.object({
     selectModel: ModelConfigSchema.optional(),
     compressModel: ModelConfigSchema.optional(),
     limit: z.number().int().positive().default(5),
+    chunkSize: z.number().int().positive().default(10),
     mode: z.enum(['none', 'markdown', 'html']).default('none'),
     queryCount: z.number().int().positive().default(3),
     maxPages: z.number().int().positive().default(1),

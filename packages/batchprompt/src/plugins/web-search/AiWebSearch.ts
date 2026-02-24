@@ -21,6 +21,7 @@ export class AiWebSearch {
         config: {
             query?: string;
             limit: number;
+            chunkSize: number;
             mode: WebSearchMode;
             queryCount: number;
             maxPages: number;
@@ -53,7 +54,7 @@ export class AiWebSearch {
 
         if (queries.length === 0) return { contentParts: [], data: [] };
 
-        // 2. Scatter (Parallel Fetch & Local Select)
+        // 2. Scatter (Parallel Fetch ONLY)
         const tasks: { query: string; page: number }[] = [];
         for (const q of queries) {
             for (let p = 1; p <= config.maxPages; p++) {
@@ -65,36 +66,14 @@ export class AiWebSearch {
 
         const pageResults = await Promise.all(tasks.map(async ({ query, page }) => {
             try {
+                // We still fetch 10 results per page from the search engine (standard page size)
                 const results = await this.webSearch.search(query, 10, page, config.gl, config.hl);
-                if (results.length === 0) return [];
-
-                if (this.selector) {
-                    // Local Selection (Map)
-                    return await this.selector.select(results, {
-                        maxSelected: results.length, // Keep all good ones locally
-                        formatContent: async (items) => {
-                            const listText = items.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
-                            return [{ type: 'text', text: `Search results for "${query}" (Page ${page}):\n\n${listText}` }];
-                        },
-                        promptPreamble: "Select the indices of the most relevant results.",
-                        indexOffset: 0,
-                        onDecision: async (decision, items) => {
-                            this.events.emit('search:result', {
-                                query,
-                                page,
-                                results: items,
-                                selection: { indices: decision.selected_indices, reasoning: decision.reasoning }
-                            });
-                        }
-                    });
-                } else {
-                    // No selector, just emit raw results
-                    this.events.emit('search:result', {
-                        query,
-                        page,
-                        results
-                    });
-                }
+                
+                this.events.emit('search:result', {
+                    query,
+                    page,
+                    results
+                });
 
                 return results;
             } catch (e) {
@@ -104,8 +83,8 @@ export class AiWebSearch {
         }));
 
         // 3. Gather & Dedupe
-        const allSurvivors = pageResults.flat();
-        const uniqueSurvivors: WebSearchResult[] = [];
+        const allRawResults = pageResults.flat();
+        const uniqueResults: WebSearchResult[] = [];
         const seenKeys = new Set<string>();
 
         const getDedupeKey = (result: WebSearchResult): string | null => {
@@ -133,22 +112,62 @@ export class AiWebSearch {
             return null;
         };
 
-        for (const result of allSurvivors) {
+        for (const result of allRawResults) {
             const key = getDedupeKey(result);
             if (key) {
                 if (seenKeys.has(key)) continue;
                 seenKeys.add(key);
             }
-            uniqueSurvivors.push(result);
+            uniqueResults.push(result);
         }
 
-        // 4. Reduce (Global Selection)
-        let finalSelection = uniqueSurvivors;
+        console.log(`[AiWebSearch] Gathered ${allRawResults.length} raw results, deduplicated down to ${uniqueResults.length}.`);
 
-        if (this.selector && uniqueSurvivors.length > config.limit) {
-            console.log(`[AiWebSearch] Reducing ${uniqueSurvivors.length} survivors to limit ${config.limit}...`);
+        if (uniqueResults.length === 0) return { contentParts: [{ type: 'text', text: "No results found." }], data: [] };
 
-            finalSelection = await this.selector.select(uniqueSurvivors, {
+        // 4. Chunking & Local Selection (Map)
+        let mapSurvivors: WebSearchResult[] = [];
+
+        if (this.selector) {
+            console.log(`[AiWebSearch] Running local selection on ${uniqueResults.length} results in chunks of ${config.chunkSize}...`);
+            
+            const chunks: WebSearchResult[][] = [];
+            for (let i = 0; i < uniqueResults.length; i += config.chunkSize) {
+                chunks.push(uniqueResults.slice(i, i + config.chunkSize));
+            }
+
+            const chunkResults = await Promise.all(chunks.map(async (chunk, chunkIndex) => {
+                return await this.selector!.select(chunk, {
+                    maxSelected: chunk.length, // Keep all good ones locally
+                    formatContent: async (items) => {
+                        const listText = items.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
+                        return [{ type: 'text', text: `Search results (Chunk ${chunkIndex + 1}):\n\n${listText}` }];
+                    },
+                    promptPreamble: "Select the indices of the most relevant results.",
+                    indexOffset: 0,
+                    onDecision: async (decision, items) => {
+                        this.events.emit('selection:map', {
+                            chunkIndex,
+                            results: items,
+                            selection: { indices: decision.selected_indices, reasoning: decision.reasoning }
+                        });
+                    }
+                });
+            }));
+
+            mapSurvivors = chunkResults.flat();
+        } else {
+            // No selector, all deduplicated results survive the map phase
+            mapSurvivors = uniqueResults;
+        }
+
+        // 5. Reduce (Global Selection)
+        let finalSelection = mapSurvivors;
+
+        if (this.selector && mapSurvivors.length > config.limit) {
+            console.log(`[AiWebSearch] Reducing ${mapSurvivors.length} survivors to limit ${config.limit}...`);
+
+            finalSelection = await this.selector.select(mapSurvivors, {
                 maxSelected: config.limit,
                 formatContent: async (items) => {
                     const listText = items.map((r, i) => `[${i}] ${r.title}\n    Link: ${r.link}\n    Snippet: ${r.snippet}`).join('\n\n');
@@ -163,14 +182,14 @@ export class AiWebSearch {
                     });
                 }
             });
-        } else if (uniqueSurvivors.length > config.limit) {
+        } else if (mapSurvivors.length > config.limit) {
             // Simple slice if no LLM selection configured but limit exceeded
-            finalSelection = uniqueSurvivors.slice(0, config.limit);
+            finalSelection = mapSurvivors.slice(0, config.limit);
         }
 
         if (finalSelection.length === 0) return { contentParts: [{ type: 'text', text: "No results found." }], data: [] };
 
-        // 5. Enrich (Parallel Fetch & Compress)
+        // 6. Enrich (Parallel Fetch & Compress)
         console.log(`[AiWebSearch] Enriching ${finalSelection.length} results...`);
 
         const finalOutputs: string[] = [];

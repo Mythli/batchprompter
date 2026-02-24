@@ -52,6 +52,18 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
             });
         });
 
+        aiWebSearch.events.on('selection:map', (data) => {
+            emit('plugin:artifact', {
+                row: context.index,
+                step: stepRow.step.stepIndex,
+                plugin: 'webSearch',
+                type: 'json',
+                filename: `webSearch/map/map_chunk${data.chunkIndex}_${Date.now()}.json`,
+                content: JSON.stringify(data, null, 2),
+                tags: ['debug', 'webSearch', 'map']
+            });
+        });
+
         aiWebSearch.events.on('selection:reduce', (data) => {
             emit('plugin:artifact', {
                 row: context.index,
@@ -92,6 +104,7 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
         const result = await aiWebSearch.process(context, {
             query: config.query,
             limit: config.limit,
+            chunkSize: config.chunkSize,
             mode: config.mode,
             queryCount: config.queryCount,
             maxPages: config.maxPages,
