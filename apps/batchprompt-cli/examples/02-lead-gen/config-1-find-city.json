@@ -10,7 +10,7 @@
   "steps": [
     {
       "model": {
-        "prompt": "List all cities in Germany with more than 50,000 inhabitants. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name in German).\n"
+        "prompt": "Give me berlin only"
       },
       "schema": {
         "type": "array",
@@ -31,19 +31,19 @@
         "explode": true
       }
     },
-   {
+    {
       "plugins": [
         {
           "type": "webSearch",
           "queryModel": {
-            "prompt": "Generate 5 distinct search queries to find websites of companies offering {{industry}} in {{location}}. Use varied keyword strategies to find all relevant companies."
+            "prompt": "Generate 5 distinct search queries to find the official websites of companies offering {{industry}} in {{location}}. Use varied phrasing and keywords (e.g. 'Sprachschule', 'Sprachkurs', 'Deutschkurs', 'language school'). Focus on finding direct company websites only. Do not include directories, lists, or aggregators.\n"
           },
           "selectModel": {
-            "prompt": "Select only the official company websites of {{industry}} companies from the search results. Exclude directories (like Yelp, Yellow Pages, Google Maps), social media profiles, and aggregator sites. Only select direct company websites.\n"
+            "prompt": "Select only the official company websites from the search results. Exclude directories (like Yelp, Yellow Pages, Google Maps), social media profiles, and aggregator sites. Only select direct company websites.\n"
           },
           "dedupeStrategy": "domain",
           "queryCount": 5,
-          "maxPages": 20,
+          "maxPages": 10,
           "gl": "de",
           "hl": "de",
           "limit": 100,
