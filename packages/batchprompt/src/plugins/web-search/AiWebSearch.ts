@@ -28,6 +28,7 @@ export class AiWebSearch {
             dedupeStrategy: 'none' | 'domain' | 'url';
             gl?: string;
             hl?: string;
+            scrapedCache?: Set<string>;
         }
     ): Promise<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[], data: WebSearchResult[] }> {
 
@@ -115,7 +116,11 @@ export class AiWebSearch {
         for (const result of allRawResults) {
             const key = getDedupeKey(result);
             if (key) {
+                // Check local row cache
                 if (seenKeys.has(key)) continue;
+                // Check global step cache (from other rows)
+                if (config.scrapedCache?.has(key)) continue;
+                
                 seenKeys.add(key);
             }
             uniqueResults.push(result);
@@ -196,6 +201,12 @@ export class AiWebSearch {
         const processedResults: WebSearchResult[] = [];
 
         await Promise.all(finalSelection.map(async (result) => {
+            // Register the final selected result in the global cache so future rows ignore it
+            const key = getDedupeKey(result);
+            if (key && config.scrapedCache) {
+                config.scrapedCache.add(key);
+            }
+
             let content = "";
             let rawContent = "";
 

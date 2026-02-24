@@ -86,6 +86,9 @@ function hydrateModelMessages(
 
 export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig> {
     readonly type = 'webSearch';
+    
+    // Step-scoped cache to prevent scraping the same URLs/domains across multiple rows
+    private scrapedCache = new Set<string>();
 
     constructor(
         private deps: {
@@ -133,6 +136,6 @@ export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig
     }
 
     createRow(stepRow: StepRow, config: WebSearchConfig): BasePluginRow<WebSearchConfig> {
-        return new WebSearchPluginRow(stepRow, config, this.deps.webSearch);
+        return new WebSearchPluginRow(stepRow, config, this.deps.webSearch, this.scrapedCache);
     }
 }

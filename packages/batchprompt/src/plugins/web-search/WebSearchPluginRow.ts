@@ -9,7 +9,8 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
     constructor(
         stepRow: StepRow,
         config: WebSearchConfig,
-        private webSearch: WebSearch
+        private webSearch: WebSearch,
+        private scrapedCache: Set<string>
     ) {
         super(stepRow, config);
     }
@@ -110,7 +111,8 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
             maxPages: config.maxPages,
             dedupeStrategy: config.dedupeStrategy,
             gl: config.gl,
-            hl: config.hl
+            hl: config.hl,
+            scrapedCache: this.scrapedCache
         });
 
         const history = await stepRow.getPreparedMessages();
