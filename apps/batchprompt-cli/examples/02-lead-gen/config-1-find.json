@@ -54,6 +54,14 @@
           }
         }
       ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "dedupe",
+          "key": "{{webSearch.domain}}"
+        }
+      ]
     }
   ]
 }
