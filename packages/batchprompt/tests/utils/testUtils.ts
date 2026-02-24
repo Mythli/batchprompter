@@ -104,7 +104,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     });
 
     for (const plugin of plugins) {
-        pluginRegistry.override(plugin);
+        pluginRegistry.overrideFactory(plugin.type, () => plugin);
     }
 
     deps.pluginRegistry = pluginRegistry;

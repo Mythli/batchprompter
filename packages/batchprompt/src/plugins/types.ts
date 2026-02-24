@@ -170,24 +170,25 @@ export abstract class BasePlugin<TBaseConfig = any, TNormalizedConfig = any> {
 }
 
 export class PluginRegistryV2 {
-    private plugins = new Map<string, BasePlugin<any>>();
+    private factories = new Map<string, () => BasePlugin<any>>();
 
-    register(plugin: BasePlugin): void {
-        if (this.plugins.has(plugin.type)) {
-            throw new Error(`Plugin '${plugin.type}' is already registered`);
+    registerFactory(type: string, factory: () => BasePlugin<any>): void {
+        if (this.factories.has(type)) {
+            throw new Error(`Plugin factory '${type}' is already registered`);
         }
-        this.plugins.set(plugin.type, plugin);
+        this.factories.set(type, factory);
     }
 
-    override(plugin: BasePlugin): void {
-        this.plugins.set(plugin.type, plugin);
+    overrideFactory(type: string, factory: () => BasePlugin<any>): void {
+        this.factories.set(type, factory);
     }
 
-    get(type: string): BasePlugin | undefined {
-        return this.plugins.get(type);
+    createInstance(type: string): BasePlugin | undefined {
+        const factory = this.factories.get(type);
+        return factory ? factory() : undefined;
     }
 
-    getAll(): BasePlugin[] {
-        return Array.from(this.plugins.values());
+    getAllInstances(): BasePlugin[] {
+        return Array.from(this.factories.values()).map(factory => factory());
     }
 }

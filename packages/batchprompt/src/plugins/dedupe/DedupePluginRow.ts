@@ -28,7 +28,7 @@ export class DedupePluginRow extends BasePluginRow<HydratedDedupeConfig> {
         const history = await stepRow.getPreparedMessages();
 
         // Check if this key has been seen before
-        if (plugin.hasSeenKey(instanceId, key)) {
+        if (plugin.hasSeenKey(key)) {
             // Duplicate found - emit event and drop row
             events.emit('plugin:event', {
                 row: rowIndex,
@@ -53,7 +53,7 @@ export class DedupePluginRow extends BasePluginRow<HydratedDedupeConfig> {
         }
 
         // New key - mark as seen and continue
-        plugin.markKeySeen(instanceId, key);
+        plugin.markKeySeen(key);
 
         events.emit('plugin:event', {
             row: rowIndex,

@@ -218,7 +218,7 @@ export function mergeOutputConfigs(base: OutputConfig, override?: PartialOutputC
 }
 
 export const createPipelineSchema = (pluginRegistry: PluginRegistryV2) => {
-    const plugins = pluginRegistry.getAll();
+    const plugins = pluginRegistry.getAllInstances();
 
     const pluginSchemas = plugins.map(plugin => {
         const schema = plugin.getSchema();

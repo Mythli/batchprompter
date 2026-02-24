@@ -31,7 +31,7 @@ export class Step {
     ) {
         // Normalize plugins once during initialization
         this.plugins = (config.plugins || []).map((pluginConfig: any) => {
-            const instance = deps.pluginRegistry.get(pluginConfig.type);
+            const instance = deps.pluginRegistry.createInstance(pluginConfig.type);
             if (!instance) {
                 throw new Error(`Plugin '${pluginConfig.type}' not found in registry.`);
             }

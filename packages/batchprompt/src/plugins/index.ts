@@ -48,37 +48,39 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
 
     // 1. Web Search (Requires Serper)
     if (deps.webSearch) {
-        registry.register(new WebSearchPlugin({
-            webSearch: deps.webSearch
+        registry.registerFactory('webSearch', () => new WebSearchPlugin({
+            webSearch: deps.webSearch!
         }));
     }
 
     // 2. Validation (No external deps)
-    registry.register(new ValidationPlugin());
+    registry.registerFactory('validation', () => new ValidationPlugin());
 
     // 3. Dedupe (No external deps)
-    registry.register(new DedupePlugin());
+    registry.registerFactory('dedupe', () => new DedupePlugin());
 
     // 5. Website Agent (Requires Puppeteer)
     if (deps.puppeteerHelper && deps.puppeteerQueue) {
-        registry.register(new WebsiteAgentPlugin({
-            puppeteerHelper: deps.puppeteerHelper,
-            puppeteerQueue: deps.puppeteerQueue
+        registry.registerFactory('websiteAgent', () => new WebsiteAgentPlugin({
+            puppeteerHelper: deps.puppeteerHelper!,
+            puppeteerQueue: deps.puppeteerQueue!
         }));
     }
 
     // 8. URL Expander (Requires Fetcher for basic functionality)
     if (deps.fetcher) {
-        const fetchHandler = new GenericFetchHandler(deps.fetcher);
+        registry.registerFactory('urlExpander', () => {
+            const fetchHandler = new GenericFetchHandler(deps.fetcher!);
 
-        const pHandler = deps.puppeteerHelper
-            ? new GenericPuppeteerHandler(deps.puppeteerHelper, deps.puppeteerQueue)
-            : { name: 'puppeteer-disabled', handle: async () => null } as GenericHandler;
+            const pHandler = deps.puppeteerHelper
+                ? new GenericPuppeteerHandler(deps.puppeteerHelper, deps.puppeteerQueue)
+                : { name: 'puppeteer-disabled', handle: async () => null } as GenericHandler;
 
-        const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, pHandler);
-        urlHandlerRegistry.registerSpecific(new WikipediaHandler());
+            const urlHandlerRegistry = new UrlHandlerRegistry(fetchHandler, pHandler);
+            urlHandlerRegistry.registerSpecific(new WikipediaHandler());
 
-        registry.register(new UrlExpanderPlugin(urlHandlerRegistry));
+            return new UrlExpanderPlugin(urlHandlerRegistry);
+        });
     }
 
     return registry;

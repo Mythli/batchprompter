@@ -20,17 +20,17 @@ export type DedupeConfig = z.output<typeof DedupeConfigSchema>;
 
 /**
  * Dedupe plugin that filters out duplicate rows based on a key template.
- * The seen keys are stored per-plugin-instance, so duplicates are tracked
- * across all rows processed by the same step.
+ * The plugin is instantiated per-step, so the seen keys are naturally
+ * scoped to all rows processed by that specific step.
  */
 export class DedupePlugin extends BasePlugin<DedupeConfig, DedupeConfig> {
     readonly type = 'dedupe';
     
     /**
-     * Shared state for tracking seen keys.
-     * Maps plugin instance ID to Set of seen keys.
+     * State for tracking seen keys.
+     * Since the plugin is instantiated per-step, this is naturally scoped to the step.
      */
-    private seenKeysMap = new Map<string, Set<string>>();
+    private seenKeys = new Set<string>();
 
     getSchema() {
         return DedupeConfigSchema;
@@ -39,11 +39,6 @@ export class DedupePlugin extends BasePlugin<DedupeConfig, DedupeConfig> {
     normalizeConfig(config: DedupeConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): DedupeConfig {
         const base = super.normalizeConfig(config, stepConfig, globalConfig);
         const id = config.id ?? `dedupe-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-        // Initialize seen keys set for this instance
-        if (!this.seenKeysMap.has(id)) {
-            this.seenKeysMap.set(id, new Set());
-        }
 
         return {
             ...base,
@@ -65,26 +60,22 @@ export class DedupePlugin extends BasePlugin<DedupeConfig, DedupeConfig> {
     /**
      * Check if a key has been seen before
      */
-    hasSeenKey(instanceId: string, key: string): boolean {
-        const seenKeys = this.seenKeysMap.get(instanceId);
-        return seenKeys?.has(key) ?? false;
+    hasSeenKey(key: string): boolean {
+        return this.seenKeys.has(key);
     }
 
     /**
      * Mark a key as seen
      */
-    markKeySeen(instanceId: string, key: string): void {
-        const seenKeys = this.seenKeysMap.get(instanceId);
-        if (seenKeys) {
-            seenKeys.add(key);
-        }
+    markKeySeen(key: string): void {
+        this.seenKeys.add(key);
     }
 
     /**
-     * Clear seen keys for an instance (useful for testing)
+     * Clear seen keys (useful for testing)
      */
-    clearSeenKeys(instanceId: string): void {
-        this.seenKeysMap.delete(instanceId);
+    clearSeenKeys(): void {
+        this.seenKeys.clear();
     }
 
     createRow(stepRow: StepRow, config: DedupeConfig): BasePluginRow<DedupeConfig> {
