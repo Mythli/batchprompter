@@ -95,7 +95,7 @@ export const FeedbackConfigSchema = ModelConfigSchema;
 export type FeedbackConfig = z.infer<typeof FeedbackConfigSchema>;
 
 export const StepSchema = z.object({
-    timeout: z.number().int().positive().default(180),
+    timeout: z.number().int().positive().default(1000),
     limit: z.number().int().positive().optional(),
     offset: z.number().int().min(0).optional(),
     data: z.array(z.record(z.string(), z.any())).default([{}]),
@@ -140,8 +140,8 @@ export const GlobalsSchema = z.preprocess((val: unknown) => {
     }
     return val;
 }, StepSchema.extend({
-    concurrency: z.number().int().positive().default(50),
-    taskConcurrency: z.number().int().positive().default(100),
+    concurrency: z.number().int().positive().default(30),
+    taskConcurrency: z.number().int().positive().default(10),
     inputLimit: z.number().int().positive().optional(),
     inputOffset: z.number().int().min(0).optional(),
     dataOutputPath: z.string().optional(),
