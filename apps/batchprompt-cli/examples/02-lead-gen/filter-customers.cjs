@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 200;
 
 (async () => {
     const inputFile = process.argv[2];
