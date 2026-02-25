@@ -19,15 +19,15 @@
             "properties": {
               "nicheBroad": {
                 "type": ["string", "null"],
-                "description": "A broad category for the business based on their top bookable offer (e.g., 'Bildung', 'Gesundheit & Fitness', 'Beratung', 'Handwerk')."
+                "description": "A high-level industry sector (e.g., 'Bildung', 'Gesundheit & Sport', 'Freizeit & Tourismus', 'Beratung')."
               },
               "nicheSpecific": {
                 "type": ["string", "null"],
-                "description": "A more specific category for the business based on their top bookable offer. Examples of good categories: Schwimmschulen, Sprachschulen, Jagdschulen, Heldenreise-Software, Erste-Hilfe-Kurse, Kommunalakademie, KFZ-Innung, Kosmetikakademie, Palliativakademie, Fortbildungen für Erzieher, Camps & Freizeiten, Simulationszentren, Kongresse, Führungen, Fahrschulen."
+                "description": "The specific industry or business type. You MUST try to map the business to one of these exact categories if it fits: Schwimmschulen, Sprachschulen, Jagdschulen, Heldenreise-Anbieter, Erste-Hilfe-Kurse, Kommunalakademie, KFZ-Innung, Kosmetikakademie, Palliativakademie, Fortbildungen für Erzieher, Camps & Freizeiten, Simulationszentren, Kongresse, Führungen, Fahrschulen, Bootsschulen, Tanzschulen, Hundeschulen. If none fit, create a similarly broad, standard industry term (e.g., 'Yogastudio', 'Kochschule'). Do NOT make it too specific."
               },
               "nicheVerySpecific": {
                 "type": ["string", "null"],
-                "description": "A short, memorable, and highly tailored niche description based on their top bookable offer. Do NOT use long sentences. Keep it to 1-3 words. For example, instead of a generic 'Bootsschule', use 'Segelschule' if it is more tailored to it. Other examples: 'Business-Englisch', 'Pränatales Yoga', 'Agile Transformation', 'Sportbootführerschein'."
+                "description": "The exact core subject or sub-niche of their top offer in 1-2 words. It must be short, punchy, and memorable. Do NOT use long sentences or highly specific long-tail phrases. Examples: 'Segeln', 'Business-Englisch', 'Pränatales Yoga', 'Reitcamp', 'Sportbootführerschein', 'Führungskräfte', 'Notfallsanitäter'."
               },
               "companyName": {
                 "type": ["string", "null"],
