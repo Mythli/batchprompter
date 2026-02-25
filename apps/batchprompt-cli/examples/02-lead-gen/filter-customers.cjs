@@ -51,8 +51,14 @@ const fs = require('fs');
 
     const matchedDomains = new Set();
     let processedCount = 0;
+    let batchIndex = 1;
+    const totalBatches = batches.length;
+    const startTime = Date.now();
 
     for (const batch of batches) {
+        console.log(`\n[Batch ${batchIndex}/${totalBatches}] Starting processing of ${batch.length} URLs...`);
+        const batchStartTime = Date.now();
+
         try {
             const input = JSON.stringify({ urls: batch });
             const url = `https://crisp-lamps-rest.app.taylordb.ai/api/trpc/domains.matchUrls?input=${encodeURIComponent(input)}`;
@@ -88,17 +94,27 @@ const fs = require('fs');
             }
 
         } catch (e) {
-            console.error("Error checking batch:", e);
+            console.error(`[Batch ${batchIndex}/${totalBatches}] Error checking batch:`, e);
         }
         
         processedCount += batch.length;
-        console.log(`Processed ${processedCount}/${uniqueUrls.length} URLs...`);
+        const batchEndTime = Date.now();
+        const batchDuration = (batchEndTime - batchStartTime) / 1000;
+        
+        const totalElapsedTime = batchEndTime - startTime;
+        const avgTimePerUrl = totalElapsedTime / processedCount;
+        const remainingUrls = uniqueUrls.length - processedCount;
+        const estimatedRemainingTimeSec = (remainingUrls * avgTimePerUrl / 1000).toFixed(1);
+
+        console.log(`[Batch ${batchIndex}/${totalBatches}] Finished in ${batchDuration.toFixed(1)}s. Processed ${processedCount}/${uniqueUrls.length} URLs. Estimated time remaining: ${estimatedRemainingTimeSec}s`);
+        batchIndex++;
     }
 
     const filteredRows = [];
     const keptRows = [];
     let idCounter = 1;
 
+    console.log('\nFiltering rows based on results...');
     for (const row of rows) {
         const url = row[urlCol];
         if (url && matchedDomains.has(url)) {
