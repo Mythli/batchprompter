@@ -50,6 +50,7 @@ const fs = require('fs');
     }
 
     const matchedDomains = new Set();
+    let processedCount = 0;
 
     for (const batch of batches) {
         try {
@@ -89,6 +90,9 @@ const fs = require('fs');
         } catch (e) {
             console.error("Error checking batch:", e);
         }
+        
+        processedCount += batch.length;
+        console.log(`Processed ${processedCount}/${uniqueUrls.length} URLs...`);
     }
 
     const filteredRows = [];
