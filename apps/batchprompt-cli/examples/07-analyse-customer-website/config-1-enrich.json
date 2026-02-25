@@ -15,7 +15,7 @@
           "url": "{{Website}}",
           "schema": {
             "type": "object",
-            "description": "Extract contact details, decision maker info, identify the Top Offer (focusing on bookable courses, seminars, camps, or events with fixed times), and determine the business niches based on this offer. IMPORTANT: All free-text answers MUST be written in German.",
+            "description": "Extract contact details, decision maker info, identify the Top Offer (focusing on bookable courses, seminars, camps, or events with fixed times), determine the business niches, and figure out exactly why they need a booking system like Butlerapp. IMPORTANT: All free-text answers MUST be written in German.",
             "properties": {
               "nicheBroad": {
                 "type": ["string", "null"],
@@ -28,6 +28,10 @@
               "nicheVerySpecific": {
                 "type": ["string", "null"],
                 "description": "The exact core subject or sub-niche of their top offer in 1-2 words. It must be short, punchy, and memorable. Do NOT use long sentences or highly specific long-tail phrases. Examples: 'Segeln', 'Business-Englisch', 'Pränatales Yoga', 'Reitcamp', 'Sportbootführerschein', 'Führungskräfte', 'Notfallsanitäter'."
+              },
+              "bookingSystemUseCase": {
+                "type": ["string", "null"],
+                "description": "Explain exactly why this specific business needs a booking system like Butlerapp and what they would use it for based on their top offer and niche. Focus on the administrative pain points they likely have (e.g., managing participant lists, handling online payments, sending automated reminders, booking fixed-date seminars or camps). Keep it concise (1-2 sentences in German)."
               },
               "companyName": {
                 "type": ["string", "null"],
@@ -67,7 +71,7 @@
               },
               "topOffer": {
                 "type": ["object", "null"],
-                "description": "Identify ONE single, concrete, purchasable 'Top Offer' that represents a bookable, timed event (such as a course, seminar, camp, workshop, retreat, or training) with fixed dates or times. This must be an offer that requires participant management and a booking system (like Butlerapp). Look for the 'Hero' course or seminar featured on the homepage. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').\n",
+                "description": "Identify ONE single, concrete, purchasable 'Top Offer' that represents a bookable, timed event (such as a course, seminar, camp, workshop, retreat, or training) with fixed dates or times. This MUST be an offer that requires participant management, ticketing, or a booking system (like Butlerapp). Look for the 'Hero' course or seminar featured on the homepage. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').\n",
                 "properties": {
                   "name": { "type": ["string", "null"], "description": "The specific name of the single offer (e.g. 'Open Water Diver Course', 'Full Body Massage 60min'). (in German)" },
                   "price": { "type": ["number", "null"], "description": "The price of this specific offer in Euros (e.g. 2990). Do not include currency symbols." },
@@ -95,9 +99,10 @@
             "properties": {
               "nicheBroad": { "type": "string", "minLength": 1 },
               "nicheSpecific": { "type": "string", "minLength": 1 },
+              "bookingSystemUseCase": { "type": "string", "minLength": 10 },
               "companyName": { "type": "string", "minLength": 1 }
             },
-            "required": ["companyName", "nicheBroad", "nicheSpecific"]
+            "required": ["companyName", "nicheBroad", "nicheSpecific", "bookingSystemUseCase"]
           },
           "failMode": "drop"
         }
