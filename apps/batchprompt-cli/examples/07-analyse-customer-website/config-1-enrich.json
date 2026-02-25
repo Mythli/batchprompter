@@ -4,26 +4,30 @@
     "thinkingLevel": "high"
   },
   "output": {
-    "tmpDir": "out/02-lead-gen/.tmp"
+    "tmpDir": "out/07-analyse-customer-website/.tmp"
   },
-  "dataOutputPath": "out/02-lead-gen/companies_enriched.csv",
+  "dataOutputPath": "out/07-analyse-customer-website/customers_enriched.csv",
   "steps": [
     {
       "plugins": [
         {
           "type": "websiteAgent",
-          "url": "{{webSearch.link}}",
+          "url": "{{Website}}",
           "schema": {
             "type": "object",
-            "description": "Extract contact details, decision maker info, and identify the Top Offer of the business. IMPORTANT: All free-text answers (descriptions, reasons, offer names, etc.) MUST be written in German.",
+            "description": "Extract contact details, decision maker info, identify the Top Offer, and determine the business niches. IMPORTANT: All free-text answers MUST be written in German.",
             "properties": {
-              "isIndustry": {
-                "type": ["boolean", "null"],
-                "description": "Is this company offering {{industry}} as their core product?"
-              },
-              "isIndustryReason": {
+              "nicheBroad": {
                 "type": ["string", "null"],
-                "description": "Reason why this company is or is not offering {{industry}}."
+                "description": "A broad category for the business (e.g., 'Bildung', 'Gesundheit & Fitness', 'Beratung', 'Handwerk')."
+              },
+              "nicheSpecific": {
+                "type": ["string", "null"],
+                "description": "A more specific category for the business (e.g., 'Sprachschule', 'Yogastudio', 'Unternehmensberatung', 'Bootsfahrschule')."
+              },
+              "nicheVerySpecific": {
+                "type": ["string", "null"],
+                "description": "A highly specific, unspecific/long-tail niche description (e.g., 'Business-Englisch für IT-Fachkräfte', 'Pränatales Yoga für Schwangere', 'Agile Transformation für den Mittelstand', 'Sportbootführerschein Binnen und See')."
               },
               "companyName": {
                 "type": ["string", "null"],
@@ -89,19 +93,11 @@
           "schema": {
             "type": "object",
             "properties": {
-              "isIndustry": { "const": true },
-              "companyName": { "type": "string", "minLength": 1 },
-              "decisionMaker": {
-                "type": "object",
-                "properties": {
-                  "firstName": { "type": "string", "minLength": 3 },
-                  "lastName": { "type": "string", "minLength": 3 },
-                  "email": { "type": "string", "minLength": 1 }
-                },
-                "required": ["firstName", "lastName", "email"]
-              }
+              "nicheBroad": { "type": "string", "minLength": 1 },
+              "nicheSpecific": { "type": "string", "minLength": 1 },
+              "companyName": { "type": "string", "minLength": 1 }
             },
-            "required": ["companyName", "decisionMaker", "isIndustry"]
+            "required": ["companyName", "nicheBroad", "nicheSpecific"]
           },
           "failMode": "drop"
         }
