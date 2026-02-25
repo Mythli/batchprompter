@@ -33,14 +33,6 @@
                 "type": ["string", "null"],
                 "description": "The legal form / company type of the business (e.g. 'GmbH', 'e.V.', 'AG', 'UG', 'Einzelunternehmen', 'GbR', 'OHG', 'KG', 'gGmbH'). Look in the imprint (Impressum), footer, or about page. Optional."
               },
-              "approximateFixedAppointments": {
-                "type": ["integer", "null"],
-                "description": "Approximate number of individual fixed-range scheduled instances currently listed on the website. A 'fixed appointment' is any offering (course, retreat, workshop, seminar, event, training, camp, etc.) that has a concrete start date AND end date — a clear FROM-TO date range visible on the website (e.g. '01.09.2025 - 30.09.2025', '14.-16. Juli 2025'). Count each individual scheduled instance separately, not types of offerings. For example, if 'Retreat A' runs 3 times with different start dates, count 3. This does NOT include: recurring open sessions anyone can join on any given day (e.g. 'Yoga every Monday 18:00'), drop-in sessions, rolling memberships, punch cards / Mehrfachkarten (e.g. '10x for 120€'), or ongoing weekly offerings without a defined end date. If no clear FROM-TO date ranges are visible on the website, return 0. Return null if it cannot be determined."
-              },
-              "approximateFixedAppointmentsReason": {
-                "type": ["string", "null"],
-                "description": "Explain how the approximateFixedAppointments count was determined. List a breakdown by offering type, e.g. 'Found 5 Intensivkurs instances (A1: 2, A2: 1, B1: 2), 3 Retreat instances (Spring: 1, Summer: 2), and 2 Workshop instances = total ~10'. This breakdown helps the merge model combine counts from multiple pages accurately. If no fixed appointments were found, explain why (e.g. 'Website only lists offering types without specific dates', 'All offerings are drop-in / recurring without end dates')."
-              },
               "address": {
                 "type": ["object", "null"],
                 "description": "The postal address of the company. Optional.",
@@ -112,25 +104,6 @@
             "required": ["companyName", "decisionMaker", "isIndustry"]
           },
           "failMode": "drop"
-        }
-      ]
-    },
-    {
-      "model": {
-        "prompt": "You are a data extraction engine. Extract the LinkedIn URL for {{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}} from the search results.\n\nOutput Rules:\n\n1. Return ONLY the URL (starting with https://).\n\n2. If no valid personal profile is found, return an empty string.\n\n3. Do NOT return JSON, Markdown, quotes, or explanations.\n"
-      },
-      "output": {
-        "mode": "column",
-        "column": "linkedinUrl"
-      },
-      "plugins": [
-        {
-          "type": "webSearch",
-          "query": "site:linkedin.com/in/ {{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}} {{websiteAgent.companyName}} -inurl:company",
-          "limit": 5,
-          "selectModel": {
-            "prompt": "Select the LinkedIn personal profile for {{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}} at {{websiteAgent.companyName}}. The URL MUST contain '/in/'. Do NOT select company pages (containing '/company/'). If the specific person is not found, do not select anything.\n"
-          }
         }
       ]
     }
