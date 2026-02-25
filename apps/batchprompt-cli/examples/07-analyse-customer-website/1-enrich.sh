@@ -16,4 +16,4 @@ fi
 INPUT_FILE="$1"
 OUTPUT_FILE="$2"
 
-cat "$INPUT_FILE" | node dist/index.js generate --config examples/02-lead-gen/config-2-enrich.json --data-output-path "$OUTPUT_FILE" --input-limit 10
+cat "$INPUT_FILE" | node dist/index.js generate --config examples/07-analyse-customer-website/config-1-enrich.json --data-output-path "$OUTPUT_FILE" --input-limit 10
