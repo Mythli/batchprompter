@@ -1,5 +1,7 @@
 const fs = require('fs');
 
+const BATCH_SIZE = 10;
+
 (async () => {
     const inputFile = process.argv[2];
     const outputFile = process.argv[3];
@@ -45,8 +47,8 @@ const fs = require('fs');
     console.log(`Checking ${uniqueUrls.length} unique URLs against database...`);
 
     const batches = [];
-    for (let i = 0; i < uniqueUrls.length; i += 50) {
-        batches.push(uniqueUrls.slice(i, i + 50));
+    for (let i = 0; i < uniqueUrls.length; i += BATCH_SIZE) {
+        batches.push(uniqueUrls.slice(i, i + BATCH_SIZE));
     }
 
     const matchedDomains = new Set();
