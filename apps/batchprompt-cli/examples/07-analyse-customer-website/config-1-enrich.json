@@ -15,19 +15,19 @@
           "url": "{{Website}}",
           "schema": {
             "type": "object",
-            "description": "Extract contact details, decision maker info, identify the Top Offer, and determine the business niches. IMPORTANT: All free-text answers MUST be written in German.",
+            "description": "Extract contact details, decision maker info, identify the Top Offer (focusing on bookable courses, seminars, camps, or events with fixed times), and determine the business niches based on this offer. IMPORTANT: All free-text answers MUST be written in German.",
             "properties": {
               "nicheBroad": {
                 "type": ["string", "null"],
-                "description": "A broad category for the business (e.g., 'Bildung', 'Gesundheit & Fitness', 'Beratung', 'Handwerk')."
+                "description": "A broad category for the business based on their top bookable offer (e.g., 'Bildung', 'Gesundheit & Fitness', 'Beratung', 'Handwerk')."
               },
               "nicheSpecific": {
                 "type": ["string", "null"],
-                "description": "A more specific category for the business (e.g., 'Sprachschule', 'Yogastudio', 'Unternehmensberatung', 'Bootsfahrschule')."
+                "description": "A more specific category for the business based on their top bookable offer (e.g., 'Sprachschule', 'Yogastudio', 'Akademie', 'Bootsfahrschule', 'Seminaranbieter')."
               },
               "nicheVerySpecific": {
                 "type": ["string", "null"],
-                "description": "A highly specific, unspecific/long-tail niche description (e.g., 'Business-Englisch für IT-Fachkräfte', 'Pränatales Yoga für Schwangere', 'Agile Transformation für den Mittelstand', 'Sportbootführerschein Binnen und See')."
+                "description": "A highly specific, long-tail niche description based on their top bookable offer (e.g., 'Business-Englisch Kurse für IT-Fachkräfte', 'Pränatales Yoga Retreats für Schwangere', 'Agile Transformation Seminare für den Mittelstand', 'Sportbootführerschein Binnen und See Ausbildung')."
               },
               "companyName": {
                 "type": ["string", "null"],
@@ -67,7 +67,7 @@
               },
               "topOffer": {
                 "type": ["object", "null"],
-                "description": "Identify ONE single, concrete, purchasable 'Top Offer'. It must be the MAIN product or service this business is trying to sell. Look for the 'Hero' offer featured on the homepage, the core service that defines the business. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').\n",
+                "description": "Identify ONE single, concrete, purchasable 'Top Offer' that represents a bookable, timed event (such as a course, seminar, camp, workshop, retreat, or training) with fixed dates or times. This must be an offer that requires participant management and a booking system (like Butlerapp). Look for the 'Hero' course or seminar featured on the homepage. Do NOT simply pick the most expensive one. Do NOT summarize multiple offers (e.g. 'Various Yoga Classes'), instead pick the specific core one (e.g. 'Hatha Yoga 10-Week Course').\n",
                 "properties": {
                   "name": { "type": ["string", "null"], "description": "The specific name of the single offer (e.g. 'Open Water Diver Course', 'Full Body Massage 60min'). (in German)" },
                   "price": { "type": ["number", "null"], "description": "The price of this specific offer in Euros (e.g. 2990). Do not include currency symbols." },
@@ -79,7 +79,7 @@
               },
               "top5Offers": {
                 "type": ["string", "null"],
-                "description": "A bulleted list of the top 5 offers found on the website. Each bullet point must include the Offer Name, Price (if available), Appointment info (if relevant), and a short description of what it is."
+                "description": "A bulleted list of the top 5 offers found on the website. Each bullet point must include the Offer Name, Price (if available), Appointment info (if relevant), and a short description of what it is. Focus on bookable courses, seminars, and events."
               }
             }
           },
