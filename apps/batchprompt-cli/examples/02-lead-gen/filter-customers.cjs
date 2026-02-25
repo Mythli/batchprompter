@@ -60,6 +60,7 @@ const BATCH_SIZE = 10;
     for (const batch of batches) {
         console.log(`\n[Batch ${batchIndex}/${totalBatches}] Starting processing of ${batch.length} URLs...`);
         const batchStartTime = Date.now();
+        let batchMatchedCount = 0;
 
         try {
             const input = JSON.stringify({ urls: batch });
@@ -92,6 +93,7 @@ const BATCH_SIZE = 10;
             for (const res of results) {
                 if (res.matched) {
                     matchedDomains.add(res.url);
+                    batchMatchedCount++;
                 }
             }
 
@@ -108,7 +110,7 @@ const BATCH_SIZE = 10;
         const remainingUrls = uniqueUrls.length - processedCount;
         const estimatedRemainingTimeSec = (remainingUrls * avgTimePerUrl / 1000).toFixed(1);
 
-        console.log(`[Batch ${batchIndex}/${totalBatches}] Finished in ${batchDuration.toFixed(1)}s. Processed ${processedCount}/${uniqueUrls.length} URLs. Estimated time remaining: ${estimatedRemainingTimeSec}s`);
+        console.log(`[Batch ${batchIndex}/${totalBatches}] Finished in ${batchDuration.toFixed(1)}s. Processed ${processedCount}/${uniqueUrls.length} URLs. Filtered out this batch: ${batchMatchedCount} (Total: ${matchedDomains.size}). Estimated time remaining: ${estimatedRemainingTimeSec}s`);
         batchIndex++;
     }
 
