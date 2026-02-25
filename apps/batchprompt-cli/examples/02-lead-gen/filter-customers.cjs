@@ -82,12 +82,23 @@ const BATCH_SIZE = 200;
 
             const json = await response.json();
 
-            // Handle tRPC response structure
+            if (json.error) {
+                console.error(`tRPC Error: ${json.error.message || JSON.stringify(json.error)}`);
+                continue;
+            }
+
+            // Handle tRPC response structure robustly based on the spec
             let results = [];
-            if (json.result && json.result.data && json.result.data.results) {
+            if (json.result && json.result.data && Array.isArray(json.result.data.results)) {
                 results = json.result.data.results;
-            } else if (json.results) {
+            } else if (Array.isArray(json.results)) {
                 results = json.results;
+            } else if (Array.isArray(json) && json[0]?.result?.data?.results) {
+                // Handle potential tRPC array-batched response
+                results = json[0].result.data.results;
+            } else {
+                console.error(`[Batch ${batchIndex}/${totalBatches}] Unexpected response format:`, JSON.stringify(json).substring(0, 200));
+                continue;
             }
 
             for (const res of results) {
