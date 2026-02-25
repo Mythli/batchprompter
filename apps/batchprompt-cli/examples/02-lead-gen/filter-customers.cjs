@@ -1,6 +1,6 @@
 const fs = require('fs');
 
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 100;
 
 (async () => {
     const inputFile = process.argv[2];
@@ -17,7 +17,7 @@ const BATCH_SIZE = 10;
     }
 
     const csvContent = fs.readFileSync(inputFile, 'utf8');
-    
+
     // Dynamic import for papaparse
     const { default: Papa } = await import('papaparse');
 
@@ -34,10 +34,10 @@ const BATCH_SIZE = 10;
 
     // Identify URL column.
     const urlCol = 'webSearch.link';
-    
+
     const urls = rows.map(row => row[urlCol]).filter(u => u && typeof u === 'string' && u.trim().length > 0);
     const uniqueUrls = [...new Set(urls)];
-    
+
     if (uniqueUrls.length === 0) {
         console.log("No URLs found to check.");
         fs.writeFileSync(outputFile, csvContent);
@@ -81,7 +81,7 @@ const BATCH_SIZE = 10;
             }
 
             const json = await response.json();
-            
+
             // Handle tRPC response structure
             let results = [];
             if (json.result && json.result.data && json.result.data.results) {
@@ -100,11 +100,11 @@ const BATCH_SIZE = 10;
         } catch (e) {
             console.error(`[Batch ${batchIndex}/${totalBatches}] Error checking batch:`, e);
         }
-        
+
         processedCount += batch.length;
         const batchEndTime = Date.now();
         const batchDuration = (batchEndTime - batchStartTime) / 1000;
-        
+
         const totalElapsedTime = batchEndTime - startTime;
         const avgTimePerUrl = totalElapsedTime / processedCount;
         const remainingUrls = uniqueUrls.length - processedCount;
