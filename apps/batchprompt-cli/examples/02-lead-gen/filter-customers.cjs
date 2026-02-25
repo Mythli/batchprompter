@@ -63,14 +63,14 @@ const BATCH_SIZE = 100;
         let batchMatchedCount = 0;
 
         try {
-            const input = JSON.stringify({ urls: batch });
-            const url = `https://crisp-lamps-rest.app.taylordb.ai/api/trpc/domains.matchUrls?input=${encodeURIComponent(input)}`;
+            const url = `https://crisp-lamps-rest.app.taylordb.ai/api/trpc/domains.matchUrls`;
 
             const response = await fetch(url, {
-                method: 'GET',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
-                }
+                },
+                body: JSON.stringify({ urls: batch })
             });
 
             if (!response.ok) {
