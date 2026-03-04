@@ -1,15 +1,16 @@
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
 import path from 'path';
+import fsPromises from 'fs/promises';
 import { PipelineItem } from './types.js';
 import { StepRow, StepRowState, StageDescriptor } from './StepRow.js';
 import { StepConfig, GlobalConfig } from "./config/schema.js";
 import { PluginRegistryV2, BasePlugin } from "./plugins/types.js";
 import { BatchPromptEvents } from "./events.js";
-import { aggressiveSanitize, ensureDir } from './utils/fileUtils.js';
+import { aggressiveSanitize } from './utils/fileUtils.js';
 import { renderSchemaObject } from './utils/schemaUtils.js';
 import { ModelConfig } from './config/model.js';
-import {EventEmitter} from "eventemitter3";
+import { EventEmitter } from "eventemitter3";
 
 export interface StepPlugin {
     instance: BasePlugin;
@@ -29,7 +30,6 @@ export class Step {
         public readonly stepIndex: number,
         public readonly globalConfig: GlobalConfig
     ) {
-        // Normalize plugins once during initialization
         this.plugins = (config.plugins || []).map((pluginConfig: any) => {
             const instance = deps.pluginRegistry.createInstance(pluginConfig.type);
             if (!instance) {
@@ -43,22 +43,10 @@ export class Step {
         });
     }
 
-    /**
-     * Builds the ordered list of processing stages for a step.
-     * 
-     * The sequence is:
-     *   plugin-prepare(0), plugin-prepare(1), ..., model, plugin-post(0), plugin-post(1), ...
-     * 
-     * This is used by Pipeline to process stages individually, allowing
-     * explosion branches to be routed through the task queue.
-     * 
-     * @param hydratedConfig The hydrated step config (from createRow)
-     */
     buildStages(hydratedConfig: StepConfig): StageDescriptor[] {
         const plugins = hydratedConfig.plugins || [];
         const stages: StageDescriptor[] = [];
 
-        // Plugin prepare stages
         for (const plugin of plugins) {
             stages.push({
                 type: 'plugin-prepare',
@@ -67,13 +55,11 @@ export class Step {
             });
         }
 
-        // Model stage (only if there are messages to send)
         const modelMessages = hydratedConfig.model?.messages;
         if (modelMessages && modelMessages.length > 0) {
             stages.push({ type: 'model' });
         }
 
-        // Plugin post-process stages
         for (const plugin of plugins) {
             stages.push({
                 type: 'plugin-post',
@@ -91,27 +77,26 @@ export class Step {
         return t(context);
     }
 
-    private async hydrate(context: Record<string, any>, originalIndex: number): Promise<StepConfig> {
+    private async hydrate(context: Record<string, any>, originalIndex: number, lineage: number[]): Promise<StepConfig> {
         const { config, stepIndex, globalConfig } = this;
         const stepNum = stepIndex + 1;
 
-        // 1. Sanitize context for file paths
         const sanitizedContext: Record<string, any> = {};
         for (const [key, val] of Object.entries(context)) {
             const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
             sanitizedContext[key] = aggressiveSanitize(stringVal);
         }
 
-        // 2. Resolve Paths
         let outputDir = '';
-        let outputBasename = `output_${originalIndex}_${stepNum}`;
+        const lineagePart = lineage.length > 0 ? `_v${lineage.join('-')}` : '';
+        let outputBasename = `output_${originalIndex}${lineagePart}_${stepNum}`;
         let outputExtension = config.aspectRatio ? '.png' : '.txt';
         let tempDir = '/tmp';
 
         if (config.output?.path) {
             const rendered = this.render(config.output.path, sanitizedContext);
             outputDir = path.resolve(path.dirname(rendered));
-            await ensureDir(outputDir);
+            await fsPromises.mkdir(outputDir, { recursive: true });
 
             const parsed = path.parse(rendered);
             outputBasename = parsed.name;
@@ -121,10 +106,9 @@ export class Step {
         if (config.output?.tmpDir) {
             const rendered = this.render(config.output.tmpDir, sanitizedContext);
             tempDir = path.resolve(rendered);
-            await ensureDir(tempDir);
+            await fsPromises.mkdir(tempDir, { recursive: true });
         }
 
-        // 3. Resolve Schema
         let schema = config.schema;
         if (schema) {
             if (typeof schema === 'string') {
@@ -144,7 +128,6 @@ export class Step {
             }
         }
 
-        // 4. Hydrate Model Messages
         const hydrateModel = (m?: ModelConfig): ModelConfig | undefined => {
             if (!m) return undefined;
             return {
@@ -166,7 +149,6 @@ export class Step {
             };
         };
 
-        // 5. Hydrate Plugins
         const hydratedPlugins = await Promise.all(this.plugins.map(async (p) => {
             const hydratedConfig = await p.instance.hydrate(config, globalConfig, p.config, context);
             return {
@@ -191,9 +173,9 @@ export class Step {
 
     async createRow(item: PipelineItem): Promise<StepRow> {
         const context = { ...item.workspace, ...item.row };
-        const hydratedConfig = await this.hydrate(context, item.originalIndex);
+        const lineage = item.lineage || [];
+        const hydratedConfig = await this.hydrate(context, item.originalIndex, lineage);
 
-        // Bake model messages into initial history
         const initialHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
             ...item.history,
             ...(hydratedConfig.model?.messages || [])
@@ -205,7 +187,7 @@ export class Step {
             history: initialHistory,
             content: [],
             originalIndex: item.originalIndex,
-            variationIndex: item.variationIndex,
+            lineage: lineage,
             stepHistory: item.stepHistory
         });
     }

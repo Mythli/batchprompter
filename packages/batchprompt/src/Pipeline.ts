@@ -202,7 +202,8 @@ export class Pipeline {
                     workspace: {},
                     stepHistory: [],
                     history: [],
-                    originalIndex: originalIndex
+                    originalIndex: originalIndex,
+                    lineage: []
                 };
                 events.emit('row:start', { index: originalIndex, row: initialItem.row });
                 queue.add(

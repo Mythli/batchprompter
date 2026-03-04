@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import path from 'path';
+import fsPromises from 'fs/promises';
 import { Step } from './Step.js';
 import { PipelineItem } from './types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
@@ -12,27 +13,12 @@ import { ModelConfig } from "./config/model.js";
 
 /**
  * Describes a single processing stage within a step.
- * Steps are broken into a sequence of stages:
- *   plugin-prepare(0), plugin-prepare(1), ..., model, plugin-post(0), plugin-post(1), ...
- * 
- * This allows the Pipeline to process stages individually, enqueuing
- * explosion branches through the task queue instead of using Promise.all.
  */
 export type StageDescriptor =
     | { type: 'plugin-prepare'; instance: any; config: any }
     | { type: 'model' }
     | { type: 'plugin-post'; instance: any; config: any };
 
-/**
- * Helper to apply data to a target object based on mode/namespace/column.
- * 
- * @param target - The object to apply data to (newData or newContext)
- * @param data - The data to apply
- * @param options - Configuration for how to apply
- *   - namespace: If provided, data is stored under this key
- *   - column: If provided, data is stored under this key (column mode)
- *   - spreadObject: If true and data is a plain object, spread properties directly into target
- */
 function applyDataToTarget(
     target: Record<string, any>,
     data: any,
@@ -46,17 +32,13 @@ function applyDataToTarget(
     const isPlainObject = typeof data === 'object' && data !== null && !Array.isArray(data);
 
     if (column) {
-        // Column mode: store under the column key
         target[column] = data;
     } else if (namespace) {
-        // Plugin output: store under namespace
         target[namespace] = data;
-        // Also spread object properties if requested
         if (spreadObject && isPlainObject) {
             Object.assign(target, data);
         }
     } else {
-        // Direct merge (model output): spread if data is a plain object
         if (isPlainObject) {
             Object.assign(target, data);
         }
@@ -64,17 +46,12 @@ function applyDataToTarget(
 }
 
 export interface StepRowState {
-    // The persistent data record that is being processed and saved
     data: Record<string, any>;
-    // The view context (workspace + data + ephemeral plugin outputs)
     context: Record<string, any>;
-    // Conversation history (includes model messages, baked in at step creation)
     history: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
-    // Accumulated content for the current step
     content: OpenAI.Chat.Completions.ChatCompletionContentPart[];
-    // Metadata
     originalIndex: number;
-    variationIndex?: number;
+    lineage: number[];
     stepHistory: any[];
 }
 
@@ -85,16 +62,10 @@ export class StepRow {
         private readonly state: StepRowState
     ) {}
 
-    // --- Getters (Read-only for plugins) ---
-
     get context() { return this.state.context; }
     get content() { return this.state.content; }
     get history() { return this.state.history; }
 
-    /**
-     * Returns the current accumulated row data.
-     * This is the single source of truth for the row being built up across stages.
-     */
     getData(): Record<string, any> {
         return this.state.data;
     }
@@ -112,7 +83,14 @@ export class StepRow {
     }
 
     async getTempDir() {
-        return (this.config as any).resolvedTempDir || '/tmp';
+        const baseTmp = (this.config as any).resolvedTempDir || '/tmp';
+        const lineagePart = this.state.lineage.length > 0 ? `_v${this.state.lineage.join('-')}` : '';
+        
+        // Hierarchical isolation: /baseTmp/row_0_v1-2/step_2/
+        const dir = path.join(baseTmp, `row_${this.state.originalIndex}${lineagePart}`, `step_${this.step.stepIndex + 1}`);
+        
+        await fsPromises.mkdir(dir, { recursive: true });
+        return dir;
     }
 
     async getOutputBasename() {
@@ -131,11 +109,6 @@ export class StepRow {
         return this.config.schema;
     }
 
-    /**
-     * Returns the complete prepared messages for LLM/plugin consumption.
-     * History already includes model messages (baked in at step creation).
-     * Appends accumulated content as a user message if present.
-     */
     async getPreparedMessages(): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
         if (this.state.content.length > 0) {
             return [...this.state.history, { role: 'user' as const, content: this.state.content }];
@@ -143,16 +116,6 @@ export class StepRow {
         return [...this.state.history];
     }
 
-    // --- Core Logic ---
-
-    /**
-     * Executes a single stage on this row, returning the resulting StepRow(s).
-     * 
-     * Returns:
-     * - [] : Row was dropped (e.g., by dedupe or validation)
-     * - [row] : Single result, continue to next stage
-     * - [row1, row2, ...] : Explosion, each row continues independently
-     */
     public async executeStage(stage: StageDescriptor): Promise<StepRow[]> {
         switch (stage.type) {
             case 'plugin-prepare': {
@@ -164,7 +127,6 @@ export class StepRow {
             case 'model': {
                 const result = await this.executeLlm();
                 
-                // Emit artifact if output path is defined
                 if (this.config.output?.path) {
                     const outDir = (this.config as any).resolvedOutputDir || '';
                     const baseName = (this.config as any).outputBasename || `output_${this.state.originalIndex}_${this.step.stepIndex + 1}`;
@@ -206,13 +168,6 @@ export class StepRow {
         }
     }
 
-    /**
-     * Processes all stages for this row, returning the final pipeline items.
-     * 
-     * Processes rows sequentially within each stage. For queue-based parallel
-     * execution with proper backpressure and depth-first scheduling, use
-     * Pipeline which routes explosion branches through the task queue.
-     */
     async run(): Promise<PipelineItem[]> {
         let currentRows: StepRow[] = [this];
         const stages = this.step.buildStages(this.config);
@@ -231,36 +186,27 @@ export class StepRow {
 
     public toPipelineItem(): PipelineItem {
         return {
-            row: this.state.data, // Return the clean persistent data
+            row: this.state.data,
             history: this.state.history,
             originalIndex: this.state.originalIndex,
-            variationIndex: this.state.variationIndex,
+            lineage: [...this.state.lineage],
             stepHistory: [...this.state.stepHistory],
             workspace: this.state.context
         };
     }
 
-    /**
-     * Applies a plugin result to the current row, potentially spawning new StepRow instances.
-     * @param result The plugin result containing history and items
-     * @param outputConfig How to handle the output (merge, column, ignore)
-     * @param namespace Optional namespace for plugins. When undefined (model output), data merges directly.
-     */
     public applyResult(result: PluginResult, outputConfig: OutputConfig, namespace?: string): StepRow[] {
         const { history, items } = result;
 
-        // Filter/drop case: no items = row disappears
         if (items.length === 0) {
             return [];
         }
 
-        // Explode case: multiple items with explode=true
         if (outputConfig.explode && items.length > 1) {
             const total = items.length;
             const offset = outputConfig.offset ?? 0;
             const limit = outputConfig.limit;
 
-            // Apply offset and limit
             let itemsToExplode = items.slice(offset);
             if (limit !== undefined && limit > 0) {
                 itemsToExplode = itemsToExplode.slice(0, limit);
@@ -279,7 +225,7 @@ export class StepRow {
             return itemsToExplode.map((item, idx) =>
                 this.spawn(
                     item.data,
-                    offset + idx,
+                    [...this.state.lineage, offset + idx],
                     outputConfig,
                     namespace,
                     history,
@@ -288,16 +234,12 @@ export class StepRow {
             );
         }
 
-        // Non-explode case: combine all items into single row
-        // Data: single item uses its data directly, multiple items combine into array
         const combinedData = items.length === 1 ? items[0].data : items.map(i => i.data);
-
-        // ContentParts: concatenate all
         const combinedContent = items.flatMap(i => i.contentParts);
 
         return [this.spawn(
             combinedData,
-            this.state.variationIndex,
+            this.state.lineage,
             outputConfig,
             namespace,
             history,
@@ -307,26 +249,22 @@ export class StepRow {
 
     private spawn(
         data: any,
-        variationIndex: number | undefined,
+        lineage: number[],
         outputConfig: OutputConfig,
         namespace: string | undefined,
         history: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
         content: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): StepRow {
-        // 1. Clone Data & Context
         const newData = JSON.parse(JSON.stringify(this.state.data));
         const newContext = { ...this.state.context };
 
-        // 2. Skip applying null data (no-op stages should not clobber existing state)
         if (data != null) {
-            // Apply to context (always, for template access)
             if (namespace) {
                 applyDataToTarget(newContext, data, { namespace, spreadObject: true });
             } else {
                 applyDataToTarget(newContext, data, {});
             }
 
-            // Apply to data (based on mode)
             if (outputConfig.mode === 'merge') {
                 if (namespace) {
                     applyDataToTarget(newData, data, { namespace });
@@ -337,43 +275,33 @@ export class StepRow {
                 applyDataToTarget(newData, data, { column: outputConfig.column });
                 applyDataToTarget(newContext, data, { column: outputConfig.column });
             }
-            // mode === 'ignore': data is only in context, not persisted to row
         }
 
-        // 3. Create New State
         const newState: StepRowState = {
             data: newData,
             context: newContext,
             history: history,
             content: content,
             originalIndex: this.state.originalIndex,
-            variationIndex: variationIndex ?? this.state.variationIndex,
+            lineage: lineage,
             stepHistory: this.state.stepHistory
         };
 
-        // 4. Return New Row
         return new StepRow(this.step, this.config, newState);
     }
 
     public async executeLlm(): Promise<PluginResult> {
-        // Create LLM Client using hydrated model config
         const llm = await this.createLlm(this.config.model);
 
-        // Execution Strategy
         let strategy: GenerationStrategy = new StandardStrategy(this);
         if (this.config.candidates > 1) {
             strategy = new CandidateStrategy(strategy as StandardStrategy, this);
         }
 
-        // Pass a deterministic salt based on row and step index
         const deterministicSalt = `row-${this.state.originalIndex}-step-${this.step.stepIndex}`;
         return await strategy.execute(deterministicSalt);
     }
 
-    /**
-     * Creates a BoundLlmClient.
-     * If config is provided, it uses that. Otherwise it uses the hydrated model config.
-     */
     async createLlm(config?: ModelConfig): Promise<BoundLlmClient> {
         const targetConfig = config || this.config.model;
         if (!targetConfig) {
@@ -382,9 +310,6 @@ export class StepRow {
         return this.step.deps.llmFactory.create(targetConfig, targetConfig.messages || []);
     }
 
-    /**
-     * Helper to get a client bound to specific messages (used by CandidateStrategy/Judge)
-     */
     async getBoundClient(config: ModelConfig): Promise<BoundLlmClient> {
         return this.createLlm(config);
     }
