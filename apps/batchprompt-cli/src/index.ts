@@ -102,7 +102,7 @@ generateCmd.action(async (prompts, options) => {
 
         // 8. Run pipeline
         const pipeline = createPipeline(cliDeps, globalConfig);
-        const { results } = await pipeline.run();
+        const { results, artifacts } = await pipeline.run();
 
         // 10. Write output
         if (dataOutputPath && results.length > 0) {
