@@ -365,7 +365,9 @@ export class StepRow {
             strategy = new CandidateStrategy(strategy as StandardStrategy, this);
         }
 
-        return await strategy.execute();
+        // Pass a deterministic salt based on row and step index
+        const deterministicSalt = `row-${this.state.originalIndex}-step-${this.step.stepIndex}`;
+        return await strategy.execute(deterministicSalt);
     }
 
     /**
