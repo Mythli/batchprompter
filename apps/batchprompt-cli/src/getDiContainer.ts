@@ -7,6 +7,7 @@ import * as path from 'path';
 
 export interface CliDeps extends BatchPromptDeps {
     contentResolver: ContentResolver;
+    artifactHandler: FileSystemArtifactHandler;
 }
 
 let cliDepsInstance: CliDeps | null = null;
@@ -24,11 +25,12 @@ export const getDiContainer = async (): Promise<CliDeps> => {
 
     // Setup CLI-specific event handlers
     new DebugLogger(deps.events);
-    new FileSystemArtifactHandler(deps.events, path.join(process.cwd(), '.tmp'));
+    const artifactHandler = new FileSystemArtifactHandler(deps.events, path.join(process.cwd(), '.tmp'));
 
     cliDepsInstance = {
         ...deps,
-        contentResolver
+        contentResolver,
+        artifactHandler
     };
 
     return cliDepsInstance;

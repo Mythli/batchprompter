@@ -91,6 +91,9 @@ generateCmd.action(async (prompts, options) => {
         const pipeline = createPipeline(cliDeps, globalConfig);
         const { results, artifacts } = await pipeline.run();
 
+        // Wait for all artifacts to finish saving to disk
+        await cliDeps.artifactHandler.waitForSaves();
+
         // 8. Write output
         if (dataOutputPath && results.length > 0) {
             const outDir = path.dirname(dataOutputPath);
