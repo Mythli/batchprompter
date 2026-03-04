@@ -7,7 +7,6 @@ import * as path from 'path';
 import { Parser, transforms } from 'json2csv';
 import YAML from 'yaml';
 import {
-    DebugLogger,
     ConfigRefiner,
     loadData,
     resolveRawConfig,
@@ -18,7 +17,6 @@ import {
 import { getDiContainer } from './getDiContainer.js';
 import { StepRegistry } from './StepRegistry.js';
 import { CliConfigBuilder } from './CliConfigBuilder.js';
-import { FileSystemArtifactHandler } from './handlers/FileSystemArtifactHandler.js';
 
 // Adapters
 import { WebSearchAdapter } from './adapters/WebSearchAdapter.js';
@@ -27,7 +25,6 @@ import { ValidationAdapter } from './adapters/ValidationAdapter.js';
 import { DedupeAdapter } from './adapters/DedupeAdapter.js';
 import { UrlExpanderAdapter } from './adapters/UrlExpanderAdapter.js';
 import { ShellAdapter } from './adapters/ShellAdapter.js';
-import { ShellPlugin, ShellConfigSchema } from './plugins/ShellPlugin.js';
 
 const program = new Command();
 
@@ -58,10 +55,6 @@ generateCmd.action(async (prompts, options) => {
     try {
         const cliDeps = await getDiContainer();
         puppeteerHelperInstance = cliDeps.puppeteerHelper;
-
-        // Register ShellPlugin in the runtime registry
-        const shellPlugin = new ShellPlugin();
-        cliDeps.pluginRegistry.register(shellPlugin);
 
         // 1. Load file config
         let fileConfig = {};
@@ -94,17 +87,11 @@ generateCmd.action(async (prompts, options) => {
             pluginRegistry: cliDeps.pluginRegistry
         });
 
-        // 7. Setup handlers
-        // Always instantiate the artifact handler so it catches core outputs too
-        const baseTmpDir = globalConfig.output?.tmpDir || path.join(process.cwd(), '.tmp');
-        new FileSystemArtifactHandler(cliDeps.events, baseTmpDir);
-        new DebugLogger(cliDeps.events);
-
-        // 8. Run pipeline
+        // 7. Run pipeline
         const pipeline = createPipeline(cliDeps, globalConfig);
         const { results, artifacts } = await pipeline.run();
 
-        // 10. Write output
+        // 8. Write output
         if (dataOutputPath && results.length > 0) {
             const outDir = path.dirname(dataOutputPath);
             if (!fs.existsSync(outDir)) {
@@ -254,10 +241,6 @@ program.command('schema')
     .action(async () => {
         try {
             const cliDeps = await getDiContainer();
-
-            // Register ShellPlugin
-            const shellPlugin = new ShellPlugin();
-            cliDeps.pluginRegistry.register(shellPlugin);
 
             const pipelineSchema = createPipelineSchema(cliDeps.pluginRegistry);
             const jsonSchema = z.toJSONSchema(pipelineSchema, {
