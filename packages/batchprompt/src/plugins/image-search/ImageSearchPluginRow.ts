@@ -4,6 +4,7 @@ import { ImageSearchConfig } from './ImageSearchPlugin.js';
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ImageSearch } from './ImageSearch.js';
+import * as path from 'path';
 
 export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
     constructor(
@@ -18,6 +19,7 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
         const { stepRow, config } = this;
         const { context } = stepRow;
         const emit = stepRow.step.deps.events.emit.bind(stepRow.step.deps.events);
+        const tmpDir = await stepRow.getTempDir();
 
         const queryLlm = config.queryModel ? await stepRow.createLlm(config.queryModel) : undefined;
         const selectLlm = config.selectModel ? await stepRow.createLlm(config.selectModel) : undefined;
@@ -32,7 +34,7 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
                 step: stepRow.step.stepIndex,
                 source: 'imageSearch',
                 type: 'json',
-                filename: `imageSearch/queries/queries_${Date.now()}.json`,
+                filename: path.join(tmpDir, `imageSearch/queries/queries_${Date.now()}.json`),
                 content: JSON.stringify(data, null, 2),
                 tags: ['debug', 'imageSearch', 'queries']
             });
@@ -45,7 +47,7 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
                 step: stepRow.step.stepIndex,
                 source: 'imageSearch',
                 type: 'json',
-                filename: `imageSearch/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`,
+                filename: path.join(tmpDir, `imageSearch/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`),
                 content: JSON.stringify(data, null, 2),
                 tags: ['debug', 'imageSearch', 'scatter']
             });
@@ -57,7 +59,7 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
                 step: stepRow.step.stepIndex,
                 source: 'imageSearch',
                 type: 'image',
-                filename: `imageSearch/sprites/sprite_${data.index}_${Date.now()}.jpg`,
+                filename: path.join(tmpDir, `imageSearch/sprites/sprite_${data.index}_${Date.now()}.jpg`),
                 content: data.buffer,
                 tags: ['debug', 'imageSearch', 'sprite']
             });
@@ -69,21 +71,36 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
                 step: stepRow.step.stepIndex,
                 source: 'imageSearch',
                 type: 'image',
-                filename: `imageSearch/candidates/candidate_${data.index}_${Date.now()}.jpg`,
+                filename: path.join(tmpDir, `imageSearch/candidates/candidate_${data.index}_${Date.now()}.jpg`),
                 content: data.buffer,
                 tags: ['debug', 'imageSearch', 'candidate']
             });
         });
 
         aiImageSearch.events.on('result:selected', (data) => {
+            // Emit JSON metadata
             emit('artifact:emit', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
                 source: 'imageSearch',
                 type: 'json',
-                filename: `imageSearch/selected/selected_${Date.now()}.json`,
+                filename: path.join(tmpDir, `imageSearch/selected/selected_${Date.now()}.json`),
                 content: JSON.stringify(data.results.map((r: any) => r.metadata), null, 2),
                 tags: ['final', 'imageSearch', 'selected']
+            });
+
+            // Emit actual selected images
+            data.results.forEach((r: any, i: number) => {
+                const ext = r.metadata.imageUrl.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+                emit('artifact:emit', {
+                    row: stepRow.getOriginalIndex(),
+                    step: stepRow.step.stepIndex,
+                    source: 'imageSearch',
+                    type: 'image',
+                    filename: path.join(tmpDir, `imageSearch/selected/image_${i}_${Date.now()}.${ext}`),
+                    content: r.buffer,
+                    tags: ['final', 'imageSearch', 'selected', 'image']
+                });
             });
         });
 
