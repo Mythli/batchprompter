@@ -28,6 +28,7 @@ import { UrlExpanderAdapter } from './adapters/UrlExpanderAdapter.js';
 import { ShellAdapter } from './adapters/ShellAdapter.js';
 import { LogoScraperAdapter } from './adapters/LogoScraperAdapter.js';
 import { StyleScraperAdapter } from './adapters/StyleScraperAdapter.js';
+import { LoadDataAdapter } from './adapters/LoadDataAdapter.js';
 
 const program = new Command();
 
@@ -45,7 +46,8 @@ const adapters = [
     new UrlExpanderAdapter(),
     new ShellAdapter(),
     new LogoScraperAdapter(),
-    new StyleScraperAdapter()
+    new StyleScraperAdapter(),
+    new LoadDataAdapter()
 ];
 
 // --- Generate Command ---

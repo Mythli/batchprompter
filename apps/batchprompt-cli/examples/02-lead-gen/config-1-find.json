@@ -9,30 +9,18 @@
   "dataOutputPath": "out/02-lead-gen/companies.json",
   "steps": [
     {
-      "model": {
-        "prompt": "List absolutely all German cities with more than 10,000 inhabitants. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name in German). Start with the largest then move to smaller cities.\n",
-        "model": "google/gemini-3.1-pro-preview"
-      },
-      "schema": {
-        "type": "array",
-        "items": {
-          "type": "object",
-          "properties": {
-            "location": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "location"
-          ]
+      "plugins": [
+        {
+          "type": "loadData",
+          "file": "examples/02-lead-gen/de_cities.csv",
+          "output": {
+            "mode": "merge",
+            "explode": true
+          }
         }
-      },
-      "output": {
-        "mode": "merge",
-        "explode": true
-      }
+      ]
     },
-   {
+    {
       "plugins": [
         {
           "type": "webSearch",

@@ -17,6 +17,7 @@ import { PluginRegistryV2 } from './plugins/types.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 import { LogoScraperPlugin } from './plugins/logo-scraper/LogoScraperPlugin.js';
 import { ImageDownloader } from './plugins/logo-scraper/utils/ImageDownloader.js';
+import { LoadDataPlugin } from './plugins/load-data/LoadDataPlugin.js';
 
 export interface ServiceCapabilities {
     hasSerper: boolean;
@@ -194,6 +195,8 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
 
     const imageDownloader = new ImageDownloader(fetcher as any);
     pluginRegistry.registerFactory('logoScraper', () => new LogoScraperPlugin({ puppeteerHelper, imageDownloader }));
+    
+    pluginRegistry.registerFactory('loadData', () => new LoadDataPlugin());
 
     const events = new EventEmitter<BatchPromptEvents>();
 
