@@ -1,12 +1,24 @@
 {
-  "_NOTE": "This example requires the style-scraper plugin which is not yet available in the new architecture. It will fail at runtime.",
   "output": {
     "tmpDir": "out/04-describe-website-css/{{website_url}}/.tmp"
   },
   "steps": [
     {
+      "plugins": [
+        {
+          "type": "styleScraper",
+          "url": "{{website_url}}",
+          "maxButtons": 3,
+          "maxInputs": 3,
+          "maxLinks": 3,
+          "createCompositeImage": true,
+          "output": {
+            "mode": "ignore"
+          }
+        }
+      ],
       "model": {
-        "prompt": "Analyze the visual style of the website {{website_url}}."
+        "prompt": "Analyze the visual style of the website {{website_url}} based on the provided interactive element screenshots and computed CSS styles. Describe the color palette, typography, border radii, and interaction states (hover/focus)."
       },
       "output": {
         "path": "out/04-describe-website-css/{{website_url}}/style-analysis.md"
