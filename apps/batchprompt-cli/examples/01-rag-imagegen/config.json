@@ -1,6 +1,6 @@
 {
   "_NOTE": "This example requires the image-search plugin which is not yet available in the new architecture. It will fail at runtime.",
-  "model": "google/gemini-3-pro-image-preview",
+  "model": "google/gemini-3.1-flash-image-preview",
   "output": {
     "tmpDir": "out/01-rag-imagegen/{{industry}}/.tmp/HeroImage.jpg",
     "path": "out/01-rag-imagegen/{{industry}}/HeroImage.jpg"
