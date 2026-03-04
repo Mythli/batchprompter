@@ -91,7 +91,7 @@ export class BoundLlmClient {
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
         requestOptions?: RequestOptions;
         [key: string]: any;
-    }): Promise<any> {
+    }): Promise<OpenAI.Chat.Completions.ChatCompletion> {
         return this.client.prompt(params);
     }
 

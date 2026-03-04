@@ -1,5 +1,5 @@
 import Ajv from 'ajv';
-import { SchemaValidationError } from 'llm-fns';
+import { SchemaValidationError, isImageResponse, isAudioResponse, extractImageBuffer, extractAudioBuffer } from 'llm-fns';
 import { GenerationStrategy } from './GenerationStrategy.js';
 import { StepRow } from '../StepRow.js';
 import { PluginResult, PluginItem } from '../plugins/types.js';
@@ -58,11 +58,22 @@ export class StandardStrategy implements GenerationStrategy {
                 ...additionalParams
             });
         } else {
-            finalResult = await rawClient.promptText({
+            const completion = await rawClient.prompt({
                 messages: finalMessages,
                 requestOptions,
                 ...additionalParams
             });
+
+            if (isImageResponse(completion)) {
+                finalResult = await extractImageBuffer(completion, globalThis.fetch);
+            } else if (isAudioResponse(completion)) {
+                finalResult = extractAudioBuffer(completion);
+            } else {
+                finalResult = completion.choices[0]?.message?.content;
+                if (finalResult === null || finalResult === undefined) {
+                    throw new Error("LLM returned no text content.");
+                }
+            }
         }
 
         // Convert result to items
