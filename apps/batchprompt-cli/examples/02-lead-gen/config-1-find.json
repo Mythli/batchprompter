@@ -10,7 +10,8 @@
   "steps": [
     {
       "model": {
-        "prompt": "List all cities in Germany with more than 50,000 inhabitants. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name in German).\n"
+        "prompt": "List absolutely all German cities with more than 10,000 inhabitants. Return a JSON object containing an array 'locations', where each item has the 'location' (the city name in German). Start with the largest then move to smaller cities.\n",
+        "model": "google/gemini-3.1-pro-preview"
       },
       "schema": {
         "type": "array",
@@ -36,17 +37,17 @@
         {
           "type": "webSearch",
           "queryModel": {
-            "prompt": "Generate 5 distinct search queries to find websites of companies offering {{industry}} in {{location}}. Use varied keyword strategies to find all relevant companies."
+            "prompt": "Generate distinct search queries to find websites of companies offering {{industry}} in {{location}}. Use varied keyword strategies to find all relevant companies."
           },
           "selectModel": {
-            "prompt": "Select only the official company websites of {{industry}} companies from the search results. Exclude directories (like Yelp, Yellow Pages, Google Maps), social media profiles, and aggregator sites. Only select direct company websites.\n"
+            "prompt": "Select only the official company websites of {{industry}} companies from the search results. If its not {{industry}}, exclude. Exclude directories (like Yelp, Yellow Pages, Google Maps), social media profiles, and aggregator sites. Only select direct company websites matching {{industry}}. We dont care in which city this company is."
           },
           "dedupeStrategy": "domain",
-          "queryCount": 5,
+          "queryCount": 10,
           "maxPages": 20,
           "gl": "de",
           "hl": "de",
-          "limit": 100,
+          "limit": 300,
           "mode": "none",
           "output": {
             "mode": "merge",
