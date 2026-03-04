@@ -27,6 +27,7 @@ import { DedupeAdapter } from './adapters/DedupeAdapter.js';
 import { UrlExpanderAdapter } from './adapters/UrlExpanderAdapter.js';
 import { ShellAdapter } from './adapters/ShellAdapter.js';
 import { LogoScraperAdapter } from './adapters/LogoScraperAdapter.js';
+import { StyleScraperAdapter } from './adapters/StyleScraperAdapter.js';
 
 const program = new Command();
 
@@ -43,7 +44,8 @@ const adapters = [
     new DedupeAdapter(),
     new UrlExpanderAdapter(),
     new ShellAdapter(),
-    new LogoScraperAdapter()
+    new LogoScraperAdapter(),
+    new StyleScraperAdapter()
 ];
 
 // --- Generate Command ---
