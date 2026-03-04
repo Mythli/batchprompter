@@ -58,15 +58,19 @@ export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 
 /**
  * Merges two ModelConfig objects.
- * Override takes precedence, but messages are only overridden if the override has non-empty messages.
+ * Override takes precedence, but undefined values in the override do not overwrite defined values in the base.
+ * Messages are only overridden if the override has non-empty messages.
  */
 export function mergeModels(base?: ModelConfig, override?: ModelConfig): ModelConfig | undefined {
     if (!base && !override) return undefined;
     if (!override) return base;
     if (!base) return override;
+    
     return {
-        ...base,
-        ...override,
+        model: override.model ?? base.model,
+        temperature: override.temperature ?? base.temperature,
+        reasoning_effort: override.reasoning_effort ?? base.reasoning_effort,
+        messages: override.messages && override.messages.length > 0 ? override.messages : base.messages,
     };
 }
 
