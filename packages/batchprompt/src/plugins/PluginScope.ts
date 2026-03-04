@@ -27,10 +27,10 @@ export class PluginScope {
         metadata?: Record<string, any>;
     }) {
         if (this.context.emit) {
-            this.context.emit('plugin:artifact', {
+            this.context.emit('artifact:emit', {
                 row: this.context.row.index,
                 step: this.context.stepIndex,
-                plugin: this.pluginName,
+                source: this.pluginName,
                 type: payload.type,
                 filename: payload.filename,
                 content: payload.content,

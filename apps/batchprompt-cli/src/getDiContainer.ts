@@ -20,8 +20,7 @@ export const getDiContainer = async (): Promise<CliDeps> => {
     const contentResolver = new FileSystemContentResolver();
 
     // Register CLI-specific plugins
-    const shellPlugin = new ShellPlugin();
-    deps.pluginRegistry.register(shellPlugin);
+    deps.pluginRegistry.registerFactory('shell-command', () => new ShellPlugin());
 
     // Setup CLI-specific event handlers
     new DebugLogger(deps.events);

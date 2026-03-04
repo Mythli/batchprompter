@@ -29,10 +29,10 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
         const aiWebSearch = new AiWebSearch(this.webSearch, queryLlm, selector, compressLlm);
 
         aiWebSearch.events.on('query:generated', (data) => {
-            emit('plugin:artifact', {
+            emit('artifact:emit', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'webSearch',
+                source: 'webSearch',
                 type: 'json',
                 filename: `webSearch/queries/queries_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -42,10 +42,10 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
 
         aiWebSearch.events.on('search:result', (data) => {
             const safeQuery = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-            emit('plugin:artifact', {
+            emit('artifact:emit', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'webSearch',
+                source: 'webSearch',
                 type: 'json',
                 filename: `webSearch/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -54,10 +54,10 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
         });
 
         aiWebSearch.events.on('selection:map', (data) => {
-            emit('plugin:artifact', {
+            emit('artifact:emit', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'webSearch',
+                source: 'webSearch',
                 type: 'json',
                 filename: `webSearch/map/map_chunk${data.chunkIndex}_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -66,10 +66,10 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
         });
 
         aiWebSearch.events.on('selection:reduce', (data) => {
-            emit('plugin:artifact', {
+            emit('artifact:emit', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'webSearch',
+                source: 'webSearch',
                 type: 'json',
                 filename: `webSearch/reduce/reduce_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -79,10 +79,10 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
 
         aiWebSearch.events.on('content:enrich', (data) => {
             const safeUrl = data.url.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-            emit('plugin:artifact', {
+            emit('artifact:emit', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'webSearch',
+                source: 'webSearch',
                 type: 'json',
                 filename: `webSearch/enrich/enrich_${safeUrl}_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
@@ -91,10 +91,10 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
         });
 
         aiWebSearch.events.on('result:selected', (data) => {
-            emit('plugin:artifact', {
+            emit('artifact:emit', {
                 row: context.index,
                 step: stepRow.step.stepIndex,
-                plugin: 'webSearch',
+                source: 'webSearch',
                 type: 'json',
                 filename: `webSearch/selected/selected_${Date.now()}.json`,
                 content: JSON.stringify(data.results, null, 2),
