@@ -1,10 +1,12 @@
 import OpenAI from 'openai';
 import { z } from 'zod';
 import Handlebars from 'handlebars';
+import * as path from 'path';
 import { BasePlugin, BasePluginRow } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { PartialOutputConfigSchema, StepConfig, GlobalConfig } from '../../config/schema.js';
 import { ModelConfigSchema, ModelConfig } from '../../config/model.js';
+import { zHandlebars } from '../../config/validationRules.js';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import { ImageDownloader } from './utils/ImageDownloader.js';
 import { LogoScraperPluginRow } from './LogoScraperPluginRow.js';
@@ -14,6 +16,8 @@ export const LogoScraperConfigSchemaV2 = z.object({
     id: z.string().optional(),
     output: PartialOutputConfigSchema.optional(),
     url: z.string(),
+    logoOutputPath: zHandlebars.optional().describe("Template for the final logo image path."),
+    faviconOutputPath: zHandlebars.optional().describe("Template for the final favicon image path."),
     analyzeModel: ModelConfigSchema.optional(),
     extractModel: ModelConfigSchema.optional(),
     maxLogosToAnalyze: z.number().int().positive().default(10),
@@ -96,9 +100,23 @@ export class LogoScraperPlugin extends BasePlugin<LogoScraperConfig, LogoScraper
         const template = Handlebars.compile(config.url, { noEscape: true });
         const url = template(context);
 
+        let logoOutputPath: string | undefined;
+        if (config.logoOutputPath) {
+            const logoTemplate = Handlebars.compile(config.logoOutputPath, { noEscape: true });
+            logoOutputPath = path.resolve(logoTemplate(context));
+        }
+
+        let faviconOutputPath: string | undefined;
+        if (config.faviconOutputPath) {
+            const faviconTemplate = Handlebars.compile(config.faviconOutputPath, { noEscape: true });
+            faviconOutputPath = path.resolve(faviconTemplate(context));
+        }
+
         return {
             ...config,
             url,
+            logoOutputPath,
+            faviconOutputPath,
             analyzeModel: hydrateModelMessages(config.analyzeModel, context),
             extractModel: hydrateModelMessages(config.extractModel, context),
         };

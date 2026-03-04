@@ -6,6 +6,8 @@ export class LogoScraperAdapter implements CliPluginAdapter {
 
     registerOptions(program: Command) {
         program.option('--logo-scraper-url <url>', 'URL to scrape for logos');
+        program.option('--logo-scraper-logo-output-path <path>', 'Path template to save the best logo');
+        program.option('--logo-scraper-favicon-output-path <path>', 'Path template to save the best favicon');
         program.option('--logo-scraper-max-logos <number>', 'Max logos to analyze (default: 10)', parseInt);
         program.option('--logo-scraper-threshold <number>', 'Brand logo score threshold (default: 5)', parseInt);
         program.option('--logo-scraper-analyze-model <model>', 'Model for logo analysis');
@@ -20,6 +22,8 @@ export class LogoScraperAdapter implements CliPluginAdapter {
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-logo-scraper-url <url>`, `URL for step ${s}`);
+        program.option(`--${s}-logo-scraper-logo-output-path <path>`, `Logo output path for step ${s}`);
+        program.option(`--${s}-logo-scraper-favicon-output-path <path>`, `Favicon output path for step ${s}`);
         program.option(`--${s}-logo-scraper-max-logos <number>`, `Max logos for step ${s}`, parseInt);
         program.option(`--${s}-logo-scraper-threshold <number>`, `Threshold for step ${s}`, parseInt);
         program.option(`--${s}-logo-scraper-analyze-model <model>`, `Analyze model for step ${s}`);
@@ -41,6 +45,12 @@ export class LogoScraperAdapter implements CliPluginAdapter {
         if (!url) return null;
 
         const result: Record<string, any> = { type: 'logoScraper', url };
+
+        const logoOutputPath = getOpt('logoScraperLogoOutputPath');
+        if (logoOutputPath) result.logoOutputPath = logoOutputPath;
+
+        const faviconOutputPath = getOpt('logoScraperFaviconOutputPath');
+        if (faviconOutputPath) result.faviconOutputPath = faviconOutputPath;
 
         if (getOpt('logoScraperMaxLogos') !== undefined) result.maxLogosToAnalyze = getOpt('logoScraperMaxLogos');
         if (getOpt('logoScraperThreshold') !== undefined) result.brandLogoScoreThreshold = getOpt('logoScraperThreshold');

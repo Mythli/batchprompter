@@ -87,6 +87,36 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
             };
         }
 
+        // Extract specific requested files
+        const bestLogo = result.logos[0];
+        const bestFavicon = result.logos.find(l => l.isFavicon || l.width === l.height);
+
+        if (config.logoOutputPath && bestLogo) {
+            const buffer = Buffer.from(bestLogo.base64PngData.split(',')[1], 'base64');
+            emit('artifact:emit', {
+                row: stepRow.getOriginalIndex(),
+                step: stepRow.step.stepIndex,
+                source: 'logoScraper',
+                type: 'image',
+                filename: config.logoOutputPath,
+                content: buffer,
+                tags: ['final', 'logoScraper', 'logo']
+            });
+        }
+
+        if (config.faviconOutputPath && bestFavicon) {
+            const buffer = Buffer.from(bestFavicon.base64PngData.split(',')[1], 'base64');
+            emit('artifact:emit', {
+                row: stepRow.getOriginalIndex(),
+                step: stepRow.step.stepIndex,
+                source: 'logoScraper',
+                type: 'image',
+                filename: config.faviconOutputPath,
+                content: buffer,
+                tags: ['final', 'logoScraper', 'favicon']
+            });
+        }
+
         // Build items
         const items: PluginItem[] = result.logos.map((logo) => {
             const contentText = `Logo Score: ${logo.brandLogoScore}\nDimensions: ${logo.width}x${logo.height}\nOriginal URL: ${logo.originalUrl}`;
