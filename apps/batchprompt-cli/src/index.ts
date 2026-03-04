@@ -20,6 +20,7 @@ import { CliConfigBuilder } from './CliConfigBuilder.js';
 
 // Adapters
 import { WebSearchAdapter } from './adapters/WebSearchAdapter.js';
+import { ImageSearchAdapter } from './adapters/ImageSearchAdapter.js';
 import { WebsiteAgentAdapter } from './adapters/WebsiteAgentAdapter.js';
 import { ValidationAdapter } from './adapters/ValidationAdapter.js';
 import { DedupeAdapter } from './adapters/DedupeAdapter.js';
@@ -35,6 +36,7 @@ program
 // --- Adapters ---
 const adapters = [
     new WebSearchAdapter(),
+    new ImageSearchAdapter(),
     new WebsiteAgentAdapter(),
     new ValidationAdapter(),
     new DedupeAdapter(),

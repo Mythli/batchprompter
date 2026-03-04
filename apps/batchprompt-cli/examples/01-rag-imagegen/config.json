@@ -1,14 +1,28 @@
 {
-  "_NOTE": "This example requires the image-search plugin which is not yet available in the new architecture. It will fail at runtime.",
   "model": "google/gemini-3.1-flash-image-preview",
   "output": {
-    "tmpDir": "out/01-rag-imagegen/{{industry}}/.tmp/HeroImage.jpg",
+    "tmpDir": "out/01-rag-imagegen/{{industry}}/.tmp",
     "path": "out/01-rag-imagegen/{{industry}}/HeroImage.jpg"
   },
   "steps": [
     {
+      "plugins": [
+        {
+          "type": "imageSearch",
+          "queryModel": {
+            "prompt": "Generate 3 search queries for reference images of a {{industry}}."
+          },
+          "selectModel": {
+            "prompt": "Select the best reference image for a {{industry}}."
+          },
+          "limit": 1,
+          "output": {
+            "mode": "ignore"
+          }
+        }
+      ],
       "model": {
-        "prompt": "Generate a hero image for the {{industry}} industry."
+        "prompt": "Generate a hero image for the {{industry}} industry. Use the provided reference image as inspiration."
       },
       "aspectRatio": "3:2",
       "candidates": 2
