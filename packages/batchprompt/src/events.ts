@@ -47,11 +47,11 @@ export interface BatchPromptEvents {
         data: any;            // Payload: The RAW data object
     }) => void;
 
-    // Artifacts
-    'plugin:artifact': (payload: {
+    // Artifacts (Unified for Core and Plugins)
+    'artifact:emit': (payload: {
         row: number;
         step: number;
-        plugin: string;
+        source: string; // 'core' or plugin name
         type: string; // 'image', 'text', 'json', 'html', 'audio'
         filename: string;
         content: string | Buffer;

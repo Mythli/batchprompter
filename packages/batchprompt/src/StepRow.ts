@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import path from 'path';
 import { Step } from './Step.js';
 import { PipelineItem } from './types.js';
 import { BoundLlmClient } from './BoundLlmClient.js';
@@ -115,15 +116,15 @@ export class StepRow {
     }
 
     async getOutputBasename() {
-        return this.config.outputBasename;
+        return (this.config as any).outputBasename;
     }
 
     async getOutputExtension() {
-        return this.config.outputExtension;
+        return (this.config as any).outputExtension;
     }
 
     async getResolvedOutputDir() {
-        return this.config.resolvedOutputDir;
+        return (this.config as any).resolvedOutputDir;
     }
 
     async getResolvedSchema() {
@@ -162,6 +163,38 @@ export class StepRow {
             }
             case 'model': {
                 const result = await this.executeLlm();
+                
+                // Emit artifact if output path is defined
+                if (this.config.output?.path) {
+                    const outDir = (this.config as any).resolvedOutputDir || '';
+                    const baseName = (this.config as any).outputBasename || `output_${this.state.originalIndex}_${this.step.stepIndex + 1}`;
+                    const ext = (this.config as any).outputExtension || '.txt';
+                    
+                    for (let i = 0; i < result.items.length; i++) {
+                        const item = result.items[i];
+                        let fileName = baseName + ext;
+                        if (result.items.length > 1) {
+                            fileName = `${baseName}_${i}${ext}`;
+                        }
+                        const fullPath = path.join(outDir, fileName);
+                        
+                        let content = item.data;
+                        if (typeof content !== 'string' && !Buffer.isBuffer(content)) {
+                            content = JSON.stringify(content, null, 2);
+                        }
+
+                        this.getEvents().emit('artifact:emit', {
+                            row: this.state.originalIndex,
+                            step: this.step.stepIndex + 1,
+                            source: 'core',
+                            type: this.config.aspectRatio ? 'image' : (typeof item.data === 'object' ? 'json' : 'text'),
+                            filename: fullPath,
+                            content: content,
+                            tags: ['final']
+                        });
+                    }
+                }
+
                 return this.applyResult(result, this.config.output);
             }
             case 'plugin-post': {

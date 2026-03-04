@@ -8,10 +8,10 @@ export class FileSystemArtifactHandler {
         private events: EventEmitter<BatchPromptEvents>,
         private baseDir: string
     ) {
-        this.events.on('plugin:artifact', this.handleArtifact.bind(this));
+        this.events.on('artifact:emit', this.handleArtifact.bind(this));
     }
 
-    private async handleArtifact(payload: Parameters<BatchPromptEvents['plugin:artifact']>[0]) {
+    private async handleArtifact(payload: Parameters<BatchPromptEvents['artifact:emit']>[0]) {
         // Construct path: baseDir / row_step / filename
         // Note: payload.filename might contain subdirectories (e.g. "queries/q1.json")
         
@@ -23,7 +23,9 @@ export class FileSystemArtifactHandler {
 
         // Heuristic: If filename starts with 'out/' or is absolute, treat as explicit output path
         // Otherwise, treat as temporary artifact inside stepDir
-        if (path.isAbsolute(payload.filename) || payload.filename.startsWith('out/') || payload.filename.startsWith('out\\')) {
+        if (path.isAbsolute(payload.filename)) {
+            fullPath = path.resolve(payload.filename);
+        } else if (payload.filename.startsWith('out/') || payload.filename.startsWith('out\\')) {
             fullPath = path.resolve(payload.filename);
         } else {
             fullPath = path.join(stepDir, payload.filename);

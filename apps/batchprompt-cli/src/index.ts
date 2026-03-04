@@ -95,9 +95,9 @@ generateCmd.action(async (prompts, options) => {
         });
 
         // 7. Setup handlers
-        if (globalConfig.output?.tmpDir) {
-            new FileSystemArtifactHandler(cliDeps.events, globalConfig.output.tmpDir);
-        }
+        // Always instantiate the artifact handler so it catches core outputs too
+        const baseTmpDir = globalConfig.output?.tmpDir || path.join(process.cwd(), '.tmp');
+        new FileSystemArtifactHandler(cliDeps.events, baseTmpDir);
         new DebugLogger(cliDeps.events);
 
         // 8. Run pipeline

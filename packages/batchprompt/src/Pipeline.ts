@@ -27,7 +27,7 @@ export class Pipeline {
         const onArtifact = (payload: {
             row: number;
             step: number;
-            plugin: string;
+            source: string;
             type: string;
             filename: string;
             content: string | Buffer;
@@ -39,12 +39,13 @@ export class Pipeline {
                 content: payload.content,
                 type: payload.type,
                 tags: payload.tags,
-                metadata: payload.metadata
+                metadata: payload.metadata,
+                source: payload.source
             });
         };
 
         events.on('row:end', onRowEnd);
-        events.on('plugin:artifact', onArtifact);
+        events.on('artifact:emit', onArtifact);
 
         try {
             events.emit('run:start', this.globalConfig);
@@ -217,7 +218,7 @@ export class Pipeline {
 
         } finally {
             events.off('row:end', onRowEnd);
-            events.off('plugin:artifact', onArtifact);
+            events.off('artifact:emit', onArtifact);
         }
     }
 }
