@@ -14,6 +14,7 @@ import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './events.js';
 import {ModelConfig} from "./config/model.js";
 import { PluginRegistryV2 } from './plugins/types.js';
+import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 
 export interface ServiceCapabilities {
     hasSerper: boolean;
@@ -184,6 +185,10 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         fetcher: fetcher as any,
         puppeteerQueue
     });
+
+    if (imageSearch) {
+        pluginRegistry.registerFactory('imageSearch', () => new ImageSearchPlugin({ imageSearch: imageSearch! }));
+    }
 
     const events = new EventEmitter<BatchPromptEvents>();
 
