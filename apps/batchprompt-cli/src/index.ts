@@ -26,6 +26,7 @@ import { ValidationAdapter } from './adapters/ValidationAdapter.js';
 import { DedupeAdapter } from './adapters/DedupeAdapter.js';
 import { UrlExpanderAdapter } from './adapters/UrlExpanderAdapter.js';
 import { ShellAdapter } from './adapters/ShellAdapter.js';
+import { LogoScraperAdapter } from './adapters/LogoScraperAdapter.js';
 
 const program = new Command();
 
@@ -41,7 +42,8 @@ const adapters = [
     new ValidationAdapter(),
     new DedupeAdapter(),
     new UrlExpanderAdapter(),
-    new ShellAdapter()
+    new ShellAdapter(),
+    new LogoScraperAdapter()
 ];
 
 // --- Generate Command ---

@@ -1,5 +1,4 @@
 {
-  "_NOTE": "This example requires the logo-scraper plugin which is not yet available in the new architecture. It will fail at runtime.",
   "concurrency": 2,
   "output": {
     "tmpDir": "out/05-logo-downloader/.tmp"
@@ -7,8 +6,18 @@
   "dataOutputPath": "out/05-logo-downloader/results.csv",
   "steps": [
     {
+      "plugins": [
+        {
+          "type": "logoScraper",
+          "url": "{{website_url}}",
+          "output": {
+            "mode": "column",
+            "column": "brand_assets"
+          }
+        }
+      ],
       "model": {
-        "prompt": "Describe the brand identity of {{website_url}}."
+        "prompt": "Describe the brand identity of {{website_url}} based on the extracted logo and colors."
       },
       "output": {
         "mode": "column",

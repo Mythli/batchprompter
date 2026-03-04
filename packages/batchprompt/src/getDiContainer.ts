@@ -15,6 +15,8 @@ import { BatchPromptEvents } from './events.js';
 import {ModelConfig} from "./config/model.js";
 import { PluginRegistryV2 } from './plugins/types.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
+import { LogoScraperPlugin } from './plugins/logo-scraper/LogoScraperPlugin.js';
+import { ImageDownloader } from './plugins/logo-scraper/utils/ImageDownloader.js';
 
 export interface ServiceCapabilities {
     hasSerper: boolean;
@@ -189,6 +191,9 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     if (imageSearch) {
         pluginRegistry.registerFactory('imageSearch', () => new ImageSearchPlugin({ imageSearch: imageSearch! }));
     }
+
+    const imageDownloader = new ImageDownloader(fetcher as any);
+    pluginRegistry.registerFactory('logoScraper', () => new LogoScraperPlugin({ puppeteerHelper, imageDownloader }));
 
     const events = new EventEmitter<BatchPromptEvents>();
 

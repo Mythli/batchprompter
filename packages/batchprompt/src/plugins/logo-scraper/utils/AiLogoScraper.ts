@@ -143,6 +143,7 @@ export class AiLogoScraper {
             const logosToDownload = allLogoSources.slice(0, this.options.maxLogosToAnalyze);
 
             console.log(`[AiLogoScraper] Found ${allLogoSources.length} potential logo URLs. Downloading ${logosToDownload.length}...`);
+            this.events.emit('logo:found', { count: allLogoSources.length, urls: allLogoSources });
 
             const allBase64PngInfo = await Promise.all(logosToDownload.map(async (logoUrlOrDataUri) => {
                 try {
@@ -156,6 +157,10 @@ export class AiLogoScraper {
             }));
 
             const validLogos = allBase64PngInfo.filter(Boolean) as (ImageConversionResult & { isFavicon: boolean })[];
+            
+            validLogos.forEach((logo, index) => {
+                this.events.emit('logo:downloaded', { index, originalUrl: logo.originalUrl, base64PngData: logo.base64PngData });
+            });
 
             // Sort logos by size (area) in descending order
             const sortedLogos = validLogos.sort((a, b) => {
@@ -167,7 +172,10 @@ export class AiLogoScraper {
             console.log(`[AiLogoScraper] Analyzing ${sortedLogos.length} downloaded logos...`);
 
             // Step 3: Normalize and analyze
-            return this.normalizeLogos(url, sortedLogos, siteTitle, screenshotBase64);
+            const finalResult = await this.normalizeLogos(url, sortedLogos, siteTitle, screenshotBase64);
+            this.events.emit('analysis:complete', finalResult);
+            
+            return finalResult;
 
         } catch (error) {
             console.error(`[AiLogoScraper] Error processing ${url}:`, error);
