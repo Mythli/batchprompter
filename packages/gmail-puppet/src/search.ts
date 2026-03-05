@@ -22,39 +22,32 @@ export async function searchEmails(page: Page, query?: string): Promise<EmailMet
   const currentUrl = page.url();
   const currentHash = currentUrl.includes('#') ? currentUrl.substring(currentUrl.indexOf('#')) : '';
 
-  // Only wait for DOM detachment if we are actually changing views
   if (currentHash !== targetHash) {
-    // Grab a reference to the current first row before we navigate
-    const oldRow = await page.$('tr.zA').catch(() => null);
+    // Mark current rows as stale so we don't accidentally scrape them before Gmail clears them
+    await page.evaluate(() => {
+      document.querySelectorAll('tr.zA').forEach(el => el.setAttribute('data-stale', 'true'));
+    });
     
     const targetUrl = `https://mail.google.com/mail/u/0/${targetHash}`;
+    
+    // Wait for network to settle after navigation (allows Gmail's background API calls to finish)
+    const networkPromise = page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => {});
     await page.goto(targetUrl);
+    await networkPromise;
 
-    // If there was an old row, wait for Gmail to remove it from the DOM.
-    // This prevents the race condition where we accidentally scrape the old view
-    // just before Gmail clears it to show the loading state or new results.
-    if (oldRow) {
-      try {
-        await page.waitForFunction((el) => !document.body.contains(el), { timeout: 10000 }, oldRow);
-      } catch (e) {
-        // Ignore timeout, just in case the view didn't actually need to change
-      }
-    }
+    // Wait an extra moment for React/Closure to render the new DOM nodes
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
-  // Wait for the new email rows to render.
+  // Wait for new rows to appear, but don't fail if they don't (empty inbox or 0 search results)
   try {
-    await page.waitForSelector('tr.zA', { timeout: 10000 });
+    await page.waitForSelector('tr.zA:not([data-stale="true"])', { timeout: 2000 });
   } catch (e) {
-    // If it times out, there are likely no emails matching the search
-    return [];
+    // No new rows found. It's either empty, or the search returned 0 results.
   }
 
-  // Add a small delay to allow all rows to finish rendering completely
-  await new Promise(resolve => setTimeout(resolve, 1000));
-
-  // Extract metadata from the DOM
-  const emails = await page.$$eval('tr.zA', (rows) => {
+  // Extract metadata from the DOM. Strictly ignore stale rows.
+  const emails = await page.$$eval('tr.zA:not([data-stale="true"])', (rows) => {
     return rows.map(row => {
       // Extract the internal Gmail ID (useful for direct navigation later)
       // The attributes are typically on a descendant span (e.g., span.bqe), not the row itself
@@ -73,8 +66,8 @@ export async function searchEmails(page: Page, query?: string): Promise<EmailMet
       const subject = subjectEl ? (subjectEl.textContent || '').trim() : '';
       
       // Snippet is typically inside a span with class 'y2'
-      const snippetEl = row.querySelector('span.y2');
       // Snippet often contains a leading dash (e.g., "- This is the message..."), clean it up
+      const snippetEl = row.querySelector('span.y2');
       const snippet = snippetEl ? (snippetEl.textContent || '').replace(/^[-\s]+/, '').trim() : '';
       
       // Date is typically in the last column with class 'xW'
