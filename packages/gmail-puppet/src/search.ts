@@ -1,6 +1,7 @@
 import type { Page } from 'puppeteer';
 
 export interface EmailMetadata {
+  id: string;
   sender: string;
   subject: string;
   snippet: string;
@@ -55,6 +56,9 @@ export async function searchEmails(page: Page, query?: string): Promise<EmailMet
   // Extract metadata from the DOM
   const emails = await page.$$eval('tr.zA', (rows) => {
     return rows.map(row => {
+      // Extract the internal Gmail ID (useful for direct navigation later)
+      const id = row.getAttribute('data-legacy-message-id') || row.getAttribute('data-legacy-thread-id') || '';
+
       // 'zE' class indicates unread, 'yO' indicates read
       const isUnread = row.classList.contains('zE');
       
@@ -75,7 +79,7 @@ export async function searchEmails(page: Page, query?: string): Promise<EmailMet
       const dateEl = row.querySelector('td.xW span');
       const date = dateEl ? (dateEl.getAttribute('title') || dateEl.textContent || '').trim() : '';
 
-      return { sender, subject, snippet, date, isUnread };
+      return { id, sender, subject, snippet, date, isUnread };
     });
   });
 

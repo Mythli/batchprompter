@@ -30,6 +30,11 @@ describe('Gmail Search Integration', () => {
     // If the inbox isn't empty, verify the shape of the extracted data
     if (emails.length > 0) {
       const firstEmail = emails[0];
+      
+      expect(firstEmail).toHaveProperty('id');
+      expect(typeof firstEmail.id).toBe('string');
+      expect(firstEmail.id.length).toBeGreaterThan(0);
+
       expect(firstEmail).toHaveProperty('sender');
       expect(typeof firstEmail.sender).toBe('string');
       
