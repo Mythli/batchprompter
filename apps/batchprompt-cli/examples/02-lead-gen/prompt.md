@@ -4,18 +4,18 @@ You are aware of the following data:
 | :--------------------- | :--------------------------- |
 | currentDate/Year       | '2026'                       |
 | industry               | '{{industry}}'               |
-| addresscity            | '{{addresscity}}'            |
-| companyName            | '{{companyName}}'            |
-| isIndustryReason       | '{{isIndustryReason}}'       |
-| snippet                | '{{snippet}}'                |
-| topOffername           | '{{topOffername}}'           |
-| topOfferdescription    | '{{topOfferdescription}}'    |
-| topOfferreason         | '{{topOfferreason}}'         |
-| top5Offers             | '{{top5Offers}}'             |
-| decisionMakerrole      | '{{decisionMakerrole}}'      |
-| decisionMakerfirstName | '{{decisionMakerfirstName}}' |
-| decisionMakerlastName  | '{{decisionMakerlastName}}'  |
-| decisionMakeremail     | '{{decisionMakeremail}}'.    |
+| addresscity            | '{{websiteAgent.address.city}}' |
+| companyName            | '{{websiteAgent.companyName}}' |
+| isIndustryReason       | '{{websiteAgent.isIndustryReason}}' |
+| snippet                | '{{webSearch.snippet}}'      |
+| topOffername           | '{{websiteAgent.topOffer.name}}' |
+| topOfferdescription    | '{{websiteAgent.topOffer.description}}' |
+| topOfferreason         | '{{websiteAgent.topOffer.reason}}' |
+| top5Offers             | '{{websiteAgent.top5Offers}}' |
+| decisionMakerrole      | '{{websiteAgent.decisionMaker.role}}' |
+| decisionMakerfirstName | '{{websiteAgent.decisionMaker.firstName}}' |
+| decisionMakerlastName  | '{{websiteAgent.decisionMaker.lastName}}' |
+| decisionMakeremail     | '{{websiteAgent.decisionMaker.email}}' |
 
 Basierend auf dem Datensatz musst du das folgende E-Mail Template nehmen und die Daten in den eckigen Klammern [...] entsprechend an die wirklich bekannten Daten anpassen. Je nachdem wieviele Informationen zur verfügung stehen, nimmst du entweder 'Betreff Name bekannt' oder wählst die Variante 'Betreff No-Name'. Je nachdem wieviele Informationen zur verfügung stehen, nimmst du entweder 'Weiterleitung Rang bekannt' oder 'Weiterleitung Rang unbekannt'.
 
@@ -25,7 +25,7 @@ Es ist deine absolute Pflicht das folgende Template zu benutzen und nicht zu ver
 
 START E-Mail Template:
 
-An: {{decisionMakeremail}}
+An: {{websiteAgent.decisionMaker.email}}
 
 Betreff: Frage [zu/zur/zum/... XXX /sidenote: add/write/change 'zu/zur/zum/... XXX' to whatever the actual data is and a questions could be asked to based on the provided data. Do not mention any names and do not involve any persons in this Betreff. The Betreff needs to start with the phrase 'Frage' zu/zur/zum/... /sidenote: the Betreff is very short and maximizes the chance for the recipient to click on the email, therefore choose a Betreff in a CLICKBAIT style: designed to make the person want to click on the email starting with 'Frage' zu/zur/zum/... to awake his full interest.]
 
@@ -46,7 +46,7 @@ Genau das Thema hat mich als Entwickler nie losgelassen. Ich hab 2015 als Pilotp
 
 Der Simon von der ADAC Gelbhilft und der Timo von Lebensretter arbeiten bereits damit. Stell dir vor die ganze Anmeldung [von den Jungjägern /sidenote: add/write/change 'Jungjägern' to whatever they offer while keeping in mind that whatever they offer needs to be booked online so that the phrase 'die ganze Anmeldung' that stand before whatever you are going to set here makes sense and is not out of context: .Stell dir vor die ganze Anmeldung ...] und der Kram mit den E-Rechnungen läuft da einfach komplett im Hintergrund von alleine und die beiden haben den Kopf endlich frei für die Ausbildung.
 
-[set here the Vorname '{{decisionMakerfirstName}}'], ich hab das zwar schon mit Simon und Timo getestet aber ich würde wahnsinnig gerne deine Meinung als [Fachmann /or Expertin /sidenote: here set either 'Fachmann' if the person is a male or 'Expertin' if the person is a female (you have to detect and estimate - based on the persons first name which is '{{decisionMakerfirstName}}' in this case - if the gender is either male or female and set the word accordingly)] dazu hören. Schau dir die Seite für die Erste Hilfe Kurse doch bitte mal kurz an und sag mir was du davon hältst und was ich vielleicht noch dazu programmieren sollte damit es dir richtig den Rücken freihält.
+[set here the Vorname '{{websiteAgent.decisionMaker.firstName}}'], ich hab das zwar schon mit Simon und Timo getestet aber ich würde wahnsinnig gerne deine Meinung als [Fachmann /or Expertin /sidenote: here set either 'Fachmann' if the person is a male or 'Expertin' if the person is a female (you have to detect and estimate - based on the persons first name which is '{{websiteAgent.decisionMaker.firstName}}' in this case - if the gender is either male or female and set the word accordingly)] dazu hören. Schau dir die Seite für die Erste Hilfe Kurse doch bitte mal kurz an und sag mir was du davon hältst und was ich vielleicht noch dazu programmieren sollte damit es dir richtig den Rücken freihält.
 
 Ich hab hier mal den aktuellen Stand für dich hochgeladen: www.butlerapp.de/ErsteHilfeKurse?{{id}}
 
@@ -72,7 +72,7 @@ Ich sende liebe Grüße aus Berlin,
 Tobias
 
 3. Rule:
-The 'Weiterleitung' text is only part of the email in case you might notice that '{{decisionMakeremail}}' is not the personal email from '{{decisionMaker.firstName}} {{decisionMaker.lastName}}', you ask to forward/pass-through/transfer the email to '{{decisionMaker.firstName}} {{decisionMaker.lastName}}' at the very top of the email right under "Betreff: ..." and before the actual email text starts. In order to know if '{{decisionMakeremail}}' is (or is not) the direct, personal email of '{{decisionMaker.firstName}} {{decisionMaker.lastName}}' you need to check if parts of the persons fist and last name ('{{decisionMaker.firstName}} {{decisionMaker.lastName}}') are part/occur/appear/exist inside '{{decisionMakeremail}}'. E.g. is the persons name is: "Martin Becker" and the email would be m.becker@gmail.com it would mean it must be his personal email. Another example: if the persons name is "Sarah Schuster" and the email is sarah.schuster@gmx.de it must also be the personal mail, because parts of the persons fist and last name occur/appear/exist inside the email. Another exmaple: if the email starts schema-guided/with a pattern like: support@, info@, fragen@, help@, contact@, kontakt@, webmaster@, mail@, (... and so on and so forth), it means it can not be the persons email and therefor you ask to forward/pass-through/transfer the email to '{{decisionMaker.firstName}} {{decisionMaker.lastName}}' at the very top of the email right under "Betreff: ..." because the email belongs to this person! If it is clear that it is the persons personal mail, the Mail will have no 'Weiterleitung' part at all!
+The 'Weiterleitung' text is only part of the email in case you might notice that '{{websiteAgent.decisionMaker.email}}' is not the personal email from '{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}', you ask to forward/pass-through/transfer the email to '{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}' at the very top of the email right under "Betreff: ..." and before the actual email text starts. In order to know if '{{websiteAgent.decisionMaker.email}}' is (or is not) the direct, personal email of '{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}' you need to check if parts of the persons fist and last name ('{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}') are part/occur/appear/exist inside '{{websiteAgent.decisionMaker.email}}'. E.g. is the persons name is: "Martin Becker" and the email would be m.becker@gmail.com it would mean it must be his personal email. Another example: if the persons name is "Sarah Schuster" and the email is sarah.schuster@gmx.de it must also be the personal mail, because parts of the persons fist and last name occur/appear/exist inside the email. Another exmaple: if the email starts schema-guided/with a pattern like: support@, info@, fragen@, help@, contact@, kontakt@, webmaster@, mail@, (... and so on and so forth), it means it can not be the persons email and therefor you ask to forward/pass-through/transfer the email to '{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}' at the very top of the email right under "Betreff: ..." because the email belongs to this person! If it is clear that it is the persons personal mail, the Mail will have no 'Weiterleitung' part at all!
 
 4. Rule:
 Once again, if it is clear that it is the persons personal email address, the Mail will have no 'Weiterleitung' part at all!
