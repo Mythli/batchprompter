@@ -48,6 +48,8 @@ export const configSchema = z.object({
     PUPPETEER_CONCURRENCY: z.coerce.number().int().positive().default(3),
     PUPPETEER_MAX_PAGES_BEFORE_RESTART: z.coerce.number().int().positive().default(50),
     PUPPETEER_RESTART_TIMEOUT: z.coerce.number().int().positive().default(10000),
+    PUPPETEER_HEADLESS: z.string().optional().default('true').transform(val => val !== 'false'),
+    PUPPETEER_SLOW_MO: z.coerce.number().int().min(0).default(0),
     GMAIL_EMAIL: z.string().optional(),
     GMAIL_PASSWORD: z.string().optional(),
 });
@@ -104,6 +106,8 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         PUPPETEER_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_CONCURRENCY', 'PUPPETEER_CONCURRENCY']),
         PUPPETEER_MAX_PAGES_BEFORE_RESTART: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_MAX_PAGES_BEFORE_RESTART', 'PUPPETEER_MAX_PAGES_BEFORE_RESTART']),
         PUPPETEER_RESTART_TIMEOUT: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_RESTART_TIMEOUT', 'PUPPETEER_RESTART_TIMEOUT']),
+        PUPPETEER_HEADLESS: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_HEADLESS', 'PUPPETEER_HEADLESS']),
+        PUPPETEER_SLOW_MO: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_SLOW_MO', 'PUPPETEER_SLOW_MO']),
         GMAIL_EMAIL: getEnvVar(env, ['GMAIL_EMAIL']),
         GMAIL_PASSWORD: getEnvVar(env, ['GMAIL_PASSWORD']),
     };
@@ -170,7 +174,11 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         cache: cache as any,
         fetcher: fetcher as any,
         maxPagesBeforeRestart: config.PUPPETEER_MAX_PAGES_BEFORE_RESTART,
-        restartTimeout: config.PUPPETEER_RESTART_TIMEOUT
+        restartTimeout: config.PUPPETEER_RESTART_TIMEOUT,
+        puppeteerLaunchOptions: {
+            headless: config.PUPPETEER_HEADLESS,
+            slowMo: config.PUPPETEER_SLOW_MO
+        }
     });
 
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
