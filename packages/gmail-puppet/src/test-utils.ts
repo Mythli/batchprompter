@@ -2,8 +2,8 @@ import * as dotenv from 'dotenv';
 import { z } from 'zod';
 import puppeteer, { Browser } from 'puppeteer';
 
-// Load environment variables from .env file if present
-dotenv.config();
+// Load environment variables from .env.test first, falling back to .env if present
+dotenv.config({ path: ['.env.test', '.env'] });
 
 // Define the schema for required test environment variables
 const envSchema = z.object({
