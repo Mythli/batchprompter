@@ -1,7 +1,7 @@
 {
   "name": "gmail-puppet",
   "version": "1.0.0",
-  "description": "Project for sending and searching emails with Gmail",
+  "description": "Project for sending and searching emails with Gmail using Puppeteer",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -17,12 +17,11 @@
   "author": "",
   "license": "MIT",
   "packageManager": "pnpm@10.6.5",
-  "dependencies": {
-    "googleapis": "^144.0.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^20.19.27",
     "dotenv": "^16.6.1",
+    "puppeteer": "^22.7.1",
     "typescript": "^5.9.3",
     "vitest": "^1.6.1"
   }
