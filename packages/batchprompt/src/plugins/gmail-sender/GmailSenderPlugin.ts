@@ -18,6 +18,7 @@ export const GmailSenderConfigSchema = z.object({
     delayMin: z.number().min(0).default(0),
     delayMax: z.number().min(0).default(0),
     sendIfReceived: z.boolean().default(true),
+    skipIfSubjectMatch: z.boolean().default(false),
     replyToLastThread: z.boolean().default(false),
     requireExistingThread: z.boolean().default(false),
     output: PartialOutputConfigSchema.optional()
@@ -122,6 +123,27 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                     if (receivedResults.length > 0) {
                         skipSend = true;
                         skipReason = 'received_email';
+                    }
+                }
+
+                // Check if we already sent an email with the exact subject
+                if (!skipSend && config.skipIfSubjectMatch && subject) {
+                    const safeSubject = subject.replace(/"/g, '\\"');
+                    const subjectQuery = `to:${toEmail} subject:"${safeSubject}"`;
+                    
+                    events.emit('plugin:event', {
+                        row: rowIndex,
+                        step: stepIndex,
+                        plugin: 'gmailSender',
+                        event: 'search:started',
+                        data: { query: subjectQuery }
+                    });
+
+                    const subjectResults = await searchEmails(page, subjectQuery);
+
+                    if (subjectResults.length > 0) {
+                        skipSend = true;
+                        skipReason = 'subject_match';
                     }
                 }
 
