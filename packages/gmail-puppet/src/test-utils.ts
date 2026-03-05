@@ -9,6 +9,10 @@ dotenv.config({ path: ['.env.test', '.env'] });
 const envSchema = z.object({
   GMAIL_EMAIL: z.string().email("GMAIL_EMAIL must be a valid email address"),
   GMAIL_PASSWORD: z.string().min(1, "GMAIL_PASSWORD must not be empty"),
+  // Default to false (headful/visible) for tests so we can see the execution
+  PUPPETEER_HEADLESS: z.string().optional().default('false').transform(val => val === 'true'),
+  // Default to 50ms delay between Puppeteer actions to make it easier to follow visually
+  PUPPETEER_SLOW_MO: z.string().optional().default('50').transform(val => parseInt(val, 10)),
 });
 
 // Parse and validate the environment variables. 
@@ -20,8 +24,8 @@ export const testEnv = envSchema.parse(process.env);
  */
 export async function launchTestBrowser(): Promise<Browser> {
   return puppeteer.launch({
-    // Use headless: false if you need to visually debug the login flow locally
-    headless: true,
+    headless: testEnv.PUPPETEER_HEADLESS,
+    slowMo: testEnv.PUPPETEER_SLOW_MO,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
 }
