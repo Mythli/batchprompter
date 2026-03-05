@@ -1,20 +1,13 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import puppeteer, { Browser } from 'puppeteer';
+import { Browser } from 'puppeteer';
 import { ensureAuthenticatedGmail } from './auth.js';
-import * as dotenv from 'dotenv';
-
-// Load environment variables from .env file if present
-dotenv.config();
+import { testEnv, launchTestBrowser } from './test-utils.js';
 
 describe('Gmail Authentication Integration', () => {
   let browser: Browser;
 
   beforeAll(async () => {
-    browser = await puppeteer.launch({
-      // Use headless: false if you need to visually debug the login flow locally
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    browser = await launchTestBrowser();
   });
 
   afterAll(async () => {
@@ -23,20 +16,10 @@ describe('Gmail Authentication Integration', () => {
     }
   });
 
-  const hasCredentials = !!(process.env.GMAIL_EMAIL && process.env.GMAIL_PASSWORD);
-
-  it.skipIf(!hasCredentials)('should authenticate and navigate to Gmail', async () => {
-    const email = process.env.GMAIL_EMAIL;
-    const password = process.env.GMAIL_PASSWORD;
-
-    // This shouldn't happen due to skipIf, but satisfies TypeScript
-    if (!email || !password) {
-      throw new Error('Missing credentials');
-    }
-
+  it('should authenticate and navigate to Gmail', async () => {
     const page = await ensureAuthenticatedGmail(browser, {
-      email,
-      password,
+      email: testEnv.GMAIL_EMAIL,
+      password: testEnv.GMAIL_PASSWORD,
       timeout: 60000 // 60 seconds timeout for navigation/selectors
     });
 
