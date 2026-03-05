@@ -5,7 +5,6 @@ import { BasePlugin, BasePluginRow, PluginResult } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { PartialOutputConfigSchema } from '../../config/schema.js';
 import { zHandlebars } from '../../config/validationRules.js';
-import type { StepConfig, GlobalConfig } from '../../config/schema.js';
 import { ensureAuthenticatedGmail, sendEmail } from 'gmail-puppet';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 
@@ -67,7 +66,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
             const minMs = config.delayMin * 60 * 1000;
             const maxMs = config.delayMax * 60 * 1000;
             const delayMs = Math.floor(Math.random() * (maxMs - minMs + 1) + minMs);
-            
+
             events.emit('plugin:event', {
                 row: rowIndex,
                 step: stepIndex,
