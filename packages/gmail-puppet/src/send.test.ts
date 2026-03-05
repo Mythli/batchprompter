@@ -57,4 +57,34 @@ describe('Gmail Send Integration', () => {
 
     // If we got here without throwing, the Puppeteer actions succeeded.
   }, 120000);
+
+  it('should send an email to tobiasan90@gmail.com and reply to an email with subject YEAH', async () => {
+    // 1. Send an email to tobiasan90@gmail.com with subject YEAH
+    await sendEmail(page, {
+      to: 'tobiasan90@gmail.com',
+      subject: 'YEAH',
+      htmlBody: '<h1>YEAH</h1><p>This is a test email sent to tobiasan90@gmail.com</p>'
+    });
+
+    // Wait a moment for the email to be processed
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // 2. Search for the email with subject "YEAH"
+    const searchResults = await searchEmails(page, 'subject:"YEAH"');
+    
+    expect(searchResults.length).toBeGreaterThan(0);
+    
+    const emailId = searchResults[0].id;
+    expect(emailId).toBeTruthy();
+
+    // 3. Reply to the email using the extracted ID
+    const replyHtmlBody = `<p>This is a reply to the YEAH email.</p>`;
+    await sendEmail(page, {
+      htmlBody: replyHtmlBody,
+      replyToId: emailId
+    });
+
+    // Wait a moment for the reply to process
+    await new Promise(resolve => setTimeout(resolve, 5000));
+  }, 120000);
 });
