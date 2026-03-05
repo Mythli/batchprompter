@@ -25,6 +25,11 @@ export async function ensureAuthenticatedGmail(
   const timeout = options.timeout ?? 30000;
   const page = await browser.newPage();
   
+  // Auto-dismiss any unexpected JavaScript dialogs so they don't block execution
+  page.on('dialog', async (dialog) => {
+    await dialog.dismiss().catch(() => {});
+  });
+  
   // Navigate to Gmail
   await page.goto('https://mail.google.com/', { waitUntil: 'networkidle2', timeout });
 

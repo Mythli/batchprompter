@@ -26,6 +26,11 @@ export async function launchTestBrowser(): Promise<Browser> {
   return puppeteer.launch({
     headless: testEnv.PUPPETEER_HEADLESS,
     slowMo: testEnv.PUPPETEER_SLOW_MO,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: [
+      '--no-sandbox', 
+      '--disable-setuid-sandbox',
+      '--disable-custom-handlers', // Prevents the "Allow mail.google.com to open all email links?" prompt
+      '--disable-notifications'    // Prevents notification permission prompts
+    ]
   });
 }
