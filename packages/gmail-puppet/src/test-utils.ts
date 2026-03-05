@@ -12,10 +12,10 @@ const envSchema = z.object({
   // Default to false (headful/visible) for tests so we can see the execution
   PUPPETEER_HEADLESS: z.string().optional().default('false').transform(val => val === 'true'),
   // Default to 50ms delay between Puppeteer actions to make it easier to follow visually
-  PUPPETEER_SLOW_MO: z.string().optional().default('50').transform(val => parseInt(val, 10)),
+  PUPPETEER_SLOW_MO: z.string().optional().default('0').transform(val => parseInt(val, 10)),
 });
 
-// Parse and validate the environment variables. 
+// Parse and validate the environment variables.
 // This will throw a clear error if they are missing or invalid.
 export const testEnv = envSchema.parse(process.env);
 
