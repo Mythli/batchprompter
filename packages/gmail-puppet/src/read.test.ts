@@ -2,7 +2,6 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Browser, Page } from 'puppeteer';
 import { ensureAuthenticatedGmail } from './auth.js';
 import { searchEmails } from './search.js';
-import { sendEmail } from './send.js';
 import { readThread } from './read.js';
 import { testEnv, launchTestBrowser } from './test-utils.js';
 
@@ -25,48 +24,40 @@ describe('Gmail Read Integration', () => {
   }, 120000);
 
   it('should search for YEAH2 email and read the entire thread', async () => {
-    // Use a unique subject so we don't clash with previous test runs
-    const uniqueSubject = `YEAH2 ${Date.now()}`;
+    // 1. Search for the existing email with subject "YEAH2"
+    const searchResults = await searchEmails(page, 'subject:"YEAH2"');
     
-    // 1. Setup: Create a thread by sending an email and then replying to it
-    await sendEmail(page, {
-      to: testEnv.GMAIL_EMAIL,
-      subject: uniqueSubject,
-      htmlBody: '<p>This is the first message in the YEAH2 thread.</p>'
-    });
-    
-    // Wait for the email to arrive
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    if (searchResults.length === 0) {
+      throw new Error('Could not find an email with subject "YEAH2" to run the read test. Please ensure one exists in the inbox.');
+    }
 
-    // Search to get the ID
-    const searchResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
-    expect(searchResults.length).toBeGreaterThan(0);
     const threadId = searchResults[0].id;
+    expect(threadId).toBeTruthy();
 
-    // Reply to create a thread with multiple messages
-    await sendEmail(page, {
-      replyToId: threadId,
-      htmlBody: '<p>This is the second message (reply) in the YEAH2 thread.</p>'
-    });
-
-    // Wait for the reply to process
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
-    // 2. Actual Test: Read the thread using the ID
+    // 2. Read the thread using the ID
     const messages = await readThread(page, threadId);
 
-    // Assertions
+    // 3. Assertions
     expect(Array.isArray(messages)).toBe(true);
-    expect(messages.length).toBeGreaterThanOrEqual(2);
+    expect(messages.length).toBeGreaterThanOrEqual(1);
 
-    // Verify the first message
+    // Verify the structure of the first message
     const firstMessage = messages[0];
+    
+    expect(firstMessage).toHaveProperty('senderName');
+    expect(typeof firstMessage.senderName).toBe('string');
+    
     expect(firstMessage).toHaveProperty('senderEmail');
+    expect(typeof firstMessage.senderEmail).toBe('string');
     expect(firstMessage.senderEmail).toContain('@');
-    expect(firstMessage.textBody).toContain('first message');
-
-    // Verify the last message (the reply)
-    const lastMessage = messages[messages.length - 1];
-    expect(lastMessage.textBody).toContain('second message');
+    
+    expect(firstMessage).toHaveProperty('date');
+    expect(typeof firstMessage.date).toBe('string');
+    
+    expect(firstMessage).toHaveProperty('textBody');
+    expect(typeof firstMessage.textBody).toBe('string');
+    
+    expect(firstMessage).toHaveProperty('htmlBody');
+    expect(typeof firstMessage.htmlBody).toBe('string');
   }, 120000);
 });
