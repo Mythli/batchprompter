@@ -57,7 +57,9 @@ export async function searchEmails(page: Page, query?: string): Promise<EmailMet
   const emails = await page.$$eval('tr.zA', (rows) => {
     return rows.map(row => {
       // Extract the internal Gmail ID (useful for direct navigation later)
-      const id = row.getAttribute('data-legacy-message-id') || row.getAttribute('data-legacy-thread-id') || '';
+      // The attributes are typically on a descendant span (e.g., span.bqe), not the row itself
+      const idEl = row.querySelector('[data-legacy-message-id], [data-legacy-thread-id]');
+      const id = idEl ? (idEl.getAttribute('data-legacy-message-id') || idEl.getAttribute('data-legacy-thread-id') || '') : '';
 
       // 'zE' class indicates unread, 'yO' indicates read
       const isUnread = row.classList.contains('zE');
