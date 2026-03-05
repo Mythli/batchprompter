@@ -17,7 +17,7 @@ export const GmailSenderConfigSchema = z.object({
     replyToId: zHandlebars.optional(),
     delayMin: z.number().min(0).default(0),
     delayMax: z.number().min(0).default(0),
-    sendIfReplied: z.boolean().default(false),
+    sendIfReplied: z.boolean().default(true),
     replyToLastThread: z.boolean().default(false),
     requireExistingThread: z.boolean().default(false),
     output: PartialOutputConfigSchema.optional()
