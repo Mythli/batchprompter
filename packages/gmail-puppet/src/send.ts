@@ -18,13 +18,18 @@ export interface SendEmailOptions {
    * instead of composing a new email.
    */
   replyToId?: string;
+  /**
+   * Optional date to schedule the email to be sent later.
+   * Must be a date in the future.
+   */
+  scheduleDate?: Date;
 }
 
 /**
  * Sends an HTML email or replies to an existing thread.
  * 
  * @param page The authenticated Puppeteer Page.
- * @param options Options containing the recipient, subject, HTML body, and optional reply ID.
+ * @param options Options containing the recipient, subject, HTML body, and optional reply ID/schedule date.
  */
 export async function sendEmail(page: Page, options: SendEmailOptions): Promise<void> {
   // Bypass CSP to avoid TrustedHTML errors when injecting the email body via execCommand
@@ -117,18 +122,92 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
   // Add a small delay to let Gmail process the injected HTML
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  // Click Send
   // .T-I-atl is the stable, long-standing class for the primary (blue) action button in Gmail.
   const sendButtonSelector = 'div[role="button"].T-I-atl';
   await page.waitForSelector(sendButtonSelector, { visible: true, timeout: 5000 });
-  
-  await page.evaluate((sel) => {
-    const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
-    const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
-    if (visibleButton) visibleButton.click();
-  }, sendButtonSelector);
 
-  // Wait for the send button to disappear, indicating the compose window closed and the email is sending
+  if (options.scheduleDate) {
+    // --- SCHEDULE SEND FLOW ---
+    
+    // 1. Click the dropdown arrow next to the Send button
+    await page.evaluate((sendSel) => {
+      const sendBtn = document.querySelector(sendSel);
+      // The dropdown arrow is structurally the immediate next sibling of the send button
+      if (sendBtn && sendBtn.nextElementSibling) {
+        (sendBtn.nextElementSibling as HTMLElement).click();
+      }
+    }, sendButtonSelector);
+
+    // 2. Wait for the menu and click the "Schedule send" item
+    const menuItemSelector = 'div[role="menu"] div[role="menuitem"]';
+    await page.waitForSelector(menuItemSelector, { visible: true, timeout: 5000 });
+    await page.click(menuItemSelector);
+
+    // 3. Wait for the scheduling dialog
+    const dialogSelector = 'div[role="dialog"]';
+    await page.waitForSelector(dialogSelector, { visible: true, timeout: 5000 });
+    await new Promise(resolve => setTimeout(resolve, 500)); // Wait for animation
+
+    // 4. Click "Pick date & time" (usually the last option in the list)
+    await page.evaluate((dialogSel) => {
+      const dialog = document.querySelector(dialogSel);
+      if (dialog) {
+        const items = Array.from(dialog.querySelectorAll('div[role="button"], div[role="menuitem"]'))
+          .filter(el => el.clientHeight > 20 && el.textContent?.trim().length! > 0);
+        
+        if (items.length > 0) {
+          (items[items.length - 1] as HTMLElement).click();
+        }
+      }
+    }, dialogSelector);
+
+    // 5. Wait for the date and time inputs to appear
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for view transition
+    const inputs = await page.$$('div[role="dialog"] input[type="text"]');
+    
+    if (inputs.length >= 2) {
+      // Get browser locale to format date/time correctly for Gmail's parser
+      const locale = await page.evaluate(() => navigator.language);
+      
+      const dateStr = new Intl.DateTimeFormat(locale).format(options.scheduleDate);
+      const timeStr = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' }).format(options.scheduleDate);
+
+      // Fill Date
+      await inputs[0].click({ clickCount: 3 });
+      await page.keyboard.press('Backspace');
+      await inputs[0].type(dateStr, { delay: 100 });
+
+      // Fill Time
+      await inputs[1].click({ clickCount: 3 });
+      await page.keyboard.press('Backspace');
+      await inputs[1].type(timeStr, { delay: 100 });
+
+      // 6. Click the confirm "Schedule send" button
+      await page.evaluate((dialogSel) => {
+        const dialog = document.querySelector(dialogSel);
+        if (dialog) {
+          // T-I-KE is the class for primary action buttons in Gmail dialogs
+          const confirmBtn = dialog.querySelector('div[role="button"].T-I-KE');
+          if (confirmBtn) {
+            (confirmBtn as HTMLElement).click();
+          }
+        }
+      }, dialogSelector);
+
+    } else {
+      throw new Error('Could not find date and time inputs in the schedule dialog.');
+    }
+
+  } else {
+    // --- NORMAL SEND FLOW ---
+    await page.evaluate((sel) => {
+      const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+      const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
+      if (visibleButton) visibleButton.click();
+    }, sendButtonSelector);
+  }
+
+  // Wait for the send button to disappear, indicating the compose window closed and the email is sending/scheduled
   try {
     await page.waitForFunction((sel) => {
       const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
