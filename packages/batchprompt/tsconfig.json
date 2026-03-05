@@ -5,11 +5,13 @@
     "outDir": "dist",
     "composite": true,
     "paths": {
-      "llm-fns": ["../llm-fns/src/index.ts"]
+      "llm-fns": ["../llm-fns/src/index.ts"],
+      "gmail-puppet": ["../gmail-puppet/src/index.ts"]
     }
   },
   "references": [
-    { "path": "../llm-fns" }
+    { "path": "../llm-fns" },
+    { "path": "../gmail-puppet" }
   ],
   "include": ["src/**/*"]
 }
