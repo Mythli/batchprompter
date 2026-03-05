@@ -27,6 +27,7 @@
     "json-schema-traverse": "^1.0.0",
     "keyv": "^5.5.5",
     "llm-fns": "workspace:*",
+    "marked": "^17.0.4",
     "openai": "^6.15.0",
     "p-queue": "^9.0.1",
     "puppeteer": "^22.15.0",
