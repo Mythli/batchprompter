@@ -27,6 +27,9 @@ export interface SendEmailOptions {
  * @param options Options containing the recipient, subject, HTML body, and optional reply ID.
  */
 export async function sendEmail(page: Page, options: SendEmailOptions): Promise<void> {
+  // Bypass CSP to avoid TrustedHTML errors when injecting the email body via execCommand
+  await page.setBypassCSP(true);
+
   if (options.replyToId) {
     // --- REPLY FLOW ---
     // Navigate directly to the email thread using its ID
@@ -93,7 +96,21 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
     const visibleBox = boxes.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
     if (visibleBox) {
       visibleBox.focus();
-      document.execCommand('insertHTML', false, html);
+      try {
+        // This might fail if CSP TrustedTypes is enforced and setBypassCSP didn't catch it
+        document.execCommand('insertHTML', false, html);
+      } catch (err) {
+        // Fallback: Simulate a rich-text paste event. 
+        // Gmail's internal event listeners will catch this, sanitize it via their own TrustedTypes policy, and insert it.
+        const dt = new DataTransfer();
+        dt.setData('text/html', html);
+        dt.setData('text/plain', html);
+        visibleBox.dispatchEvent(new ClipboardEvent('paste', {
+          clipboardData: dt,
+          bubbles: true,
+          cancelable: true
+        }));
+      }
     }
   }, bodySelector, options.htmlBody);
 
