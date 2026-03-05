@@ -101,8 +101,8 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
   await new Promise(resolve => setTimeout(resolve, 500));
 
   // Click Send
-  // .aoO is the specific class for the primary "Send" button in Gmail.
-  const sendButtonSelector = 'div[role="button"].aoO';
+  // .T-I-atl is the stable, long-standing class for the primary (blue) action button in Gmail.
+  const sendButtonSelector = 'div[role="button"].T-I-atl';
   await page.waitForSelector(sendButtonSelector, { visible: true, timeout: 5000 });
   
   await page.evaluate((sel) => {
