@@ -9,9 +9,9 @@
       "plugins": [
         {
           "type": "logoScraper",
-          "url": "{{website_url}}",
-          "logoOutputPath": "out/05-logo-downloader/assets/{{company}}_logo.png",
-          "faviconOutputPath": "out/05-logo-downloader/assets/{{company}}_favicon.png",
+          "url": "{{Website}}",
+          "logoOutputPath": "out/05-logo-downloader/assets/{{ID}}_logo.png",
+          "faviconOutputPath": "out/05-logo-downloader/assets/{{ID}}_favicon.png",
           "output": {
             "mode": "column",
             "column": "brand_assets"
@@ -19,7 +19,7 @@
         }
       ],
       "model": {
-        "prompt": "Describe the brand identity of {{website_url}} based on the extracted logo and colors."
+        "prompt": "Describe the brand identity of {{Website}} based on the extracted logo and colors."
       },
       "output": {
         "mode": "column",

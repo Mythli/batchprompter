@@ -1,4 +1,10 @@
-company,website_url
-butlerapp,https://butlerapp.de
-webbee,https://web-bee.org
-agravis,https://www.agravis.de
+ID,Name,Phase,Email,Phone,Contact Name,Website,Industry,VIP Status,Customer Sentiment,Integration Start,Go-Live Date,Created At
+188,ab-sportbootschule - Alexandra Beckmann,Live,info@ab-sportbootschule.de,01736959587,,https://www.ab-sportbootschule.de,Segelschulen,,,,,2024-07-23 08:39:06
+258,Academy Trappen Sprachschule - Till Trappen,Kündingungsprozess,till.trappen@icloud.com,1759621195,,https://academy-trappen.com/,,,🙂,2024-12-13 00:00:00,,2024-12-06 20:00:00
+272,ADAC gelbhilft GmbH - Simon Schöbel,Live,simon.schoebel@adac-gelbhilft.de,1707694730,Simon Schöbel,https://adac-gelbhilft.de/,Erste Hilfe,B-VIP,,2025-01-22 00:00:00,2025-04-16 00:00:00,2025-01-15 18:35:41
+206,ADUG GmbH - Sascha Korthals,Live,sascha.korthals@adug.de,1778363169,,https://www.adug.de/,,,,2024-06-22 23:00:00,2024-09-01 23:00:00,2024-07-23 08:39:06
+105,Adventure Movements - Max Rieder,Live,viktor.rauch@parkour-regensburg.de,,Viktor Rauch,https://www.adventure-movements.de,,B-VIP,,2023-12-11 00:00:00,2023-12-14 00:00:00,2024-07-23 08:39:06
+102,Agentur: KPV Bildungswerk Niedersachsen e.V. / Weltenretter UG - Daniel Kaszanics,Live,"daniel.kaszanics@weltenretter.eu,
+lars.pfeiler@weltenretter.eu",,,https://www.weltenretter.eu/,,,,2022-11-28 00:00:00,2024-01-03 00:00:00,2024-07-23 08:39:06
+79,Agentur: Sanol-Media,Live,,,,https://www.sanol-media.de,,,,,,2024-07-23 08:39:06
+16,Agravis - Bettina Lauf,Live,,,,https://www.agravis.de,,,,,,2024-07-23 08:39:06
