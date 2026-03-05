@@ -36,9 +36,9 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
     await page.waitForSelector('.a3s', { timeout: 10000 });
 
     // Click the Reply button. 
-    // 'div[data-tooltip="Reply"]' is the reply arrow icon.
-    // '.ams.bkH' is the "Reply" text button at the bottom of the thread.
-    const replyButtonSelector = 'div[data-tooltip="Reply"], .ams.bkH';
+    // .ams.bkH is the "Reply" text button. .hB is the reply arrow icon.
+    // These are locale-independent structural classes.
+    const replyButtonSelector = '.ams.bkH, div[role="button"].hB';
     await page.waitForSelector(replyButtonSelector, { visible: true, timeout: 5000 });
     
     // Click the first visible reply button
@@ -54,34 +54,45 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
       throw new Error('The "to" and "subject" fields are required when sending a new email.');
     }
 
-    // Navigate to the compose window
-    await page.goto('https://mail.google.com/mail/u/0/#inbox?compose=new', { waitUntil: 'networkidle2' });
+    // Navigate to inbox to ensure the Compose button is available
+    await page.goto('https://mail.google.com/mail/u/0/#inbox', { waitUntil: 'networkidle2' });
 
-    // Wait for the "To" field and type the recipient
-    const toSelector = 'input[aria-label="To"], input[aria-label="To recipients"], input[name="to"]';
+    // Click the "Compose" button (T-I-KE is the specific class for the primary compose button)
+    const composeButtonSelector = 'div[role="button"].T-I-KE';
+    await page.waitForSelector(composeButtonSelector, { visible: true, timeout: 10000 });
+    await page.click(composeButtonSelector);
+
+    // Wait for the "To" field inside the compose dialog.
+    // peoplekit-id is the modern Gmail identifier for recipient fields.
+    // role="combobox" is a fallback for older/different rollouts.
+    // These are locale-independent, fixing issues where aria-label="To" fails in non-English languages (like German "An").
+    const toSelector = 'div[role="dialog"] input[peoplekit-id], div[role="dialog"] input[name="to"], div[role="dialog"] textarea[name="to"], div[role="dialog"] input[role="combobox"][aria-autocomplete="list"]';
     await page.waitForSelector(toSelector, { visible: true, timeout: 10000 });
+    
+    // Type the recipient
     await page.type(toSelector, options.to, { delay: 50 });
     await page.keyboard.press('Enter');
 
     // Type the subject
-    const subjectSelector = 'input[name="subjectbox"]';
+    const subjectSelector = 'div[role="dialog"] input[name="subjectbox"]';
     await page.waitForSelector(subjectSelector, { visible: true });
     await page.type(subjectSelector, options.subject, { delay: 50 });
   }
 
   // --- COMMON FLOW (Inject HTML and Send) ---
   
-  // Wait for the message body (contenteditable div)
-  const bodySelector = 'div[aria-label="Message Body"]';
+  // Wait for the message body. 
+  // role="textbox" and contenteditable="true" is locale-independent and highly stable.
+  const bodySelector = 'div[role="textbox"][contenteditable="true"]';
   await page.waitForSelector(bodySelector, { visible: true, timeout: 10000 });
-  await page.click(bodySelector);
-
+  
   // Inject HTML using execCommand. 
-  // This simulates a rich-text paste, ensuring Gmail registers the input correctly.
+  // We evaluate to find the visible one, as there might be hidden drafts in the DOM.
   await page.evaluate((selector, html) => {
-    const el = document.querySelector(selector) as HTMLElement;
-    if (el) {
-      el.focus();
+    const boxes = Array.from(document.querySelectorAll(selector)) as HTMLElement[];
+    const visibleBox = boxes.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
+    if (visibleBox) {
+      visibleBox.focus();
       document.execCommand('insertHTML', false, html);
     }
   }, bodySelector, options.htmlBody);
@@ -90,14 +101,23 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
   await new Promise(resolve => setTimeout(resolve, 500));
 
   // Click Send
-  // The send button usually has an aria-label starting with "Send"
-  const sendButtonSelector = 'div[aria-label^="Send"][role="button"]';
+  // .aoO is the specific class for the primary "Send" button in Gmail.
+  const sendButtonSelector = 'div[role="button"].aoO';
   await page.waitForSelector(sendButtonSelector, { visible: true, timeout: 5000 });
-  await page.click(sendButtonSelector);
+  
+  await page.evaluate((sel) => {
+    const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+    const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
+    if (visibleButton) visibleButton.click();
+  }, sendButtonSelector);
 
   // Wait for the send button to disappear, indicating the compose window closed and the email is sending
   try {
-    await page.waitForFunction((sel) => !document.querySelector(sel), { timeout: 10000 }, sendButtonSelector);
+    await page.waitForFunction((sel) => {
+      const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+      const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
+      return !visibleButton;
+    }, { timeout: 10000 }, sendButtonSelector);
   } catch (e) {
     // Ignore timeout, it might have closed very quickly
   }
