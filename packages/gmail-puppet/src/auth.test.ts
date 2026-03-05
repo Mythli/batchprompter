@@ -8,13 +8,13 @@ describe('Gmail Authentication Integration', () => {
 
   beforeAll(async () => {
     browser = await launchTestBrowser();
-  });
+  }, 120000);
 
   afterAll(async () => {
     if (browser) {
       await browser.close();
     }
-  });
+  }, 120000);
 
   it('should authenticate and navigate to Gmail', async () => {
     const page = await ensureAuthenticatedGmail(browser, {

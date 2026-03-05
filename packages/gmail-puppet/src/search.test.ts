@@ -14,13 +14,13 @@ describe('Gmail Search Integration', () => {
       email: testEnv.GMAIL_EMAIL,
       password: testEnv.GMAIL_PASSWORD,
     });
-  });
+  }, 120000);
 
   afterAll(async () => {
     if (browser) {
       await browser.close();
     }
-  });
+  }, 120000);
 
   it('should return a list of emails from the inbox when query is empty', async () => {
     const emails = await searchEmails(page);
