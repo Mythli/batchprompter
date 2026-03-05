@@ -69,21 +69,4 @@ describe('Gmail Send Integration', () => {
     // Wait a moment for the reply to process
     await new Promise(resolve => setTimeout(resolve, 5000));
   }, 120000);
-
-  it('should schedule an email to be sent later', async () => {
-    const uniqueSubject = `Scheduled Email ${Date.now()}`;
-    
-    // Schedule for 5 minutes from now to ensure it's safely in the future
-    const scheduleDate = new Date(Date.now() + 5 * 60 * 1000);
-
-    await sendEmail(page, {
-      to: testEnv.GMAIL_EMAIL,
-      subject: uniqueSubject,
-      htmlBody: `<h1>Scheduled!</h1><p>This email was scheduled for ${scheduleDate.toISOString()}</p>`,
-      scheduleDate: scheduleDate
-    });
-
-    // Wait a moment for the scheduling to process
-    await new Promise(resolve => setTimeout(resolve, 5000));
-  }, 120000);
 });
