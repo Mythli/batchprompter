@@ -24,14 +24,10 @@ export async function searchEmails(page: Page, query?: string): Promise<EmailMet
     await page.goto(`https://mail.google.com/mail/u/0/#inbox`, { waitUntil: 'networkidle2' });
   }
 
-  // Wait a moment for the email list to render. 
+  // Wait up to 10 seconds for the email list to render. 
   // 'tr.zA' is the standard class for an email row in Gmail.
-  try {
-    await page.waitForSelector('tr.zA', { timeout: 5000 });
-  } catch (e) {
-    // If it times out, there are likely no emails matching the search
-    return [];
-  }
+  // If it times out, it will throw an error instead of returning an empty array.
+  await page.waitForSelector('tr.zA', { timeout: 10000 });
 
   // Extract metadata from the DOM
   const emails = await page.$$eval('tr.zA', (rows) => {

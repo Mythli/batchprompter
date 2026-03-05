@@ -29,6 +29,13 @@ export async function ensureAuthenticatedGmail(
   page.on('dialog', async (dialog) => {
     await dialog.dismiss().catch(() => {});
   });
+
+  // Prevent Gmail from asking to be the default email handler (protocol handler prompt)
+  await page.evaluateOnNewDocument(() => {
+    if (window.navigator) {
+      window.navigator.registerProtocolHandler = function() {};
+    }
+  });
   
   // Navigate to Gmail
   await page.goto('https://mail.google.com/', { waitUntil: 'networkidle2', timeout });
