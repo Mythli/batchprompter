@@ -6,7 +6,7 @@ import { StepRow } from '../../StepRow.js';
 import { PartialOutputConfigSchema } from '../../config/schema.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import type { StepConfig, GlobalConfig } from '../../config/schema.js';
-import { ensureAuthenticatedGmail, sendEmail, searchEmails, readThread } from 'gmail-puppet';
+import { ensureAuthenticatedGmail, sendEmail, searchEmails } from 'gmail-puppet';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 
 export const GmailSenderConfigSchema = z.object({
@@ -17,7 +17,7 @@ export const GmailSenderConfigSchema = z.object({
     replyToId: zHandlebars.optional(),
     delayMin: z.number().min(0).default(0),
     delayMax: z.number().min(0).default(0),
-    sendIfReplied: z.boolean().default(true),
+    sendIfReceived: z.boolean().default(true),
     replyToLastThread: z.boolean().default(false),
     requireExistingThread: z.boolean().default(false),
     output: PartialOutputConfigSchema.optional()
@@ -98,44 +98,54 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
             let skipSend = false;
             let skipReason = '';
 
+            const extractEmail = (str: string) => {
+                const match = str.match(/<([^>]+)>/);
+                return match ? match[1].trim().toLowerCase() : str.trim().toLowerCase();
+            };
+
             // 5. Thread Checks
-            if (to && (!config.sendIfReplied || config.replyToLastThread || config.requireExistingThread)) {
-                events.emit('plugin:event', {
-                    row: rowIndex,
-                    step: stepIndex,
-                    plugin: 'gmailSender',
-                    event: 'search:started',
-                    data: { query: `to:${to}` }
-                });
+            if (to) {
+                const toEmail = extractEmail(to);
 
-                const searchResults = await searchEmails(page, `to:${to}`);
+                // Check if we have ever received an email from them
+                if (!config.sendIfReceived) {
+                    events.emit('plugin:event', {
+                        row: rowIndex,
+                        step: stepIndex,
+                        plugin: 'gmailSender',
+                        event: 'search:started',
+                        data: { query: `from:${toEmail}` }
+                    });
 
-                if (searchResults.length === 0) {
-                    if (config.requireExistingThread) {
+                    const receivedResults = await searchEmails(page, `from:${toEmail}`);
+
+                    if (receivedResults.length > 0) {
                         skipSend = true;
-                        skipReason = 'no_existing_thread';
+                        skipReason = 'received_email';
                     }
-                } else {
-                    const lastThreadId = searchResults[0].id;
+                }
 
-                    if (!config.sendIfReplied) {
-                        const messages = await readThread(page, lastThreadId);
-                        
-                        const extractEmail = (str: string) => {
-                            const match = str.match(/<([^>]+)>/);
-                            return match ? match[1].trim().toLowerCase() : str.trim().toLowerCase();
-                        };
-                        const toEmail = extractEmail(to);
-                        
-                        const hasReply = messages.some(m => m.senderEmail.toLowerCase() === toEmail);
-                        if (hasReply) {
+                // Check for existing threads to reply to
+                if (!skipSend && (config.replyToLastThread || config.requireExistingThread)) {
+                    events.emit('plugin:event', {
+                        row: rowIndex,
+                        step: stepIndex,
+                        plugin: 'gmailSender',
+                        event: 'search:started',
+                        data: { query: `to:${toEmail}` }
+                    });
+
+                    const searchResults = await searchEmails(page, `to:${toEmail}`);
+
+                    if (searchResults.length === 0) {
+                        if (config.requireExistingThread) {
                             skipSend = true;
-                            skipReason = 'recipient_replied';
+                            skipReason = 'no_existing_thread';
                         }
-                    }
-
-                    if (config.replyToLastThread && !skipSend) {
-                        finalReplyToId = lastThreadId;
+                    } else {
+                        if (config.replyToLastThread) {
+                            finalReplyToId = searchResults[0].id;
+                        }
                     }
                 }
             }

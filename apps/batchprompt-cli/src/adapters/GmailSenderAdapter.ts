@@ -11,7 +11,7 @@ export class GmailSenderAdapter implements CliPluginAdapter {
         program.option('--gmail-reply-to-id <template>', 'Thread ID to reply to (Handlebars)');
         program.option('--gmail-delay-min <number>', 'Minimum delay in minutes before sending', parseFloat);
         program.option('--gmail-delay-max <number>', 'Maximum delay in minutes before sending', parseFloat);
-        program.option('--gmail-send-if-replied', 'Send even if the recipient has already replied');
+        program.option('--gmail-send-if-received', 'Send even if we have received an email from the recipient');
         program.option('--gmail-reply-to-last-thread', 'Reply to the most recent thread with the recipient');
         program.option('--gmail-require-existing-thread', 'Only send if a previous thread with the recipient exists');
         program.option('--gmail-output-mode <mode>', 'Output mode: merge/column/ignore');
@@ -27,7 +27,7 @@ export class GmailSenderAdapter implements CliPluginAdapter {
         program.option(`--${s}-gmail-reply-to-id <template>`, `Reply ID for step ${s}`);
         program.option(`--${s}-gmail-delay-min <number>`, `Min delay for step ${s}`, parseFloat);
         program.option(`--${s}-gmail-delay-max <number>`, `Max delay for step ${s}`, parseFloat);
-        program.option(`--${s}-gmail-send-if-replied`, `Send if replied for step ${s}`);
+        program.option(`--${s}-gmail-send-if-received`, `Send if received for step ${s}`);
         program.option(`--${s}-gmail-reply-to-last-thread`, `Reply to last thread for step ${s}`);
         program.option(`--${s}-gmail-require-existing-thread`, `Require existing thread for step ${s}`);
         program.option(`--${s}-gmail-output-mode <mode>`, `Output mode for step ${s}`);
@@ -61,7 +61,7 @@ export class GmailSenderAdapter implements CliPluginAdapter {
         const delayMax = getOpt('gmailDelayMax');
         if (delayMax !== undefined) result.delayMax = delayMax;
 
-        if (getOpt('gmailSendIfReplied')) result.sendIfReplied = true;
+        if (getOpt('gmailSendIfReceived')) result.sendIfReceived = true;
         if (getOpt('gmailReplyToLastThread')) result.replyToLastThread = true;
         if (getOpt('gmailRequireExistingThread')) result.requireExistingThread = true;
 

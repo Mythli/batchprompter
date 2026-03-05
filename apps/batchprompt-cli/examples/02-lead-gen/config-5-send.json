@@ -13,7 +13,7 @@
           "body": "Hello {{firstName}},\n\nThis is a test email sent via the batchprompt `gmailSender` plugin to **{{companyName}}**.\n\nBest,\nBatchPrompt",
           "delayMin": 0,
           "delayMax": 0,
-          "sendIfReplied": false,
+          "sendIfReceived": false,
           "replyToLastThread": false,
           "requireExistingThread": false,
           "output": {
