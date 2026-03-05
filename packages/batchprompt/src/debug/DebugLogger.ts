@@ -145,6 +145,10 @@ export class DebugLogger {
             } else if (payload.plugin === 'gmailSender') {
                 if (payload.event === 'delay:started') {
                     console.log(`${prefix} ⏳ Waiting ${data.delayMinutes.toFixed(2)} minutes before sending...`);
+                } else if (payload.event === 'search:started') {
+                    console.log(`${prefix} 🔍 Searching for existing threads: ${data.query}`);
+                } else if (payload.event === 'send:skipped') {
+                    console.log(`${prefix} ⏭️ Skipped sending to ${data.to}: ${data.reason}`);
                 } else if (payload.event === 'send:started') {
                     console.log(`${prefix} 📧 Sending email to ${data.to || 'thread ' + data.replyToId}...`);
                 } else if (payload.event === 'send:success') {
