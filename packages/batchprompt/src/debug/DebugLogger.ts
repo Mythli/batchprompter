@@ -142,6 +142,16 @@ export class DebugLogger {
                 } else if (payload.event === 'interactive') {
                     console.log(`${prefix} 🖱️ Capturing interactive elements...`);
                 }
+            } else if (payload.plugin === 'gmailSender') {
+                if (payload.event === 'delay:started') {
+                    console.log(`${prefix} ⏳ Waiting ${data.delayMinutes.toFixed(2)} minutes before sending...`);
+                } else if (payload.event === 'send:started') {
+                    console.log(`${prefix} 📧 Sending email to ${data.to || 'thread ' + data.replyToId}...`);
+                } else if (payload.event === 'send:success') {
+                    console.log(`${prefix} ✅ Email sent successfully.`);
+                } else if (payload.event === 'send:error') {
+                    console.log(`${prefix} ❌ Failed to send email: ${data.error}`);
+                }
             } else {
                 // Default fallback
                 console.log(`${prefix} ${payload.event}`);

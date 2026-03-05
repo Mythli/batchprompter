@@ -18,6 +18,7 @@ import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 import { LogoScraperPlugin } from './plugins/logo-scraper/LogoScraperPlugin.js';
 import { ImageDownloader } from './plugins/logo-scraper/utils/ImageDownloader.js';
 import { LoadDataPlugin } from './plugins/load-data/LoadDataPlugin.js';
+import { GmailSenderPlugin } from './plugins/gmail-sender/GmailSenderPlugin.js';
 
 export interface ServiceCapabilities {
     hasSerper: boolean;
@@ -47,6 +48,8 @@ export const configSchema = z.object({
     PUPPETEER_CONCURRENCY: z.coerce.number().int().positive().default(3),
     PUPPETEER_MAX_PAGES_BEFORE_RESTART: z.coerce.number().int().positive().default(50),
     PUPPETEER_RESTART_TIMEOUT: z.coerce.number().int().positive().default(10000),
+    GMAIL_EMAIL: z.string().optional(),
+    GMAIL_PASSWORD: z.string().optional(),
 });
 
 export type ConfigOverrides = {
@@ -101,6 +104,8 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         PUPPETEER_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_CONCURRENCY', 'PUPPETEER_CONCURRENCY']),
         PUPPETEER_MAX_PAGES_BEFORE_RESTART: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_MAX_PAGES_BEFORE_RESTART', 'PUPPETEER_MAX_PAGES_BEFORE_RESTART']),
         PUPPETEER_RESTART_TIMEOUT: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_RESTART_TIMEOUT', 'PUPPETEER_RESTART_TIMEOUT']),
+        GMAIL_EMAIL: getEnvVar(env, ['GMAIL_EMAIL']),
+        GMAIL_PASSWORD: getEnvVar(env, ['GMAIL_PASSWORD']),
     };
 
     const config = configSchema.parse(rawConfig);
@@ -197,6 +202,12 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     pluginRegistry.registerFactory('logoScraper', () => new LogoScraperPlugin({ puppeteerHelper, imageDownloader }));
     
     pluginRegistry.registerFactory('loadData', () => new LoadDataPlugin());
+
+    pluginRegistry.registerFactory('gmailSender', () => new GmailSenderPlugin({
+        puppeteerHelper,
+        email: config.GMAIL_EMAIL,
+        password: config.GMAIL_PASSWORD
+    }));
 
     const events = new EventEmitter<BatchPromptEvents>();
 
