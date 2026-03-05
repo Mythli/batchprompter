@@ -1,4 +1,5 @@
 {
+  "taskConcurrency": 1,
   "output": {
     "tmpDir": "out/02-lead-gen/send/.tmp"
   },
