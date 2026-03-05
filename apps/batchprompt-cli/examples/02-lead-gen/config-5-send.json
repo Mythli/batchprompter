@@ -1,0 +1,25 @@
+{
+  "output": {
+    "tmpDir": "out/02-lead-gen/send/.tmp"
+  },
+  "steps": [
+    {
+      "plugins": [
+        {
+          "type": "gmailSender",
+          "to": "{{email}}",
+          "subject": "Test Email for {{firstName}} at {{companyName}}",
+          "body": "Hello {{firstName}},\n\nThis is a test email sent via the batchprompt `gmailSender` plugin to **{{companyName}}**.\n\nBest,\nBatchPrompt",
+          "delayMin": 0,
+          "delayMax": 0,
+          "sendIfReplied": false,
+          "replyToLastThread": false,
+          "requireExistingThread": false,
+          "output": {
+            "mode": "merge"
+          }
+        }
+      ]
+    }
+  ]
+}
