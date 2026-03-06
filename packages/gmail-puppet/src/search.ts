@@ -1,11 +1,6 @@
 import type { Page } from 'puppeteer';
 
-export interface EmailMetadata {**Validating Test and Results**
-
-I'm now ensuring the implemented tests function as intended. Specifically, I'm checking the email count after pagination, confirming the integration, and validating all the functionality. I'm reviewing the edge cases to guarantee that the application behaves correctly under different scenarios.
-
-
-
+export interface EmailMetadata {
   id: string;
   sender: string;
   subject: string;
