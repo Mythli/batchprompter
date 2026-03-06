@@ -92,9 +92,6 @@ describe('Gmail Read Integration', () => {
     // 3. Read it with keepUnread: false
     await readThread(page, threadId, { keepUnread: false });
 
-    console.log(`[Test] Waiting 60 seconds for manual debugging...`);
-    await new Promise(resolve => setTimeout(resolve, 60000));
-
     // Verify it is now read
     let checkResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
     expect(checkResults[0].isUnread).toBe(false);
