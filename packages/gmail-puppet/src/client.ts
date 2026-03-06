@@ -1,7 +1,7 @@
 import type { Browser, Page } from 'puppeteer';
 import { ensureAuthenticatedGmail, GmailAuthOptions } from './auth.js';
 import { searchEmails, EmailMetadata } from './search.js';
-import { readThread, setThreadReadStatus, ThreadMessage, ReadThreadOptions } from './read.js';
+import { readThread, ThreadMessage } from './read.js';
 import { sendEmail, SendEmailOptions } from './send.js';
 
 export interface GmailClientOptions extends GmailAuthOptions {
@@ -57,12 +57,8 @@ export class GmailClient {
         return this.enqueue(page => searchEmails(page, query, limit));
     }
 
-    async readThread(threadId: string, options?: ReadThreadOptions): Promise<ThreadMessage[]> {
-        return this.enqueue(page => readThread(page, threadId, options));
-    }
-
-    async setThreadReadStatus(threadId: string, read: boolean): Promise<void> {
-        return this.enqueue(page => setThreadReadStatus(page, threadId, read));
+    async readThread(threadId: string): Promise<ThreadMessage[]> {
+        return this.enqueue(page => readThread(page, threadId));
     }
 
     async sendEmail(options: SendEmailOptions): Promise<void> {

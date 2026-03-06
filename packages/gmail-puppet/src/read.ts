@@ -8,26 +8,20 @@ export interface ThreadMessage {
   htmlBody: string;
 }
 
-export interface ReadThreadOptions {
-  /**
-   * If true, the thread will be marked as unread after reading it.
-   * Defaults to true.
-   */
-  keepUnread?: boolean;
-}
-
 /**
  * Navigates to a specific thread and ensures it is fully loaded.
- * This is a shared utility for reading threads and changing read status.
+ * This is a shared utility for reading threads.
  */
 async function openThread(page: Page, threadId: string): Promise<void> {
   console.log(`[openThread] Navigating to threadId: "${threadId}"`);
   const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
 
-  await page.goto(targetUrl, { waitUntil: 'networkidle2' });
+  // Use domcontentloaded instead of networkidle2. Gmail has many persistent background 
+  // connections that cause networkidle2 to frequently timeout.
+  await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
 
   console.log(`[openThread] Forcing page reload to ensure Gmail SPA renders the thread...`);
-  await page.reload({ waitUntil: 'networkidle2' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
 
   const currentUrl = page.url();
   console.log(`[openThread] Navigation finished. Current URL is: ${currentUrl}`);
@@ -38,7 +32,8 @@ async function openThread(page: Page, threadId: string): Promise<void> {
 
   try {
     console.log(`[openThread] Waiting for message body (.a3s) to load...`);
-    await page.waitForSelector('.a3s', { timeout: 10000 });
+    // We rely on the element appearing in the DOM as our true "ready" state, rather than network traffic.
+    await page.waitForSelector('.a3s', { timeout: 15000 });
     console.log(`[openThread] Message body (.a3s) found successfully.`);
   } catch (error) {
     console.error(`[openThread] ERROR: Timed out waiting for .a3s.`);
@@ -63,12 +58,9 @@ async function openThread(page: Page, threadId: string): Promise<void> {
  *
  * @param page The authenticated Puppeteer Page.
  * @param threadId The internal Gmail ID of the thread to read.
- * @param options Options for reading the thread.
  * @returns A Promise resolving to an array of messages in the thread.
  */
-export async function readThread(page: Page, threadId: string, options: ReadThreadOptions = {}): Promise<ThreadMessage[]> {
-  const keepUnread = options.keepUnread ?? true;
-
+export async function readThread(page: Page, threadId: string): Promise<ThreadMessage[]> {
   console.log(`[readThread] Starting read process for threadId: "${threadId}"`);
   
   await openThread(page, threadId);
@@ -107,46 +99,5 @@ export async function readThread(page: Page, threadId: string, options: ReadThre
 
   console.log(`[readThread] Successfully extracted ${messages.length} messages from thread.`);
 
-  if (keepUnread) {
-    console.log(`[readThread] keepUnread is true. Restoring unread status...`);
-    // Reading a thread automatically marks it as read in Gmail.
-    // If keepUnread is true, we explicitly mark it as unread before returning.
-    await setThreadReadStatus(page, threadId, false);
-  }
-
   return messages;
-}
-
-/**
- * Changes the read status of a specific thread.
- *
- * @param page The authenticated Puppeteer Page.
- * @param threadId The internal Gmail ID of the thread.
- * @param read True to mark as read, false to mark as unread.
- */
-export async function setThreadReadStatus(page: Page, threadId: string, read: boolean): Promise<void> {
-  console.log(`[setThreadReadStatus] Setting read status to ${read} for threadId: "${threadId}"`);
-  
-  await openThread(page, threadId);
-
-  if (read) {
-    console.log(`[setThreadReadStatus] Thread opened. Gmail automatically marks it as read.`);
-    return;
-  } else {
-    console.log(`[setThreadReadStatus] Clicking 'Mark as unread' in thread view...`);
-    // Mark as unread from within the thread view.
-    // act="2" is the stable action code for "Mark as unread" in the thread view toolbar.
-    const unreadBtn = 'div[act="2"], div[aria-label="Mark as unread"], div[aria-label="Als ungelesen markieren"]';
-    await page.waitForSelector(unreadBtn, { visible: true, timeout: 5000 });
-
-    await page.evaluate((sel) => {
-      const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
-      const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
-      if (visibleButton) visibleButton.click();
-    }, unreadBtn);
-
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    console.log(`[setThreadReadStatus] Status change complete.`);
-    return;
-  }
 }
