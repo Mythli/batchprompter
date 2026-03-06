@@ -17,6 +17,48 @@ export interface ReadThreadOptions {
 }
 
 /**
+ * Navigates to a specific thread and ensures it is fully loaded.
+ * This is a shared utility for reading threads and changing read status.
+ */
+async function openThread(page: Page, threadId: string): Promise<void> {
+  console.log(`[openThread] Navigating to threadId: "${threadId}"`);
+  const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
+
+  await page.goto(targetUrl, { waitUntil: 'networkidle2' });
+
+  console.log(`[openThread] Forcing page reload to ensure Gmail SPA renders the thread...`);
+  await page.reload({ waitUntil: 'networkidle2' });
+
+  const currentUrl = page.url();
+  console.log(`[openThread] Navigation finished. Current URL is: ${currentUrl}`);
+
+  if (!currentUrl.includes(threadId)) {
+    console.warn(`[openThread] WARNING: Gmail redirected away from the thread! Expected ${threadId} in URL, but got ${currentUrl}`);
+  }
+
+  try {
+    console.log(`[openThread] Waiting for message body (.a3s) to load...`);
+    await page.waitForSelector('.a3s', { timeout: 10000 });
+    console.log(`[openThread] Message body (.a3s) found successfully.`);
+  } catch (error) {
+    console.error(`[openThread] ERROR: Timed out waiting for .a3s.`);
+    console.error(`[openThread] Final URL at timeout: ${page.url()}`);
+
+    // Dump the page title and a snippet of the DOM to see what screen we are actually on
+    const pageInfo = await page.evaluate(() => {
+      return {
+        title: document.title,
+        bodySnippet: document.body.innerText.substring(0, 500).replace(/\n/g, ' ')
+      };
+    });
+    console.error(`[openThread] Page Title: "${pageInfo.title}"`);
+    console.error(`[openThread] Page Text Snippet: "${pageInfo.bodySnippet}"`);
+
+    throw new Error(`Could not open thread ${threadId}. See logs for details.`);
+  }
+}
+
+/**
  * Reads an entire email thread and extracts all messages within it.
  *
  * @param page The authenticated Puppeteer Page.
@@ -28,42 +70,8 @@ export async function readThread(page: Page, threadId: string, options: ReadThre
   const keepUnread = options.keepUnread ?? true;
 
   console.log(`[readThread] Starting read process for threadId: "${threadId}"`);
-  const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
-
-  console.log(`[readThread] Navigating to: ${targetUrl}`);
-  await page.goto(targetUrl, { waitUntil: 'networkidle2' });
-
-  console.log(`[readThread] Forcing page reload to ensure Gmail SPA renders the thread...`);
-  await page.reload({ waitUntil: 'networkidle2' });
-
-  const currentUrl = page.url();
-  console.log(`[readThread] Navigation finished. Current URL is: ${currentUrl}`);
-
-  if (!currentUrl.includes(threadId)) {
-    console.warn(`[readThread] WARNING: Gmail redirected away from the thread! Expected ${threadId} in URL, but got ${currentUrl}`);
-  }
-
-  try {
-    console.log(`[readThread] Waiting for message body (.a3s) to load...`);
-    // await page.waitForSelector('.a3s', { timeout: 100000 });
-    await page.waitForSelector('.a3s', { timeout: 10000 });
-    console.log(`[readThread] Message body (.a3s) found successfully.`);
-  } catch (error) {
-    console.error(`[readThread] ERROR: Timed out waiting for .a3s.`);
-    console.error(`[readThread] Final URL at timeout: ${page.url()}`);
-
-    // Dump the page title and a snippet of the DOM to see what screen we are actually on
-    const pageInfo = await page.evaluate(() => {
-      return {
-        title: document.title,
-        bodySnippet: document.body.innerText.substring(0, 500).replace(/\n/g, ' ')
-      };
-    });
-    console.error(`[readThread] Page Title: "${pageInfo.title}"`);
-    console.error(`[readThread] Page Text Snippet: "${pageInfo.bodySnippet}"`);
-
-    throw error;
-  }
+  
+  await openThread(page, threadId);
 
   // Expand all collapsed messages in the thread.
   // .kv is the stable Gmail class for a collapsed message header.
@@ -119,22 +127,7 @@ export async function readThread(page: Page, threadId: string, options: ReadThre
 export async function setThreadReadStatus(page: Page, threadId: string, read: boolean): Promise<void> {
   console.log(`[setThreadReadStatus] Setting read status to ${read} for threadId: "${threadId}"`);
   
-  // Navigate directly to the thread
-  const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
-
-  console.log(`[setThreadReadStatus] Navigating to: ${targetUrl}`);
-  await page.goto(targetUrl, { waitUntil: 'networkidle2' });
-
-  console.log(`[setThreadReadStatus] Forcing page reload to ensure Gmail SPA renders the thread...`);
-  await page.reload({ waitUntil: 'networkidle2' });
-
-  try {
-    console.log(`[setThreadReadStatus] Waiting for thread view (.a3s)...`);
-    await page.waitForSelector('.a3s', { timeout: 10000 });
-  } catch (e) {
-    console.error(`[setThreadReadStatus] ERROR: Could not find thread view. Current URL: ${page.url()}`);
-    throw new Error(`Could not find thread ${threadId} to change read status.`);
-  }
+  await openThread(page, threadId);
 
   if (read) {
     console.log(`[setThreadReadStatus] Thread opened. Gmail automatically marks it as read.`);
