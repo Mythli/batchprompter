@@ -28,7 +28,7 @@ describe('Gmail Read Integration', () => {
     console.log('\n--- Starting YEAH2 Test ---');
     // 1. Search for the existing email with subject "YEAH2"
     const searchResults = await searchEmails(page, 'subject:"YEAH2"');
-    
+
     if (searchResults.length === 0) {
       throw new Error('Could not find an email with subject "YEAH2" to run the read test. Please ensure one exists in the inbox.');
     }
@@ -46,20 +46,20 @@ describe('Gmail Read Integration', () => {
 
     // Verify the structure of the first message
     const firstMessage = messages[0];
-    
+
     expect(firstMessage).toHaveProperty('senderName');
     expect(typeof firstMessage.senderName).toBe('string');
-    
+
     expect(firstMessage).toHaveProperty('senderEmail');
     expect(typeof firstMessage.senderEmail).toBe('string');
     expect(firstMessage.senderEmail).toContain('@');
-    
+
     expect(firstMessage).toHaveProperty('date');
     expect(typeof firstMessage.date).toBe('string');
-    
+
     expect(firstMessage).toHaveProperty('textBody');
     expect(typeof firstMessage.textBody).toBe('string');
-    
+
     expect(firstMessage).toHaveProperty('htmlBody');
     expect(typeof firstMessage.htmlBody).toBe('string');
   }, 120000);
@@ -69,7 +69,7 @@ describe('Gmail Read Integration', () => {
     // 1. Send a unique test email to ourselves to ensure we have a clean thread to test
     const uniqueSubject = `Read Status Test ${Date.now()}`;
     console.log(`[Test] Sending test email with subject: "${uniqueSubject}"`);
-    
+
     await sendEmail(page, {
       to: testEnv.GMAIL_EMAIL,
       subject: uniqueSubject,
@@ -83,7 +83,7 @@ describe('Gmail Read Integration', () => {
     // 2. Search for it
     const searchResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
     expect(searchResults.length).toBeGreaterThan(0);
-    
+
     const threadId = searchResults[0].id;
     console.log(`[Test] Found test email. Extracted ID: ${threadId}`);
     expect(searchResults[0].isUnread).toBe(true); // Should be unread initially
@@ -91,6 +91,8 @@ describe('Gmail Read Integration', () => {
     console.log(`[Test] Reading thread with keepUnread: false`);
     // 3. Read it with keepUnread: false
     await readThread(page, threadId, { keepUnread: false });
+
+
 
     // Verify it is now read
     let checkResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
