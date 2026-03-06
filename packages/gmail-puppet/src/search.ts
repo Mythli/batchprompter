@@ -58,9 +58,9 @@ export async function searchEmails(page: Page, query?: string, limit: number = 5
     const emails = await page.$$eval('tr.zA:not([data-stale="true"])', (rows) => {
       return rows.map(row => {
         // Extract the internal Gmail ID (useful for direct navigation later)
-        // The attributes are typically on a descendant span (e.g., span.bqe), not the row itself
-        const idEl = row.querySelector('[data-legacy-message-id], [data-legacy-thread-id]');
-        const id = idEl ? (idEl.getAttribute('data-legacy-message-id') || idEl.getAttribute('data-legacy-thread-id') || '') : '';
+        // Prioritize thread-id over message-id to ensure thread navigation works correctly
+        const idEl = row.querySelector('[data-legacy-thread-id], [data-legacy-message-id]');
+        const id = idEl ? (idEl.getAttribute('data-legacy-thread-id') || idEl.getAttribute('data-legacy-message-id') || '') : '';
 
         // 'zE' class indicates unread, 'yO' indicates read
         const isUnread = row.classList.contains('zE');

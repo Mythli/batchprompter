@@ -27,8 +27,8 @@ export interface ReadThreadOptions {
 export async function readThread(page: Page, threadId: string, options: ReadThreadOptions = {}): Promise<ThreadMessage[]> {
   const keepUnread = options.keepUnread ?? true;
 
-  // Navigate directly to the thread
-  await page.goto(`https://mail.google.com/mail/u/0/#inbox/${threadId}`, { waitUntil: 'networkidle2' });
+  // Navigate directly to the thread using #all to ensure it opens even if archived or in Sent
+  await page.goto(`https://mail.google.com/mail/u/0/#all/${threadId}`, { waitUntil: 'networkidle2' });
 
   // Wait for at least one message body to load to ensure the thread is ready
   await page.waitForSelector('.a3s', { timeout: 10000 });
@@ -85,13 +85,40 @@ export async function setThreadReadStatus(page: Page, threadId: string, read: bo
   // Navigate to search results for this specific thread
   await page.goto(`https://mail.google.com/mail/u/0/#search/thread%3A${threadId}`, { waitUntil: 'networkidle2' });
 
-  const rowSelector = 'tr.zA';
+  // Gmail might auto-open the thread if there is exactly 1 search result, 
+  // OR it might show the list view. We need to wait for either to appear.
   try {
-    await page.waitForSelector(rowSelector, { timeout: 5000 });
+    await page.waitForSelector('tr.zA, .a3s', { timeout: 10000 });
   } catch (e) {
-    throw new Error(`Could not find thread ${threadId} to change read status.`);
+    throw new Error(`Could not find thread ${threadId} or list view to change read status.`);
   }
 
+  const isThreadView = await page.evaluate(() => !!document.querySelector('.a3s'));
+
+  if (isThreadView) {
+    if (read) {
+      // If we are looking at the thread, it is already marked as read by Gmail.
+      return;
+    } else {
+      // Mark as unread from within the thread view.
+      // act="2" is the stable action code for "Mark as unread" in the thread view toolbar.
+      const unreadBtn = 'div[act="2"], div[aria-label="Mark as unread"], div[aria-label="Als ungelesen markieren"]';
+      await page.waitForSelector(unreadBtn, { visible: true, timeout: 5000 });
+      
+      await page.evaluate((sel) => {
+        const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+        const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
+        if (visibleButton) visibleButton.click();
+      }, unreadBtn);
+
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return;
+    }
+  }
+
+  // --- List View Logic ---
+  const rowSelector = 'tr.zA';
+  
   // Check current status (zE = unread, yO = read)
   const isCurrentlyUnread = await page.evaluate((sel) => {
     const row = document.querySelector(sel);
@@ -111,11 +138,10 @@ export async function setThreadReadStatus(page: Page, threadId: string, read: bo
   // Wait for the toolbar to appear
   await new Promise(resolve => setTimeout(resolve, 500));
 
-  // act="16" is Mark as unread, act="17" is Mark as read
-  // We also include aria-label and data-tooltip as robust fallbacks
+  // act="16" is Mark as unread, act="17" is Mark as read in the list view
   const buttonSelector = read 
-    ? 'div[act="17"], div[aria-label="Mark as read"], div[data-tooltip="Mark as read"]' 
-    : 'div[act="16"], div[aria-label="Mark as unread"], div[data-tooltip="Mark as unread"]';
+    ? 'div[act="17"], div[aria-label="Mark as read"], div[aria-label="Als gelesen markieren"]' 
+    : 'div[act="16"], div[aria-label="Mark as unread"], div[aria-label="Als ungelesen markieren"]';
   
   await page.waitForSelector(buttonSelector, { visible: true, timeout: 5000 });
   
