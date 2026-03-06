@@ -24,6 +24,7 @@ export * from './BoundLlmClient.js';
 // Plugins
 export * from './plugins/index.js';
 export * from './plugins/gmail-sender/GmailSenderPlugin.js';
+export * from './plugins/gmail-replier/GmailReplierPlugin.js';
 
 // Handlers
 

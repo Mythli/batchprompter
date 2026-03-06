@@ -30,6 +30,7 @@ import { LogoScraperAdapter } from './adapters/LogoScraperAdapter.js';
 import { StyleScraperAdapter } from './adapters/StyleScraperAdapter.js';
 import { LoadDataAdapter } from './adapters/LoadDataAdapter.js';
 import { GmailSenderAdapter } from './adapters/GmailSenderAdapter.js';
+import { GmailReplierAdapter } from './adapters/GmailReplierAdapter.js';
 
 const program = new Command();
 
@@ -49,7 +50,8 @@ const adapters = [
     new LogoScraperAdapter(),
     new StyleScraperAdapter(),
     new LoadDataAdapter(),
-    new GmailSenderAdapter()
+    new GmailSenderAdapter(),
+    new GmailReplierAdapter()
 ];
 
 // --- Generate Command ---

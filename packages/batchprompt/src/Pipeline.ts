@@ -49,9 +49,22 @@ export class Pipeline {
 
         try {
             events.emit('run:start', this.globalConfig);
-            events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initializing with concurrency: ${concurrency} (LLM) / ${taskConcurrency} (Tasks)` });
 
-            this.deps.taskQueue.concurrency = taskConcurrency;
+            let effectiveTaskConcurrency = taskConcurrency;
+            
+            // Check if any configured plugin requires interactive mode
+            const requiresInteractive = this.steps.some(step => 
+                step.plugins.some(p => typeof (p.instance as any).isInteractive === 'function' && (p.instance as any).isInteractive(p.config))
+            );
+
+            if (requiresInteractive) {
+                events.emit('step:progress', { row: -1, step: -1, type: 'warn', message: `Interactive plugin detected. Forcing task concurrency to 1 to prevent terminal conflicts.` });
+                effectiveTaskConcurrency = 1;
+            }
+
+            events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initializing with concurrency: ${concurrency} (LLM) / ${effectiveTaskConcurrency} (Tasks)` });
+
+            this.deps.taskQueue.concurrency = effectiveTaskConcurrency;
             this.deps.gptQueue.concurrency = concurrency;
 
             events.emit('step:progress', { row: -1, step: -1, type: 'info', message: `Initialized ${this.steps.length} steps.` });

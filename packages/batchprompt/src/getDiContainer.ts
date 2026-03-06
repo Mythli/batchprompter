@@ -19,6 +19,7 @@ import { LogoScraperPlugin } from './plugins/logo-scraper/LogoScraperPlugin.js';
 import { ImageDownloader } from './plugins/logo-scraper/utils/ImageDownloader.js';
 import { LoadDataPlugin } from './plugins/load-data/LoadDataPlugin.js';
 import { GmailSenderPlugin } from './plugins/gmail-sender/GmailSenderPlugin.js';
+import { GmailReplierPlugin } from './plugins/gmail-replier/GmailReplierPlugin.js';
 import { createGmailClient, GmailClient } from 'gmail-puppet';
 
 export interface ServiceCapabilities {
@@ -223,6 +224,10 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     pluginRegistry.registerFactory('loadData', () => new LoadDataPlugin());
 
     pluginRegistry.registerFactory('gmailSender', () => new GmailSenderPlugin({
+        gmailClient
+    }));
+
+    pluginRegistry.registerFactory('gmailReplier', () => new GmailReplierPlugin({
         gmailClient
     }));
 
