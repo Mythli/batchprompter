@@ -27,11 +27,39 @@ export interface ReadThreadOptions {
 export async function readThread(page: Page, threadId: string, options: ReadThreadOptions = {}): Promise<ThreadMessage[]> {
   const keepUnread = options.keepUnread ?? true;
 
-  // Navigate directly to the thread using #all to ensure it opens even if archived or in Sent
-  await page.goto(`https://mail.google.com/mail/u/0/#all/${threadId}`, { waitUntil: 'networkidle2' });
+  console.log(`[readThread] Starting read process for threadId: "${threadId}"`);
+  const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
+  
+  console.log(`[readThread] Navigating to: ${targetUrl}`);
+  await page.goto(targetUrl, { waitUntil: 'networkidle2' });
+  
+  const currentUrl = page.url();
+  console.log(`[readThread] Navigation finished. Current URL is: ${currentUrl}`);
 
-  // Wait for at least one message body to load to ensure the thread is ready
-  await page.waitForSelector('.a3s', { timeout: 10000 });
+  if (!currentUrl.includes(threadId)) {
+    console.warn(`[readThread] WARNING: Gmail redirected away from the thread! Expected ${threadId} in URL, but got ${currentUrl}`);
+  }
+
+  try {
+    console.log(`[readThread] Waiting for message body (.a3s) to load...`);
+    await page.waitForSelector('.a3s', { timeout: 10000 });
+    console.log(`[readThread] Message body (.a3s) found successfully.`);
+  } catch (error) {
+    console.error(`[readThread] ERROR: Timed out waiting for .a3s.`);
+    console.error(`[readThread] Final URL at timeout: ${page.url()}`);
+    
+    // Dump the page title and a snippet of the DOM to see what screen we are actually on
+    const pageInfo = await page.evaluate(() => {
+      return {
+        title: document.title,
+        bodySnippet: document.body.innerText.substring(0, 500).replace(/\n/g, ' ')
+      };
+    });
+    console.error(`[readThread] Page Title: "${pageInfo.title}"`);
+    console.error(`[readThread] Page Text Snippet: "${pageInfo.bodySnippet}"`);
+    
+    throw error;
+  }
 
   // Expand all collapsed messages in the thread.
   // .kv is the stable Gmail class for a collapsed message header.
@@ -65,7 +93,10 @@ export async function readThread(page: Page, threadId: string, options: ReadThre
     }).filter(msg => msg.htmlBody !== ''); // Filter out any empty blocks that might have been caught
   });
 
+  console.log(`[readThread] Successfully extracted ${messages.length} messages from thread.`);
+
   if (keepUnread) {
+    console.log(`[readThread] keepUnread is true. Restoring unread status...`);
     // Reading a thread automatically marks it as read in Gmail.
     // If keepUnread is true, we explicitly mark it as unread before returning.
     await setThreadReadStatus(page, threadId, false);
@@ -82,24 +113,33 @@ export async function readThread(page: Page, threadId: string, options: ReadThre
  * @param read True to mark as read, false to mark as unread.
  */
 export async function setThreadReadStatus(page: Page, threadId: string, read: boolean): Promise<void> {
+  console.log(`[setThreadReadStatus] Setting read status to ${read} for threadId: "${threadId}"`);
   // Navigate to search results for this specific thread
-  await page.goto(`https://mail.google.com/mail/u/0/#search/thread%3A${threadId}`, { waitUntil: 'networkidle2' });
+  const targetUrl = `https://mail.google.com/mail/u/0/#search/thread%3A${threadId}`;
+  
+  console.log(`[setThreadReadStatus] Navigating to: ${targetUrl}`);
+  await page.goto(targetUrl, { waitUntil: 'networkidle2' });
 
   // Gmail might auto-open the thread if there is exactly 1 search result, 
   // OR it might show the list view. We need to wait for either to appear.
   try {
+    console.log(`[setThreadReadStatus] Waiting for list view (tr.zA) or thread view (.a3s)...`);
     await page.waitForSelector('tr.zA, .a3s', { timeout: 10000 });
   } catch (e) {
+    console.error(`[setThreadReadStatus] ERROR: Could not find thread or list view. Current URL: ${page.url()}`);
     throw new Error(`Could not find thread ${threadId} or list view to change read status.`);
   }
 
   const isThreadView = await page.evaluate(() => !!document.querySelector('.a3s'));
+  console.log(`[setThreadReadStatus] View detected: ${isThreadView ? 'Thread View' : 'List View'}`);
 
   if (isThreadView) {
     if (read) {
+      console.log(`[setThreadReadStatus] Already in thread view, so it is marked as read.`);
       // If we are looking at the thread, it is already marked as read by Gmail.
       return;
     } else {
+      console.log(`[setThreadReadStatus] Clicking 'Mark as unread' in thread view...`);
       // Mark as unread from within the thread view.
       // act="2" is the stable action code for "Mark as unread" in the thread view toolbar.
       const unreadBtn = 'div[act="2"], div[aria-label="Mark as unread"], div[aria-label="Als ungelesen markieren"]';
@@ -126,11 +166,14 @@ export async function setThreadReadStatus(page: Page, threadId: string, read: bo
   }, rowSelector);
 
   const isCurrentlyRead = !isCurrentlyUnread;
+  console.log(`[setThreadReadStatus] Current status in list view - Unread: ${isCurrentlyUnread}, Read: ${isCurrentlyRead}`);
 
   if ((read && isCurrentlyRead) || (!read && isCurrentlyUnread)) {
+    console.log(`[setThreadReadStatus] Thread is already in the desired state.`);
     return; // Already in the desired state
   }
 
+  console.log(`[setThreadReadStatus] Selecting thread checkbox...`);
   // Click the checkbox to select the thread
   const checkboxSelector = `${rowSelector} div[role="checkbox"]`;
   await page.click(checkboxSelector);
@@ -143,6 +186,7 @@ export async function setThreadReadStatus(page: Page, threadId: string, read: bo
     ? 'div[act="17"], div[aria-label="Mark as read"], div[aria-label="Als gelesen markieren"]' 
     : 'div[act="16"], div[aria-label="Mark as unread"], div[aria-label="Als ungelesen markieren"]';
   
+  console.log(`[setThreadReadStatus] Clicking toolbar button...`);
   await page.waitForSelector(buttonSelector, { visible: true, timeout: 5000 });
   
   // Click the first visible button that matches
@@ -154,4 +198,5 @@ export async function setThreadReadStatus(page: Page, threadId: string, read: bo
 
   // Wait a moment for the action to complete
   await new Promise(resolve => setTimeout(resolve, 1000));
+  console.log(`[setThreadReadStatus] Status change complete.`);
 }

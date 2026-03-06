@@ -25,6 +25,7 @@ describe('Gmail Read Integration', () => {
   }, 120000);
 
   it('should search for YEAH2 email and read the entire thread', async () => {
+    console.log('\n--- Starting YEAH2 Test ---');
     // 1. Search for the existing email with subject "YEAH2"
     const searchResults = await searchEmails(page, 'subject:"YEAH2"');
     
@@ -33,6 +34,7 @@ describe('Gmail Read Integration', () => {
     }
 
     const threadId = searchResults[0].id;
+    console.log(`[Test] Found YEAH2 email. Extracted ID: ${threadId}`);
     expect(threadId).toBeTruthy();
 
     // 2. Read the thread using the ID (default keepUnread: true)
@@ -63,14 +65,18 @@ describe('Gmail Read Integration', () => {
   }, 120000);
 
   it('should toggle read status and respect keepUnread parameter', async () => {
+    console.log('\n--- Starting Toggle Read Status Test ---');
     // 1. Send a unique test email to ourselves to ensure we have a clean thread to test
     const uniqueSubject = `Read Status Test ${Date.now()}`;
+    console.log(`[Test] Sending test email with subject: "${uniqueSubject}"`);
+    
     await sendEmail(page, {
       to: testEnv.GMAIL_EMAIL,
       subject: uniqueSubject,
       htmlBody: `<p>Testing read status toggling.</p>`
     });
 
+    console.log(`[Test] Waiting 5 seconds for email to arrive...`);
     // Wait for email to arrive in the inbox
     await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -79,8 +85,10 @@ describe('Gmail Read Integration', () => {
     expect(searchResults.length).toBeGreaterThan(0);
     
     const threadId = searchResults[0].id;
+    console.log(`[Test] Found test email. Extracted ID: ${threadId}`);
     expect(searchResults[0].isUnread).toBe(true); // Should be unread initially
 
+    console.log(`[Test] Reading thread with keepUnread: false`);
     // 3. Read it with keepUnread: false
     await readThread(page, threadId, { keepUnread: false });
 
@@ -88,6 +96,7 @@ describe('Gmail Read Integration', () => {
     let checkResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
     expect(checkResults[0].isUnread).toBe(false);
 
+    console.log(`[Test] Explicitly setting read status to false (unread)`);
     // 4. Mark it as unread explicitly
     await setThreadReadStatus(page, threadId, false);
 
@@ -95,6 +104,7 @@ describe('Gmail Read Integration', () => {
     checkResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
     expect(checkResults[0].isUnread).toBe(true);
 
+    console.log(`[Test] Reading thread with keepUnread: true (default)`);
     // 5. Read it with keepUnread: true (default behavior)
     await readThread(page, threadId, { keepUnread: true });
 
@@ -102,6 +112,7 @@ describe('Gmail Read Integration', () => {
     checkResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
     expect(checkResults[0].isUnread).toBe(true);
 
+    console.log(`[Test] Explicitly setting read status to true (read)`);
     // 6. Mark it as read explicitly
     await setThreadReadStatus(page, threadId, true);
 
