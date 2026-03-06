@@ -45,8 +45,8 @@ export async function readThread(page: Page, threadId: string, options: ReadThre
 
   try {
     console.log(`[readThread] Waiting for message body (.a3s) to load...`);
-    await page.waitForSelector('.a3s', { timeout: 100000 });
-    // await page.waitForSelector('.a3s', { timeout: 10000 });
+    // await page.waitForSelector('.a3s', { timeout: 100000 });
+    await page.waitForSelector('.a3s', { timeout: 10000 });
     console.log(`[readThread] Message body (.a3s) found successfully.`);
   } catch (error) {
     console.error(`[readThread] ERROR: Timed out waiting for .a3s.`);
