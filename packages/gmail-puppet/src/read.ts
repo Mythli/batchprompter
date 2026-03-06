@@ -33,6 +33,9 @@ export async function readThread(page: Page, threadId: string, options: ReadThre
   console.log(`[readThread] Navigating to: ${targetUrl}`);
   await page.goto(targetUrl, { waitUntil: 'networkidle2' });
 
+  console.log(`[readThread] Forcing page reload to ensure Gmail SPA renders the thread...`);
+  await page.reload({ waitUntil: 'networkidle2' });
+
   const currentUrl = page.url();
   console.log(`[readThread] Navigation finished. Current URL is: ${currentUrl}`);
 
@@ -120,6 +123,9 @@ export async function setThreadReadStatus(page: Page, threadId: string, read: bo
 
   console.log(`[setThreadReadStatus] Navigating to: ${targetUrl}`);
   await page.goto(targetUrl, { waitUntil: 'networkidle2' });
+
+  console.log(`[setThreadReadStatus] Forcing page reload to ensure Gmail SPA renders the search results...`);
+  await page.reload({ waitUntil: 'networkidle2' });
 
   // Gmail might auto-open the thread if there is exactly 1 search result,
   // OR it might show the list view. We need to wait for either to appear.
