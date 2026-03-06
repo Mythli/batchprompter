@@ -18,10 +18,8 @@ async function openThread(page: Page, threadId: string): Promise<void> {
 
   // Use domcontentloaded instead of networkidle2. Gmail has many persistent background 
   // connections that cause networkidle2 to frequently timeout.
+  // Because we are using a fresh page per action, we don't need to force a reload anymore.
   await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
-
-  console.log(`[openThread] Forcing page reload to ensure Gmail SPA renders the thread...`);
-  await page.reload({ waitUntil: 'domcontentloaded' });
 
   const currentUrl = page.url();
   console.log(`[openThread] Navigation finished. Current URL is: ${currentUrl}`);
