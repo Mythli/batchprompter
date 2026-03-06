@@ -1,0 +1,31 @@
+{
+  "taskConcurrency": 1,
+  "model": {
+    "model": "google/gemini-3-flash-preview",
+    "thinkingLevel": "high"
+  },
+  "output": {
+    "tmpDir": "out/03-email-reply/.tmp"
+  },
+  "steps": [
+    {
+      "plugins": [
+        {
+          "type": "gmailReplier",
+          "targetQuery": "is:unread",
+          "limit": 5,
+          "inspirationQuery": "subject:(re OR aw) from:me",
+          "inspirationLimit": 3,
+          "interactive": true,
+          "draftModel": {
+            "prompt": "You are a helpful assistant. Read the following email thread and draft a polite, professional reply in German. Keep it under 3 sentences."
+          },
+          "output": {
+            "mode": "merge",
+            "explode": true
+          }
+        }
+      ]
+    }
+  ]
+}
