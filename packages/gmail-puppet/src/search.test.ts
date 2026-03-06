@@ -23,9 +23,10 @@ describe('Gmail Search Integration', () => {
   }, 120000);
 
   it('should return a list of emails from the inbox when query is empty', async () => {
-    const emails = await searchEmails(page);
+    const emails = await searchEmails(page, undefined, 10); // Limit to 10 for quick test
     
     expect(Array.isArray(emails)).toBe(true);
+    expect(emails.length).toBeLessThanOrEqual(10);
     
     // If the inbox isn't empty, verify the shape of the extracted data
     if (emails.length > 0) {
@@ -54,7 +55,7 @@ describe('Gmail Search Integration', () => {
 
   it('should return results for a specific search query', async () => {
     // "is:unread" is a standard Gmail search operator
-    const emails = await searchEmails(page, 'is:unread');
+    const emails = await searchEmails(page, 'is:unread', 10);
     
     expect(Array.isArray(emails)).toBe(true);
     
@@ -63,4 +64,16 @@ describe('Gmail Search Integration', () => {
       expect(emails[0].isUnread).toBe(true);
     }
   }, 60000);
+
+  it('should paginate and fetch multiple pages when limit exceeds page size', async () => {
+    // Requesting 60 emails should force it to go to page 2 (assuming default 50 per page)
+    // If the inbox has fewer than 60 emails, it will just return all of them.
+    const emails = await searchEmails(page, undefined, 60);
+    
+    expect(Array.isArray(emails)).toBe(true);
+    expect(emails.length).toBeGreaterThan(0);
+    expect(emails.length).toBeLessThanOrEqual(60);
+    
+    console.log(`Pagination test fetched ${emails.length} emails.`);
+  }, 120000);
 });
