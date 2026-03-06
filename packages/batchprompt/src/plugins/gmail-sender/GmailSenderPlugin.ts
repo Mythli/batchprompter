@@ -1,3 +1,4 @@
+import OpenAI from 'openai';
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { marked } from 'marked';
@@ -6,7 +7,8 @@ import { StepRow } from '../../StepRow.js';
 import { PartialOutputConfigSchema } from '../../config/schema.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import type { StepConfig, GlobalConfig } from '../../config/schema.js';
-import { ensureAuthenticatedGmail, sendEmail, searchEmails } from 'gmail-puppet';
+import { ModelConfigSchema, ModelConfig } from '../../config/model.js';
+import { ensureAuthenticatedGmail, sendEmail, searchEmails, readThread } from 'gmail-puppet';
 import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 
 export const GmailSenderConfigSchema = z.object({
@@ -21,6 +23,8 @@ export const GmailSenderConfigSchema = z.object({
     skipIfSubjectMatch: z.boolean().default(false),
     replyToLastThread: z.boolean().default(false),
     requireExistingThread: z.boolean().default(false),
+    evaluateReplies: z.boolean().default(false),
+    evaluationModel: ModelConfigSchema.optional(),
     output: PartialOutputConfigSchema.optional()
 });
 
@@ -30,6 +34,54 @@ export interface GmailSenderPluginDeps {
     puppeteerHelper: PuppeteerHelper;
     email?: string;
     password?: string;
+}
+
+/**
+ * Fills in missing model parameters (model name, temperature, reasoning_effort) from global defaults.
+ */
+function fillModelDefaults(
+    pluginModel: ModelConfig | undefined,
+    globalModel: ModelConfig | undefined
+): ModelConfig | undefined {
+    if (!pluginModel) return undefined;
+    
+    return {
+        ...pluginModel,
+        model: pluginModel.model || globalModel?.model,
+        temperature: pluginModel.temperature ?? globalModel?.temperature,
+        reasoning_effort: pluginModel.reasoning_effort ?? globalModel?.reasoning_effort,
+    };
+}
+
+/**
+ * Renders Handlebars templates inside a ModelConfig's messages.
+ */
+function hydrateModelMessages(
+    model: ModelConfig | undefined,
+    context: Record<string, any>
+): ModelConfig | undefined {
+    if (!model) return undefined;
+
+    return {
+        ...model,
+        messages: model.messages.map(msg => {
+            if (typeof msg.content === 'string') {
+                const compiled = Handlebars.compile(msg.content, { noEscape: true });
+                return { ...msg, content: compiled(context) };
+            }
+            if (Array.isArray(msg.content)) {
+                const hydratedContent = msg.content.map((part: any) => {
+                    if (part.type === 'text') {
+                        const compiled = Handlebars.compile(part.text, { noEscape: true });
+                        return { ...part, text: compiled(context) };
+                    }
+                    return part;
+                });
+                return { ...msg, content: hydratedContent };
+            }
+            return msg;
+        }) as OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+    };
 }
 
 class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
@@ -121,8 +173,52 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                     const receivedResults = await searchEmails(page, `from:${toEmail}`);
 
                     if (receivedResults.length > 0) {
-                        skipSend = true;
-                        skipReason = 'received_email';
+                        if (config.evaluateReplies) {
+                            events.emit('plugin:event', {
+                                row: rowIndex,
+                                step: stepIndex,
+                                plugin: 'gmailSender',
+                                event: 'evaluate:started',
+                                data: { threadId: receivedResults[0].id }
+                            });
+
+                            const threadMessages = await readThread(page, receivedResults[0].id);
+                            const replyTexts = threadMessages.map(m => `From: ${m.senderEmail}\nDate: ${m.date}\nBody:\n${m.textBody}`).join('\n\n---\n\n');
+
+                            const llm = await stepRow.createLlm(config.evaluationModel);
+                            
+                            const defaultPrompt = "You are an email assistant managing an automated outreach campaign. We are scheduled to send an automated follow-up email to a prospect, but we detected a previous reply from them. Read their reply below. If their reply is an automated message (e.g., Out of Office, vacation responder, bounce notification, or automated ticket receipt), it is safe to send the follow-up. If it is a genuine human reply (e.g., asking a question, saying 'not interested', or requesting a call), we must NOT send the automated follow-up so a human can handle it manually.";
+
+                            const EvaluationSchema = z.object({
+                                isAutoresponder: z.boolean().describe("True if the reply is an automated response (e.g., OOO, bounce)."),
+                                shouldSendAutomatedEmail: z.boolean().describe("True if we should proceed with sending the automated follow-up."),
+                                reason: z.string().describe("Explanation of why it was classified as such.")
+                            });
+
+                            const promptParts: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [
+                                { type: 'text', text: defaultPrompt },
+                                { type: 'text', text: `\n\nDrafted Email to Send:\nSubject: ${subject}\nBody:\n${bodyMarkdown}` },
+                                { type: 'text', text: `\n\nReceived Email(s):\n${replyTexts}` }
+                            ];
+
+                            const decision = await llm.promptZod({ suffix: promptParts }, EvaluationSchema);
+
+                            events.emit('plugin:event', {
+                                row: rowIndex,
+                                step: stepIndex,
+                                plugin: 'gmailSender',
+                                event: 'evaluate:finished',
+                                data: decision
+                            });
+
+                            if (!decision.shouldSendAutomatedEmail) {
+                                skipSend = true;
+                                skipReason = `human_reply_detected: ${decision.reason}`;
+                            }
+                        } else {
+                            skipSend = true;
+                            skipReason = 'received_email';
+                        }
                     }
                 }
 
@@ -258,6 +354,29 @@ export class GmailSenderPlugin extends BasePlugin<GmailSenderConfig, GmailSender
 
     getSchema() {
         return GmailSenderConfigSchema;
+    }
+
+    normalizeConfig(config: GmailSenderConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): GmailSenderConfig {
+        const base = super.normalizeConfig(config, stepConfig, globalConfig);
+        const globalModel = globalConfig.model;
+
+        // If evaluateReplies is true, ensure we have an evaluationModel (fallback to global)
+        let evaluationModel = config.evaluationModel;
+        if (config.evaluateReplies && !evaluationModel) {
+            evaluationModel = { messages: [] }; // Empty messages, will use default prompt
+        }
+
+        return {
+            ...base,
+            evaluationModel: fillModelDefaults(evaluationModel, globalModel),
+        };
+    }
+
+    async hydrate(_stepConfig: StepConfig, _globalConfig: GlobalConfig, config: GmailSenderConfig, context: Record<string, any>): Promise<GmailSenderConfig> {
+        return {
+            ...config,
+            evaluationModel: hydrateModelMessages(config.evaluationModel, context),
+        };
     }
 
     createRow(stepRow: StepRow, config: GmailSenderConfig): BasePluginRow<GmailSenderConfig> {

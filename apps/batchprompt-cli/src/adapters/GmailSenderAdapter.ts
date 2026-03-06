@@ -15,6 +15,9 @@ export class GmailSenderAdapter implements CliPluginAdapter {
         program.option('--gmail-skip-if-subject-match', 'Skip sending if an email with the exact subject was already sent to the recipient');
         program.option('--gmail-reply-to-last-thread', 'Reply to the most recent thread with the recipient');
         program.option('--gmail-require-existing-thread', 'Only send if a previous thread with the recipient exists');
+        program.option('--gmail-evaluate-replies', 'Use AI to evaluate if previous replies are just autoresponders');
+        program.option('--gmail-evaluation-model <model>', 'Model for reply evaluation');
+        program.option('--gmail-evaluation-prompt <text>', 'Prompt for reply evaluation');
         program.option('--gmail-output-mode <mode>', 'Output mode: merge/column/ignore');
         program.option('--gmail-output-column <column>', 'Output column name');
         program.option('--gmail-output-explode', 'Explode results into multiple rows');
@@ -32,6 +35,9 @@ export class GmailSenderAdapter implements CliPluginAdapter {
         program.option(`--${s}-gmail-skip-if-subject-match`, `Skip if subject match for step ${s}`);
         program.option(`--${s}-gmail-reply-to-last-thread`, `Reply to last thread for step ${s}`);
         program.option(`--${s}-gmail-require-existing-thread`, `Require existing thread for step ${s}`);
+        program.option(`--${s}-gmail-evaluate-replies`, `Evaluate replies for step ${s}`);
+        program.option(`--${s}-gmail-evaluation-model <model>`, `Evaluation model for step ${s}`);
+        program.option(`--${s}-gmail-evaluation-prompt <text>`, `Evaluation prompt for step ${s}`);
         program.option(`--${s}-gmail-output-mode <mode>`, `Output mode for step ${s}`);
         program.option(`--${s}-gmail-output-column <column>`, `Output column for step ${s}`);
         program.option(`--${s}-gmail-output-explode`, `Explode results for step ${s}`);
@@ -67,6 +73,15 @@ export class GmailSenderAdapter implements CliPluginAdapter {
         if (getOpt('gmailSkipIfSubjectMatch')) result.skipIfSubjectMatch = true;
         if (getOpt('gmailReplyToLastThread')) result.replyToLastThread = true;
         if (getOpt('gmailRequireExistingThread')) result.requireExistingThread = true;
+        if (getOpt('gmailEvaluateReplies')) result.evaluateReplies = true;
+
+        const evalModel = getOpt('gmailEvaluationModel');
+        const evalPrompt = getOpt('gmailEvaluationPrompt');
+        if (evalModel || evalPrompt) {
+            result.evaluationModel = {};
+            if (evalModel) result.evaluationModel.model = evalModel;
+            if (evalPrompt) result.evaluationModel.prompt = evalPrompt;
+        }
 
         const outputMode = getOpt('gmailOutputMode');
         const outputColumn = getOpt('gmailOutputColumn');
