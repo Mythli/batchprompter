@@ -8,8 +8,7 @@ import { PartialOutputConfigSchema } from '../../config/schema.js';
 import { zHandlebars } from '../../config/validationRules.js';
 import type { StepConfig, GlobalConfig } from '../../config/schema.js';
 import { ModelConfigSchema, ModelConfig } from '../../config/model.js';
-import { ensureAuthenticatedGmail, sendEmail, searchEmails, readThread } from 'gmail-puppet';
-import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
+import { GmailClient } from 'gmail-puppet';
 
 export const GmailSenderConfigSchema = z.object({
     type: z.literal('gmailSender'),
@@ -31,9 +30,7 @@ export const GmailSenderConfigSchema = z.object({
 export type GmailSenderConfig = z.output<typeof GmailSenderConfigSchema>;
 
 export interface GmailSenderPluginDeps {
-    puppeteerHelper: PuppeteerHelper;
-    email?: string;
-    password?: string;
+    gmailClient?: GmailClient;
 }
 
 /**
@@ -136,15 +133,11 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
         }
 
         // 4. Authentication & Browser Setup
-        if (!deps.email || !deps.password) {
-            throw new Error("Gmail Sender: GMAIL_EMAIL and GMAIL_PASSWORD environment variables are required.");
+        if (!deps.gmailClient) {
+            throw new Error("Gmail Sender: GMAIL_EMAIL and GMAIL_PASSWORD environment variables are required to initialize the Gmail client.");
         }
 
-        const browser = await deps.puppeteerHelper.getBrowser();
-        const page = await ensureAuthenticatedGmail(browser, {
-            email: deps.email,
-            password: deps.password
-        });
+        const gmailClient = deps.gmailClient;
 
         try {
             let finalReplyToId = replyToId;
@@ -170,7 +163,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                         data: { query: `from:${toEmail}` }
                     });
 
-                    const receivedResults = await searchEmails(page, `from:${toEmail}`);
+                    const receivedResults = await gmailClient.searchEmails(`from:${toEmail}`);
 
                     if (receivedResults.length > 0) {
                         if (config.evaluateReplies) {
@@ -182,7 +175,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                                 data: { threadId: receivedResults[0].id }
                             });
 
-                            const threadMessages = await readThread(page, receivedResults[0].id);
+                            const threadMessages = await gmailClient.readThread(receivedResults[0].id);
                             const replyTexts = threadMessages.map(m => `From: ${m.senderEmail}\nDate: ${m.date}\nBody:\n${m.textBody}`).join('\n\n---\n\n');
 
                             const llm = await stepRow.createLlm(config.evaluationModel);
@@ -235,7 +228,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                         data: { query: subjectQuery }
                     });
 
-                    const subjectResults = await searchEmails(page, subjectQuery);
+                    const subjectResults = await gmailClient.searchEmails(subjectQuery);
 
                     if (subjectResults.length > 0) {
                         skipSend = true;
@@ -253,7 +246,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                         data: { query: `to:${toEmail}` }
                     });
 
-                    const searchResults = await searchEmails(page, `to:${toEmail}`);
+                    const searchResults = await gmailClient.searchEmails(`to:${toEmail}`);
 
                     if (searchResults.length === 0) {
                         if (config.requireExistingThread) {
@@ -301,7 +294,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
             });
 
             // 6. Sending the Email
-            await sendEmail(page, {
+            await gmailClient.sendEmail({
                 to,
                 subject,
                 htmlBody,
@@ -338,9 +331,6 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                 data: { error: error.message }
             });
             throw error;
-        } finally {
-            // 8. Cleanup
-            await page.close().catch(() => {});
         }
     }
 }

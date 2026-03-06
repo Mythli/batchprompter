@@ -19,6 +19,7 @@ import { LogoScraperPlugin } from './plugins/logo-scraper/LogoScraperPlugin.js';
 import { ImageDownloader } from './plugins/logo-scraper/utils/ImageDownloader.js';
 import { LoadDataPlugin } from './plugins/load-data/LoadDataPlugin.js';
 import { GmailSenderPlugin } from './plugins/gmail-sender/GmailSenderPlugin.js';
+import { createGmailClient, GmailClient } from 'gmail-puppet';
 
 export interface ServiceCapabilities {
     hasSerper: boolean;
@@ -91,6 +92,7 @@ export interface BatchPromptDeps {
     defaultModel: string;
     pluginRegistry: PluginRegistryV2;
     llmFactory: LlmClientFactory;
+    gmailClient: GmailClient | undefined;
 }
 
 export const initConfig = async (env: Record<string, any>, overrides: ConfigOverrides = {}): Promise<BatchPromptDeps> => {
@@ -181,6 +183,15 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         }
     });
 
+    let gmailClient: GmailClient | undefined;
+    if (config.GMAIL_EMAIL && config.GMAIL_PASSWORD) {
+        gmailClient = createGmailClient({
+            getBrowser: () => puppeteerHelper.getBrowser(),
+            email: config.GMAIL_EMAIL,
+            password: config.GMAIL_PASSWORD
+        });
+    }
+
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
 
     // The "Upgraded" createLlm factory for plugins
@@ -212,9 +223,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     pluginRegistry.registerFactory('loadData', () => new LoadDataPlugin());
 
     pluginRegistry.registerFactory('gmailSender', () => new GmailSenderPlugin({
-        puppeteerHelper,
-        email: config.GMAIL_EMAIL,
-        password: config.GMAIL_PASSWORD
+        gmailClient
     }));
 
     const events = new EventEmitter<BatchPromptEvents>();
@@ -234,7 +243,8 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         capabilities,
         defaultModel,
         pluginRegistry,
-        llmFactory
+        llmFactory,
+        gmailClient
     };
 }
 
