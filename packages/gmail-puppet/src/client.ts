@@ -11,6 +11,10 @@ export interface GmailClientOptions extends GmailAuthOptions {
     usePage: <T>(action: (page: Page) => Promise<T>) => Promise<T>;
 }
 
+export interface ThreadWithMetadata extends EmailMetadata {
+    messages: ThreadMessage[];
+}
+
 /**
  * A stateless client for interacting with Gmail.
  * For every action, it requests a page via usePage, authenticates, runs the action, and completes.
@@ -76,6 +80,28 @@ export class GmailClient {
 
     async sendEmail(options: SendEmailOptions): Promise<void> {
         return this.withAuthenticatedPage(page => sendEmail(page, options));
+    }
+
+    /**
+     * Orchestrates searching for emails and reading their full threads in parallel.
+     * This leverages the underlying queue architecture to safely fan out the reads.
+     */
+    async searchAndReadThreads(query?: string, limit?: number): Promise<ThreadWithMetadata[]> {
+        // 1. Search for emails (uses 1 page slot temporarily)
+        const searchResults = await this.searchEmails(query, limit);
+
+        // 2. Read all threads in parallel (each uses 1 page slot temporarily, managed by the queue)
+        const threads = await Promise.all(
+            searchResults.map(async (metadata) => {
+                const messages = await this.readThread(metadata.id);
+                return {
+                    ...metadata,
+                    messages
+                };
+            })
+        );
+
+        return threads;
     }
 
     async close(): Promise<void> {
