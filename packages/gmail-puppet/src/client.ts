@@ -1,6 +1,6 @@
 import type { Page } from 'puppeteer';
 import { ensureAuthenticatedGmail, GmailAuthOptions } from './auth.js';
-import { searchEmails, EmailMetadata } from './search.js';
+import { searchEmails, searchEmailsOnPage, EmailMetadata } from './search.js';
 import { readThread, ThreadMessage } from './read.js';
 import { sendEmail, SendEmailOptions } from './send.js';
 
@@ -70,8 +70,34 @@ export class GmailClient {
         });
     }
 
-    async searchEmails(query?: string, limit?: number): Promise<EmailMetadata[]> {
-        return this.withAuthenticatedPage(page => searchEmails(page, query, limit));
+    async searchEmails(query?: string, limit: number = 50): Promise<EmailMetadata[]> {
+        const pageSize = 50;
+        const numPages = Math.ceil(limit / pageSize);
+
+        if (numPages <= 1) {
+            const results = await this.withAuthenticatedPage(page => searchEmailsOnPage(page, query, 1));
+            return results.slice(0, limit);
+        }
+
+        const pageIndices = Array.from({ length: numPages }, (_, i) => i + 1);
+
+        // Fetch all pages in parallel using the queue
+        const pageResults = await Promise.all(
+            pageIndices.map(pageIndex =>
+                this.withAuthenticatedPage(page => searchEmailsOnPage(page, query, pageIndex))
+            )
+        );
+
+        const allEmails: EmailMetadata[] = [];
+        for (const results of pageResults) {
+            for (const email of results) {
+                if (!allEmails.find(e => e.id === email.id)) {
+                    allEmails.push(email);
+                }
+            }
+        }
+
+        return allEmails.slice(0, limit);
     }
 
     async readThread(threadId: string): Promise<ThreadMessage[]> {
@@ -87,7 +113,7 @@ export class GmailClient {
      * This leverages the underlying queue architecture to safely fan out the reads.
      */
     async searchAndReadThreads(query?: string, limit?: number): Promise<ThreadWithMetadata[]> {
-        // 1. Search for emails (uses 1 page slot temporarily)
+        // 1. Search for emails (uses multiple page slots temporarily if limit > 50)
         const searchResults = await this.searchEmails(query, limit);
 
         // 2. Read all threads in parallel (each uses 1 page slot temporarily, managed by the queue)
