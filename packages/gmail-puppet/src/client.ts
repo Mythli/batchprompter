@@ -19,13 +19,22 @@ export class GmailClient {
     // A simple FIFO lock to ensure only one page attempts the authentication/navigation flow at a time.
     // This prevents multiple parallel tabs from racing to type credentials if the session is fresh.
     private authLock: Promise<void> = Promise.resolve();
+    
+    // Flag to indicate if the browser context has already been authenticated in this session.
+    private isAuthenticated: boolean = false;
 
     constructor(private options: GmailClientOptions) {}
 
     /**
      * Safely runs the authentication check, ensuring only one page performs it at a time.
+     * Uses double-checked locking so subsequent pages skip the slow navigation check.
      */
     private async safeAuthenticate(page: Page): Promise<void> {
+        // First check: if already authenticated, skip the lock entirely
+        if (this.isAuthenticated) {
+            return;
+        }
+
         // Atomically chain onto the existing lock
         const previousLock = this.authLock;
         
@@ -38,7 +47,15 @@ export class GmailClient {
         await previousLock.catch(() => {});
 
         try {
+            // Second check: another page might have authenticated while we were waiting for the lock
+            if (this.isAuthenticated) {
+                return;
+            }
+
             await ensureAuthenticatedGmail(page, this.options);
+            
+            // Mark as authenticated for all future pages in this client instance
+            this.isAuthenticated = true;
         } finally {
             // Release the lock for the next page in line
             releaseLock();
