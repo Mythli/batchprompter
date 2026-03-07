@@ -16,6 +16,8 @@ export const GmailReplierConfigSchema = z.object({
     inspirationQuery: z.string().default('subject:(re OR aw) from:me'),
     inspirationLimit: z.number().int().positive().default(10),
     draftModel: ModelConfigSchema.optional(),
+    evaluateReply: z.boolean().default(false),
+    evaluateModel: ModelConfigSchema.optional(),
     interactive: z.boolean().default(true),
     autoSend: z.boolean().default(false),
     output: PartialOutputConfigSchema.optional()
@@ -81,9 +83,16 @@ export class GmailReplierPlugin extends BasePlugin<GmailReplierConfig, GmailRepl
 
     normalizeConfig(config: GmailReplierConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): GmailReplierConfig {
         const base = super.normalizeConfig(config, stepConfig, globalConfig);
+        
+        let evaluateModel = config.evaluateModel;
+        if (config.evaluateReply && !evaluateModel) {
+            evaluateModel = { messages: [] };
+        }
+
         return {
             ...base,
-            draftModel: fillModelDefaults(config.draftModel, globalConfig.model)
+            draftModel: fillModelDefaults(config.draftModel, globalConfig.model),
+            evaluateModel: fillModelDefaults(evaluateModel, globalConfig.model)
         };
     }
 
@@ -91,6 +100,7 @@ export class GmailReplierPlugin extends BasePlugin<GmailReplierConfig, GmailRepl
         return {
             ...config,
             draftModel: hydrateModelMessages(config.draftModel, context),
+            evaluateModel: hydrateModelMessages(config.evaluateModel, context),
         };
     }
 

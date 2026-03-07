@@ -1,11 +1,11 @@
-import { select } from '@inquirer/prompts';
+import { select, input } from '@inquirer/prompts';
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
 export class InteractiveReviewer {
-    static async review(subject: string, targetContext: string, draft: string): Promise<{ action: 'send' | 'ignore' | 'regenerate' | 'quit', text: string }> {
+    static async review(subject: string, targetContext: string, draft: string): Promise<{ action: 'send' | 'ignore' | 'regenerate' | 'change_ai' | 'quit', text: string, instruction?: string }> {
         let currentDraft = draft;
 
         while (true) {
@@ -30,6 +30,11 @@ export class InteractiveReviewer {
                         name: 'Edit',
                         value: 'edit',
                         description: 'Open the draft in your default editor ($EDITOR)'
+                    },
+                    {
+                        name: 'Change with AI',
+                        value: 'change_ai',
+                        description: 'Provide instructions to rewrite the draft'
                     },
                     {
                         name: 'Regenerate',
@@ -57,6 +62,9 @@ export class InteractiveReviewer {
                 return { action: 'regenerate', text: currentDraft };
             } else if (answer === 'quit') {
                 return { action: 'quit', text: currentDraft };
+            } else if (answer === 'change_ai') {
+                const instruction = await input({ message: 'How should the AI change the draft?' });
+                return { action: 'change_ai', text: currentDraft, instruction };
             } else if (answer === 'edit') {
                 const tmpFile = path.join(os.tmpdir(), `draft-${Date.now()}.txt`);
                 fs.writeFileSync(tmpFile, currentDraft, 'utf8');

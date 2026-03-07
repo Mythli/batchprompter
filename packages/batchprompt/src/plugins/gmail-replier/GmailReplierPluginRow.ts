@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { BasePluginRow, PluginResult, PluginItem } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { GmailReplierConfig } from './GmailReplierPlugin.js';
@@ -9,7 +10,7 @@ import { GmailClient, EmailMetadata } from 'gmail-puppet';
 interface DraftTask {
     target: EmailMetadata;
     targetContext: string;
-    draftPromise: Promise<string>;
+    draftPromise: Promise<{ draft: string, skip: boolean, reason?: string }>;
     isResolved: boolean;
 }
 
@@ -62,6 +63,26 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                 const targetContext = await contextBuilder.buildTargetContext(target);
                 task.targetContext = targetContext;
                 
+                if (config.evaluateReply) {
+                    const evalLlm = await stepRow.createLlm(config.evaluateModel);
+                    const EvalSchema = z.object({
+                        requiresReply: z.boolean().describe("True if the email requires a reply from us."),
+                        reason: z.string().describe("Reasoning for the decision.")
+                    });
+                    const evalPrompt = "Read the following email thread and decide if it requires a reply. Ignore automated messages, newsletters, or conversations that have naturally concluded.";
+                    const decision = await evalLlm.promptZod({
+                        suffix: [
+                            { type: 'text', text: evalPrompt },
+                            { type: 'text', text: `\n\n--- CURRENT THREAD ---\n${targetContext}` }
+                        ]
+                    }, EvalSchema);
+
+                    if (!decision.requiresReply) {
+                        task.isResolved = true;
+                        return { draft: '', skip: true, reason: decision.reason };
+                    }
+                }
+
                 const llm = await stepRow.createLlm(config.draftModel);
                 const promptParts = [
                     { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT },
@@ -70,7 +91,7 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                 ];
                 const draft = await llm.promptText({ prefix: promptParts });
                 task.isResolved = true;
-                return draft;
+                return { draft, skip: false };
             })();
 
             // Prevent unhandled rejection crash. We will await draftPromise later and catch it there.
@@ -93,27 +114,42 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
             const target = currentTask.target;
             events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'process:target', data: { subject: target.subject } });
             
-            let action: 'send' | 'ignore' | 'regenerate' | 'quit' = 'regenerate';
+            let action: 'send' | 'ignore' | 'regenerate' | 'change_ai' | 'quit' = 'regenerate';
             let finalDraft = '';
             let isFirstAttempt = true;
+            let aiInstruction = '';
 
-            while (action === 'regenerate') {
+            while (action === 'regenerate' || action === 'change_ai') {
                 if (isFirstAttempt) {
                     // Only emit the "generating" event if we actually have to wait for it.
                     // This prevents console logs from messing up the interactive UI.
                     if (!currentTask.isResolved) {
                         events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'draft:generating', data: { subject: target.subject } });
                     }
-                    finalDraft = await currentTask.draftPromise;
+                    const result = await currentTask.draftPromise;
                     isFirstAttempt = false;
+
+                    if (result.skip) {
+                        events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'email:skipped', data: { subject: target.subject, reason: result.reason } });
+                        action = 'ignore';
+                        finalDraft = '';
+                        break;
+                    }
+                    finalDraft = result.draft;
                 } else {
                     events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'draft:generating', data: { subject: target.subject } });
                     const llm = await stepRow.createLlm(config.draftModel);
-                    const promptParts = [
+                    const promptParts: any[] = [
                         { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT },
                         { type: 'text' as const, text: `\n\n--- INSPIRATION EXAMPLES ---\n${inspirationContext}` },
                         { type: 'text' as const, text: `\n\n--- CURRENT THREAD ---\n${currentTask.targetContext}` }
                     ];
+
+                    if (action === 'change_ai' && aiInstruction) {
+                        promptParts.push({ type: 'text' as const, text: `\n\n--- PREVIOUS DRAFT ---\n${finalDraft}` });
+                        promptParts.push({ type: 'text' as const, text: `\n\n--- USER INSTRUCTION ---\nPlease rewrite the previous draft according to this instruction: ${aiInstruction}` });
+                    }
+
                     finalDraft = await llm.promptText({ prefix: promptParts });
                 }
 
@@ -121,6 +157,7 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                     const reviewResult = await InteractiveReviewer.review(target.subject, currentTask.targetContext, finalDraft);
                     action = reviewResult.action;
                     finalDraft = reviewResult.text;
+                    aiInstruction = reviewResult.instruction || '';
                 } else {
                     action = config.autoSend ? 'send' : 'ignore';
                 }
