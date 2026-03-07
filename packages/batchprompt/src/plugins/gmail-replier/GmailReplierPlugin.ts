@@ -11,7 +11,8 @@ import { GmailReplierPluginRow } from './GmailReplierPluginRow.js';
 export const GmailReplierConfigSchema = z.object({
     type: z.literal('gmailReplier'),
     targetQuery: z.string().default('is:unread'),
-    limit: z.number().int().positive().default(5),
+    limit: z.number().int().positive().default(100),
+    bufferSize: z.number().int().positive().default(5),
     inspirationQuery: z.string().default('subject:(re OR aw) from:me'),
     inspirationLimit: z.number().int().positive().default(10),
     draftModel: ModelConfigSchema.optional(),

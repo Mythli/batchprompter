@@ -43,7 +43,7 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
 
         const items: PluginItem[] = [];
 
-        const bufferSize = 5;
+        const bufferSize = config.bufferSize;
         const tasks: DraftTask[] = [];
         let targetIndex = 0;
 
@@ -93,7 +93,7 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
             const target = currentTask.target;
             events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'process:target', data: { subject: target.subject } });
             
-            let action: 'send' | 'ignore' | 'regenerate' = 'regenerate';
+            let action: 'send' | 'ignore' | 'regenerate' | 'quit' = 'regenerate';
             let finalDraft = '';
             let isFirstAttempt = true;
 
@@ -124,6 +124,11 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                 } else {
                     action = config.autoSend ? 'send' : 'ignore';
                 }
+            }
+
+            if (action === 'quit') {
+                events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'process:quit', data: {} });
+                break;
             }
 
             if (action === 'send') {

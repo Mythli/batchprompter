@@ -5,7 +5,7 @@ import * as os from 'os';
 import * as path from 'path';
 
 export class InteractiveReviewer {
-    static async review(subject: string, targetContext: string, draft: string): Promise<{ action: 'send' | 'ignore' | 'regenerate', text: string }> {
+    static async review(subject: string, targetContext: string, draft: string): Promise<{ action: 'send' | 'ignore' | 'regenerate' | 'quit', text: string }> {
         let currentDraft = draft;
 
         while (true) {
@@ -40,6 +40,11 @@ export class InteractiveReviewer {
                         name: 'Ignore',
                         value: 'ignore',
                         description: 'Skip replying to this email'
+                    },
+                    {
+                        name: 'Quit',
+                        value: 'quit',
+                        description: 'Stop processing and exit'
                     }
                 ]
             });
@@ -50,6 +55,8 @@ export class InteractiveReviewer {
                 return { action: 'ignore', text: currentDraft };
             } else if (answer === 'regenerate') {
                 return { action: 'regenerate', text: currentDraft };
+            } else if (answer === 'quit') {
+                return { action: 'quit', text: currentDraft };
             } else if (answer === 'edit') {
                 const tmpFile = path.join(os.tmpdir(), `draft-${Date.now()}.txt`);
                 fs.writeFileSync(tmpFile, currentDraft, 'utf8');
