@@ -34,10 +34,12 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
         }
 
         events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'search:inspiration', data: { query: config.inspirationQuery } });
-        const inspirationEmails = await this.gmailClient.searchEmails(config.inspirationQuery, config.inspirationLimit);
+        
+        // Use the parallel searchAndReadThreads function from gmail-puppet
+        const inspirationThreads = await this.gmailClient.searchAndReadThreads(config.inspirationQuery, config.inspirationLimit);
         
         const contextBuilder = new EmailContextBuilder(this.gmailClient);
-        const inspirationContext = await contextBuilder.buildInspirationContext(inspirationEmails);
+        const inspirationContext = await contextBuilder.buildInspirationContext(inspirationThreads);
 
         const items: PluginItem[] = [];
 

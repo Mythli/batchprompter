@@ -1,12 +1,12 @@
-import { GmailClient, EmailMetadata } from 'gmail-puppet';
+import { GmailClient, EmailMetadata, ThreadWithMetadata } from 'gmail-puppet';
 
 export class EmailContextBuilder {
     constructor(private gmailClient: GmailClient) {}
 
-    async buildInspirationContext(emails: EmailMetadata[]): Promise<string> {
+    async buildInspirationContext(threads: ThreadWithMetadata[]): Promise<string> {
         let context = '';
-        for (let i = 0; i < emails.length; i++) {
-            const thread = await this.gmailClient.readThread(emails[i].id);
+        for (let i = 0; i < threads.length; i++) {
+            const thread = threads[i].messages;
             if (thread.length > 0) {
                 // Find the last messages to show the context and the reply.
                 const recent = thread.slice(-2);
