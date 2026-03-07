@@ -1,4 +1,4 @@
-import type { Browser, Page } from 'puppeteer';
+import type { Page } from 'puppeteer';
 import { ensureAuthenticatedGmail, GmailAuthOptions } from './auth.js';
 import { searchEmails, EmailMetadata } from './search.js';
 import { readThread, ThreadMessage } from './read.js';
@@ -6,9 +6,9 @@ import { sendEmail, SendEmailOptions } from './send.js';
 
 export interface GmailClientOptions extends GmailAuthOptions {
     /**
-     * A function that returns a Promise resolving to a Puppeteer Browser instance.
+     * A function that returns a Promise resolving to a Puppeteer Page instance.
      */
-    getBrowser: () => Promise<Browser>;
+    getPage: () => Promise<Page>;
 }
 
 /**
@@ -26,8 +26,8 @@ export class GmailClient {
     private async withPage<T>(action: (page: Page) => Promise<T>): Promise<T> {
         let page: Page | null = null;
         try {
-            const browser = await this.options.getBrowser();
-            page = await ensureAuthenticatedGmail(browser, this.options);
+            page = await this.options.getPage();
+            await ensureAuthenticatedGmail(page, this.options);
             return await action(page);
         } finally {
             if (page) {

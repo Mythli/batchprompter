@@ -1,4 +1,4 @@
-import type { Browser, Page } from 'puppeteer';
+import type { Page } from 'puppeteer';
 
 export interface GmailAuthOptions {
   email?: string;
@@ -14,16 +14,15 @@ export interface GmailAuthOptions {
  * Ensures that the browser is authenticated with Gmail.
  * Navigates to Gmail, detects if redirected to the login page, and performs login if needed.
  * 
- * @param browser The Puppeteer Browser instance.
+ * @param page The Puppeteer Page instance.
  * @param options Authentication options including email and password.
  * @returns A Promise that resolves to the authenticated Gmail Page (tab).
  */
 export async function ensureAuthenticatedGmail(
-  browser: Browser,
+  page: Page,
   options: GmailAuthOptions = {}
 ): Promise<Page> {
   const timeout = options.timeout ?? 30000;
-  const page = await browser.newPage();
   
   // Auto-dismiss any unexpected JavaScript dialogs so they don't block execution
   page.on('dialog', async (dialog) => {

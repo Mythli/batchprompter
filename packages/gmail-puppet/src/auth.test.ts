@@ -17,7 +17,8 @@ describe('Gmail Authentication Integration', () => {
   }, 120000);
 
   it('should authenticate and navigate to Gmail', async () => {
-    const page = await ensureAuthenticatedGmail(browser, {
+    const page = await browser.newPage();
+    await ensureAuthenticatedGmail(page, {
       email: testEnv.GMAIL_EMAIL,
       password: testEnv.GMAIL_PASSWORD,
       timeout: 60000 // 60 seconds timeout for navigation/selectors

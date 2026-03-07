@@ -19,7 +19,8 @@ describe('Gmail Search Integration', () => {
 
   // Helper to run a test with a fresh page, matching the new client architecture
   async function withPage<T>(action: (page: Page) => Promise<T>): Promise<T> {
-    const page = await ensureAuthenticatedGmail(browser, {
+    const page = await browser.newPage();
+    await ensureAuthenticatedGmail(page, {
       email: testEnv.GMAIL_EMAIL,
       password: testEnv.GMAIL_PASSWORD,
     });

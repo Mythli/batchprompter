@@ -186,11 +186,19 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
 
     let gmailClient: GmailClient | undefined;
     if (config.GMAIL_EMAIL && config.GMAIL_PASSWORD) {
-        gmailClient = createGmailClient({
-            getBrowser: () => puppeteerHelper.getBrowser(),
+        const baseGmailClient = createGmailClient({
+            getPage: () => puppeteerHelper.getPage(),
             email: config.GMAIL_EMAIL,
             password: config.GMAIL_PASSWORD
         });
+
+        // Wrap the client methods in the puppeteerQueue to enforce concurrency limits
+        gmailClient = {
+            searchEmails: (query?: string, limit?: number) => puppeteerQueue.add(() => baseGmailClient.searchEmails(query, limit)) as Promise<any>,
+            readThread: (threadId: string) => puppeteerQueue.add(() => baseGmailClient.readThread(threadId)) as Promise<any>,
+            sendEmail: (options: any) => puppeteerQueue.add(() => baseGmailClient.sendEmail(options)) as Promise<any>,
+            close: () => baseGmailClient.close()
+        } as GmailClient;
     }
 
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
