@@ -150,9 +150,13 @@ export class DebugLogger {
                 } else if (payload.event === 'send:skipped') {
                     console.log(`${prefix} ⏭️ Skipped sending to ${data.to}: ${data.reason}`);
                 } else if (payload.event === 'send:started') {
-                    console.log(`${prefix} 📧 Sending email to ${data.to || 'thread ' + data.replyToId}...`);
+                    const target = data.to || `thread ${data.replyToId}`;
+                    const subject = data.subject ? ` | Subject: "${data.subject}"` : '';
+                    console.log(`${prefix} 📧 Sending email to ${target}${subject}...`);
                 } else if (payload.event === 'send:success') {
-                    console.log(`${prefix} ✅ Email sent successfully.`);
+                    const target = data.to || `thread ${data.replyToId}`;
+                    const subject = data.subject ? ` | Subject: "${data.subject}"` : '';
+                    console.log(`${prefix} ✅ Email sent successfully to ${target}${subject}.`);
                 } else if (payload.event === 'send:error') {
                     console.log(`${prefix} ❌ Failed to send email: ${data.error}`);
                 }

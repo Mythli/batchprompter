@@ -306,7 +306,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                 step: stepIndex,
                 plugin: 'gmailSender',
                 event: 'send:success',
-                data: { to, subject }
+                data: { to, subject, replyToId: finalReplyToId }
             });
 
             // 7. Output Generation
