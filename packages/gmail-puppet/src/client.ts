@@ -6,46 +6,37 @@ import { sendEmail, SendEmailOptions } from './send.js';
 
 export interface GmailClientOptions extends GmailAuthOptions {
     /**
-     * A function that returns a Promise resolving to a Puppeteer Page instance.
+     * A function that provides a Puppeteer Page, manages its lifecycle, and handles concurrency.
      */
-    getPage: () => Promise<Page>;
+    usePage: <T>(action: (page: Page) => Promise<T>) => Promise<T>;
 }
 
 /**
  * A stateless client for interacting with Gmail.
- * For every action, it opens a new authenticated page, runs the action, and closes the page.
- * This guarantees a clean SPA state and allows concurrent operations.
+ * For every action, it requests a page via usePage, authenticates, runs the action, and completes.
  */
 export class GmailClient {
     constructor(private options: GmailClientOptions) {}
 
-    /**
-     * Executes an action within a fresh, authenticated Gmail page.
-     * The page is automatically closed when the action completes or fails.
-     */
-    private async withPage<T>(action: (page: Page) => Promise<T>): Promise<T> {
-        let page: Page | null = null;
-        try {
-            page = await this.options.getPage();
-            await ensureAuthenticatedGmail(page, this.options);
-            return await action(page);
-        } finally {
-            if (page) {
-                await page.close().catch(() => {});
-            }
-        }
-    }
-
     async searchEmails(query?: string, limit?: number): Promise<EmailMetadata[]> {
-        return this.withPage(page => searchEmails(page, query, limit));
+        return this.options.usePage(async (page) => {
+            await ensureAuthenticatedGmail(page, this.options);
+            return searchEmails(page, query, limit);
+        });
     }
 
     async readThread(threadId: string): Promise<ThreadMessage[]> {
-        return this.withPage(page => readThread(page, threadId));
+        return this.options.usePage(async (page) => {
+            await ensureAuthenticatedGmail(page, this.options);
+            return readThread(page, threadId);
+        });
     }
 
     async sendEmail(options: SendEmailOptions): Promise<void> {
-        return this.withPage(page => sendEmail(page, options));
+        return this.options.usePage(async (page) => {
+            await ensureAuthenticatedGmail(page, this.options);
+            return sendEmail(page, options);
+        });
     }
 
     async close(): Promise<void> {

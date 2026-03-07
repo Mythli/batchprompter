@@ -186,19 +186,23 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
 
     let gmailClient: GmailClient | undefined;
     if (config.GMAIL_EMAIL && config.GMAIL_PASSWORD) {
-        const baseGmailClient = createGmailClient({
-            getPage: () => puppeteerHelper.getPage(),
+        gmailClient = createGmailClient({
+            usePage: async <T>(action: (page: any) => Promise<T>) => {
+                return puppeteerQueue.add(async () => {
+                    let page: any = null;
+                    try {
+                        page = await puppeteerHelper.getPage();
+                        return await action(page);
+                    } finally {
+                        if (page) {
+                            await page.close().catch(() => {});
+                        }
+                    }
+                }) as Promise<T>;
+            },
             email: config.GMAIL_EMAIL,
             password: config.GMAIL_PASSWORD
         });
-
-        // Wrap the client methods in the puppeteerQueue to enforce concurrency limits
-        gmailClient = {
-            searchEmails: (query?: string, limit?: number) => puppeteerQueue.add(() => baseGmailClient.searchEmails(query, limit)) as Promise<any>,
-            readThread: (threadId: string) => puppeteerQueue.add(() => baseGmailClient.readThread(threadId)) as Promise<any>,
-            sendEmail: (options: any) => puppeteerQueue.add(() => baseGmailClient.sendEmail(options)) as Promise<any>,
-            close: () => baseGmailClient.close()
-        } as GmailClient;
     }
 
     const llmFactory = new LlmClientFactory(openai, gptQueue, defaultModel, overrides.retryBaseDelay);
