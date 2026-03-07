@@ -16,9 +16,8 @@ export interface GmailClientOptions extends GmailAuthOptions {
  * For every action, it requests a page via usePage, authenticates, runs the action, and completes.
  */
 export class GmailClient {
-    // A simple FIFO lock to ensure only one page attempts the authentication/navigation flow at a time.
-    // This prevents multiple parallel tabs from racing to type credentials if the session is fresh.
-    private authLock: Promise<void> = Promise.resolve();
+    // A global promise to ensure only one authentication flow runs at a time across all tasks.
+    private authPromise: Promise<void> | null = null;
     
     // Flag to indicate if the browser context has already been authenticated in this session.
     private isAuthenticated: boolean = false;
@@ -26,61 +25,57 @@ export class GmailClient {
     constructor(private options: GmailClientOptions) {}
 
     /**
-     * Safely runs the authentication check, ensuring only one page performs it at a time.
-     * Uses double-checked locking so subsequent pages skip the slow navigation check.
+     * Ensures the browser context is authenticated.
+     * If not authenticated, it opens a single temporary page to perform the login.
+     * Other concurrent calls will wait for this single promise to resolve without opening pages.
      */
-    private async safeAuthenticate(page: Page): Promise<void> {
-        // First check: if already authenticated, skip the lock entirely
+    private async ensureGlobalAuth(): Promise<void> {
         if (this.isAuthenticated) {
             return;
         }
 
-        // Atomically chain onto the existing lock
-        const previousLock = this.authLock;
-        
-        let releaseLock!: () => void;
-        this.authLock = new Promise(resolve => {
-            releaseLock = resolve;
-        });
-
-        // Wait for any previous authentication check to finish (ignore errors from previous runs)
-        await previousLock.catch(() => {});
-
-        try {
-            // Second check: another page might have authenticated while we were waiting for the lock
-            if (this.isAuthenticated) {
-                return;
-            }
-
-            await ensureAuthenticatedGmail(page, this.options);
-            
-            // Mark as authenticated for all future pages in this client instance
-            this.isAuthenticated = true;
-        } finally {
-            // Release the lock for the next page in line
-            releaseLock();
+        if (!this.authPromise) {
+            this.authPromise = (async () => {
+                try {
+                    // Open a single temporary page just for authentication
+                    await this.options.usePage(async (page) => {
+                        await ensureAuthenticatedGmail(page, this.options);
+                    });
+                    this.isAuthenticated = true;
+                } finally {
+                    // Clear the promise so future calls can retry if it failed,
+                    // or just rely on isAuthenticated if it succeeded.
+                    this.authPromise = null;
+                }
+            })();
         }
+
+        await this.authPromise;
+    }
+
+    /**
+     * Wrapper that guarantees the browser is authenticated BEFORE requesting a page for the actual task.
+     */
+    private async withAuthenticatedPage<T>(action: (page: Page) => Promise<T>): Promise<T> {
+        // 1. Wait for global authentication (does not open a page if already auth'd or waiting)
+        await this.ensureGlobalAuth();
+        
+        // 2. Now that we are authenticated, request a page and execute the domain action
+        return this.options.usePage(async (page) => {
+            return action(page);
+        });
     }
 
     async searchEmails(query?: string, limit?: number): Promise<EmailMetadata[]> {
-        return this.options.usePage(async (page) => {
-            await this.safeAuthenticate(page);
-            return searchEmails(page, query, limit);
-        });
+        return this.withAuthenticatedPage(page => searchEmails(page, query, limit));
     }
 
     async readThread(threadId: string): Promise<ThreadMessage[]> {
-        return this.options.usePage(async (page) => {
-            await this.safeAuthenticate(page);
-            return readThread(page, threadId);
-        });
+        return this.withAuthenticatedPage(page => readThread(page, threadId));
     }
 
     async sendEmail(options: SendEmailOptions): Promise<void> {
-        return this.options.usePage(async (page) => {
-            await this.safeAuthenticate(page);
-            return sendEmail(page, options);
-        });
+        return this.withAuthenticatedPage(page => sendEmail(page, options));
     }
 
     async close(): Promise<void> {
