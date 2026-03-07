@@ -11,6 +11,10 @@ export class GmailReplierAdapter implements CliPluginAdapter {
         program.option('--gmail-replier-inspiration-limit <number>', 'Max inspiration emails', parseInt);
         program.option('--gmail-replier-draft-model <model>', 'Model for drafting replies');
         program.option('--gmail-replier-draft-prompt <text>', 'Prompt for drafting replies');
+        program.option('--gmail-replier-evaluate-reply', 'Evaluate if reply is needed (default: true)');
+        program.option('--no-gmail-replier-evaluate-reply', 'Disable reply evaluation');
+        program.option('--gmail-replier-evaluate-model <model>', 'Model for evaluation');
+        program.option('--gmail-replier-evaluate-prompt <text>', 'Prompt for evaluation');
         program.option('--gmail-replier-interactive', 'Enable interactive review (default: true)');
         program.option('--no-gmail-replier-interactive', 'Disable interactive review');
         program.option('--gmail-replier-auto-send', 'Auto-send if interactive is false');
@@ -27,6 +31,10 @@ export class GmailReplierAdapter implements CliPluginAdapter {
         program.option(`--${s}-gmail-replier-inspiration-limit <number>`, `Inspiration limit for step ${s}`, parseInt);
         program.option(`--${s}-gmail-replier-draft-model <model>`, `Draft model for step ${s}`);
         program.option(`--${s}-gmail-replier-draft-prompt <text>`, `Draft prompt for step ${s}`);
+        program.option(`--${s}-gmail-replier-evaluate-reply`, `Evaluate reply for step ${s}`);
+        program.option(`--no-${s}-gmail-replier-evaluate-reply`, `Disable reply evaluation for step ${s}`);
+        program.option(`--${s}-gmail-replier-evaluate-model <model>`, `Evaluate model for step ${s}`);
+        program.option(`--${s}-gmail-replier-evaluate-prompt <text>`, `Evaluate prompt for step ${s}`);
         program.option(`--${s}-gmail-replier-interactive`, `Interactive for step ${s}`);
         program.option(`--no-${s}-gmail-replier-interactive`, `No interactive for step ${s}`);
         program.option(`--${s}-gmail-replier-auto-send`, `Auto send for step ${s}`);
@@ -53,6 +61,7 @@ export class GmailReplierAdapter implements CliPluginAdapter {
         
         if (getOpt('gmailReplierInteractive') !== undefined) result.interactive = getOpt('gmailReplierInteractive');
         if (getOpt('gmailReplierAutoSend') !== undefined) result.autoSend = getOpt('gmailReplierAutoSend');
+        if (getOpt('gmailReplierEvaluateReply') !== undefined) result.evaluateReply = getOpt('gmailReplierEvaluateReply');
 
         const dModel = getOpt('gmailReplierDraftModel');
         const dPrompt = getOpt('gmailReplierDraftPrompt');
@@ -60,6 +69,14 @@ export class GmailReplierAdapter implements CliPluginAdapter {
             result.draftModel = {};
             if (dModel) result.draftModel.model = dModel;
             if (dPrompt) result.draftModel.prompt = dPrompt;
+        }
+
+        const eModel = getOpt('gmailReplierEvaluateModel');
+        const ePrompt = getOpt('gmailReplierEvaluatePrompt');
+        if (eModel || ePrompt) {
+            result.evaluateModel = {};
+            if (eModel) result.evaluateModel.model = eModel;
+            if (ePrompt) result.evaluateModel.prompt = ePrompt;
         }
 
         const outputMode = getOpt('gmailReplierOutputMode');
