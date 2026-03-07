@@ -15,7 +15,7 @@
           "targetQuery": "is:unread",
           "limit": 5,
           "inspirationQuery": "subject:(re OR aw) from:me",
-          "inspirationLimit": 3,
+          "inspirationLimit": 10,
           "interactive": true,
           "draftModel": {
             "prompt": "You are a helpful assistant. Read the following email thread and draft a polite, professional reply in German. Keep it under 3 sentences."

@@ -56,7 +56,7 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                 finalDraft = await llm.promptText({ prefix: promptParts });
 
                 if (config.interactive) {
-                    const reviewResult = await InteractiveReviewer.review(target.subject, finalDraft);
+                    const reviewResult = await InteractiveReviewer.review(target.subject, targetContext, finalDraft);
                     action = reviewResult.action;
                     finalDraft = reviewResult.text;
                 } else {

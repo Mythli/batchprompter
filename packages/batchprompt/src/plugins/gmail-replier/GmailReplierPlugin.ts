@@ -13,7 +13,7 @@ export const GmailReplierConfigSchema = z.object({
     targetQuery: z.string().default('is:unread'),
     limit: z.number().int().positive().default(5),
     inspirationQuery: z.string().default('subject:(re OR aw) from:me'),
-    inspirationLimit: z.number().int().positive().default(3),
+    inspirationLimit: z.number().int().positive().default(10),
     draftModel: ModelConfigSchema.optional(),
     interactive: z.boolean().default(true),
     autoSend: z.boolean().default(false),

@@ -5,14 +5,17 @@ import * as os from 'os';
 import * as path from 'path';
 
 export class InteractiveReviewer {
-    static async review(subject: string, draft: string): Promise<{ action: 'send' | 'ignore' | 'regenerate', text: string }> {
+    static async review(subject: string, targetContext: string, draft: string): Promise<{ action: 'send' | 'ignore' | 'regenerate', text: string }> {
         let currentDraft = draft;
 
         while (true) {
             console.log(`\n==================================================`);
             console.log(`📧 REPLYING TO: ${subject}`);
             console.log(`==================================================`);
-            console.log(currentDraft);
+            console.log(`\n--- ORIGINAL THREAD ---`);
+            console.log(targetContext.trim());
+            console.log(`\n--- DRAFT REPLY ---`);
+            console.log(currentDraft.trim());
             console.log(`==================================================\n`);
 
             const answer = await select({
