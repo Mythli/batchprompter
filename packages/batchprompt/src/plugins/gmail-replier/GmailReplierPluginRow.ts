@@ -4,7 +4,14 @@ import { GmailReplierConfig } from './GmailReplierPlugin.js';
 import { EmailContextBuilder } from './EmailContextBuilder.js';
 import { InteractiveReviewer } from './InteractiveReviewer.js';
 import { DEFAULT_SYSTEM_PROMPT } from './defaultPrompts.js';
-import { GmailClient } from 'gmail-puppet';
+import { GmailClient, EmailMetadata } from 'gmail-puppet';
+
+interface DraftTask {
+    target: EmailMetadata;
+    targetContext: string;
+    draftPromise: Promise<string>;
+    isResolved: boolean;
+}
 
 export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
     constructor(stepRow: StepRow, config: GmailReplierConfig, private gmailClient: GmailClient) {
@@ -34,29 +41,82 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
 
         const items: PluginItem[] = [];
 
-        for (const target of targetEmails) {
-            events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'process:target', data: { subject: target.subject } });
-            
-            const targetContext = await contextBuilder.buildTargetContext(target);
-            
-            let action: 'send' | 'ignore' | 'regenerate' = 'regenerate';
-            let finalDraft = '';
+        const bufferSize = 5;
+        const tasks: DraftTask[] = [];
+        let targetIndex = 0;
 
-            while (action === 'regenerate') {
-                events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'draft:generating', data: { subject: target.subject } });
+        const startNextTask = () => {
+            if (targetIndex >= targetEmails.length) return;
+            
+            const target = targetEmails[targetIndex++];
+            const task: DraftTask = {
+                target,
+                targetContext: '',
+                isResolved: false,
+                draftPromise: null as any
+            };
+
+            task.draftPromise = (async () => {
+                const targetContext = await contextBuilder.buildTargetContext(target);
+                task.targetContext = targetContext;
                 
                 const llm = await stepRow.createLlm(config.draftModel);
-                
                 const promptParts = [
                     { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT },
                     { type: 'text' as const, text: `\n\n--- INSPIRATION EXAMPLES ---\n${inspirationContext}` },
                     { type: 'text' as const, text: `\n\n--- CURRENT THREAD ---\n${targetContext}` }
                 ];
+                const draft = await llm.promptText({ prefix: promptParts });
+                task.isResolved = true;
+                return draft;
+            })();
 
-                finalDraft = await llm.promptText({ prefix: promptParts });
+            // Prevent unhandled rejection crash. We will await draftPromise later and catch it there.
+            task.draftPromise.catch(() => {});
+
+            tasks.push(task);
+        };
+
+        // Initial fill of the buffer
+        for (let i = 0; i < bufferSize; i++) {
+            startNextTask();
+        }
+
+        while (tasks.length > 0) {
+            const currentTask = tasks.shift()!;
+            
+            // Start a new task to replace the one we just took out of the buffer
+            startNextTask();
+            
+            const target = currentTask.target;
+            events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'process:target', data: { subject: target.subject } });
+            
+            let action: 'send' | 'ignore' | 'regenerate' = 'regenerate';
+            let finalDraft = '';
+            let isFirstAttempt = true;
+
+            while (action === 'regenerate') {
+                if (isFirstAttempt) {
+                    // Only emit the "generating" event if we actually have to wait for it.
+                    // This prevents console logs from messing up the interactive UI.
+                    if (!currentTask.isResolved) {
+                        events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'draft:generating', data: { subject: target.subject } });
+                    }
+                    finalDraft = await currentTask.draftPromise;
+                    isFirstAttempt = false;
+                } else {
+                    events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'draft:generating', data: { subject: target.subject } });
+                    const llm = await stepRow.createLlm(config.draftModel);
+                    const promptParts = [
+                        { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT },
+                        { type: 'text' as const, text: `\n\n--- INSPIRATION EXAMPLES ---\n${inspirationContext}` },
+                        { type: 'text' as const, text: `\n\n--- CURRENT THREAD ---\n${currentTask.targetContext}` }
+                    ];
+                    finalDraft = await llm.promptText({ prefix: promptParts });
+                }
 
                 if (config.interactive) {
-                    const reviewResult = await InteractiveReviewer.review(target.subject, targetContext, finalDraft);
+                    const reviewResult = await InteractiveReviewer.review(target.subject, currentTask.targetContext, finalDraft);
                     action = reviewResult.action;
                     finalDraft = reviewResult.text;
                 } else {
