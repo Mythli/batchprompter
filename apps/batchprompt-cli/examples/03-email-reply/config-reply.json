@@ -17,7 +17,6 @@
           "limit": 200,
           "inspirationQuery": "subject:(re OR aw) from:me",
           "inspirationLimit": 10,
-          "bufferSize": 1,
           "evaluateReply": true,
           "interactive": true,
           "draftModel": {

@@ -7,7 +7,6 @@ export class GmailReplierAdapter implements CliPluginAdapter {
     registerOptions(program: Command) {
         program.option('--gmail-replier-target-query <query>', 'Query for emails to reply to');
         program.option('--gmail-replier-limit <number>', 'Max emails to fetch (default: 100)', parseInt);
-        program.option('--gmail-replier-buffer-size <number>', 'Number of emails to draft concurrently (default: 5)', parseInt);
         program.option('--gmail-replier-inspiration-query <query>', 'Query for inspiration emails');
         program.option('--gmail-replier-inspiration-limit <number>', 'Max inspiration emails', parseInt);
         program.option('--gmail-replier-draft-model <model>', 'Model for drafting replies');
@@ -28,7 +27,6 @@ export class GmailReplierAdapter implements CliPluginAdapter {
         const s = stepIndex;
         program.option(`--${s}-gmail-replier-target-query <query>`, `Target query for step ${s}`);
         program.option(`--${s}-gmail-replier-limit <number>`, `Limit for step ${s}`, parseInt);
-        program.option(`--${s}-gmail-replier-buffer-size <number>`, `Buffer size for step ${s}`, parseInt);
         program.option(`--${s}-gmail-replier-inspiration-query <query>`, `Inspiration query for step ${s}`);
         program.option(`--${s}-gmail-replier-inspiration-limit <number>`, `Inspiration limit for step ${s}`, parseInt);
         program.option(`--${s}-gmail-replier-draft-model <model>`, `Draft model for step ${s}`);
@@ -58,7 +56,6 @@ export class GmailReplierAdapter implements CliPluginAdapter {
 
         if (targetQuery) result.targetQuery = targetQuery;
         if (getOpt('gmailReplierLimit') !== undefined) result.limit = getOpt('gmailReplierLimit');
-        if (getOpt('gmailReplierBufferSize') !== undefined) result.bufferSize = getOpt('gmailReplierBufferSize');
         if (getOpt('gmailReplierInspirationQuery')) result.inspirationQuery = getOpt('gmailReplierInspirationQuery');
         if (getOpt('gmailReplierInspirationLimit') !== undefined) result.inspirationLimit = getOpt('gmailReplierInspirationLimit');
         
