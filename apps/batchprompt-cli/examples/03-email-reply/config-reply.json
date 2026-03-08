@@ -1,5 +1,6 @@
 {
   "taskConcurrency": 1,
+  "logLevel": "warn",
   "model": {
     "model": "google/gemini-3-flash-preview",
     "thinkingLevel": "high"
@@ -13,9 +14,11 @@
         {
           "type": "gmailReplier",
           "targetQuery": "is:unread",
-          "limit": 5,
+          "limit": 200,
           "inspirationQuery": "subject:(re OR aw) from:me",
           "inspirationLimit": 10,
+          "bufferSize": 1,
+          "evaluateReply": true,
           "interactive": true,
           "draftModel": {
             "prompt": "You are a helpful assistant. Read the following email thread and draft a polite, professional reply in German. Keep it under 3 sentences."
