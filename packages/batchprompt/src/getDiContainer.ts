@@ -54,6 +54,7 @@ export const configSchema = z.object({
     PUPPETEER_SLOW_MO: z.coerce.number().int().min(0).default(0),
     GMAIL_EMAIL: z.string().optional(),
     GMAIL_PASSWORD: z.string().optional(),
+    LOG_LEVEL: z.string().optional(),
 });
 
 export type ConfigOverrides = {
@@ -113,6 +114,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         PUPPETEER_SLOW_MO: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_SLOW_MO', 'PUPPETEER_SLOW_MO']),
         GMAIL_EMAIL: getEnvVar(env, ['GMAIL_EMAIL']),
         GMAIL_PASSWORD: getEnvVar(env, ['GMAIL_PASSWORD']),
+        LOG_LEVEL: getEnvVar(env, ['BATCHPROMPT_LOG_LEVEL', 'LOG_LEVEL']),
     };
 
     const config = configSchema.parse(rawConfig);
@@ -132,9 +134,12 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         cache = new KeyvCacheAdapter(keyv);
     }
 
+    const isDebug = config.LOG_LEVEL === 'debug';
+    const baseFetch = isDebug ? createAiLoggingFetcher() : globalThis.fetch;
+
     const fetcher = createCachedFetcher({
         cache,
-        fetch: createAiLoggingFetcher(),
+        fetch: baseFetch,
         prefix: 'fetch',
         ttl: 24 * 60 * 60 * 1000,
         timeout: 3 * 60 * 1000,
