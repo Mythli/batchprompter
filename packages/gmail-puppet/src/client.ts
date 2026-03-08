@@ -177,7 +177,9 @@ export class GmailClient {
         // 2. Read all threads in parallel (each uses 1 page slot temporarily, managed by the queue)
         const threads = await Promise.all(
             searchResults.map(async (metadata) => {
-                const messages = await this.readThread(metadata.id, { keepUnread: metadata.isUnread });
+                const messages = await this.readThread(metadata.id, { 
+                    keepUnread: false 
+                });
                 return {
                     ...metadata,
                     messages

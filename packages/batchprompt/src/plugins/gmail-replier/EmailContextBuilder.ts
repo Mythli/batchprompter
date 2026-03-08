@@ -21,7 +21,9 @@ export class EmailContextBuilder {
     }
 
     async buildTargetContext(email: EmailMetadata): Promise<string> {
-        const thread = await this.gmailClient.readThread(email.id, { keepUnread: email.isUnread });
+        const thread = await this.gmailClient.readThread(email.id, { 
+            keepUnread: email.isUnread
+        });
         let context = `Subject: ${email.subject}\n\n`;
         for (const msg of thread) {
             context += `From: ${msg.senderName} <${msg.senderEmail}>\nDate: ${msg.date}\nBody:\n${msg.textBody}\n\n---\n\n`;
