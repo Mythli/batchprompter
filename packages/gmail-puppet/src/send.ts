@@ -110,8 +110,11 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
     }
   }, bodySelector, options.htmlBody);
 
-  // Add a small delay to let Gmail process the injected HTML
-  await new Promise(resolve => setTimeout(resolve, 500));
+  // Wait for the injected HTML to be reflected in the DOM
+  await page.waitForFunction((sel) => {
+    const el = document.querySelector(sel);
+    return el && el.innerHTML.length > 0;
+  }, { timeout: 5000 }, bodySelector).catch(() => {});
 
   // Click Send
   // .T-I-atl is the stable, long-standing class for the primary (blue) action button in Gmail.
@@ -135,6 +138,11 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
     // Ignore timeout, it might have closed very quickly
   }
   
-  // Add a small buffer to ensure the background request completes
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Wait for the "Message sent" toast or network idle to ensure the background request completes
+  await Promise.race([
+    page.waitForFunction(() => {
+      return Array.from(document.querySelectorAll('span')).some(el => el.textContent?.includes('Message sent'));
+    }, { timeout: 5000 }),
+    page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 })
+  ]).catch(() => {});
 }

@@ -57,8 +57,11 @@ export async function readThread(page: Page, options: ReadThreadOptions = {}): P
     collapsedHeaders.forEach(header => (header as HTMLElement).click());
   });
 
-  // Wait a moment for the expansion animations to finish and the DOM to update
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Wait for the expansion animations to finish by checking if collapsed headers are gone or bodies are visible
+  await page.waitForFunction(() => {
+    const collapsed = document.querySelectorAll('div.kv');
+    return collapsed.length === 0 || Array.from(collapsed).every(el => el.getBoundingClientRect().height === 0);
+  }, { timeout: 5000 }).catch(() => {});
 
   // Extract data from all message blocks
   // .adn is the stable Gmail class for a single message container within a thread
@@ -85,9 +88,9 @@ export async function readThread(page: Page, options: ReadThreadOptions = {}): P
   if (keepUnread) {
     await markCurrentThreadUnread(page);
   } else {
-    // Add a 1-second delay to allow Gmail's background sync to register the "read" status
+    // Wait for Gmail's background sync to register the "read" status
     // before the page potentially navigates away.
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => {});
   }
 
   return messages;
@@ -106,9 +109,9 @@ export async function setThreadReadStatus(page: Page, read: boolean): Promise<vo
 
   if (read) {
     // If the goal is to mark it as read, we are already done just by opening it.
-    // Add a 1-second delay to allow Gmail's background sync to register the "read" status
+    // Wait for Gmail's background sync to register the "read" status
     // before the page potentially navigates away.
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => {});
     return;
   } else {
     // If the goal is to mark it as unread, we must explicitly click the button.

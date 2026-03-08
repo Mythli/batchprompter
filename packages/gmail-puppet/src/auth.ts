@@ -65,8 +65,11 @@ export async function ensureAuthenticatedGmail(
     // The password field might take a moment to become visible and interactable
     await page.waitForSelector('input[type="password"]', { visible: true, timeout });
     
-    // Small delay to ensure the animation finishes and the field is fully interactable
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait for the field to be fully interactable (not disabled)
+    await page.waitForFunction(() => {
+      const input = document.querySelector('input[type="password"]');
+      return input && !input.hasAttribute('disabled');
+    }, { timeout });
     
     await page.type('input[type="password"]', options.password, { delay: 50 });
     

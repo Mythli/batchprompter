@@ -79,11 +79,20 @@ describe('Gmail Read Integration', () => {
       htmlBody: `<p>Testing read status toggling.</p>`
     });
 
-    // Wait for email to arrive in the inbox
-    await new Promise(resolve => setTimeout(resolve, 5000));
-
-    // 2. Search for it and verify it is unread initially
-    const searchResults = await client.searchEmails(`subject:"${uniqueSubject}"`);
+    // Wait for email to arrive in the inbox by polling
+    let searchResults = await client.searchEmails(`subject:"${uniqueSubject}"`);
+    let attempts = 0;
+    while (searchResults.length === 0 && attempts < 15) {
+      await new Promise<void>(resolve => {
+        const timer = setInterval(() => {
+          clearInterval(timer);
+          resolve();
+        }, 1000);
+      });
+      searchResults = await client.searchEmails(`subject:"${uniqueSubject}"`);
+      attempts++;
+    }
+    
     expect(searchResults.length).toBeGreaterThan(0);
     
     threadId = searchResults[0].id;

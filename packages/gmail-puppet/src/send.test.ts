@@ -38,8 +38,6 @@ describe('Gmail Send Integration', () => {
       subject: uniqueSubject,
       htmlBody: htmlBody
     });
-
-    await new Promise(resolve => setTimeout(resolve, 5000));
   }, 120000);
 
   it('should send a random email to tobiasan90@gmail.com', async () => {
@@ -49,8 +47,6 @@ describe('Gmail Send Integration', () => {
       subject: uniqueSubject,
       htmlBody: `<h1>Hello!</h1><p>This is a random test email sent at ${new Date().toISOString()}</p>`
     });
-
-    await new Promise(resolve => setTimeout(resolve, 5000));
   }, 120000);
 
   it('should reply to an email with subject YEAH', async () => {
@@ -65,7 +61,5 @@ describe('Gmail Send Integration', () => {
       htmlBody: replyHtmlBody,
       replyToId: emailId
     });
-
-    await new Promise(resolve => setTimeout(resolve, 5000));
   }, 120000);
 });

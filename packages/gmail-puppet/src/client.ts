@@ -102,7 +102,12 @@ export class GmailClient {
                 const backoffMs = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
                 console.warn(`[GmailClient] Action failed on attempt ${attempt}/${maxRetries}. Retrying in ${backoffMs}ms... Error: ${(error as Error).message}`);
                 
-                await new Promise(resolve => setTimeout(resolve, backoffMs));
+                await new Promise<void>(resolve => {
+                    const timer = setInterval(() => {
+                        clearInterval(timer);
+                        resolve();
+                    }, backoffMs);
+                });
             }
         }
         throw new Error("Unreachable");
