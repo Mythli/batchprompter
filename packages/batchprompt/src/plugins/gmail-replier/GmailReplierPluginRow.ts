@@ -6,7 +6,15 @@ import { GmailReplierConfig } from './GmailReplierPlugin.js';
 import { EmailContextBuilder } from './EmailContextBuilder.js';
 import { InteractiveReviewer } from './InteractiveReviewer.js';
 import { DEFAULT_SYSTEM_PROMPT } from './defaultPrompts.js';
-import { GmailClient } from 'gmail-puppet';
+import { GmailClient, EmailMetadata } from 'gmail-puppet';
+
+interface PreparedDraft {
+    target: EmailMetadata;
+    targetContext: string;
+    draft: string;
+    skip: boolean;
+    reason?: string;
+}
 
 export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
     constructor(stepRow: StepRow, config: GmailReplierConfig, private gmailClient: GmailClient) {
@@ -37,10 +45,10 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
         const inspirationContext = await contextBuilder.buildInspirationContext(inspirationThreads);
 
         const items: PluginItem[] = [];
+        const pendingSends: Promise<void>[] = [];
 
-        for (const target of targetEmails) {
-            events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'process:target', data: { subject: target.subject } });
-            
+        // Helper to prepare a draft in the background
+        const prepareDraft = async (target: EmailMetadata): Promise<PreparedDraft> => {
             const targetContext = await contextBuilder.buildTargetContext(target);
             
             if (config.evaluateReply) {
@@ -58,46 +66,81 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                 }, EvalSchema);
 
                 if (!decision.requiresReply) {
-                    events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'email:skipped', data: { subject: target.subject, reason: decision.reason } });
-                    items.push({
-                        data: {
-                            id: target.id,
-                            subject: target.subject,
-                            sender: target.sender,
-                            action: 'ignore',
-                            draft: ''
-                        },
-                        contentParts: []
-                    });
-                    continue;
+                    return { target, targetContext, draft: '', skip: true, reason: decision.reason };
                 }
             }
 
+            const llm = await stepRow.createLlm(config.draftModel);
+            const currentDateStr = format(new Date(), "EEEE, yyyy-MM-dd HH:mm");
+            const promptParts: any[] = [
+                { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT },
+                { type: 'text' as const, text: `\n\n--- CURRENT DATE & TIME ---\nToday is ${currentDateStr}. Use this to understand relative time references (like "tomorrow", "next week") in the thread.` },
+                { type: 'text' as const, text: `\n\n--- INSPIRATION EXAMPLES ---\n${inspirationContext}` },
+                { type: 'text' as const, text: `\n\n--- CURRENT THREAD ---\n${targetContext}` }
+            ];
+
+            const draft = await llm.promptText({ prefix: promptParts });
+            return { target, targetContext, draft, skip: false };
+        };
+
+        // Start the first task immediately
+        let nextTaskPromise: Promise<PreparedDraft> | null = prepareDraft(targetEmails[0]);
+        // Catch errors on the background promise so it doesn't crash the process unhandled
+        nextTaskPromise.catch(() => {});
+
+        for (let i = 0; i < targetEmails.length; i++) {
+            // Wait for the current task to finish
+            const currentTask = await nextTaskPromise!;
+            const target = currentTask.target;
+
+            // Immediately kick off the NEXT task in the background (if there is one)
+            if (i + 1 < targetEmails.length) {
+                nextTaskPromise = prepareDraft(targetEmails[i + 1]);
+                nextTaskPromise.catch(() => {}); // Prevent unhandled rejections
+            } else {
+                nextTaskPromise = null;
+            }
+
+            events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'process:target', data: { subject: target.subject } });
+
+            if (currentTask.skip) {
+                events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'email:skipped', data: { subject: target.subject, reason: currentTask.reason } });
+                items.push({
+                    data: { id: target.id, subject: target.subject, sender: target.sender, action: 'ignore', draft: '' },
+                    contentParts: []
+                });
+                continue;
+            }
+
             let action: 'send' | 'ignore' | 'regenerate' | 'change_ai' | 'quit' = 'regenerate';
-            let finalDraft = '';
+            let finalDraft = currentTask.draft;
             let aiInstruction = '';
+            let isFirstReview = true;
 
             while (action === 'regenerate' || action === 'change_ai') {
-                events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'draft:generating', data: { subject: target.subject } });
-                
-                const llm = await stepRow.createLlm(config.draftModel);
-                const currentDateStr = format(new Date(), "EEEE, yyyy-MM-dd HH:mm");
-                const promptParts: any[] = [
-                    { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT },
-                    { type: 'text' as const, text: `\n\n--- CURRENT DATE & TIME ---\nToday is ${currentDateStr}. Use this to understand relative time references (like "tomorrow", "next week") in the thread.` },
-                    { type: 'text' as const, text: `\n\n--- INSPIRATION EXAMPLES ---\n${inspirationContext}` },
-                    { type: 'text' as const, text: `\n\n--- CURRENT THREAD ---\n${targetContext}` }
-                ];
+                if (!isFirstReview) {
+                    events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'draft:generating', data: { subject: target.subject } });
+                    
+                    const llm = await stepRow.createLlm(config.draftModel);
+                    const currentDateStr = format(new Date(), "EEEE, yyyy-MM-dd HH:mm");
+                    const promptParts: any[] = [
+                        { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT },
+                        { type: 'text' as const, text: `\n\n--- CURRENT DATE & TIME ---\nToday is ${currentDateStr}. Use this to understand relative time references (like "tomorrow", "next week") in the thread.` },
+                        { type: 'text' as const, text: `\n\n--- INSPIRATION EXAMPLES ---\n${inspirationContext}` },
+                        { type: 'text' as const, text: `\n\n--- CURRENT THREAD ---\n${currentTask.targetContext}` }
+                    ];
 
-                if (action === 'change_ai' && aiInstruction) {
-                    promptParts.push({ type: 'text' as const, text: `\n\n--- PREVIOUS DRAFT ---\n${finalDraft}` });
-                    promptParts.push({ type: 'text' as const, text: `\n\n--- USER INSTRUCTION ---\nPlease rewrite the previous draft according to this instruction: ${aiInstruction}` });
+                    if (action === 'change_ai' && aiInstruction) {
+                        promptParts.push({ type: 'text' as const, text: `\n\n--- PREVIOUS DRAFT ---\n${finalDraft}` });
+                        promptParts.push({ type: 'text' as const, text: `\n\n--- USER INSTRUCTION ---\nPlease rewrite the previous draft according to this instruction: ${aiInstruction}` });
+                    }
+
+                    finalDraft = await llm.promptText({ prefix: promptParts });
                 }
-
-                finalDraft = await llm.promptText({ prefix: promptParts });
+                isFirstReview = false;
 
                 if (config.interactive) {
-                    const reviewResult = await InteractiveReviewer.review(target.subject, targetContext, finalDraft);
+                    const reviewResult = await InteractiveReviewer.review(target.subject, currentTask.targetContext, finalDraft);
                     action = reviewResult.action;
                     finalDraft = reviewResult.text;
                     aiInstruction = reviewResult.instruction || '';
@@ -113,11 +156,18 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
 
             if (action === 'send') {
                 events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'email:sending', data: { subject: target.subject } });
-                await this.gmailClient.sendEmail({
+                
+                // Fire and forget the send operation (collect promise to await at the end)
+                const sendPromise = this.gmailClient.sendEmail({
                     replyToId: target.id,
                     htmlBody: finalDraft.replace(/\n/g, '<br>')
+                }).then(() => {
+                    events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'email:sent', data: { subject: target.subject } });
+                }).catch(err => {
+                    events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'error', data: { message: `Failed to send email: ${err.message}` } });
                 });
-                events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'email:sent', data: { subject: target.subject } });
+                
+                pendingSends.push(sendPromise);
             } else {
                 events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'email:ignored', data: { subject: target.subject } });
             }
@@ -132,6 +182,12 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                 },
                 contentParts: []
             });
+        }
+
+        // Wait for all background sends to complete before finishing the plugin
+        if (pendingSends.length > 0) {
+            events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'info', data: { message: `Waiting for ${pendingSends.length} background sends to complete...` } });
+            await Promise.all(pendingSends);
         }
 
         return {
