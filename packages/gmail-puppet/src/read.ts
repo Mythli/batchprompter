@@ -8,6 +8,14 @@ export interface ThreadMessage {
   htmlBody: string;
 }
 
+export interface ReadThreadOptions {
+  /**
+   * If true, the thread will be marked as unread after reading it.
+   * Defaults to true.
+   */
+  keepUnread?: boolean;
+}
+
 /**
  * Navigates to a specific thread and ensures it is fully loaded.
  * This is a shared utility for reading threads.
@@ -64,13 +72,35 @@ async function openThread(page: Page, threadId: string): Promise<void> {
 }
 
 /**
+ * Clicks the "Mark as unread" button from within an open thread view
+ * and waits for Gmail to navigate back to the list view.
+ */
+async function markCurrentThreadUnread(page: Page): Promise<void> {
+  // act="2" is the stable action code for "Mark as unread" in the thread view toolbar.
+  const unreadBtn = 'div[act="2"], div[aria-label="Mark as unread"], div[aria-label="Als ungelesen markieren"]';
+  await page.waitForSelector(unreadBtn, { visible: true, timeout: 5000 });
+
+  await page.evaluate((sel) => {
+    const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+    const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
+    if (visibleButton) visibleButton.click();
+  }, unreadBtn);
+
+  // When you mark a thread as unread from within the thread, Gmail automatically
+  // navigates back to the list view. Waiting for the list rows (tr.zA) confirms the action completed.
+  await page.waitForSelector('tr.zA', { timeout: 10000 });
+}
+
+/**
  * Reads an entire email thread and extracts all messages within it.
  *
  * @param page The authenticated Puppeteer Page.
  * @param threadId The internal Gmail ID of the thread to read.
+ * @param options Options for reading the thread.
  * @returns A Promise resolving to an array of messages in the thread.
  */
-export async function readThread(page: Page, threadId: string): Promise<ThreadMessage[]> {
+export async function readThread(page: Page, threadId: string, options: ReadThreadOptions = {}): Promise<ThreadMessage[]> {
+  const keepUnread = options.keepUnread ?? true;
   // console.log(`[readThread] Starting read process for threadId: "${threadId}"`);
   
   await openThread(page, threadId);
@@ -109,5 +139,29 @@ export async function readThread(page: Page, threadId: string): Promise<ThreadMe
 
   // console.log(`[readThread] Successfully extracted ${messages.length} messages from thread.`);
 
+  if (keepUnread) {
+    await markCurrentThreadUnread(page);
+  }
+
   return messages;
+}
+
+/**
+ * Changes the read status of a specific thread.
+ *
+ * @param page The authenticated Puppeteer Page.
+ * @param threadId The internal Gmail ID of the thread.
+ * @param read True to mark as read, false to mark as unread.
+ */
+export async function setThreadReadStatus(page: Page, threadId: string, read: boolean): Promise<void> {
+  // Navigating to the thread automatically opens it, which marks it as read in Gmail's backend.
+  await openThread(page, threadId);
+
+  if (read) {
+    // If the goal is to mark it as read, we are already done just by opening it.
+    return;
+  } else {
+    // If the goal is to mark it as unread, we must explicitly click the button.
+    await markCurrentThreadUnread(page);
+  }
 }
