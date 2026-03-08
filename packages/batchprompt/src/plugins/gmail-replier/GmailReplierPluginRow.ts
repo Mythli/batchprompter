@@ -45,7 +45,7 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
         const inspirationContext = await contextBuilder.buildInspirationContext(inspirationThreads);
 
         const items: PluginItem[] = [];
-        const pendingSends: Promise<void>[] = [];
+        const pendingBackgroundTasks: Promise<void>[] = [];
 
         // Helper to prepare a draft in the background
         const prepareDraft = async (target: EmailMetadata): Promise<PreparedDraft> => {
@@ -105,6 +105,13 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
 
             if (currentTask.skip) {
                 events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'email:skipped', data: { subject: target.subject, reason: currentTask.reason } });
+                
+                // Mark as read in background
+                const markReadPromise = this.gmailClient.setThreadReadStatus(target.id, true).catch(err => {
+                    events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'error', data: { message: `Failed to mark skipped email as read: ${err.message}` } });
+                });
+                pendingBackgroundTasks.push(markReadPromise);
+
                 items.push({
                     data: { id: target.id, subject: target.subject, sender: target.sender, action: 'ignore', draft: '' },
                     contentParts: []
@@ -167,9 +174,15 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                     events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'error', data: { message: `Failed to send email: ${err.message}` } });
                 });
                 
-                pendingSends.push(sendPromise);
-            } else {
+                pendingBackgroundTasks.push(sendPromise);
+            } else if (action === 'ignore') {
                 events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'email:ignored', data: { subject: target.subject } });
+                
+                // Mark as read in background
+                const markReadPromise = this.gmailClient.setThreadReadStatus(target.id, true).catch(err => {
+                    events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'error', data: { message: `Failed to mark ignored email as read: ${err.message}` } });
+                });
+                pendingBackgroundTasks.push(markReadPromise);
             }
 
             items.push({
@@ -184,10 +197,10 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
             });
         }
 
-        // Wait for all background sends to complete before finishing the plugin
-        if (pendingSends.length > 0) {
-            events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'info', data: { message: `Waiting for ${pendingSends.length} background sends to complete...` } });
-            await Promise.all(pendingSends);
+        // Wait for all background tasks to complete before finishing the plugin
+        if (pendingBackgroundTasks.length > 0) {
+            events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'info', data: { message: `Waiting for ${pendingBackgroundTasks.length} background tasks to complete...` } });
+            await Promise.all(pendingBackgroundTasks);
         }
 
         return {
