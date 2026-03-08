@@ -8,14 +8,19 @@ export interface GmailAuthOptions {
    * Default is 30000 (30 seconds).
    */
   timeout?: number;
+  /**
+   * The specific Gmail URL to navigate to. 
+   * If not provided, defaults to the base inbox URL.
+   */
+  targetUrl?: string;
 }
 
 /**
- * Ensures that the browser is authenticated with Gmail.
- * Navigates to Gmail, detects if redirected to the login page, and performs login if needed.
+ * Ensures that the browser is authenticated with Gmail and navigates to the target URL.
+ * Detects if redirected to the login page, and performs login if needed.
  * 
  * @param page The Puppeteer Page instance.
- * @param options Authentication options including email and password.
+ * @param options Authentication options including email, password, and targetUrl.
  * @returns A Promise that resolves to the authenticated Gmail Page (tab).
  */
 export async function ensureAuthenticatedGmail(
@@ -23,6 +28,7 @@ export async function ensureAuthenticatedGmail(
   options: GmailAuthOptions = {}
 ): Promise<Page> {
   const timeout = options.timeout ?? 30000;
+  const targetUrl = options.targetUrl ?? 'https://mail.google.com/mail/u/0/';
   
   // Auto-dismiss any unexpected JavaScript dialogs so they don't block execution
   page.on('dialog', async (dialog) => {
@@ -36,8 +42,9 @@ export async function ensureAuthenticatedGmail(
     }
   });
   
-  // Navigate to Gmail
-  await page.goto('https://mail.google.com/', { waitUntil: 'networkidle2', timeout });
+  // Navigate to the target URL. We use domcontentloaded because Gmail's SPA 
+  // has many persistent background connections that cause networkidle2 to timeout.
+  await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout });
 
   const currentUrl = page.url();
 

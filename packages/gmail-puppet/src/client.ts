@@ -1,6 +1,6 @@
 import type { Page } from 'puppeteer';
 import { ensureAuthenticatedGmail, GmailAuthOptions } from './auth.js';
-import { searchEmails, searchEmailsOnPage, EmailMetadata } from './search.js';
+import { searchEmailsOnPage, EmailMetadata } from './search.js';
 import { readThread, setThreadReadStatus, ThreadMessage, ReadThreadOptions } from './read.js';
 import { sendEmail, SendEmailOptions } from './send.js';
 
@@ -41,7 +41,8 @@ export class GmailClient {
         if (!this.authPromise) {
             this.authPromise = (async () => {
                 try {
-                    // Open a single temporary page just for authentication
+                    // Open a single temporary page just for authentication.
+                    // We don't pass a targetUrl here, so it defaults to the base inbox.
                     await this.options.usePage(async (page) => {
                         await ensureAuthenticatedGmail(page, this.options);
                     });
@@ -58,10 +59,10 @@ export class GmailClient {
     }
 
     /**
-     * Wrapper that guarantees the browser is authenticated BEFORE requesting a page for the actual task.
-     * Includes an exponential backoff retry mechanism to handle intermittent Gmail errors.
+     * Wrapper that guarantees the browser is authenticated and navigated to the target URL
+     * BEFORE executing the domain action. Includes an exponential backoff retry mechanism.
      */
-    private async withAuthenticatedPage<T>(action: (page: Page) => Promise<T>, maxRetries = 3): Promise<T> {
+    private async withAuthenticatedPage<T>(targetUrl: string, action: (page: Page) => Promise<T>, maxRetries = 3): Promise<T> {
         let attempt = 0;
         
         while (attempt < maxRetries) {
@@ -70,8 +71,26 @@ export class GmailClient {
                 // 1. Wait for global authentication (does not open a page if already auth'd or waiting)
                 await this.ensureGlobalAuth();
                 
-                // 2. Now that we are authenticated, request a page and execute the domain action
+                // 2. Request a page, navigate to the specific URL, and execute the action
                 return await this.options.usePage(async (page) => {
+                    // Navigate and ensure session is valid. If the session dropped, 
+                    // this will handle the redirect to accounts.google.com and log back in.
+                    await ensureAuthenticatedGmail(page, { ...this.options, targetUrl });
+                    
+                    // Check for common Gmail error pages to fail fast and trigger a retry
+                    const isErrorPage = await page.evaluate(() => {
+                        const bodyText = document.body.innerText || '';
+                        return bodyText.includes('Temporary Error') || 
+                               bodyText.includes('502. That’s an error.') ||
+                               bodyText.includes('Some Gmail features have failed to load');
+                    });
+
+                    if (isErrorPage) {
+                        throw new Error(`Gmail served an error page at ${targetUrl}`);
+                    }
+
+                    // The page is now authenticated, at the correct URL, and not an error page.
+                    // Execute the domain-specific scraping/interaction logic.
                     return await action(page);
                 });
             } catch (error) {
@@ -94,7 +113,9 @@ export class GmailClient {
         const numPages = Math.ceil(limit / pageSize);
 
         if (numPages <= 1) {
-            const results = await this.withAuthenticatedPage(page => searchEmailsOnPage(page, query, 1));
+            const targetHash = query ? `#search/${encodeURIComponent(query)}` : `#inbox`;
+            const targetUrl = `https://mail.google.com/mail/u/0/${targetHash}`;
+            const results = await this.withAuthenticatedPage(targetUrl, page => searchEmailsOnPage(page));
             return results.slice(0, limit);
         }
 
@@ -102,9 +123,12 @@ export class GmailClient {
 
         // Fetch all pages in parallel using the queue
         const pageResults = await Promise.all(
-            pageIndices.map(pageIndex =>
-                this.withAuthenticatedPage(page => searchEmailsOnPage(page, query, pageIndex))
-            )
+            pageIndices.map(pageIndex => {
+                const pageSuffix = pageIndex > 1 ? `/p${pageIndex}` : '';
+                const targetHash = query ? `#search/${encodeURIComponent(query)}${pageSuffix}` : `#inbox${pageSuffix}`;
+                const targetUrl = `https://mail.google.com/mail/u/0/${targetHash}`;
+                return this.withAuthenticatedPage(targetUrl, page => searchEmailsOnPage(page));
+            })
         );
 
         const allEmails: EmailMetadata[] = [];
@@ -120,15 +144,21 @@ export class GmailClient {
     }
 
     async readThread(threadId: string, options?: ReadThreadOptions): Promise<ThreadMessage[]> {
-        return this.withAuthenticatedPage(page => readThread(page, threadId, options));
+        const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
+        return this.withAuthenticatedPage(targetUrl, page => readThread(page, options));
     }
 
     async setThreadReadStatus(threadId: string, read: boolean): Promise<void> {
-        return this.withAuthenticatedPage(page => setThreadReadStatus(page, threadId, read));
+        const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
+        return this.withAuthenticatedPage(targetUrl, page => setThreadReadStatus(page, read));
     }
 
     async sendEmail(options: SendEmailOptions): Promise<void> {
-        return this.withAuthenticatedPage(page => sendEmail(page, options));
+        const targetUrl = options.replyToId 
+            ? `https://mail.google.com/mail/u/0/#inbox/${options.replyToId}`
+            : `https://mail.google.com/mail/u/0/#inbox`;
+            
+        return this.withAuthenticatedPage(targetUrl, page => sendEmail(page, options));
     }
 
     /**

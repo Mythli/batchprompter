@@ -22,6 +22,8 @@ export interface SendEmailOptions {
 
 /**
  * Sends an HTML email or replies to an existing thread.
+ * Assumes the page is already authenticated and navigated to the correct URL 
+ * (either the inbox for a new email, or the specific thread for a reply).
  * 
  * @param page The authenticated Puppeteer Page.
  * @param options Options containing the recipient, subject, HTML body, and optional reply ID.
@@ -32,23 +34,8 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
 
   if (options.replyToId) {
     // --- REPLY FLOW ---
-    // Navigate directly to the email thread using its ID
-    await page.goto(`https://mail.google.com/mail/u/0/#inbox/${options.replyToId}`, { waitUntil: 'networkidle2' });
-    
-    // Check for error page
-    const isErrorPage = await page.evaluate(() => {
-      const bodyText = document.body.innerText || '';
-      return bodyText.includes('Temporary Error') || 
-             bodyText.includes('502. That’s an error.') ||
-             bodyText.includes('Some Gmail features have failed to load');
-    });
-
-    if (isErrorPage) {
-      throw new Error(`Gmail served an error page while trying to reply to thread ${options.replyToId}.`);
-    }
-
-    // Wait for the email body to load to ensure the page is ready
-    await page.waitForSelector('.a3s', { timeout: 10000 });
+    // Wait for the email body to load to ensure the thread is ready
+    await page.waitForSelector('.a3s', { timeout: 15000 });
 
     // Click the Reply button. 
     // .ams.bkH is the "Reply" text button. .hB is the reply arrow icon.
@@ -69,24 +56,9 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
       throw new Error('The "to" and "subject" fields are required when sending a new email.');
     }
 
-    // Navigate to inbox to ensure the Compose button is available
-    await page.goto('https://mail.google.com/mail/u/0/#inbox', { waitUntil: 'networkidle2' });
-
-    // Check for error page
-    const isErrorPage = await page.evaluate(() => {
-      const bodyText = document.body.innerText || '';
-      return bodyText.includes('Temporary Error') || 
-             bodyText.includes('502. That’s an error.') ||
-             bodyText.includes('Some Gmail features have failed to load');
-    });
-
-    if (isErrorPage) {
-      throw new Error(`Gmail served an error page while navigating to inbox to compose email.`);
-    }
-
     // Click the "Compose" button (T-I-KE is the specific class for the primary compose button)
     const composeButtonSelector = 'div[role="button"].T-I-KE';
-    await page.waitForSelector(composeButtonSelector, { visible: true, timeout: 10000 });
+    await page.waitForSelector(composeButtonSelector, { visible: true, timeout: 15000 });
     await page.click(composeButtonSelector);
 
     // Wait for the "To" field inside the compose dialog.

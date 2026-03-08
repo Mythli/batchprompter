@@ -11,60 +11,22 @@ export interface EmailMetadata {
 
 /**
  * Fetches a specific page of search results from Gmail.
+ * Assumes the page is already authenticated and navigated to the correct search URL.
  * 
  * @param page The authenticated Puppeteer Page.
- * @param query Optional search query.
- * @param pageIndex The page number to fetch (1-based).
  * @returns A Promise resolving to an array of email metadata for that page.
  */
-export async function searchEmailsOnPage(page: Page, query?: string, pageIndex: number = 1): Promise<EmailMetadata[]> {
-  const pageSuffix = pageIndex > 1 ? `/p${pageIndex}` : '';
-  const targetHash = query ? `#search/${encodeURIComponent(query)}${pageSuffix}` : `#inbox${pageSuffix}`;
-  const currentUrl = page.url();
-  const currentHash = currentUrl.includes('#') ? currentUrl.substring(currentUrl.indexOf('#')) : '';
-
-  if (currentHash !== targetHash) {
-    // Mark current rows as stale so we don't accidentally scrape them before Gmail clears them
-    await page.evaluate(() => {
-      document.querySelectorAll('tr.zA').forEach(el => el.setAttribute('data-stale', 'true'));
-    });
-    
-    const targetUrl = `https://mail.google.com/mail/u/0/${targetHash}`;
-    
-    // Wait for network to settle after navigation (allows Gmail's background API calls to finish)
-    const networkPromise = page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => {});
-    await page.goto(targetUrl);
-    await networkPromise;
-
-    // Wait an extra moment for React/Closure to render the new DOM nodes
-    await new Promise(resolve => setTimeout(resolve, 1000));
-  } else {
-    // If we are already on the page, let's just ensure we wait a moment in case it's still loading
-    await new Promise(resolve => setTimeout(resolve, 500));
-  }
-
-  // Check for common Gmail error pages to fail fast and trigger a retry
-  const isErrorPage = await page.evaluate(() => {
-    const bodyText = document.body.innerText || '';
-    return bodyText.includes('Temporary Error') || 
-           bodyText.includes('502. That’s an error.') ||
-           bodyText.includes('Some Gmail features have failed to load');
-  });
-
-  if (isErrorPage) {
-    throw new Error(`Gmail served an error page during search.`);
-  }
-
+export async function searchEmailsOnPage(page: Page): Promise<EmailMetadata[]> {
   // Wait for new rows to appear, but don't fail if they don't (empty inbox or 0 search results)
   try {
-    await page.waitForSelector('tr.zA:not([data-stale="true"])', { timeout: 5000 });
+    await page.waitForSelector('tr.zA', { timeout: 5000 });
   } catch (e) {
     // No new rows found. It's either empty, or we've reached the end of the pagination.
     return [];
   }
 
-  // Extract metadata from the DOM. Strictly ignore stale rows.
-  const emails = await page.$$eval('tr.zA:not([data-stale="true"])', (rows) => {
+  // Extract metadata from the DOM.
+  const emails = await page.$$eval('tr.zA', (rows) => {
     return rows.map(row => {
       // Extract the internal Gmail ID (useful for direct navigation later)
       // Prioritize thread-id over message-id to ensure thread navigation works correctly
@@ -98,36 +60,5 @@ export async function searchEmailsOnPage(page: Page, query?: string, pageIndex: 
   return emails;
 }
 
-/**
- * Searches Gmail and extracts metadata from the resulting email list.
- * If no query is provided, it defaults to the inbox view.
- * Supports pagination to fetch up to the specified limit sequentially.
- * 
- * @param page The authenticated Puppeteer Page.
- * @param query Optional search query (e.g., "in:inbox", "from:boss@example.com").
- * @param limit Maximum number of emails to return (default: 50).
- * @returns A Promise resolving to an array of email metadata.
- */
-export async function searchEmails(page: Page, query?: string, limit: number = 50): Promise<EmailMetadata[]> {
-  const allEmails: EmailMetadata[] = [];
-  let currentPage = 1;
-
-  while (allEmails.length < limit) {
-    const emails = await searchEmailsOnPage(page, query, currentPage);
-    
-    if (emails.length === 0) {
-      break; // No more emails found on this page
-    }
-
-    // Add to our collection, avoiding duplicates just in case Gmail's pagination overlaps
-    for (const email of emails) {
-      if (!allEmails.find(e => e.id === email.id)) {
-        allEmails.push(email);
-      }
-    }
-
-    currentPage++;
-  }
-
-  return allEmails.slice(0, limit);
-}
+// Note: The searchEmails orchestration logic was moved to client.ts 
+// because it needs to manage multiple pages and URLs.
