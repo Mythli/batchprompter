@@ -25,11 +25,25 @@ async function markCurrentThreadUnread(page: Page): Promise<void> {
   const unreadBtn = 'div[act="2"], div[aria-label="Mark as unread"], div[aria-label="Als ungelesen markieren"]';
   await page.waitForSelector(unreadBtn, { visible: true, timeout: 5000 });
 
-  await page.evaluate((sel) => {
-    const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
-    const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
-    if (visibleButton) visibleButton.click();
-  }, unreadBtn);
+  // Use Puppeteer's native click to ensure trusted events (mousedown/mouseup) are fired,
+  // which Gmail's SPA requires. DOM .click() often fails here.
+  const buttons = await page.$$(unreadBtn);
+  let clicked = false;
+  for (const btn of buttons) {
+    const isVisible = await btn.evaluate((b) => {
+      const el = b as HTMLElement;
+      return el.offsetWidth > 0 && el.offsetHeight > 0;
+    });
+    if (isVisible) {
+      await btn.click();
+      clicked = true;
+      break;
+    }
+  }
+
+  if (!clicked) {
+    throw new Error('Could not find a visible "Mark as unread" button to click.');
+  }
 
   // When you mark a thread as unread from within the thread, Gmail automatically
   // navigates back to the list view. Waiting for the list rows (tr.zA) confirms the action completed.
@@ -52,10 +66,16 @@ export async function readThread(page: Page, options: ReadThreadOptions = {}): P
 
   // Expand all collapsed messages in the thread.
   // .kv is the stable Gmail class for a collapsed message header.
-  await page.evaluate(() => {
-    const collapsedHeaders = document.querySelectorAll('div.kv');
-    collapsedHeaders.forEach(header => (header as HTMLElement).click());
-  });
+  const collapsedHeaders = await page.$$('div.kv');
+  for (const header of collapsedHeaders) {
+    const isVisible = await header.evaluate((b) => {
+      const el = b as HTMLElement;
+      return el.offsetWidth > 0 && el.offsetHeight > 0;
+    });
+    if (isVisible) {
+      await header.click().catch(() => {});
+    }
+  }
 
   // Wait for the expansion animations to finish by checking if collapsed headers are gone or bodies are visible
   await page.waitForFunction(() => {

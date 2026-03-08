@@ -43,12 +43,18 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
     const replyButtonSelector = '.ams.bkH, div[role="button"].hB';
     await page.waitForSelector(replyButtonSelector, { visible: true, timeout: 5000 });
     
-    // Click the first visible reply button
-    await page.evaluate((sel) => {
-      const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
-      const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
-      if (visibleButton) visibleButton.click();
-    }, replyButtonSelector);
+    // Click the first visible reply button using native Puppeteer click
+    const replyButtons = await page.$$(replyButtonSelector);
+    for (const btn of replyButtons) {
+      const isVisible = await btn.evaluate((b) => {
+        const el = b as HTMLElement;
+        return el.offsetWidth > 0 && el.offsetHeight > 0;
+      });
+      if (isVisible) {
+        await btn.click();
+        break;
+      }
+    }
 
   } else {
     // --- NEW EMAIL FLOW ---
@@ -116,16 +122,22 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
     return el && el.innerHTML.length > 0;
   }, { timeout: 5000 }, bodySelector).catch(() => {});
 
-  // Click Send
+  // Click Send using native Puppeteer click
   // .T-I-atl is the stable, long-standing class for the primary (blue) action button in Gmail.
   const sendButtonSelector = 'div[role="button"].T-I-atl';
   await page.waitForSelector(sendButtonSelector, { visible: true, timeout: 5000 });
   
-  await page.evaluate((sel) => {
-    const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
-    const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
-    if (visibleButton) visibleButton.click();
-  }, sendButtonSelector);
+  const sendButtons = await page.$$(sendButtonSelector);
+  for (const btn of sendButtons) {
+    const isVisible = await btn.evaluate((b) => {
+      const el = b as HTMLElement;
+      return el.offsetWidth > 0 && el.offsetHeight > 0;
+    });
+    if (isVisible) {
+      await btn.click();
+      break;
+    }
+  }
 
   // Wait for the send button to disappear, indicating the compose window closed and the email is sending
   try {
