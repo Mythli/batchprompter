@@ -35,6 +35,18 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
     // Navigate directly to the email thread using its ID
     await page.goto(`https://mail.google.com/mail/u/0/#inbox/${options.replyToId}`, { waitUntil: 'networkidle2' });
     
+    // Check for error page
+    const isErrorPage = await page.evaluate(() => {
+      const bodyText = document.body.innerText || '';
+      return bodyText.includes('Temporary Error') || 
+             bodyText.includes('502. That’s an error.') ||
+             bodyText.includes('Some Gmail features have failed to load');
+    });
+
+    if (isErrorPage) {
+      throw new Error(`Gmail served an error page while trying to reply to thread ${options.replyToId}.`);
+    }
+
     // Wait for the email body to load to ensure the page is ready
     await page.waitForSelector('.a3s', { timeout: 10000 });
 
@@ -59,6 +71,18 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
 
     // Navigate to inbox to ensure the Compose button is available
     await page.goto('https://mail.google.com/mail/u/0/#inbox', { waitUntil: 'networkidle2' });
+
+    // Check for error page
+    const isErrorPage = await page.evaluate(() => {
+      const bodyText = document.body.innerText || '';
+      return bodyText.includes('Temporary Error') || 
+             bodyText.includes('502. That’s an error.') ||
+             bodyText.includes('Some Gmail features have failed to load');
+    });
+
+    if (isErrorPage) {
+      throw new Error(`Gmail served an error page while navigating to inbox to compose email.`);
+    }
 
     // Click the "Compose" button (T-I-KE is the specific class for the primary compose button)
     const composeButtonSelector = 'div[role="button"].T-I-KE';

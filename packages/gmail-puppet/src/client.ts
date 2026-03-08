@@ -59,15 +59,34 @@ export class GmailClient {
 
     /**
      * Wrapper that guarantees the browser is authenticated BEFORE requesting a page for the actual task.
+     * Includes an exponential backoff retry mechanism to handle intermittent Gmail errors.
      */
-    private async withAuthenticatedPage<T>(action: (page: Page) => Promise<T>): Promise<T> {
-        // 1. Wait for global authentication (does not open a page if already auth'd or waiting)
-        await this.ensureGlobalAuth();
+    private async withAuthenticatedPage<T>(action: (page: Page) => Promise<T>, maxRetries = 3): Promise<T> {
+        let attempt = 0;
         
-        // 2. Now that we are authenticated, request a page and execute the domain action
-        return this.options.usePage(async (page) => {
-            return action(page);
-        });
+        while (attempt < maxRetries) {
+            attempt++;
+            try {
+                // 1. Wait for global authentication (does not open a page if already auth'd or waiting)
+                await this.ensureGlobalAuth();
+                
+                // 2. Now that we are authenticated, request a page and execute the domain action
+                return await this.options.usePage(async (page) => {
+                    return await action(page);
+                });
+            } catch (error) {
+                if (attempt >= maxRetries) {
+                    console.error(`[GmailClient] Action failed after ${maxRetries} attempts. Throwing error.`);
+                    throw error;
+                }
+                
+                const backoffMs = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+                console.warn(`[GmailClient] Action failed on attempt ${attempt}/${maxRetries}. Retrying in ${backoffMs}ms... Error: ${(error as Error).message}`);
+                
+                await new Promise(resolve => setTimeout(resolve, backoffMs));
+            }
+        }
+        throw new Error("Unreachable");
     }
 
     async searchEmails(query?: string, limit: number = 50): Promise<EmailMetadata[]> {

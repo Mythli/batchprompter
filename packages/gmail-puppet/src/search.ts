@@ -43,6 +43,18 @@ export async function searchEmailsOnPage(page: Page, query?: string, pageIndex: 
     await new Promise(resolve => setTimeout(resolve, 500));
   }
 
+  // Check for common Gmail error pages to fail fast and trigger a retry
+  const isErrorPage = await page.evaluate(() => {
+    const bodyText = document.body.innerText || '';
+    return bodyText.includes('Temporary Error') || 
+           bodyText.includes('502. That’s an error.') ||
+           bodyText.includes('Some Gmail features have failed to load');
+  });
+
+  if (isErrorPage) {
+    throw new Error(`Gmail served an error page during search.`);
+  }
+
   // Wait for new rows to appear, but don't fail if they don't (empty inbox or 0 search results)
   try {
     await page.waitForSelector('tr.zA:not([data-stale="true"])', { timeout: 5000 });

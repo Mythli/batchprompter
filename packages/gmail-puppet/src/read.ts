@@ -24,6 +24,18 @@ async function openThread(page: Page, threadId: string): Promise<void> {
   const currentUrl = page.url();
   // console.log(`[openThread] Navigation finished. Current URL is: ${currentUrl}`);
 
+  // Check for common Gmail error pages to fail fast and trigger a retry
+  const isErrorPage = await page.evaluate(() => {
+    const bodyText = document.body.innerText || '';
+    return bodyText.includes('Temporary Error') || 
+           bodyText.includes('502. That’s an error.') ||
+           bodyText.includes('Some Gmail features have failed to load');
+  });
+
+  if (isErrorPage) {
+    throw new Error(`Gmail served an error page for thread ${threadId}.`);
+  }
+
   if (!currentUrl.includes(threadId)) {
     // console.warn(`[openThread] WARNING: Gmail redirected away from the thread! Expected ${threadId} in URL, but got ${currentUrl}`);
   }
