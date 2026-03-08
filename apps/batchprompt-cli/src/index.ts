@@ -12,7 +12,8 @@ import {
     resolveRawConfig,
     createPipeline,
     createPipelineSchema,
-    zJsonSchemaObject
+    zJsonSchemaObject,
+    DebugLogger
 } from 'batchprompt';
 import { getDiContainer } from './getDiContainer.js';
 import { StepRegistry } from './StepRegistry.js';
@@ -98,6 +99,9 @@ generateCmd.action(async (prompts, options) => {
             contentResolver: cliDeps.contentResolver,
             pluginRegistry: cliDeps.pluginRegistry
         });
+
+        // Initialize logger with the fully resolved log level
+        new DebugLogger(cliDeps.events, globalConfig.logLevel as any);
 
         // 7. Run pipeline
         const pipeline = createPipeline(cliDeps, globalConfig);
@@ -187,6 +191,9 @@ program.command('init')
 
             const cliDeps = await getDiContainer();
             puppeteerHelperInstance = cliDeps.puppeteerHelper;
+
+            // Keep init relatively quiet but show errors/warnings
+            new DebugLogger(cliDeps.events, 'warn');
 
             // Create LLM clients for the refiner
             const generatorLlm = cliDeps.llmFactory.create(

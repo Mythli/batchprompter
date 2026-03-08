@@ -18,6 +18,7 @@ export class StepRegistry {
         program.option('--task-concurrency <number>', 'Task concurrency (default: 100)', parseInt);
         program.option('--data-output-path <path>', 'Path to save processed data');
         program.option('--timeout <seconds>', 'Default timeout per step', parseInt);
+        program.option('--log-level <level>', 'Log level: debug, info, warn, error, silent');
 
         // Global output
         program.option('--output-path <path>', 'Template path for output files');

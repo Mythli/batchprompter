@@ -23,6 +23,8 @@ export class CliConfigBuilder {
         if (options.taskConcurrency) config.taskConcurrency = parseInt(String(options.taskConcurrency), 10);
         if (options.dataOutputPath) config.dataOutputPath = options.dataOutputPath;
         if (options.timeout) config.timeout = parseInt(String(options.timeout), 10);
+        
+        config.logLevel = options.logLevel || config.logLevel || process.env.BATCHPROMPT_LOG_LEVEL || process.env.LOG_LEVEL || 'info';
 
         // Global output
         if (options.outputPath || options.outputMode || options.outputColumn || options.outputExplode || options.outputTmpDir || options.outputLimit !== undefined || options.outputOffset !== undefined) {

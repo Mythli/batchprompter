@@ -145,6 +145,7 @@ export const GlobalsSchema = z.preprocess((val: unknown) => {
     inputLimit: z.number().int().positive().optional(),
     inputOffset: z.number().int().min(0).optional(),
     dataOutputPath: z.string().optional(),
+    logLevel: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
     steps: z.array(StepSchema)
 }));
 
@@ -152,6 +153,7 @@ export type GlobalConfig = Omit<z.infer<typeof GlobalsSchema>, 'output' | 'steps
     output: OutputConfig;
     steps: StepConfig[];
     dataOutputPath?: string;
+    logLevel: 'debug' | 'info' | 'warn' | 'error' | 'silent';
     [key: string]: any;
 };
 
@@ -169,6 +171,7 @@ export function normalizePipelineConfig(config: any): any {
         inputLimit,
         inputOffset,
         dataOutputPath,
+        logLevel,
         ...globalDefaults
     } = config;
 
@@ -268,6 +271,7 @@ export const createPipelineSchema = (pluginRegistry: PluginRegistryV2) => {
         inputLimit: z.number().int().positive().optional(),
         inputOffset: z.number().int().min(0).optional(),
         dataOutputPath: z.string().optional(),
+        logLevel: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
         steps: z.array(finalStepSchema)
     })).transform(normalizePipelineConfig);
 

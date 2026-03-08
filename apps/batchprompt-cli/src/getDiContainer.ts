@@ -1,4 +1,4 @@
-import { initConfig, BatchPromptDeps, DebugLogger } from 'batchprompt';
+import { initConfig, BatchPromptDeps } from 'batchprompt';
 import { FileSystemContentResolver } from './io/FileSystemContentResolver.js';
 import { ContentResolver } from 'batchprompt';
 import { ShellPlugin } from './plugins/ShellPlugin.js';
@@ -24,7 +24,6 @@ export const getDiContainer = async (): Promise<CliDeps> => {
     deps.pluginRegistry.registerFactory('shell-command', () => new ShellPlugin());
 
     // Setup CLI-specific event handlers
-    new DebugLogger(deps.events);
     const artifactHandler = new FileSystemArtifactHandler(deps.events, path.join(process.cwd(), '.tmp'));
 
     cliDepsInstance = {

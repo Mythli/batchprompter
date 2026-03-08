@@ -1,13 +1,33 @@
 import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from '../events.js';
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'silent';
+
+const SEVERITY = {
+    debug: 0,
+    info: 1,
+    warn: 2,
+    error: 3,
+    silent: 4
+};
+
 export class DebugLogger {
-    constructor(private events: EventEmitter<BatchPromptEvents>) {
+    constructor(private events: EventEmitter<BatchPromptEvents>, private level: LogLevel = 'info') {
         this.setupListeners();
+    }
+
+    private shouldLog(level: LogLevel): boolean {
+        return SEVERITY[level] >= SEVERITY[this.level];
     }
 
     private setupListeners() {
         this.events.on('step:progress', (payload) => {
+            let msgLevel: LogLevel = 'info';
+            if (payload.type === 'error') msgLevel = 'error';
+            else if (payload.type === 'warn') msgLevel = 'warn';
+            
+            if (!this.shouldLog(msgLevel)) return;
+
             const prefix = payload.row >= 0 ? `[Row ${payload.row}] Step ${payload.step}` : `[Global]`;
 
             switch (payload.type) {
@@ -48,6 +68,8 @@ export class DebugLogger {
         });
 
         this.events.on('step:resolved', (payload) => {
+            if (!this.shouldLog('debug')) return;
+            
             const prefix = `[Row ${payload.row}] Step ${payload.step}`;
 
             // Log Prompt Summary
@@ -71,14 +93,21 @@ export class DebugLogger {
         });
 
         this.events.on('validation:failed', (payload) => {
+            if (!this.shouldLog('warn')) return;
+
             const prefix = `[Row ${payload.row}] Step ${payload.step}`;
-            console.log(`${prefix} [Validation] ❌ Schema Violation`);
-            console.log(`${prefix} [Validation] Expected Schema: ${JSON.stringify(payload.schema)}`);
-            console.log(`${prefix} [Validation] Received Data: ${JSON.stringify(payload.data)}`);
-            console.log(`${prefix} [Validation] Errors: ${JSON.stringify(payload.errors)}`);
+            console.warn(`${prefix} [Validation] ❌ Schema Violation`);
+            console.warn(`${prefix} [Validation] Expected Schema: ${JSON.stringify(payload.schema)}`);
+            console.warn(`${prefix} [Validation] Received Data: ${JSON.stringify(payload.data)}`);
+            console.warn(`${prefix} [Validation] Errors: ${JSON.stringify(payload.errors)}`);
         });
 
         this.events.on('plugin:event', (payload) => {
+            let msgLevel: LogLevel = 'info';
+            if (payload.event === 'error' || payload.event === 'send:error') msgLevel = 'error';
+            
+            if (!this.shouldLog(msgLevel)) return;
+
             const prefix = `[Row ${payload.row}] [${payload.plugin}]`;
             const data = payload.data;
 
@@ -98,7 +127,7 @@ export class DebugLogger {
                 } else if (payload.event === 'batch') {
                     console.log(`${prefix} 📦 Processing batch: ${data.urls?.join(', ')}`);
                 } else if (payload.event === 'error') {
-                    console.warn(`${prefix} ⚠️ Error: ${data.message}`);
+                    console.error(`${prefix} ⚠️ Error: ${data.message}`);
                 }
             } else if (payload.plugin === 'dedupe') {
                 if (payload.event === 'duplicate:found') {
@@ -108,7 +137,7 @@ export class DebugLogger {
                 }
             } else if (payload.plugin === 'validation') {
                 if (payload.event === 'validation:failed') {
-                    console.log(`${prefix} ❌ Failed (${data.source}): ${data.errors}`);
+                    console.warn(`${prefix} ❌ Failed (${data.source}): ${data.errors}`);
                 } else if (payload.event === 'validation:passed') {
                     console.log(`${prefix} ✅ Passed (${data.source})`);
                 }
@@ -158,7 +187,7 @@ export class DebugLogger {
                     const subject = data.subject ? ` | Subject: "${data.subject}"` : '';
                     console.log(`${prefix} ✅ Email sent successfully to ${target}${subject}.`);
                 } else if (payload.event === 'send:error') {
-                    console.log(`${prefix} ❌ Failed to send email: ${data.error}`);
+                    console.error(`${prefix} ❌ Failed to send email: ${data.error}`);
                 }
             } else {
                 // Default fallback
@@ -172,6 +201,7 @@ export class DebugLogger {
         });
 
         this.events.on('row:error', (payload) => {
+            if (!this.shouldLog('error')) return;
             console.error(`[Row ${payload.index}] ❌ Failed: ${payload.error.message}`);
             console.error(payload.error);
         });
