@@ -10,10 +10,17 @@ export interface ThreadMessage {
 
 export interface ReadThreadOptions {
   /**
-   * If true, the thread will be marked as unread after reading it.
-   * Defaults to true.
+   * The desired read status of the thread after reading.
+   * If true, the thread will be marked/left as read.
+   * If false, the thread will be marked as unread.
+   * Defaults to false (mark as unread) to prevent accidental state changes.
    */
-  keepUnread?: boolean;
+  setReadStatus?: boolean;
+  /**
+   * Indicates if the thread was unread before we opened it.
+   * Used to optimize background sync waiting.
+   */
+  wasUnread?: boolean;
 }
 
 /**
@@ -59,7 +66,7 @@ async function markCurrentThreadUnread(page: Page): Promise<void> {
  * @returns A Promise resolving to an array of messages in the thread.
  */
 export async function readThread(page: Page, options: ReadThreadOptions = {}): Promise<ThreadMessage[]> {
-  const keepUnread = options.keepUnread ?? true;
+  const setReadStatus = options.setReadStatus ?? false;
 
   // Wait for the message body to load to ensure the thread is ready
   await page.waitForSelector('.a3s', { timeout: 15000 });
@@ -105,9 +112,16 @@ export async function readThread(page: Page, options: ReadThreadOptions = {}): P
     }).filter(msg => msg.htmlBody !== ''); // Filter out any empty blocks that might have been caught
   });
 
-  if (keepUnread) {
+  if (setReadStatus === false) {
+    // We want it to be unread. Opening it marked it as read, so we must explicitly mark it unread.
     await markCurrentThreadUnread(page);
+  } else if (options.wasUnread === true) {
+    // We want it to be read, and it WAS unread before.
+    // Opening it changed the state to read. Wait for Gmail's background sync to register the new status.
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => {});
   }
+  // If setReadStatus === true AND wasUnread === false, it was already read.
+  // Opening it changed nothing. We do absolutely nothing and return instantly!
 
   return messages;
 }

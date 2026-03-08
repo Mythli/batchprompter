@@ -178,7 +178,8 @@ export class GmailClient {
         const threads = await Promise.all(
             searchResults.map(async (metadata) => {
                 const messages = await this.readThread(metadata.id, { 
-                    keepUnread: false 
+                    setReadStatus: true, // We don't care about keeping inspiration emails unread
+                    wasUnread: metadata.isUnread 
                 });
                 return {
                     ...metadata,

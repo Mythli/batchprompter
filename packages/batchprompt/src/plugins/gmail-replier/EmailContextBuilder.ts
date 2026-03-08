@@ -22,7 +22,8 @@ export class EmailContextBuilder {
 
     async buildTargetContext(email: EmailMetadata): Promise<string> {
         const thread = await this.gmailClient.readThread(email.id, { 
-            keepUnread: email.isUnread
+            setReadStatus: !email.isUnread, // If it was unread, keep it unread (false). If it was read, keep it read (true).
+            wasUnread: email.isUnread
         });
         let context = `Subject: ${email.subject}\n\n`;
         for (const msg of thread) {
