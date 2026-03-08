@@ -69,7 +69,7 @@ export async function dismissCookieBanners(page: Page): Promise<void> {
     const keywords = /accept|agree|consent|allow|got it|i understand|akzeptieren|zustimmen|einverstanden|erlauben|zulassen|verstanden|schliessen|schließen|close/i;
 
     let bannerClicked = false;
-    console.log('Searching for all cookie banners to dismiss...');
+    // console.log('Searching for all cookie banners to dismiss...');
 
     // Find all potential clickable elements on the page first.
     const clickableElements = await page.$$('button, a, [role="button"]');
@@ -81,25 +81,25 @@ export async function dismissCookieBanners(page: Page): Promise<void> {
 
             if (keywords.test(text)) {
                 if (await element.isIntersectingViewport()) {
-                    console.log(`Found potential cookie button with text: "${text}". Clicking...`);
+                    // console.log(`Found potential cookie button with text: "${text}". Clicking...`);
                     await element.click();
                     bannerClicked = true;
                 }
             }
         } catch (error: any) {
             if (error.message.includes('Node is detached from the DOM')) {
-                console.log('Skipping an element that disappeared after a previous click.');
+                // console.log('Skipping an element that disappeared after a previous click.');
             } else {
-                console.warn(`An error occurred while clicking an element, but continuing search: ${error.message}`);
+                // console.warn(`An error occurred while clicking an element, but continuing search: ${error.message}`);
             }
         }
     }
 
     if (bannerClicked) {
-        console.log('Finished attempting all clicks. Waiting for animations to complete...');
+        // console.log('Finished attempting all clicks. Waiting for animations to complete...');
         await new Promise(resolve => setTimeout(resolve, 250));
     } else {
-        console.log('No actionable cookie banners were found.');
+        // console.log('No actionable cookie banners were found.');
     }
 }
 
@@ -131,9 +131,9 @@ export class PuppeteerPageHelper {
 
     private requestHandler = (request: HTTPRequest) => {
         if (['stylesheet', 'font', 'image', 'media'].includes(request.resourceType())) {
-            request.abort().catch(e => console.warn(`Could not abort request ${request.url()}: ${e.message}`));
+            request.abort().catch(e => { /* console.warn(`Could not abort request ${request.url()}: ${e.message}`) */ });
         } else {
-            request.continue().catch(e => console.warn(`Could not continue request ${request.url()}: ${e.message}`));
+            request.continue().catch(e => { /* console.warn(`Could not continue request ${request.url()}: ${e.message}`) */ });
         }
     };
 
@@ -162,7 +162,7 @@ export class PuppeteerPageHelper {
         this.page.on('request', this.requestHandler);
         await this.page.setRequestInterception(true);
         this.isInterceptionEnabled = true;
-        console.log('HTML-only mode enabled. Blocking non-essential resources.');
+        // console.log('HTML-only mode enabled. Blocking non-essential resources.');
     }
 
     /**
@@ -174,7 +174,7 @@ export class PuppeteerPageHelper {
 
         // Automatically dismiss dialogs (alerts, confirms, beforeunload)
         this.page.on('dialog', async (dialog) => {
-            console.log(`[Puppeteer] Dismissing dialog: ${dialog.message()}`);
+            // console.log(`[Puppeteer] Dismissing dialog: ${dialog.message()}`);
             await dialog.dismiss();
         });
 
@@ -204,7 +204,7 @@ export class PuppeteerPageHelper {
                         content: text,
                     });
                 } catch (e: any) {
-                    console.warn(`Could not get CSS text for stylesheet ${header.sourceURL || header.styleSheetId}: ${e.message}`);
+                    // console.warn(`Could not get CSS text for stylesheet ${header.sourceURL || header.styleSheetId}: ${e.message}`);
                 }
             })();
             this.cssPromises.push(promise);
@@ -220,14 +220,14 @@ export class PuppeteerPageHelper {
     async navigateToUrlAndGetHtml(url: string, options: PageNavigationOptions = {}): Promise<string> {
         const response = await this.navigateToUrl(url, options);
         if (!response) {
-            console.warn(`[PuppeteerPageHelper] Navigation to ${url} did not return a response (likely timeout). Returning current page content.`);
+            // console.warn(`[PuppeteerPageHelper] Navigation to ${url} did not return a response (likely timeout). Returning current page content.`);
             return this.getFinalHtml();
         }
         try {
             const originalHtml = await response.text();
             return originalHtml;
         } catch (e) {
-            console.warn(`[PuppeteerPageHelper] Could not get text from response. Returning current page content.`);
+            // console.warn(`[PuppeteerPageHelper] Could not get text from response. Returning current page content.`);
             return this.getFinalHtml();
         }
     }
@@ -239,7 +239,7 @@ export class PuppeteerPageHelper {
             if (resolution) {
                 const currentViewport = this.page.viewport();
                 if (!currentViewport || currentViewport.width !== resolution.width || currentViewport.height !== resolution.height) {
-                    console.log(`Setting viewport to ${resolution.width}x${resolution.height}`);
+                    // console.log(`Setting viewport to ${resolution.width}x${resolution.height}`);
                     await this.page.setViewport(resolution as Viewport);
                 }
             }
@@ -247,7 +247,7 @@ export class PuppeteerPageHelper {
             if (htmlOnly) {
                 await this.enableHtmlMode();
             }
-            console.log(`Navigating to URL: ${url}`);
+            // console.log(`Navigating to URL: ${url}`);
             const response = await this.page.goto(url, {waitUntil: 'networkidle0', timeout: htmlOnly ? 10000 : 30000});
             // if (!response) {
             //     throw new Error(`Failed to get a response from ${url}`);
@@ -260,7 +260,7 @@ export class PuppeteerPageHelper {
         }
         catch(error: any) {
             if(error.name === 'TimeoutError') {
-                console.warn(`[PuppeteerPageHelper] Navigation timeout for ${url}: ${error.message}`);
+                // console.warn(`[PuppeteerPageHelper] Navigation timeout for ${url}: ${error.message}`);
                 return null;
             } else {
                 throw error;
@@ -288,7 +288,7 @@ export class PuppeteerPageHelper {
         if (this.cache) {
             const cachedResult = await this.cache.get<T>(cacheKey);
             if (cachedResult) {
-                console.log(`[Cache] HIT for key: ${cacheKey}`);
+                // console.log(`[Cache] HIT for key: ${cacheKey}`);
                 // Do NOT navigate, just return the cached result.
                 // The 'closePage' logic is handled in the finally block of the caller of this cache hit.
                 // But if the caller of this wants the page closed, we should respect that.
@@ -300,7 +300,7 @@ export class PuppeteerPageHelper {
                 }
                 return cachedResult;
             }
-            console.log(`[Cache] MISS for key: ${cacheKey}. Navigating and executing action.`);
+            // console.log(`[Cache] MISS for key: ${cacheKey}. Navigating and executing action.`);
         }
 
         try {
@@ -318,7 +318,7 @@ export class PuppeteerPageHelper {
 
             if (this.cache) {
                 await this.cache.set(cacheKey, result, ttl);
-                console.log(`[Cache] SET for key: ${cacheKey}`);
+                // console.log(`[Cache] SET for key: ${cacheKey}`);
             }
 
             return result;
@@ -327,7 +327,7 @@ export class PuppeteerPageHelper {
         } finally {
             if (closePage) {
                 await this.close();
-                console.log('yeah');
+                // console.log('yeah');
             }
         }
     }
@@ -370,7 +370,7 @@ export class PuppeteerPageHelper {
 
         // The most critical check is for 'about:blank' which is the initial state.
         if (currentPageUrl === 'about:blank') {
-            console.log(`[ensurePageAtUrl] Page is at about:blank, navigating to ${url}...`);
+            // console.log(`[ensurePageAtUrl] Page is at about:blank, navigating to ${url}...`);
             await this.navigateToUrl(url, options);
             return;
         }
@@ -392,7 +392,7 @@ export class PuppeteerPageHelper {
      * @param html The HTML content to set.
      */
     async setHtmlContent(html: string): Promise<void> {
-        console.log(`Setting page content from HTML...`);
+        // console.log(`Setting page content from HTML...`);
         await this.page.setContent(html, { waitUntil: 'networkidle0' });
     }
 
@@ -423,7 +423,7 @@ export class PuppeteerPageHelper {
                 )
             ]);
         } catch (e: any) {
-            console.warn(`[PuppeteerPageHelper] page.content() failed or timed out: ${e.message}. Trying fallback JS evaluation.`);
+            // console.warn(`[PuppeteerPageHelper] page.content() failed or timed out: ${e.message}. Trying fallback JS evaluation.`);
 
             try {
                 // 2. Fallback: Try to get HTML via JS evaluation.
@@ -436,7 +436,7 @@ export class PuppeteerPageHelper {
                 ]);
                 return html as string;
             } catch (fallbackError: any) {
-                console.error(`[PuppeteerPageHelper] Critical: Failed to get HTML content via fallback: ${fallbackError.message}`);
+                // console.error(`[PuppeteerPageHelper] Critical: Failed to get HTML content via fallback: ${fallbackError.message}`);
                 // 3. Throw error to ensure the process moves on and doesn't hang.
                 throw new Error(`Failed to get page content: ${fallbackError.message}`);
             }
@@ -448,7 +448,7 @@ export class PuppeteerPageHelper {
      * @returns A promise that resolves to an array of objects, each containing the `href` and cropped `text` of a link.
      */
     public async extractLinksWithText(): Promise<LinkData[]> {
-        console.log('Extracting all links with anchor text from the page...');
+        // console.log('Extracting all links with anchor text from the page...');
         const links = await this.page.evaluate(() => {
             const linkData: { href: string; text: string; }[] = [];
             const anchors = Array.from(document.querySelectorAll('a'));
@@ -475,11 +475,11 @@ export class PuppeteerPageHelper {
         for (const resolution of resolutions) {
             const currentViewport = this.page.viewport();
             if (!currentViewport || currentViewport.width !== resolution.width || currentViewport.height !== resolution.height) {
-                console.log(`Setting viewport to ${resolution.width}x${resolution.height}`);
+                // console.log(`Setting viewport to ${resolution.width}x${resolution.height}`);
                 await this.page.setViewport(resolution as Viewport);
                 await new Promise(resolve => setTimeout(resolve, 50)); // Wait for viewport to resize
             } else {
-                console.log(`Viewport already at ${resolution.width}x${resolution.height}, not changing.`);
+                // console.log(`Viewport already at ${resolution.width}x${resolution.height}, not changing.`);
             }
 
             const screenshotBuffer = await this.page.screenshot({
@@ -495,7 +495,7 @@ export class PuppeteerPageHelper {
 
     private async _fetchAndEvaluateResource(url: string): Promise<PageFetchResult> {
         try {
-            console.log(`Fetching resource in page context: ${url}`);
+            // console.log(`Fetching resource in page context: ${url}`);
             const currentPageUrl = this.page.url();
 
             // This function runs in the browser context
@@ -585,7 +585,7 @@ export class PuppeteerPageHelper {
                 finalUrl: result.finalUrl,
             };
         } catch (e: any) {
-            console.warn(`[Fallback] Puppeteer fetch failed for ${url}. Reason: ${e.message}. Falling back to system fetcher.`);
+            // console.warn(`[Fallback] Puppeteer fetch failed for ${url}. Reason: ${e.message}. Falling back to system fetcher.`);
             if (this.fetcher) {
                 try {
                     const response = await this.fetcher(url);
@@ -607,12 +607,12 @@ export class PuppeteerPageHelper {
                         finalUrl: response.url,
                     };
                 } catch (fallbackError: any) {
-                    console.error(`[Fallback] System fetcher also failed for ${url}. Reason: ${fallbackError.message}`);
+                    // console.error(`[Fallback] System fetcher also failed for ${url}. Reason: ${fallbackError.message}`);
                     // Re-throw the original error to not mask the Puppeteer issue
                     throw e;
                 }
             } else {
-                console.error(`[Fallback] Puppeteer fetch failed, and no fallback fetcher is configured.`);
+                // console.error(`[Fallback] Puppeteer fetch failed, and no fallback fetcher is configured.`);
                 throw e; // Re-throw original error
             }
         }
@@ -656,7 +656,7 @@ export class PuppeteerPageHelper {
         const cached = await this.cache.get<PageFetchResult>(cacheKey);
 
         if (cached) {
-            console.log(`[Cache] HIT for resource: ${url}`);
+            // console.log(`[Cache] HIT for resource: ${url}`);
             const body = Buffer.from(cached.base64, 'base64');
             return new CachedResponse(
                 body,
@@ -665,13 +665,13 @@ export class PuppeteerPageHelper {
             );
         }
 
-        console.log(`[Cache] MISS for resource: ${url}. Fetching...`);
+        // console.log(`[Cache] MISS for resource: ${url}. Fetching...`);
         const result = await this._fetchAndEvaluateResource(url);
 
         // Only cache successful responses
         if (result.status >= 200 && result.status < 400) {
             await this.cache.set(cacheKey, result, ttl);
-            console.log(`[Cache] SET for resource: ${url}`);
+            // console.log(`[Cache] SET for resource: ${url}`);
         }
 
         const body = Buffer.from(result.base64, 'base64');
@@ -696,7 +696,7 @@ export class PuppeteerPageHelper {
         interaction: 'hover' | 'click',
         elementName: string
     ): Promise<string> {
-        console.log(`Found a ${elementName}. Performing '${interaction}' and taking screenshot...`);
+        // console.log(`Found a ${elementName}. Performing '${interaction}' and taking screenshot...`);
 
         if (interaction === 'hover') {
             await elementHandle.hover();
@@ -737,7 +737,7 @@ export class PuppeteerPageHelper {
             try {
                 await this.client.detach();
             } catch (detachError: any) {
-                console.warn(`Error detaching CDP client: ${detachError.message}`);
+                // console.warn(`Error detaching CDP client: ${detachError.message}`);
             }
         }
     }

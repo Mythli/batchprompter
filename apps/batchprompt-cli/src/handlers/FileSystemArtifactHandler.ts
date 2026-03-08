@@ -12,7 +12,7 @@ export class FileSystemArtifactHandler {
     ) {
         this.events.on('artifact:emit', (payload) => {
             const savePromise = this.handleArtifact(payload).catch(e => {
-                console.error(`[ArtifactHandler] Failed to save artifact ${payload.filename}:`, e);
+                // console.error(`[ArtifactHandler] Failed to save artifact ${payload.filename}:`, e);
             });
             this.pendingSaves.push(savePromise);
         });

@@ -87,7 +87,7 @@ export class InteractiveElementScreenshoter {
             pageHelper = await this.puppeteerHelper.getPageHelper();
             await pageHelper.navigateToUrl(target as string);
             // Wait a moment for dynamic content to load on the page.
-            console.log('[Screenshoter] Waiting for 2 seconds for dynamic content to load...');
+            // console.log('[Screenshoter] Waiting for 2 seconds for dynamic content to load...');
             await new Promise(resolve => setTimeout(resolve, 2000));
         } else {
             pageHelper = target as PuppeteerPageHelper;
@@ -98,14 +98,14 @@ export class InteractiveElementScreenshoter {
             const page = pageHelper.getPage();
             // Set a large viewport to try and get all elements into view
             await page.setViewport({ width: 1920, height: 10000 });
-            console.log('[Screenshoter] Set viewport to 1920x10000.');
+            // console.log('[Screenshoter] Set viewport to 1920x10000.');
 
             let searchContext: Page | ElementHandle = page;
             if (scopeSelector) {
-                console.log(`[Screenshoter] Scoping search to selector: ${scopeSelector}`);
+                // console.log(`[Screenshoter] Scoping search to selector: ${scopeSelector}`);
                 scopeHandle = await page.$(scopeSelector);
                 if (!scopeHandle) {
-                    console.warn(`[Screenshoter] Scope selector "${scopeSelector}" did not match any element. Searching entire page.`);
+                    // console.warn(`[Screenshoter] Scope selector "${scopeSelector}" did not match any element. Searching entire page.`);
                 } else {
                     searchContext = scopeHandle;
                 }
@@ -159,7 +159,7 @@ export class InteractiveElementScreenshoter {
                 }
             }
         } catch (e) {
-            console.warn(`[Screenshoter] Could not process element ${type} #${elementIndex}: ${(e as Error).message}`);
+            // console.warn(`[Screenshoter] Could not process element ${type} #${elementIndex}: ${(e as Error).message}`);
         } finally {
             await handle.dispose();
         }
@@ -217,13 +217,13 @@ export class InteractiveElementScreenshoter {
             const boundingBox = await handle.boundingBox();
 
             if (!boundingBox) {
-                console.warn(`[Screenshoter] Could not get bounding box for '${elementName}'. Element might not be visible.`);
+                // console.warn(`[Screenshoter] Could not get bounding box for '${elementName}'. Element might not be visible.`);
                 return null;
             }
 
             // Ensure the box has a size.
             if (boundingBox.width === 0 || boundingBox.height === 0) {
-                console.warn(`[Screenshoter] Bounding box for '${elementName}' has zero width or height.`);
+                // console.warn(`[Screenshoter] Bounding box for '${elementName}' has zero width or height.`);
                 return null;
             }
 
@@ -260,7 +260,7 @@ export class InteractiveElementScreenshoter {
 
             return { type, state, screenshotBase64, elementIndex, styles };
         } catch (e) {
-            console.warn(`[Screenshoter] Could not screenshot ${type} #${elementIndex} in ${state} state: ${(e as Error).message}`);
+            // console.warn(`[Screenshoter] Could not screenshot ${type} #${elementIndex} in ${state} state: ${(e as Error).message}`);
             return null;
         }
     }
@@ -268,7 +268,7 @@ export class InteractiveElementScreenshoter {
     private async getRandomElements(searchContext: Page | ElementHandle, selector: string, maxCount: number, type: 'button' | 'link' | 'input', prng: () => number): Promise<ElementHandle[]> {
         if (maxCount <= 0) return [];
 
-        console.log(`[Screenshoter] Searching for up to ${maxCount} random elements with selector: ${selector}`);
+        // console.log(`[Screenshoter] Searching for up to ${maxCount} random elements with selector: ${selector}`);
         const allHandles = await searchContext.$$(selector);
         const validHandles: ElementHandle[] = [];
 
@@ -325,7 +325,7 @@ export class InteractiveElementScreenshoter {
             }
         }
 
-        console.log(`[Screenshoter] Found ${validHandles.length} valid elements for selector.`);
+        // console.log(`[Screenshoter] Found ${validHandles.length} valid elements for selector.`);
 
         // Shuffle the valid handles to get random ones
         for (let i = validHandles.length - 1; i > 0; i--) {
@@ -344,7 +344,7 @@ export class InteractiveElementScreenshoter {
             await handle.dispose();
         }
 
-        console.log(`[Screenshoter] Selected ${selectedHandles.length} random elements.`);
+        // console.log(`[Screenshoter] Selected ${selectedHandles.length} random elements.`);
         return selectedHandles;
     }
 

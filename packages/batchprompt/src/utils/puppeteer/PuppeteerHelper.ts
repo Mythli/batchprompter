@@ -44,7 +44,7 @@ export class PuppeteerHelper {
 
     private setupProcessHandlers() {
         const handler = async () => {
-            console.log('[PuppeteerHelper] Process terminating. Closing browser...');
+            // console.log('[PuppeteerHelper] Process terminating. Closing browser...');
             await this.close();
             process.exit(0);
         };
@@ -68,7 +68,7 @@ export class PuppeteerHelper {
             await fs.rm(browserUserDataDir!, { recursive: true, force: true });
             await fs.mkdir(browserUserDataDir!, { recursive: true });
         } catch (error: any) {
-            console.warn(`Could not manage user data directory '${browserUserDataDir}': ${error.message}`);
+            // console.warn(`Could not manage user data directory '${browserUserDataDir}': ${error.message}`);
         }
 
         this.browser = await puppeteer.launch({
@@ -125,7 +125,7 @@ export class PuppeteerHelper {
                     closeTimeout
                 ]);
             } catch (closeError: any) {
-                console.warn(`Error closing browser gracefully: ${closeError.message}. Force killing process.`);
+                // console.warn(`Error closing browser gracefully: ${closeError.message}. Force killing process.`);
 
                 // Force kill the process if graceful close failed/timed out
                 const process = this.browser.process();
@@ -148,7 +148,7 @@ export class PuppeteerHelper {
 
         if (!this.initPromise) {
             // Auto-initialize if init() wasn't called explicitly
-            console.log("PuppeteerHelper not explicitly initialized. Calling init() automatically.");
+            // console.log("PuppeteerHelper not explicitly initialized. Calling init() automatically.");
             await this.init();
         } else {
             await this.initPromise;
@@ -165,19 +165,19 @@ export class PuppeteerHelper {
         }
 
         if (this.pagesOpenedCount >= this.maxPagesLimit) {
-            console.log(`[PuppeteerHelper] Page limit reached (${this.pagesOpenedCount}/${this.maxPagesLimit}). Initiating restart...`);
+            // console.log(`[PuppeteerHelper] Page limit reached (${this.pagesOpenedCount}/${this.maxPagesLimit}). Initiating restart...`);
             this.isRestarting = true;
             
             this.restartPromise = (async () => {
                 try {
                     // 1. Wait for active pages to close or timeout
                     if (this.activePagesCount > 0) {
-                        console.log(`[PuppeteerHelper] Waiting for ${this.activePagesCount} active pages to close (Timeout: ${this.restartTimeout}ms)...`);
+                        // console.log(`[PuppeteerHelper] Waiting for ${this.activePagesCount} active pages to close (Timeout: ${this.restartTimeout}ms)...`);
                         
                         const startTime = Date.now();
                         while (this.activePagesCount > 0) {
                             if (Date.now() - startTime > this.restartTimeout) {
-                                console.warn(`[PuppeteerHelper] Restart timeout reached. Forcing close with ${this.activePagesCount} active pages.`);
+                                // console.warn(`[PuppeteerHelper] Restart timeout reached. Forcing close with ${this.activePagesCount} active pages.`);
                                 break;
                             }
                             await new Promise(resolve => setTimeout(resolve, 500));
@@ -185,16 +185,16 @@ export class PuppeteerHelper {
                     }
 
                     // 2. Close existing browser
-                    console.log(`[PuppeteerHelper] Closing browser...`);
+                    // console.log(`[PuppeteerHelper] Closing browser...`);
                     await this.close();
 
                     // 3. Re-initialize
-                    console.log(`[PuppeteerHelper] Starting new browser instance...`);
+                    // console.log(`[PuppeteerHelper] Starting new browser instance...`);
                     await this.init();
                     
-                    console.log(`[PuppeteerHelper] Browser restarted successfully.`);
+                    // console.log(`[PuppeteerHelper] Browser restarted successfully.`);
                 } catch (e: any) {
-                    console.error(`[PuppeteerHelper] Error during restart: ${e.message}`);
+                    // console.error(`[PuppeteerHelper] Error during restart: ${e.message}`);
                     // Reset flags so we can try again or fail hard next time
                     this.isRestarting = false;
                     this.restartPromise = null;
@@ -238,12 +238,12 @@ export class PuppeteerHelper {
         this.pagesOpenedCount++;
         this.activePagesCount++;
         
-        console.log(`[PuppeteerHelper] Page opened. Total opened: ${this.pagesOpenedCount}/${this.maxPagesLimit}. Active: ${this.activePagesCount}`);
+        // console.log(`[PuppeteerHelper] Page opened. Total opened: ${this.pagesOpenedCount}/${this.maxPagesLimit}. Active: ${this.activePagesCount}`);
 
         // Listen for close to decrement active count
         page.once('close', () => {
             this.activePagesCount--;
-            console.log(`[PuppeteerHelper] Page closed. Active: ${this.activePagesCount}`);
+            // console.log(`[PuppeteerHelper] Page closed. Active: ${this.activePagesCount}`);
         });
 
         return page;

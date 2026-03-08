@@ -44,7 +44,7 @@ export class WebSearch {
     ) {}
 
     async search(query: string, num: number = 5, page: number = 1, gl?: string, hl?: string): Promise<WebSearchResult[]> {
-        console.log(`[WebSearch] Searching for query: "${query}" (Page: ${page}, Limit: ${num}, GL: ${gl}, HL: ${hl})`);
+        // console.log(`[WebSearch] Searching for query: "${query}" (Page: ${page}, Limit: ${num}, GL: ${gl}, HL: ${hl})`);
 
         const response = await this.queue.add(() => this.fetcher('https://google.serper.dev/search', {
             method: 'POST',
@@ -83,7 +83,7 @@ export class WebSearch {
             
             return organic;
         } catch (e) {
-            console.error("[WebSearch] Failed to parse Serper API response:", e);
+            // console.error("[WebSearch] Failed to parse Serper API response:", e);
             throw e;
         }
     }
@@ -99,7 +99,7 @@ export class WebSearch {
             });
 
             if (!response.ok) {
-                console.warn(`[WebSearch] Failed to fetch ${url}: ${response.status}`);
+                // console.warn(`[WebSearch] Failed to fetch ${url}: ${response.status}`);
                 return '';
             }
 
@@ -110,7 +110,7 @@ export class WebSearch {
 
             return '';
         } catch (e: any) {
-            console.warn(`[WebSearch] Error fetching ${url}: ${e.message}`);
+            // console.warn(`[WebSearch] Error fetching ${url}: ${e.message}`);
             return '';
         }
     }

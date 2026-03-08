@@ -117,13 +117,13 @@ export class Step {
                     const renderedSchema = template(context);
                     schema = JSON.parse(renderedSchema);
                 } catch (e) {
-                    console.warn(`[Row ${originalIndex}] Failed to parse schema template:`, e);
+                    // console.warn(`[Row ${originalIndex}] Failed to parse schema template:`, e);
                 }
             } else {
                 try {
                     schema = renderSchemaObject(schema, context);
                 } catch (e: any) {
-                    console.warn(`[Row ${originalIndex}] Failed to render schema templates:`, e);
+                    // console.warn(`[Row ${originalIndex}] Failed to render schema templates:`, e);
                 }
             }
         }

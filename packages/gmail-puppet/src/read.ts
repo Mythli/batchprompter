@@ -13,7 +13,7 @@ export interface ThreadMessage {
  * This is a shared utility for reading threads.
  */
 async function openThread(page: Page, threadId: string): Promise<void> {
-  console.log(`[openThread] Navigating to threadId: "${threadId}"`);
+  // console.log(`[openThread] Navigating to threadId: "${threadId}"`);
   const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
 
   // Use domcontentloaded instead of networkidle2. Gmail has many persistent background 
@@ -22,20 +22,20 @@ async function openThread(page: Page, threadId: string): Promise<void> {
   await page.goto(targetUrl, { waitUntil: 'domcontentloaded' });
 
   const currentUrl = page.url();
-  console.log(`[openThread] Navigation finished. Current URL is: ${currentUrl}`);
+  // console.log(`[openThread] Navigation finished. Current URL is: ${currentUrl}`);
 
   if (!currentUrl.includes(threadId)) {
-    console.warn(`[openThread] WARNING: Gmail redirected away from the thread! Expected ${threadId} in URL, but got ${currentUrl}`);
+    // console.warn(`[openThread] WARNING: Gmail redirected away from the thread! Expected ${threadId} in URL, but got ${currentUrl}`);
   }
 
   try {
-    console.log(`[openThread] Waiting for message body (.a3s) to load...`);
+    // console.log(`[openThread] Waiting for message body (.a3s) to load...`);
     // We rely on the element appearing in the DOM as our true "ready" state, rather than network traffic.
     await page.waitForSelector('.a3s', { timeout: 15000 });
-    console.log(`[openThread] Message body (.a3s) found successfully.`);
+    // console.log(`[openThread] Message body (.a3s) found successfully.`);
   } catch (error) {
-    console.error(`[openThread] ERROR: Timed out waiting for .a3s.`);
-    console.error(`[openThread] Final URL at timeout: ${page.url()}`);
+    // console.error(`[openThread] ERROR: Timed out waiting for .a3s.`);
+    // console.error(`[openThread] Final URL at timeout: ${page.url()}`);
 
     // Dump the page title and a snippet of the DOM to see what screen we are actually on
     const pageInfo = await page.evaluate(() => {
@@ -44,8 +44,8 @@ async function openThread(page: Page, threadId: string): Promise<void> {
         bodySnippet: document.body.innerText.substring(0, 500).replace(/\n/g, ' ')
       };
     });
-    console.error(`[openThread] Page Title: "${pageInfo.title}"`);
-    console.error(`[openThread] Page Text Snippet: "${pageInfo.bodySnippet}"`);
+    // console.error(`[openThread] Page Title: "${pageInfo.title}"`);
+    // console.error(`[openThread] Page Text Snippet: "${pageInfo.bodySnippet}"`);
 
     throw new Error(`Could not open thread ${threadId}. See logs for details.`);
   }
@@ -59,7 +59,7 @@ async function openThread(page: Page, threadId: string): Promise<void> {
  * @returns A Promise resolving to an array of messages in the thread.
  */
 export async function readThread(page: Page, threadId: string): Promise<ThreadMessage[]> {
-  console.log(`[readThread] Starting read process for threadId: "${threadId}"`);
+  // console.log(`[readThread] Starting read process for threadId: "${threadId}"`);
   
   await openThread(page, threadId);
 
@@ -95,7 +95,7 @@ export async function readThread(page: Page, threadId: string): Promise<ThreadMe
     }).filter(msg => msg.htmlBody !== ''); // Filter out any empty blocks that might have been caught
   });
 
-  console.log(`[readThread] Successfully extracted ${messages.length} messages from thread.`);
+  // console.log(`[readThread] Successfully extracted ${messages.length} messages from thread.`);
 
   return messages;
 }

@@ -39,14 +39,14 @@ export class AiWebSearch {
         }
 
         if (this.queryLlm) {
-            console.log(`[AiWebSearch] Generating search queries...`);
+            // console.log(`[AiWebSearch] Generating search queries...`);
             const QuerySchema = z.object({
                 queries: z.array(z.string()).min(1).max(config.queryCount).describe("Search queries to find the requested information")
             });
 
             const response = await this.queryLlm.promptZod(QuerySchema);
             queries.push(...response.queries);
-            console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
+            // console.log(`[AiWebSearch] Generated queries: ${response.queries.join(', ')}`);
 
             this.events.emit('query:generated', { queries: response.queries });
         } else if (queries.length > 0) {
@@ -63,7 +63,7 @@ export class AiWebSearch {
             }
         }
 
-        console.log(`[AiWebSearch] Executing ${tasks.length} search tasks in parallel...`);
+        // console.log(`[AiWebSearch] Executing ${tasks.length} search tasks in parallel...`);
 
         const pageResults = await Promise.all(tasks.map(async ({ query, page }) => {
             try {
@@ -78,7 +78,7 @@ export class AiWebSearch {
 
                 return results;
             } catch (e) {
-                console.warn(`[AiWebSearch] Task failed for "${query}" page ${page}:`, e);
+                // console.warn(`[AiWebSearch] Task failed for "${query}" page ${page}:`, e);
                 return [];
             }
         }));
@@ -126,7 +126,7 @@ export class AiWebSearch {
             uniqueResults.push(result);
         }
 
-        console.log(`[AiWebSearch] Gathered ${allRawResults.length} raw results, deduplicated down to ${uniqueResults.length}.`);
+        // console.log(`[AiWebSearch] Gathered ${allRawResults.length} raw results, deduplicated down to ${uniqueResults.length}.`);
 
         if (uniqueResults.length === 0) return { contentParts: [{ type: 'text', text: "No results found." }], data: [] };
 
@@ -134,7 +134,7 @@ export class AiWebSearch {
         let mapSurvivors: WebSearchResult[] = [];
 
         if (this.selector) {
-            console.log(`[AiWebSearch] Running local selection on ${uniqueResults.length} results in chunks of ${config.chunkSize}...`);
+            // console.log(`[AiWebSearch] Running local selection on ${uniqueResults.length} results in chunks of ${config.chunkSize}...`);
             
             const chunks: WebSearchResult[][] = [];
             for (let i = 0; i < uniqueResults.length; i += config.chunkSize) {
@@ -170,7 +170,7 @@ export class AiWebSearch {
         let finalSelection = mapSurvivors;
 
         if (this.selector && mapSurvivors.length > config.limit) {
-            console.log(`[AiWebSearch] Reducing ${mapSurvivors.length} survivors to limit ${config.limit}...`);
+            // console.log(`[AiWebSearch] Reducing ${mapSurvivors.length} survivors to limit ${config.limit}...`);
 
             finalSelection = await this.selector.select(mapSurvivors, {
                 maxSelected: config.limit,
@@ -195,7 +195,7 @@ export class AiWebSearch {
         if (finalSelection.length === 0) return { contentParts: [{ type: 'text', text: "No results found." }], data: [] };
 
         // 6. Enrich (Parallel Fetch & Compress)
-        console.log(`[AiWebSearch] Enriching ${finalSelection.length} results...`);
+        // console.log(`[AiWebSearch] Enriching ${finalSelection.length} results...`);
 
         const finalOutputs: string[] = [];
         const processedResults: WebSearchResult[] = [];
