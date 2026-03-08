@@ -84,6 +84,10 @@ export async function readThread(page: Page, options: ReadThreadOptions = {}): P
 
   if (keepUnread) {
     await markCurrentThreadUnread(page);
+  } else {
+    // Add a 1-second delay to allow Gmail's background sync to register the "read" status
+    // before the page potentially navigates away.
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
   return messages;
@@ -102,6 +106,9 @@ export async function setThreadReadStatus(page: Page, read: boolean): Promise<vo
 
   if (read) {
     // If the goal is to mark it as read, we are already done just by opening it.
+    // Add a 1-second delay to allow Gmail's background sync to register the "read" status
+    // before the page potentially navigates away.
+    await new Promise(resolve => setTimeout(resolve, 1000));
     return;
   } else {
     // If the goal is to mark it as unread, we must explicitly click the button.
