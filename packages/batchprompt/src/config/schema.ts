@@ -263,8 +263,8 @@ export const createPipelineSchema = (pluginRegistry: PluginRegistryV2) => {
         }
         return val;
     }, StepSchema.extend({
-        concurrency: z.number().int().positive().default(50),
-        taskConcurrency: z.number().int().positive().default(100),
+        concurrency: z.number().int().positive().default(20),
+        taskConcurrency: z.number().int().positive().default(20),
         inputLimit: z.number().int().positive().optional(),
         inputOffset: z.number().int().min(0).optional(),
         dataOutputPath: z.string().optional(),
