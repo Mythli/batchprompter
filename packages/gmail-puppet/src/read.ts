@@ -125,8 +125,8 @@ export async function setThreadReadStatus(page: Page, read: boolean): Promise<vo
 
   if (read) {
     // If the goal is to mark it as read, we are already done just by opening it.
-    // Wait a brief moment for Gmail's background sync to register the "read" status.
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait for Gmail's background sync to register the "read" status.
+    await page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).catch(() => {});
     return;
   } else {
     // If the goal is to mark it as unread, we must explicitly click the button.
