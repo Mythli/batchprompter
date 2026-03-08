@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { format } from 'date-fns';
 import { BasePluginRow, PluginResult, PluginItem } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { GmailReplierConfig } from './GmailReplierPlugin.js';
@@ -84,8 +85,10 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                 }
 
                 const llm = await stepRow.createLlm(config.draftModel);
+                const currentDateStr = format(new Date(), "EEEE, yyyy-MM-dd HH:mm");
                 const promptParts = [
                     { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT },
+                    { type: 'text' as const, text: `\n\n--- CURRENT DATE & TIME ---\nToday is ${currentDateStr}. Use this to understand relative time references (like "tomorrow", "next week") in the thread.` },
                     { type: 'text' as const, text: `\n\n--- INSPIRATION EXAMPLES ---\n${inspirationContext}` },
                     { type: 'text' as const, text: `\n\n--- CURRENT THREAD ---\n${targetContext}` }
                 ];
@@ -139,8 +142,10 @@ export class GmailReplierPluginRow extends BasePluginRow<GmailReplierConfig> {
                 } else {
                     events.emit('plugin:event', { row: rowIndex, step: stepIndex, plugin: 'gmailReplier', event: 'draft:generating', data: { subject: target.subject } });
                     const llm = await stepRow.createLlm(config.draftModel);
+                    const currentDateStr = format(new Date(), "EEEE, yyyy-MM-dd HH:mm");
                     const promptParts: any[] = [
                         { type: 'text' as const, text: DEFAULT_SYSTEM_PROMPT },
+                        { type: 'text' as const, text: `\n\n--- CURRENT DATE & TIME ---\nToday is ${currentDateStr}. Use this to understand relative time references (like "tomorrow", "next week") in the thread.` },
                         { type: 'text' as const, text: `\n\n--- INSPIRATION EXAMPLES ---\n${inspirationContext}` },
                         { type: 'text' as const, text: `\n\n--- CURRENT THREAD ---\n${currentTask.targetContext}` }
                     ];
