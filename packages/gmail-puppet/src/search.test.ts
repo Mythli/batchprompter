@@ -1,14 +1,26 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { Browser, Page } from 'puppeteer';
-import { ensureAuthenticatedGmail } from './auth.js';
-import { searchEmails } from './search.js';
+import { Browser } from 'puppeteer';
+import { createGmailClient, GmailClient } from './client.js';
 import { testEnv, launchTestBrowser } from './test-utils.js';
 
 describe('Gmail Search Integration', () => {
   let browser: Browser;
+  let client: GmailClient;
 
   beforeAll(async () => {
     browser = await launchTestBrowser();
+    client = createGmailClient({
+      email: testEnv.GMAIL_EMAIL,
+      password: testEnv.GMAIL_PASSWORD,
+      usePage: async (action) => {
+        const page = await browser.newPage();
+        try {
+          return await action(page);
+        } finally {
+          await page.close().catch(() => {});
+        }
+      }
+    });
   }, 120000);
 
   afterAll(async () => {
@@ -17,77 +29,42 @@ describe('Gmail Search Integration', () => {
     }
   }, 120000);
 
-  // Helper to run a test with a fresh page, matching the new client architecture
-  async function withPage<T>(action: (page: Page) => Promise<T>): Promise<T> {
-    const page = await browser.newPage();
-    await ensureAuthenticatedGmail(page, {
-      email: testEnv.GMAIL_EMAIL,
-      password: testEnv.GMAIL_PASSWORD,
-    });
-    try {
-      return await action(page);
-    } finally {
-      await page.close().catch(() => {});
-    }
-  }
-
   it('should return a list of emails from the inbox when query is empty', async () => {
-    await withPage(async (page) => {
-      const emails = await searchEmails(page, undefined, 10); // Limit to 10 for quick test
+    const emails = await client.searchEmails(undefined, 10);
 
-      expect(Array.isArray(emails)).toBe(true);
-      expect(emails.length).toBeLessThanOrEqual(10);
+    expect(Array.isArray(emails)).toBe(true);
+    expect(emails.length).toBeLessThanOrEqual(10);
 
-      // If the inbox isn't empty, verify the shape of the extracted data
-      if (emails.length > 0) {
-        const firstEmail = emails[0];
-
-        expect(firstEmail).toHaveProperty('id');
-        expect(typeof firstEmail.id).toBe('string');
-        expect(firstEmail.id.length).toBeGreaterThan(0);
-
-        expect(firstEmail).toHaveProperty('sender');
-        expect(typeof firstEmail.sender).toBe('string');
-
-        expect(firstEmail).toHaveProperty('subject');
-        expect(typeof firstEmail.subject).toBe('string');
-
-        expect(firstEmail).toHaveProperty('snippet');
-        expect(typeof firstEmail.snippet).toBe('string');
-
-        expect(firstEmail).toHaveProperty('date');
-        expect(typeof firstEmail.date).toBe('string');
-
-        expect(firstEmail).toHaveProperty('isUnread');
-        expect(typeof firstEmail.isUnread).toBe('boolean');
-      }
-    });
+    if (emails.length > 0) {
+      const firstEmail = emails[0];
+      expect(firstEmail).toHaveProperty('id');
+      expect(typeof firstEmail.id).toBe('string');
+      expect(firstEmail.id.length).toBeGreaterThan(0);
+      expect(firstEmail).toHaveProperty('sender');
+      expect(typeof firstEmail.sender).toBe('string');
+      expect(firstEmail).toHaveProperty('subject');
+      expect(typeof firstEmail.subject).toBe('string');
+      expect(firstEmail).toHaveProperty('snippet');
+      expect(typeof firstEmail.snippet).toBe('string');
+      expect(firstEmail).toHaveProperty('date');
+      expect(typeof firstEmail.date).toBe('string');
+      expect(firstEmail).toHaveProperty('isUnread');
+      expect(typeof firstEmail.isUnread).toBe('boolean');
+    }
   }, 60000);
 
   it('should return results for a specific search query', async () => {
-    await withPage(async (page) => {
-      // "is:unread" is a standard Gmail search operator
-      const emails = await searchEmails(page, 'is:unread', 10);
-
-      expect(Array.isArray(emails)).toBe(true);
-
-      // If there are unread emails, verify they are actually marked as unread
-      if (emails.length > 0) {
-        expect(emails[0].isUnread).toBe(true);
-      }
-    });
+    const emails = await client.searchEmails('is:unread', 10);
+    expect(Array.isArray(emails)).toBe(true);
+    if (emails.length > 0) {
+      expect(emails[0].isUnread).toBe(true);
+    }
   }, 60000);
 
   it('should paginate and fetch multiple pages when limit exceeds page size', async () => {
-    await withPage(async (page) => {
-      // Requesting 60 emails should force it to go to page 2 (assuming default 50 per page)
-      // If the inbox has fewer than 60 emails, it will just return all of them.
-      const emails = await searchEmails(page, undefined, 60);
-
-      expect(Array.isArray(emails)).toBe(true);
-      expect(emails.length).toBe(60);
-
-      console.log(`Pagination test fetched ${emails.length} emails.`);
-    });
+    const emails = await client.searchEmails(undefined, 60);
+    expect(Array.isArray(emails)).toBe(true);
+    expect(emails.length).toBe(60);
+    console.log(`Pagination test fetched ${emails.length} emails.`);
   }, 120000);
 });

@@ -1,16 +1,28 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { Browser, Page } from 'puppeteer';
-import { ensureAuthenticatedGmail } from './auth.js';
-import { searchEmails } from './search.js';
-import { readThread, setThreadReadStatus } from './read.js';
-import { sendEmail } from './send.js';
+import { Browser } from 'puppeteer';
+import { createGmailClient, GmailClient } from './client.js';
 import { testEnv, launchTestBrowser } from './test-utils.js';
 
 describe('Gmail Read Integration', () => {
   let browser: Browser;
+  let client: GmailClient;
 
   beforeAll(async () => {
     browser = await launchTestBrowser();
+    
+    // Initialize the client exactly as a consumer would
+    client = createGmailClient({
+      email: testEnv.GMAIL_EMAIL,
+      password: testEnv.GMAIL_PASSWORD,
+      usePage: async (action) => {
+        const page = await browser.newPage();
+        try {
+          return await action(page);
+        } finally {
+          await page.close().catch(() => {});
+        }
+      }
+    });
   }, 120000);
 
   afterAll(async () => {
@@ -19,138 +31,96 @@ describe('Gmail Read Integration', () => {
     }
   }, 120000);
 
-  // Helper to run a test with a fresh page, matching the new client architecture
-  async function withPage<T>(action: (page: Page) => Promise<T>): Promise<T> {
-    const page = await browser.newPage();
-    await ensureAuthenticatedGmail(page, {
-      email: testEnv.GMAIL_EMAIL,
-      password: testEnv.GMAIL_PASSWORD,
-    });
-    try {
-      return await action(page);
-    } finally {
-      await page.close().catch(() => {});
-    }
-  }
-
   it('should search for YEAH2 email and read the entire thread', async () => {
-    await withPage(async (page) => {
-      console.log('\n--- Starting YEAH2 Test ---');
-      // 1. Search for the existing email with subject "YEAH2"
-      const searchResults = await searchEmails(page, 'subject:"YEAH2"');
+    console.log('\n--- Starting YEAH2 Test ---');
+    
+    // 1. Search using the client (includes retries)
+    const searchResults = await client.searchEmails('subject:"YEAH2"');
 
-      if (searchResults.length === 0) {
-        throw new Error('Could not find an email with subject "YEAH2" to run the read test. Please ensure one exists in the inbox.');
-      }
+    if (searchResults.length === 0) {
+      throw new Error('Could not find an email with subject "YEAH2" to run the read test. Please ensure one exists in the inbox.');
+    }
 
-      const threadId = searchResults[0].id;
-      console.log(`[Test] Found YEAH2 email. Extracted ID: ${threadId}`);
-      expect(threadId).toBeTruthy();
+    const threadId = searchResults[0].id;
+    console.log(`[Test] Found YEAH2 email. Extracted ID: ${threadId}`);
+    expect(threadId).toBeTruthy();
 
-      // 2. Read the thread using the ID (default keepUnread: true)
-      const messages = await readThread(page, threadId);
+    // 2. Read using the client (includes retries)
+    const messages = await client.readThread(threadId);
 
-      // 3. Assertions
-      expect(Array.isArray(messages)).toBe(true);
-      expect(messages.length).toBeGreaterThanOrEqual(1);
+    // 3. Assertions
+    expect(Array.isArray(messages)).toBe(true);
+    expect(messages.length).toBeGreaterThanOrEqual(1);
 
-      // Verify the structure of the first message
-      const firstMessage = messages[0];
-
-      expect(firstMessage).toHaveProperty('senderName');
-      expect(typeof firstMessage.senderName).toBe('string');
-
-      expect(firstMessage).toHaveProperty('senderEmail');
-      expect(typeof firstMessage.senderEmail).toBe('string');
-      expect(firstMessage.senderEmail).toContain('@');
-
-      expect(firstMessage).toHaveProperty('date');
-      expect(typeof firstMessage.date).toBe('string');
-
-      expect(firstMessage).toHaveProperty('textBody');
-      expect(typeof firstMessage.textBody).toBe('string');
-
-      expect(firstMessage).toHaveProperty('htmlBody');
-      expect(typeof firstMessage.htmlBody).toBe('string');
-    });
+    const firstMessage = messages[0];
+    expect(firstMessage).toHaveProperty('senderName');
+    expect(typeof firstMessage.senderName).toBe('string');
+    expect(firstMessage).toHaveProperty('senderEmail');
+    expect(typeof firstMessage.senderEmail).toBe('string');
+    expect(firstMessage.senderEmail).toContain('@');
+    expect(firstMessage).toHaveProperty('date');
+    expect(typeof firstMessage.date).toBe('string');
+    expect(firstMessage).toHaveProperty('textBody');
+    expect(typeof firstMessage.textBody).toBe('string');
+    expect(firstMessage).toHaveProperty('htmlBody');
+    expect(typeof firstMessage.htmlBody).toBe('string');
   }, 120000);
 
   it('should toggle read status and respect keepUnread parameter', async () => {
     const uniqueSubject = `Read Status Test ${Date.now()}`;
     let threadId: string;
 
-    // 1. Send a unique test email
-    await withPage(async (page) => {
-      console.log('\n--- Starting Toggle Read Status Test ---');
-      console.log(`[Test] Sending test email with subject: "${uniqueSubject}"`);
-      
-      await sendEmail(page, {
-        to: testEnv.GMAIL_EMAIL,
-        subject: uniqueSubject,
-        htmlBody: `<p>Testing read status toggling.</p>`
-      });
+    console.log('\n--- Starting Toggle Read Status Test ---');
+    console.log(`[Test] Sending test email with subject: "${uniqueSubject}"`);
+    
+    await client.sendEmail({
+      to: testEnv.GMAIL_EMAIL,
+      subject: uniqueSubject,
+      htmlBody: `<p>Testing read status toggling.</p>`
     });
 
     // Wait for email to arrive in the inbox
     await new Promise(resolve => setTimeout(resolve, 5000));
 
     // 2. Search for it and verify it is unread initially
-    await withPage(async (page) => {
-      const searchResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
-      expect(searchResults.length).toBeGreaterThan(0);
-      
-      threadId = searchResults[0].id;
-      console.log(`[Test] Found test email. Extracted ID: ${threadId}`);
-      expect(searchResults[0].isUnread).toBe(true); 
-    });
+    const searchResults = await client.searchEmails(`subject:"${uniqueSubject}"`);
+    expect(searchResults.length).toBeGreaterThan(0);
+    
+    threadId = searchResults[0].id;
+    console.log(`[Test] Found test email. Extracted ID: ${threadId}`);
+    expect(searchResults[0].isUnread).toBe(true); 
 
     // 3. Read it with keepUnread: false
-    await withPage(async (page) => {
-      console.log(`[Test] Reading thread with keepUnread: false`);
-      await readThread(page, threadId, { keepUnread: false });
-    });
+    console.log(`[Test] Reading thread with keepUnread: false`);
+    await client.readThread(threadId, { keepUnread: false });
 
     // Verify it is now read
-    await withPage(async (page) => {
-      const checkResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
-      expect(checkResults[0].isUnread).toBe(false);
-    });
+    let checkResults = await client.searchEmails(`subject:"${uniqueSubject}"`);
+    expect(checkResults[0].isUnread).toBe(false);
 
     // 4. Mark it as unread explicitly
-    await withPage(async (page) => {
-      console.log(`[Test] Explicitly setting read status to false (unread)`);
-      await setThreadReadStatus(page, threadId, false);
-    });
+    console.log(`[Test] Explicitly setting read status to false (unread)`);
+    await client.setThreadReadStatus(threadId, false);
 
     // Verify it is now unread
-    await withPage(async (page) => {
-      const checkResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
-      expect(checkResults[0].isUnread).toBe(true);
-    });
+    checkResults = await client.searchEmails(`subject:"${uniqueSubject}"`);
+    expect(checkResults[0].isUnread).toBe(true);
 
     // 5. Read it with keepUnread: true (default behavior)
-    await withPage(async (page) => {
-      console.log(`[Test] Reading thread with keepUnread: true (default)`);
-      await readThread(page, threadId); // keepUnread defaults to true
-    });
+    console.log(`[Test] Reading thread with keepUnread: true (default)`);
+    await client.readThread(threadId); 
 
     // Verify it is STILL unread
-    await withPage(async (page) => {
-      const checkResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
-      expect(checkResults[0].isUnread).toBe(true);
-    });
+    checkResults = await client.searchEmails(`subject:"${uniqueSubject}"`);
+    expect(checkResults[0].isUnread).toBe(true);
 
     // 6. Mark it as read explicitly
-    await withPage(async (page) => {
-      console.log(`[Test] Explicitly setting read status to true (read)`);
-      await setThreadReadStatus(page, threadId, true);
-    });
+    console.log(`[Test] Explicitly setting read status to true (read)`);
+    await client.setThreadReadStatus(threadId, true);
 
     // Verify it is now read
-    await withPage(async (page) => {
-      const checkResults = await searchEmails(page, `subject:"${uniqueSubject}"`);
-      expect(checkResults[0].isUnread).toBe(false);
-    });
+    checkResults = await client.searchEmails(`subject:"${uniqueSubject}"`);
+    expect(checkResults[0].isUnread).toBe(false);
 
   }, 180000);
 });
