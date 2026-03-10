@@ -8,6 +8,7 @@
   "output": {
     "tmpDir": "out/03-email-reply/.tmp"
   },
+  "dataOutputPath": "out/03-email-reply/replied_emails.csv",
   "steps": [
     {
       "plugins": [
