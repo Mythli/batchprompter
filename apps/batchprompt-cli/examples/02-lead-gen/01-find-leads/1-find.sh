@@ -22,3 +22,10 @@ shift
 BATCHPROMPT_ARGS=("$@")
 
 echo "[{\"industry\": \"$INDUSTRY\"}]" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/01-find-leads/config-1-find.json "${BATCHPROMPT_ARGS[@]}"
+
+# Automatically filter out existing customers
+OUTPUT_FILE="out/02-lead-gen/companies.csv"
+if [ -f "$OUTPUT_FILE" ]; then
+    echo -e "\nFiltering existing customers..."
+    node examples/02-lead-gen/01-find-leads/filter-customers.cjs "$OUTPUT_FILE" "$OUTPUT_FILE"
+fi
