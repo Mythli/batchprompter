@@ -4,12 +4,12 @@
 # It reads an input CSV and outputs a CSV with the send status.
 
 # Navigate to the project root directory
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../.."
 
 # Run using config file
 if [ "$#" -ne 2 ]; then
     echo "Usage: $0 <input_csv> <output_csv>"
-    echo "Example: bash examples/02-lead-gen/5-send.sh examples/02-lead-gen/5-send-test.csv out/02-lead-gen/5-send-results.csv"
+    echo "Example: bash examples/02-lead-gen/05-send/5-send.sh examples/02-lead-gen/05-send/5-send-test.csv out/02-lead-gen/5-send-results.csv"
     exit 1
 fi
 
@@ -22,4 +22,4 @@ if [ ! -f "$INPUT_FILE" ]; then
 fi
 
 # Ensure GMAIL_EMAIL and GMAIL_PASSWORD are set in your environment or .env file
-cat "$INPUT_FILE" | node dist/index.js generate --config examples/02-lead-gen/config-5-send.json --data-output-path "$OUTPUT_FILE"
+cat "$INPUT_FILE" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/05-send/config-5-send.json --data-output-path "$OUTPUT_FILE"

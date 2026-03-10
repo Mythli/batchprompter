@@ -4,7 +4,7 @@
 # LinkedIn profiles, and offers.
 
 # Navigate to the project root directory
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../.."
 
 # Run using config file
 # Input comes from the output of step 1
@@ -16,4 +16,4 @@ fi
 INPUT_FILE="$1"
 OUTPUT_FILE="$2"
 
-cat "$INPUT_FILE" | node dist/index.js generate --config examples/02-lead-gen/config-2-enrich.json --data-output-path "$OUTPUT_FILE"
+cat "$INPUT_FILE" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/02-enrich/config-2-enrich.json --data-output-path "$OUTPUT_FILE"

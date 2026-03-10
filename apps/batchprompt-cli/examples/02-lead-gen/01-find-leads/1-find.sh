@@ -5,7 +5,7 @@
 # The industry column is preserved so you can filter by industry.
 
 # Navigate to the project root directory
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/../../.."
 
 # Run using config file
 if [ "$#" -ne 2 ]; then
@@ -16,4 +16,4 @@ fi
 INDUSTRY="$1"
 OUTPUT_FILE="$2"
 
-echo "[{\"industry\": \"$INDUSTRY\"}]" | node dist/index.js generate --config examples/02-lead-gen/config-1-find.json --data-output-path "$OUTPUT_FILE"
+echo "[{\"industry\": \"$INDUSTRY\"}]" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/01-find-leads/config-1-find.json --data-output-path "$OUTPUT_FILE"

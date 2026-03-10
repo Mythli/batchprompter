@@ -9,7 +9,7 @@
   "steps": [
     {
       "model": {
-        "prompt": "examples/02-lead-gen/prompt.md"
+        "prompt": "examples/02-lead-gen/03-generate-email/prompt.md"
       },
       "output": {
         "path": "out/02-lead-gen/emails/{{id}}/E-Mail.md"

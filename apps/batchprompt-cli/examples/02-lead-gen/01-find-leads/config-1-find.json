@@ -12,7 +12,7 @@
       "plugins": [
         {
           "type": "loadData",
-          "file": "examples/02-lead-gen/1-find-de_cities.csv",
+          "file": "examples/02-lead-gen/01-find-leads/1-find-de_cities.csv",
           "output": {
             "mode": "merge",
             "explode": true
