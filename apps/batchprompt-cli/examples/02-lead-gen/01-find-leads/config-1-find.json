@@ -1,4 +1,5 @@
 {
+  "logLevel": "debug",
   "model": {
     "model": "google/gemini-3-flash-preview",
     "thinkingLevel": "high"
