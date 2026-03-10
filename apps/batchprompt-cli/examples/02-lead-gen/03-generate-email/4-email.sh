@@ -3,8 +3,11 @@
 # This script generates personalized emails for each company.
 # It reads the enriched CSV and outputs markdown files.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORIG_DIR="$(pwd)"
+
 # Navigate to the project root directory
-cd "$(dirname "$0")/../../.."
+cd "$SCRIPT_DIR/../../.."
 
 # Run using config file
 if [ "$#" -ne 1 ]; then
@@ -13,6 +16,10 @@ if [ "$#" -ne 1 ]; then
 fi
 
 INPUT_FILE="$1"
+
+if [[ "$INPUT_FILE" != /* ]]; then
+    INPUT_FILE="$ORIG_DIR/$INPUT_FILE"
+fi
 
 if [ ! -f "$INPUT_FILE" ]; then
     echo "Error: Input file '$INPUT_FILE' not found."

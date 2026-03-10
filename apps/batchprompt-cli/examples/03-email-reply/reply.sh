@@ -3,8 +3,11 @@
 # This script interactively replies to unread emails using the gmailReplier plugin.
 # It will pause and prompt you in the terminal to [S]end, [E]dit, [R]egenerate, or [I]gnore each draft.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORIG_DIR="$(pwd)"
+
 # Navigate to the project root directory
-cd "$(dirname "$0")/../.."
+cd "$SCRIPT_DIR/../.."
 
 OUTPUT_FILE="out/03-email-reply/replied_emails.csv"
 

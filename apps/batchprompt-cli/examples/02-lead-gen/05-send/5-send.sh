@@ -3,8 +3,11 @@
 # This script sends emails using the gmailSender plugin.
 # It reads an input CSV and outputs a CSV with the send status.
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ORIG_DIR="$(pwd)"
+
 # Navigate to the project root directory
-cd "$(dirname "$0")/../../.."
+cd "$SCRIPT_DIR/../../.."
 
 # Run using config file
 if [ "$#" -ne 2 ]; then
@@ -15,6 +18,14 @@ fi
 
 INPUT_FILE="$1"
 OUTPUT_FILE="$2"
+
+if [[ "$INPUT_FILE" != /* ]]; then
+    INPUT_FILE="$ORIG_DIR/$INPUT_FILE"
+fi
+
+if [[ "$OUTPUT_FILE" != /* ]]; then
+    OUTPUT_FILE="$ORIG_DIR/$OUTPUT_FILE"
+fi
 
 if [ ! -f "$INPUT_FILE" ]; then
     echo "Error: Input file '$INPUT_FILE' not found."
