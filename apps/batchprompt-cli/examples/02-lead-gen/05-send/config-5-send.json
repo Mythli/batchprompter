@@ -8,9 +8,9 @@
       "plugins": [
         {
           "type": "gmailSender",
-          "to": "{{email}}",
-          "subject": "Test2 Email for {{firstName}} at {{companyName}}",
-          "body": "Hello {{firstName}},\n\nThis is a test email sent via the batchprompt `gmailSender` plugin to **{{companyName}}**.\n\nBest,\nBatchPrompt",
+          "to": "{{websiteAgent.decisionMaker.email}}",
+          "subject": "Kontaktanfrage {{websiteAgent.companyName}}",
+          "body": "{{generatedEmail}}",
           "delayMin": 0,
           "delayMax": 0,
           "sendIfReceived": true,

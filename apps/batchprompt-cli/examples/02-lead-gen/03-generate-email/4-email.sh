@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script generates personalized emails for each company.
-# It reads the enriched CSV and outputs markdown files.
+# It reads the enriched CSV and outputs a new CSV with the generated emails.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ORIG_DIR="$(pwd)"

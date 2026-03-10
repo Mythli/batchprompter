@@ -6,13 +6,15 @@
   "output": {
     "tmpDir": "out/02-lead-gen/emails/.tmp"
   },
+  "dataOutputPath": "out/02-lead-gen/companies_emails.csv",
   "steps": [
     {
       "model": {
         "prompt": "examples/02-lead-gen/03-generate-email/prompt.md"
       },
       "output": {
-        "path": "out/02-lead-gen/emails/{{id}}/E-Mail.md"
+        "mode": "column",
+        "column": "generatedEmail"
       }
     }
   ]

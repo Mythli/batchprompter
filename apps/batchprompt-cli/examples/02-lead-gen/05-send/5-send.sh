@@ -9,10 +9,10 @@ ORIG_DIR="$(pwd)"
 # Navigate to the project root directory
 cd "$SCRIPT_DIR/../../.."
 
-INPUT_FILE="out/02-lead-gen/companies_enriched.csv"
+INPUT_FILE="out/02-lead-gen/companies_emails.csv"
 
 if [ ! -f "$INPUT_FILE" ]; then
-    echo "Error: Input file '$INPUT_FILE' not found. Please run 2-enrich.sh first."
+    echo "Error: Input file '$INPUT_FILE' not found. Please run 4-email.sh first."
     exit 1
 fi
 
