@@ -23,4 +23,4 @@ if [[ "$OUTPUT_FILE" != /* ]]; then
     OUTPUT_FILE="$ORIG_DIR/$OUTPUT_FILE"
 fi
 
-echo "[{\"industry\": \"$INDUSTRY\"}]" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/01-find-leads/config-1-find.json --data-output-path "$OUTPUT_FILE"
+echo "[{\"industry\": \"$INDUSTRY\"}]" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/01-find-leads/config-1-find.json --data-output-path "$OUTPUT_FILE" --
