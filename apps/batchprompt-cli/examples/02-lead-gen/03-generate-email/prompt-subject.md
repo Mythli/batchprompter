@@ -16,12 +16,13 @@ You are aware of the following data:
 | decisionMakerfirstName | '{{websiteAgent.decisionMaker.firstName}}' |
 | decisionMakerlastName  | '{{websiteAgent.decisionMaker.lastName}}' |
 | decisionMakeremail     | '{{websiteAgent.decisionMaker.email}}' |
+| generatedEmail         | '{{generatedEmail}}'         |
 
-Basierend auf dem Datensatz musst du eine Betreffzeile für eine E-Mail generieren.
+Basierend auf dem Datensatz und der bereits generierten E-Mail (`generatedEmail`) musst du eine Betreffzeile für diese E-Mail generieren.
 
 Regeln für den Betreff:
 1. Der Betreff MUSS mit dem Wort "Frage" beginnen, gefolgt von "zu", "zur" oder "zum" (z.B. "Frage zu...", "Frage zur...", "Frage zum...").
-2. Passe den Rest des Betreffs an die tatsächlichen Daten an (z.B. das Angebot oder die Branche), sodass eine sinnvolle Frage impliziert wird.
+2. Passe den Rest des Betreffs an die tatsächlichen Daten an (z.B. das Angebot oder die Branche), sodass eine sinnvolle Frage impliziert wird, die zum Inhalt der E-Mail passt.
 3. Erwähne KEINE Namen und beziehe KEINE Personen in diesen Betreff ein.
 4. Der Betreff soll sehr kurz sein und im CLICKBAIT-Stil verfasst sein: Er soll so gestaltet sein, dass die Person unbedingt auf die E-Mail klicken möchte, um ihr volles Interesse zu wecken.
 

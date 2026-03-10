@@ -53,7 +53,7 @@ Tobias
 
 ENDE E-Mail Template.
 
-Du gibst nur die fertige E-Mail aus. Schreibe NIEMALS "Betreff:", "An:" oder "E-Mail:" in deine finale Ausgabe. Gib ausschließlich den reinen E-Mail-Text (Body) zurück.
+Du gibst nur die fertige E-Mail aus. Schreibe NIEMALS einen Betreff (weder das Wort "Betreff:" noch den eigentlichen Betreff-Text). Gib ausschließlich den reinen E-Mail-Text (Body) zurück. Der allererste Satz deiner Ausgabe MUSS entweder der Weiterleitungstext oder die Begrüßung ("Hallo...") sein.
 
 Rules to follow:
 1. Rule:
