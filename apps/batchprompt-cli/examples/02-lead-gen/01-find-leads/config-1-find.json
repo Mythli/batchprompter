@@ -7,7 +7,7 @@
   "output": {
     "tmpDir": "out/02-lead-gen/.tmp"
   },
-  "dataOutputPath": "out/02-lead-gen/companies.json",
+  "dataOutputPath": "out/02-lead-gen/companies_{{industry}}.csv",
   "steps": [
     {
       "plugins": [

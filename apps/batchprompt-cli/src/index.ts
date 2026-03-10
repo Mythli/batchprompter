@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Parser, transforms } from 'json2csv';
 import YAML from 'yaml';
+import Handlebars from 'handlebars';
 import {
     ConfigRefiner,
     loadData,
@@ -112,13 +113,16 @@ generateCmd.action(async (prompts, options) => {
 
         // 8. Write output
         if (dataOutputPath && results.length > 0) {
-            const outDir = path.dirname(dataOutputPath);
+            const template = Handlebars.compile(dataOutputPath, { noEscape: true });
+            const finalOutputPath = template(results[0] || {});
+
+            const outDir = path.dirname(finalOutputPath);
             if (!fs.existsSync(outDir)) {
                 fs.mkdirSync(outDir, { recursive: true });
             }
 
-            if (dataOutputPath.endsWith('.json')) {
-                fs.writeFileSync(dataOutputPath, JSON.stringify(results, null, 2));
+            if (finalOutputPath.endsWith('.json')) {
+                fs.writeFileSync(finalOutputPath, JSON.stringify(results, null, 2));
             } else {
                 const parser = new Parser({
                     transforms: [
@@ -126,9 +130,9 @@ generateCmd.action(async (prompts, options) => {
                     ]
                 });
                 const csv = parser.parse(results);
-                fs.writeFileSync(dataOutputPath, csv);
+                fs.writeFileSync(finalOutputPath, csv);
             }
-            console.log(`\nData written to ${dataOutputPath}`);
+            console.log(`\nData written to ${finalOutputPath}`);
         }
 
         if (puppeteerHelperInstance) {

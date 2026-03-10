@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script finds and dedupes companies based on the industry and location.
-# It outputs a single CSV containing all companies: out/02-lead-gen/companies.csv
+# It outputs a single CSV containing all companies: out/02-lead-gen/companies_${INDUSTRY}.csv
 # The industry column is preserved so you can filter by industry.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
