@@ -9,20 +9,7 @@ ORIG_DIR="$(pwd)"
 # Navigate to the project root directory
 cd "$SCRIPT_DIR/../.."
 
-BATCHPROMPT_ARGS=()
-
-# If the first argument exists and doesn't start with '-', treat it as the output file
-if [ "$#" -gt 0 ] && [[ "$1" != -* ]]; then
-    OUTPUT_FILE="$1"
-    shift
-    if [[ "$OUTPUT_FILE" != /* ]]; then
-        OUTPUT_FILE="$ORIG_DIR/$OUTPUT_FILE"
-    fi
-    BATCHPROMPT_ARGS+=("--data-output-path" "$OUTPUT_FILE")
-fi
-
-# Append any remaining arguments
-BATCHPROMPT_ARGS+=("$@")
+BATCHPROMPT_ARGS=("$@")
 
 # Ensure GMAIL_EMAIL and GMAIL_PASSWORD are set in your environment or .env file
 # We run the command directly without piping so the terminal remains interactive.
