@@ -2,6 +2,7 @@
   "output": {
     "tmpDir": "out/02-lead-gen/send/.tmp"
   },
+  "dataOutputPath": "out/02-lead-gen/5-send-results.csv",
   "steps": [
     {
       "plugins": [

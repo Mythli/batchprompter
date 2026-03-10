@@ -10,12 +10,13 @@ ORIG_DIR="$(pwd)"
 cd "$SCRIPT_DIR/../../.."
 
 # Run using config file
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <input_csv>"
+if [ "$#" -lt 1 ]; then
+    echo "Usage: $0 <input_csv> [additional_args...]"
     exit 1
 fi
 
 INPUT_FILE="$1"
+shift
 
 if [[ "$INPUT_FILE" != /* ]]; then
     INPUT_FILE="$ORIG_DIR/$INPUT_FILE"
@@ -26,4 +27,7 @@ if [ ! -f "$INPUT_FILE" ]; then
     exit 1
 fi
 
-cat "$INPUT_FILE" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/03-generate-email/config-4-email.json --input-limit 10
+# Append any remaining arguments (like --input-limit 10)
+BATCHPROMPT_ARGS=("$@")
+
+cat "$INPUT_FILE" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/03-generate-email/config-4-email.json "${BATCHPROMPT_ARGS[@]}"

@@ -11,16 +11,27 @@ ORIG_DIR="$(pwd)"
 cd "$SCRIPT_DIR/../../.."
 
 # Run using config file
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <industry> <output_json>"
+if [ "$#" -lt 1 ]; then
+    echo "Usage: $0 <industry> [output_json] [additional_args...]"
     exit 1
 fi
 
 INDUSTRY="$1"
-OUTPUT_FILE="$2"
+shift
 
-if [[ "$OUTPUT_FILE" != /* ]]; then
-    OUTPUT_FILE="$ORIG_DIR/$OUTPUT_FILE"
+BATCHPROMPT_ARGS=()
+
+# If the next argument exists and doesn't start with '-', treat it as the output file
+if [ "$#" -gt 0 ] && [[ "$1" != -* ]]; then
+    OUTPUT_FILE="$1"
+    shift
+    if [[ "$OUTPUT_FILE" != /* ]]; then
+        OUTPUT_FILE="$ORIG_DIR/$OUTPUT_FILE"
+    fi
+    BATCHPROMPT_ARGS+=("--data-output-path" "$OUTPUT_FILE")
 fi
 
-echo "[{\"industry\": \"$INDUSTRY\"}]" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/01-find-leads/config-1-find.json --data-output-path "$OUTPUT_FILE" --
+# Append any remaining arguments (like --input-limit 10)
+BATCHPROMPT_ARGS+=("$@")
+
+echo "[{\"industry\": \"$INDUSTRY\"}]" | bash examples/02-lead-gen/run-batchprompt.sh generate --config examples/02-lead-gen/01-find-leads/config-1-find.json "${BATCHPROMPT_ARGS[@]}"
