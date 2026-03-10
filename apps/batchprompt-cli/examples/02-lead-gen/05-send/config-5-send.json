@@ -8,9 +8,9 @@
       "plugins": [
         {
           "type": "gmailSender",
-          "to": "{{websiteAgent.decisionMaker.email}}",
-          "subject": "Kontaktanfrage {{websiteAgent.companyName}}",
-          "body": "{{generatedEmail}}",
+          "to": "{{email}}",
+          "subject": "Kontaktanfrage {{companyName}}",
+          "body": "Hallo {{firstName}},\n\ndies ist eine Test-Nachricht an {{companyName}}.\n\nViele Grüße",
           "delayMin": 0,
           "delayMax": 0,
           "sendIfReceived": true,

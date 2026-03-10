@@ -9,10 +9,11 @@ ORIG_DIR="$(pwd)"
 # Navigate to the project root directory
 cd "$SCRIPT_DIR/../../.."
 
-INPUT_FILE="out/02-lead-gen/companies_emails.csv"
+# Use the test CSV file for the send step
+INPUT_FILE="examples/02-lead-gen/05-send/5-send-test.csv"
 
 if [ ! -f "$INPUT_FILE" ]; then
-    echo "Error: Input file '$INPUT_FILE' not found. Please run 4-email.sh first."
+    echo "Error: Input file '$INPUT_FILE' not found."
     exit 1
 fi
 
