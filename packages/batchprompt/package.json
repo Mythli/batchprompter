@@ -15,6 +15,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@inquirer/prompts": "^8.3.0",
     "@keyv/sqlite": "^4.0.6",
     "ajv": "^8.17.1",
     "cache-manager": "^7.2.5",
@@ -22,6 +23,7 @@
     "commander": "^12.1.0",
     "css-tree": "^2.3.1",
     "csv-parser": "^3.2.0",
+    "date-fns": "^4.1.0",
     "eventemitter3": "^5.0.1",
     "gmail-puppet": "workspace:*",
     "handlebars": "^4.7.8",
