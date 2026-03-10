@@ -51,20 +51,6 @@ Für dein ehrliches Feedback (muss nicht lang sein) wäre ich dir echt dankbar u
 Ich sende liebe Grüße aus Berlin,
 Tobias
 
---
-
-**Tobias Anhalt**
-
-Tel:   +49 30 22957151
-Mail:  tobias@butlerapp.de
-Web:   www.butlerapp.de
-
-Webbee GmbH
-Mühlenstraße 8a
-14167 Berlin
-Geschäftsführer: Tobias Anhalt
-Amtsgericht Charlottenburg | HRB 192759
-
 ENDE E-Mail Template.
 
 Du gibst nur die fertige E-Mail aus. Schreibe NIEMALS einen Betreff (weder das Wort "Betreff:" noch den eigentlichen Betreff-Text). Gib ausschließlich den reinen E-Mail-Text (Body) zurück. Der allererste Satz deiner Ausgabe MUSS entweder der Weiterleitungstext oder die Begrüßung ("Hallo...") sein.
@@ -80,20 +66,6 @@ Für dein ehrliches Feedback (muss nicht lang sein) wäre ich dir echt dankbar u
 
 Ich sende liebe Grüße aus Berlin,
 Tobias
-
---
-
-**Tobias Anhalt**
-
-Tel:   +49 30 22957151
-Mail:  tobias@butlerapp.de
-Web:   www.butlerapp.de
-
-Webbee GmbH
-Mühlenstraße 8a
-14167 Berlin
-Geschäftsführer: Tobias Anhalt
-Amtsgericht Charlottenburg | HRB 192759
 
 3. Rule:
 The 'Weiterleitung' text is only part of the email in case you might notice that '{{websiteAgent.decisionMaker.email}}' is not the personal email from '{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}', you ask to forward/pass-through/transfer the email to '{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}' at the very top of the email before the actual email text starts. In order to know if '{{websiteAgent.decisionMaker.email}}' is (or is not) the direct, personal email of '{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}' you need to check if parts of the persons fist and last name ('{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}') are part/occur/appear/exist inside '{{websiteAgent.decisionMaker.email}}'. E.g. is the persons name is: "Martin Becker" and the email would be m.becker@gmail.com it would mean it must be his personal email. Another example: if the persons name is "Sarah Schuster" and the email is sarah.schuster@gmx.de it must also be the personal mail, because parts of the persons fist and last name occur/appear/exist inside the email. Another exmaple: if the email starts schema-guided/with a pattern like: support@, info@, fragen@, help@, contact@, kontakt@, webmaster@, mail@, (... and so on and so forth), it means it can not be the persons email and therefor you ask to forward/pass-through/transfer the email to '{{websiteAgent.decisionMaker.firstName}} {{websiteAgent.decisionMaker.lastName}}' at the very top of the email because the email belongs to this person! If it is clear that it is the persons personal mail, the Mail will have no 'Weiterleitung' part at all!
