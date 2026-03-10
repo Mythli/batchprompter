@@ -8,7 +8,7 @@
       "plugins": [
         {
           "type": "gmailSender",
-          "to": "{{email}}",
+          "to": "tobias.anhalt@butlerapp.de",
           "subject": "{{generatedSubject}}",
           "body": "{{generatedEmail}}\n\n--\n\n**Tobias Anhalt**\n\nTel:   +49 30 22957151\nMail:  tobias@butlerapp.de\nWeb:   www.butlerapp.de\n\nWebbee GmbH\nMühlenstraße 8a\n14167 Berlin\nGeschäftsführer: Tobias Anhalt\nAmtsgericht Charlottenburg | HRB 192759",
           "delayMin": 0,
