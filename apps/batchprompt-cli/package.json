@@ -10,12 +10,17 @@
     "build": "tsc -b --verbose",
     "watch": "tsc -b -w",
     "debug-init": "tsx src/index.ts init 'tell me at what ranking the website butlerapp is for the keyword kursverwaltung'",
-    "debug-lead-find": "examples/02-lead-gen/1-find.sh",
+    "debug-schema": "tsx src/index.ts schema",
+    "debug-lead-find": "examples/02-lead-gen/01-find-leads/1-find.sh",
+    "debug-create-images": "examples/01-rag-imagegen/run.sh",
+    "debug-lead-enrich": "examples/02-lead-gen/02-enrich/2-enrich.sh /Users/tobiasanhalt/Development/batchprompt/apps/batchprompt-cli/out/02-lead-gen/Schwimmschule_enriched_small.csv /Users/tobiasanhalt/Development/batchprompt/apps/batchprompt-cli/out/02-lead-gen/Schwimmschule_enriched_small.csv",
+    "debug-email": "examples/02-lead-gen/03-generate-email/4-email.sh out/02-lead-gen/Schwimmschule_enriched_small.csv",
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
     "batchprompt": "workspace:*",
     "commander": "^12.1.0",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.6.1",
     "eventemitter3": "^5.0.1",
     "handlebars": "^4.7.8",

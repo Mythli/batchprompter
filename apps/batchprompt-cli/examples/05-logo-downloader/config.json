@@ -11,7 +11,6 @@
           "type": "logoScraper",
           "url": "{{Website}}",
           "logoOutputPath": "out/05-logo-downloader/assets/{{websiteAgent.nicheBroad}}/{{websiteAgent.nicheSpecific}}_{{websiteAgent.companyName}}_logo.png",
-          "faviconOutputPath": "out/05-logo-downloader/assets/{{websiteAgent.nicheBroad}}/{{websiteAgent.nicheSpecific}}_{{websiteAgent.companyName}}_favicon.png",
           "output": {
             "mode": "column",
             "column": "brand_assets"

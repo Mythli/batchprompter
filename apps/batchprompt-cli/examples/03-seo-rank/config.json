@@ -9,7 +9,7 @@
     {
       "plugins": [
         {
-          "type": "web-search",
+          "type": "webSearch",
           "query": "{{keyword}}",
           "maxPages": 3,
           "limit": 30,

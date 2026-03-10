@@ -1,0 +1,501 @@
+id,location,population
+1,Berlin,3755951
+2,Hamburg,1892122
+3,München,1512491
+4,Köln,1073096
+5,Frankfurt am Main,773068
+6,Stuttgart,626275
+7,Düsseldorf,619477
+8,Leipzig,616093
+9,Dortmund,586852
+10,Essen,579432
+11,Bremen,563290
+12,Dresden,555351
+13,Hannover,535932
+14,Nürnberg,523026
+15,Duisburg,502211
+16,Bochum,365742
+17,Wuppertal,358876
+18,Bielefeld,334002
+19,Bonn,331885
+20,Münster,317713
+21,Mannheim,311831
+22,Karlsruhe,308707
+23,Augsburg,296582
+24,Wiesbaden,278950
+25,Mönchengladbach,268943
+26,Gelsenkirchen,260126
+27,Aachen,249070
+28,Braunschweig,248561
+29,Chemnitz,243521
+30,Kiel,246243
+31,Halle (Saale),238061
+32,Magdeburg,236188
+33,Freiburg im Breisgau,231848
+34,Krefeld,227417
+35,Mainz,217318
+36,Lübeck,216277
+37,Erfurt,213692
+38,Oberhausen,210824
+39,Rostock,208400
+40,Kassel,200406
+41,Hagen,188687
+42,Potsdam,183154
+43,Saarbrücken,179349
+44,Hamm,179185
+45,Ludwigshafen am Rhein,172557
+46,Paderborn,152865
+47,Mülheim an der Ruhr,170921
+48,Oldenburg,169605
+49,Osnabrück,164801
+50,Leverkusen,163851
+51,Darmstadt,159156
+52,Heidelberg,158741
+53,Solingen,158957
+54,Regensburg,153542
+55,Herne,156621
+56,Neuss,153896
+57,Ingolstadt,138016
+58,Offenbach am Main,131295
+59,Fürth,129122
+60,Ulm,126790
+61,Würzburg,126954
+62,Heilbronn,125613
+63,Pforzheim,125957
+64,Wolfsburg,123840
+65,Göttingen,118946
+66,Bottrop,117383
+67,Reutlingen,116456
+68,Koblenz,113388
+69,Erlangen,113292
+70,Bremerhaven,113173
+71,Trier,110570
+72,Bergisch Gladbach,111645
+73,Jena,110791
+74,Recklinghausen,110705
+75,Salzgitter,103866
+76,Moers,103504
+77,Siegen,101516
+78,Hildesheim,101344
+79,Gütersloh,101158
+80,Hanau,100307
+81,Kaiserslautern,99592
+82,Schwerin,95818
+83,Witten,95897
+84,Esslingen am Neckar,93940
+85,Ludwigsburg,93565
+86,Gera,93634
+87,Iserlohn,91815
+88,Tübingen,91877
+89,Düren,91814
+90,Flensburg,91113
+91,Zwickau,87172
+92,Gießen,91255
+93,Ratingen,86424
+94,Lünen,85721
+95,Villingen-Schwenningen,86475
+96,Konstanz,84911
+97,Marl,83697
+98,Worms,83850
+99,Dessau-Roßlau,78731
+100,Minden,81857
+101,Velbert,81430
+102,Neumünster,79496
+103,Norderstedt,80420
+104,Delmenhorst,77522
+105,Bamberg,77749
+106,Viersen,77523
+107,Marburg,76571
+108,Rheine,76948
+109,Gladbeck,75518
+110,Lüneburg,75599
+111,Troisdorf,74903
+112,Dorsten,74561
+113,Bayreuth,73909
+114,Detmold,73969
+115,Arnsberg,73423
+116,Castrop-Rauxel,73078
+117,Lüdenscheid,71230
+118,Landshut,73150
+119,Brandenburg an der Havel,72461
+120,Bocholt,71074
+121,Aschaffenburg,71381
+122,Celle,69325
+123,Kempten (Allgäu),69443
+124,Aalen,68361
+125,Lippstadt,68335
+126,Dinslaken,67338
+127,Herford,66594
+128,Neu-Isenburg,65611
+129,Kerpen,66294
+130,Rüsselsheim am Main,66125
+131,Weimar,65138
+132,Sindelfingen,64969
+133,Neuwied,64860
+134,Plauen,63372
+135,Grevenbroich,63894
+136,Rosenheim,63591
+137,Dormagen,64553
+138,Herten,61791
+139,Bergheim,62095
+140,Schwäbisch Gmünd,61611
+141,Garbsen,61141
+142,Friedrichshafen,61517
+143,Wesel,60655
+144,Hürth,60447
+145,Offenburg,60857
+146,Stralsund,59171
+147,Greifswald,59332
+148,Langenfeld (Rheinland),59220
+149,Neu-Ulm,59814
+150,Unna,58911
+151,Euskirchen,58752
+152,Göppingen,58061
+153,Frankfurt (Oder),57311
+154,Hameln,57382
+155,Stolberg (Rheinland),56360
+156,Eschweiler,55883
+157,Meerbusch,56525
+158,Sankt Augustin,55479
+159,Hilden,55152
+160,Hattingen,54291
+161,Waiblingen,55685
+162,Pulheim,54571
+163,Baden-Baden,55527
+164,Menden (Sauerland),52528
+165,Bad Homburg vor der Höhe,54378
+166,Nordhorn,54162
+167,Lingen (Ems),55599
+168,Bad Salzuflen,54336
+169,Ahlen,52627
+170,Langenhagen,54756
+171,Wolfenbüttel,52431
+172,Frechen,52864
+173,Ibbenbüren,51888
+174,Schweinfurt,53326
+175,Wetzlar,52960
+176,Willich,50130
+177,Passau,53093
+178,Gummersbach,51025
+179,Ravensburg,50928
+180,Speyer,50378
+181,Neustadt an der Weinstraße,53331
+182,Böblingen,50470
+183,Bad Kreuznach,51695
+184,Peine,50481
+185,Görlitz,55519
+186,Elmshorn,50141
+187,Heidenheim an der Brenz,49439
+188,Rastatt,50441
+189,Lörrach,49673
+190,Leonberg,48821
+191,Bergkamen,48842
+192,Bad Oeynhausen,48881
+193,Freising,48729
+194,Cuxhaven,48356
+195,Rheda-Wiedenbrück,48650
+196,Bornheim,48435
+197,Singen (Hohentwiel),48530
+198,Straubing,47854
+199,Gronau (Westf.),48679
+200,Stade,47611
+201,Dachau,47738
+202,Soest,47895
+203,Alsdorf,47589
+204,Weinheim,45217
+205,Lahr/Schwarzwald,47961
+206,Hennef (Sieg),47613
+207,Herzogenrath,46132
+208,Schwerte,46387
+209,Neunkirchen,46014
+210,Bruchsal,45210
+211,Dülmen,46654
+212,Melle,46538
+213,Oberursel (Taunus),46497
+214,Fellbach,45423
+215,Bietigheim-Bissingen,43596
+216,Filderstadt,45805
+217,Hof,45125
+218,Erftstadt,45922
+219,Bünde,45532
+220,Wismar,42845
+221,Kaufbeuren,44498
+222,Lemgo,34241
+223,Nürtingen,41011
+224,Memmingen,44360
+225,Kamen,42939
+226,Rodgau,45758
+227,Lehrte,44369
+228,Wunstorf,41426
+229,Weißenfels,40465
+230,Pinneberg,43279
+231,Borken,42907
+232,Coburg,41071
+233,Amberg,42052
+234,Erkelenz,43711
+235,Rottenburg am Neckar,43735
+236,Schwabach,41029
+237,Homburg,41648
+238,Brühl,44514
+239,Cottbus,99515
+240,Buxtehude,40058
+241,Neumarkt in der Oberpfalz,40455
+242,Halberstadt,39678
+243,Korschenbroich,33221
+244,Albstadt,45327
+245,Lööhne,39691
+246,Warendorf,37175
+247,Schorndorf,39504
+248,Bensheim,40428
+249,Kreuztal,30907
+250,Wittenberg,45535
+251,Ettlingen,39281
+252,Dreieich,41065
+253,Maintal,39226
+254,Bautzen,38140
+255,Ostfildern,39235
+256,Freiberg,40141
+257,Pirna,38431
+258,Stendal,39105
+259,Haltern am See,37803
+260,Geesthacht,31238
+261,Halle (Westf.),21722
+262,Greifswald,59332
+263,Ahaus,39509
+264,Völklingen,39488
+265,Göppingen,58061
+266,Cloppenburg,35594
+267,Backnang,37517
+268,Bitterfeld-Wolfen,37568
+269,Wermelskirchen,34509
+270,Porta Westfalica,35645
+271,Hemsern,34293
+272,Vechta,33388
+273,Hofheim am Taunus,39750
+274,Schwedt/Oder,30821
+275,Suhl,36166
+276,Wesseling,36142
+277,Kehl,36683
+278,Mühlhausen/Thüringen,35973
+279,Langen (Hessen),38503
+280,Nienburg/Weser,31486
+281,Baunatal,27892
+282,Papenburg,37719
+283,Goch,34057
+284,Königs Wusterhausen,38128
+285,Limburg an der Lahn,35028
+286,Siegburg,41595
+287,Uelzen,33800
+288,Tuttlingen,35439
+289,Oer-Erkenschwick,31416
+290,Meppen,35352
+291,Löhne,39691
+292,Walsrode,30268
+293,Sinsheim,35489
+294,Mülheim-Kärlich,23214
+295,Steinfurt,34167
+296,Germering,40212
+297,Bad Vilbel,34235
+298,Haan,30282
+299,Beckum,36737
+300,Saarlouis,34680
+301,Mettmann,38545
+302,Einbeck,30635
+303,Gevelsberg,30894
+304,Viersen,77523
+305,Biberach an der Riß,33022
+306,Emsdetten,36125
+307,Dietzenbach,34297
+308,Weiden in der Oberpfalz,42417
+309,Wernigerode,32289
+310,Werl,30689
+311,Northeim,28760
+312,Bad Nauheim,32417
+313,Freudenstadt,23678
+314,Schönebeck (Elbe),30277
+315,Erlensee,24031
+316,Wedel,33642
+317,Bingen am Rhein,25895
+318,Hoyerswerda,31945
+319,Vreden,22650
+320,Crailsheim,34790
+321,Achim,31834
+322,Bad Hersfeld,29652
+323,Burgdorf,30847
+324,Weinheim,45217
+325,Kornwestheim,33732
+326,Oelde,29241
+327,Wietze,24351
+328,Wülfrath,21160
+329,Leinfelden-Echterdingen,40019
+330,Rendsburg,28351
+331,Güstrow,28827
+332,Bernau bei Berlin,40031
+333,Georgsmarienhütte,31604
+334,Seevetal,41505
+335,Langen (Hessen),38503
+336,Herborn,24332
+337,Scharbeutz,25032
+338,Erkrath,43590
+339,Taunusstein,29681
+340,Lage,35029
+341,Bad Honnef,26245
+342,Frankenthal (Pfalz),48633
+343,Pirmasens,40054
+344,Deggendorf,33446
+345,Ennepetal,29851
+346,Ilmenau,38820
+347,Schwelm,28247
+348,Zittau,24933
+349,Vorsfelde,30041
+350,Neukirchen-Vluyn,27421
+351,Idar-Oberstein,28277
+352,Andernach,30096
+353,Friedberg (Hessen),29263
+354,Vaihingen an der Enz,29304
+355,Gaggenau,29618
+356,Saalfeld/Saale,28966
+357,Forchheim,32179
+358,Radolfzell am Bodensee,31236
+359,Geesthacht,31238
+360,Neustadt am Rübenberge,44342
+361,Waltrop,29377
+362,Bad Harzburg,21870
+363,Nettetal,42197
+364,Landsberg am Lech,29202
+365,Hemer,33910
+366,Vaterstetten,23101
+367,Büren,21389
+368,Glaouchau,21406
+369,Olpe,24622
+370,Schmallenberg,24843
+371,Bad Kissingen,22283
+372,Zweibrücken,34057
+373,Petershagen,25197
+374,Meißen,28241
+375,Aurich,41961
+376,Riedstadt,23758
+377,Stadtallendorf,21369
+378,Osterholz-Scharmbeck,30294
+379,Ditzingen,24803
+380,Kelkheim (Taunus),29088
+381,Ahrensburg,33422
+382,Rösrath,28448
+383,Geilenkirchen,27255
+384,Emmendingen,27890
+385,Nordenham,26083
+386,Bad Oeynhausen,48881
+387,Eisleben,22915
+388,Werdau,20464
+389,Büsking,21342
+390,Hohen Neuendorf,26555
+391,Köthen (Anhalt),25537
+392,Teltow,26662
+393,Sonthofen,21345
+394,Rietberg,29828
+395,Haren (Ems),24056
+396,Schopfheim,21213
+397,Syke,24255
+398,Bramsche,31210
+399,Attendorn,24403
+400,Korbach,23485
+401,Neubrandenburg,63185
+402,Plattling,21568
+403,Alfter,23851
+404,Bedburg,23773
+405,Heppenheim (Bergstraße),26090
+406,Lübbecke,25732
+407,Bad Driburg,21980
+408,Waren (Müritz),20981
+409,Mühlacker,26059
+410,Schwelm,28247
+411,Höxter,28734
+412,Eschborn,21577
+413,Winnenden,28351
+414,Lichtenfels,20177
+415,Weingarten,24775
+416,Radevormwald,22071
+417,Buchholz in der Nordheide,39678
+418,Baesweiler,27341
+419,Neu-Anspach,24031
+420,Obertshausen,24823
+421,Zeitz,27444
+422,Wipperfürth,21008
+423,Ronnenberg,24231
+424,Gernsbach,22818
+425,Alzenau,22340
+426,Lohmar,30553
+427,Senden,20684
+428,Bad Aibling,21405
+429,Osterode am Harz,21359
+430,Blomberg,21151
+431,Laupheim,22363
+432,Dillenburg,23625
+433,Markkleeberg,24842
+434,Wiesloch,26694
+435,Karben,22687
+436,Schramberg,21115
+437,Stutensee,24500
+438,Waldshut-Tiengen,24194
+439,Weingarten,24775
+440,Pfaffenhofen an der Ilm,22416
+441,Bad Waldsee,20462
+442,Crimmitschau,20235
+443,Burg,22438
+444,Geretsried,25272
+445,Waldkraiburg,23758
+446,Pfungstadt,25134
+447,Tönisvorst,29302
+448,Schortens,20489
+449,Salzkotten,25164
+450,Haiger,21431
+451,Sehnde,23856
+452,Plettenberg,24911
+453,Falkensee,43975
+454,Bühl,28965
+455,Wurzen,20340
+456,Reichenbach im Vogtland,20021
+457,Neuburg an der Donau,29771
+458,Wadgassen,20584
+459,Jülich,32537
+460,Springe,29081
+461,Grimma,28080
+462,Langenfeld,59195
+463,Lindau (Bodensee),25390
+464,Bad Soden am Taunus,22822
+465,Donaueschingen,22634
+466,Röthenbach an der Pegnitz,20038
+467,Selm,26084
+468,Bad Rappenau,21437
+469,Sondershausen,21191
+470,Flörsheim am Main,21473
+471,Hückelhoven,40467
+472,Gelnhausen,23293
+473,Idstein,24856
+474,Waghäusel,20835
+475,Wangen im Allgäu,26966
+476,Rotenburg (Wümme),22030
+477,Varel,24115
+478,Michelstadt,21367
+479,Öhringen,24925
+480,Xanten,21524
+481,Mosbach,23351
+482,Übach-Palenberg,23856
+483,Traunreut,20980
+484,Bad Mergentheim,23558
+485,Rheinberg,31121
+486,Apolda,21665
+487,Torgau,20047
+488,Ehingen (Donau),26532
+489,Herzogenaurach,23674
+490,Traunstein,20808
+491,Rastede,22684
+492,Leichlingen (Rheinland),27827
+493,Geseke,21319
+494,Heiligenhaus,26089
+495,Haar,21215
+496,Puchheim,21387
+497,Nördlingen,20593
+498,Groß-Umstadt,21124
+499,Werdohl,20542
+500,Schramberg,21015

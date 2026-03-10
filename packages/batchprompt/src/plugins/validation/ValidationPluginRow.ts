@@ -45,6 +45,7 @@ export class ValidationPluginRow extends BasePluginRow<ValidationConfig> {
 
         if (valid) {
             // Emit success event
+
             events.emit('plugin:event', {
                 row: rowIndex,
                 step: stepIndex,
