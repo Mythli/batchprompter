@@ -1,0 +1,19 @@
+{
+  "model": {
+    "model": "google/gemini-3-flash-preview",
+    "thinkingLevel": "high"
+  },
+  "output": {
+    "tmpDir": "out/02-lead-gen/emails/.tmp"
+  },
+  "steps": [
+    {
+      "model": {
+        "prompt": "examples/02-lead-gen/prompt.md"
+      },
+      "output": {
+        "path": "out/02-lead-gen/emails/{{id}}/E-Mail.md"
+      }
+    }
+  ]
+}

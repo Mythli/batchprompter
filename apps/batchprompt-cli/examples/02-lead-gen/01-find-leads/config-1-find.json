@@ -1,0 +1,56 @@
+{
+  "model": {
+    "model": "google/gemini-3-flash-preview",
+    "thinkingLevel": "high"
+  },
+  "output": {
+    "tmpDir": "out/02-lead-gen/.tmp"
+  },
+  "dataOutputPath": "out/02-lead-gen/companies.json",
+  "steps": [
+    {
+      "plugins": [
+        {
+          "type": "loadData",
+          "file": "examples/02-lead-gen/1-find-de_cities.csv",
+          "output": {
+            "mode": "merge",
+            "explode": true
+          }
+        }
+      ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "webSearch",
+          "queryModel": {
+            "prompt": "Generate distinct search queries to find websites of companies offering {{industry}} in {{location}}. Use varied keyword strategies to find all relevant companies."
+          },
+          "selectModel": {
+            "prompt": "Select only the official company websites of {{industry}} companies from the search results. If its not {{industry}}, exclude. Exclude directories (like Yelp, Yellow Pages, Google Maps), social media profiles, and aggregator sites. Only select direct company websites matching {{industry}}. We dont care in which city this company is."
+          },
+          "dedupeStrategy": "domain",
+          "queryCount": 10,
+          "maxPages": 20,
+          "gl": "de",
+          "hl": "de",
+          "limit": 300,
+          "mode": "none",
+          "output": {
+            "mode": "merge",
+            "explode": true
+          }
+        }
+      ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "dedupe",
+          "key": "{{webSearch.domain}}"
+        }
+      ]
+    }
+  ]
+}
