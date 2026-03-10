@@ -9,18 +9,11 @@ ORIG_DIR="$(pwd)"
 # Navigate to the project root directory
 cd "$SCRIPT_DIR/../../.."
 
-# Run using config file
-# Input comes from the output of step 1
-if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 <input_json> [additional_args...]"
+INPUT_FILE="out/02-lead-gen/companies.json"
+
+if [ ! -f "$INPUT_FILE" ]; then
+    echo "Error: Input file '$INPUT_FILE' not found. Please run 1-find.sh first."
     exit 1
-fi
-
-INPUT_FILE="$1"
-shift
-
-if [[ "$INPUT_FILE" != /* ]]; then
-    INPUT_FILE="$ORIG_DIR/$INPUT_FILE"
 fi
 
 BATCHPROMPT_ARGS=("$@")

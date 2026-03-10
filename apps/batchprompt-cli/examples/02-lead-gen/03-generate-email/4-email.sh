@@ -9,21 +9,10 @@ ORIG_DIR="$(pwd)"
 # Navigate to the project root directory
 cd "$SCRIPT_DIR/../../.."
 
-# Run using config file
-if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 <input_csv> [additional_args...]"
-    exit 1
-fi
-
-INPUT_FILE="$1"
-shift
-
-if [[ "$INPUT_FILE" != /* ]]; then
-    INPUT_FILE="$ORIG_DIR/$INPUT_FILE"
-fi
+INPUT_FILE="out/02-lead-gen/companies_enriched.csv"
 
 if [ ! -f "$INPUT_FILE" ]; then
-    echo "Error: Input file '$INPUT_FILE' not found."
+    echo "Error: Input file '$INPUT_FILE' not found. Please run 2-enrich.sh first."
     exit 1
 fi
 
