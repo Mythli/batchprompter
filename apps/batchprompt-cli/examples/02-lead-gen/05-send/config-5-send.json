@@ -9,8 +9,8 @@
         {
           "type": "gmailSender",
           "to": "{{email}}",
-          "subject": "Kontaktanfrage {{companyName}}",
-          "body": "Hallo {{firstName}},\n\ndies ist eine Test-Nachricht an {{companyName}}.\n\nViele Grüße",
+          "subject": "{{generatedSubject}}",
+          "body": "{{generatedEmail}}",
           "delayMin": 0,
           "delayMax": 0,
           "sendIfReceived": true,

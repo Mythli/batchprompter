@@ -10,7 +10,16 @@
   "steps": [
     {
       "model": {
-        "prompt": "examples/02-lead-gen/03-generate-email/prompt.md"
+        "prompt": "examples/02-lead-gen/03-generate-email/prompt-subject.md"
+      },
+      "output": {
+        "mode": "column",
+        "column": "generatedSubject"
+      }
+    },
+    {
+      "model": {
+        "prompt": "examples/02-lead-gen/03-generate-email/prompt-body.md"
       },
       "output": {
         "mode": "column",
