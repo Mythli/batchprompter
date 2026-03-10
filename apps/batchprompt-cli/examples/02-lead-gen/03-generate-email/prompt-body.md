@@ -79,7 +79,7 @@ The characters [ and ] are never part of the final email, in that template they 
 6. Rule:
 You use the exact template wording as followed:
 
-Weiterleitung: ... (only if a 'Weiterleitung' is needed)
+[Weiterleitungstext] (only if a 'Weiterleitung' is needed)
 [free, empty line]
 ... here follows the email
 
@@ -88,10 +88,12 @@ You do not output:
 Weiterleitung Rang bekannt:
 or
 Weiterleitung Rang unbekannt:
-in both cases, in the final output it becomes 'Weiterleitung: ...' but only in case a Weiterleitung-Text is needed, if not you keep 'Weiterleitung: ...' out of the final output.
+or
+Weiterleitung:
+in all cases, in the final output you ONLY write the text itself (e.g. "Bitte an ... weiterleiten..."), but only in case a Weiterleitung-Text is needed. If not, you leave it out completely. DO NOT add the prefix "Weiterleitung:".
 
 So the final output, in any case, will be ONLY the email body:
 
-Weiterleitung: ... (only if a 'Weiterleitung' is needed)
+[Weiterleitungstext] (only if needed, without any prefix)
 [free, empty line]
 ... here follows the email
