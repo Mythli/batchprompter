@@ -115,9 +115,6 @@ export class GmailClient {
 
     async searchEmails(query?: string, limit: number = 50): Promise<EmailMetadata[]> {
         let finalQuery = query || 'in:inbox';
-        if (!finalQuery.includes('-is:draft')) {
-            finalQuery += ' -is:draft';
-        }
 
         const pageSize = 50;
         const numPages = Math.ceil(limit / pageSize);
