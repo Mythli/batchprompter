@@ -7,6 +7,7 @@ export interface EmailMetadata {
   snippet: string;
   date: string;
   isUnread: boolean;
+  isDraft: boolean;
 }
 
 /**
@@ -40,6 +41,10 @@ export async function searchEmailsOnPage(page: Page): Promise<EmailMetadata[]> {
       const senderEl = row.querySelector('div.yW span[email], div.yW span');
       const sender = senderEl ? (senderEl.getAttribute('email') || senderEl.textContent || '').trim() : '';
       
+      // Draft detection: Gmail often uses red font for the "Draft" label, or the sender text is literally "Draft"
+      const senderText = senderEl ? (senderEl.textContent || '').trim().toLowerCase() : '';
+      const isDraft = senderText === 'draft' || senderText === 'entwurf' || !!row.querySelector('font[color="#dd0000"]');
+      
       // Subject is typically inside a span with class 'bog'
       const subjectEl = row.querySelector('span.bog');
       const subject = subjectEl ? (subjectEl.textContent || '').trim() : '';
@@ -53,7 +58,7 @@ export async function searchEmailsOnPage(page: Page): Promise<EmailMetadata[]> {
       const dateEl = row.querySelector('td.xW span');
       const date = dateEl ? (dateEl.getAttribute('title') || dateEl.textContent || '').trim() : '';
 
-      return { id, sender, subject, snippet, date, isUnread };
+      return { id, sender, subject, snippet, date, isUnread, isDraft };
     });
   });
 
