@@ -114,11 +114,16 @@ export class GmailClient {
     }
 
     async searchEmails(query?: string, limit: number = 50): Promise<EmailMetadata[]> {
+        let finalQuery = query || 'in:inbox';
+        if (!finalQuery.includes('-is:draft')) {
+            finalQuery += ' -is:draft';
+        }
+
         const pageSize = 50;
         const numPages = Math.ceil(limit / pageSize);
 
         if (numPages <= 1) {
-            const targetHash = query ? `#search/${encodeURIComponent(query)}` : `#inbox`;
+            const targetHash = `#search/${encodeURIComponent(finalQuery)}`;
             const targetUrl = `https://mail.google.com/mail/u/0/${targetHash}`;
             const results = await this.withAuthenticatedPage(targetUrl, page => searchEmailsOnPage(page));
             return results.slice(0, limit);
@@ -130,7 +135,7 @@ export class GmailClient {
         const pageResults = await Promise.all(
             pageIndices.map(pageIndex => {
                 const pageSuffix = pageIndex > 1 ? `/p${pageIndex}` : '';
-                const targetHash = query ? `#search/${encodeURIComponent(query)}${pageSuffix}` : `#inbox${pageSuffix}`;
+                const targetHash = `#search/${encodeURIComponent(finalQuery)}${pageSuffix}`;
                 const targetUrl = `https://mail.google.com/mail/u/0/${targetHash}`;
                 return this.withAuthenticatedPage(targetUrl, page => searchEmailsOnPage(page));
             })
