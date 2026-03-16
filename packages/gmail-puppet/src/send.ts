@@ -34,6 +34,7 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
 
   if (options.replyToId) {
     // --- REPLY FLOW ---
+    console.log(`[Gmail Send] Initiating reply flow for thread: ${options.replyToId}`);
     // Wait for the email body to load to ensure the thread is ready
     await page.waitForSelector('.a3s', { timeout: 15000 });
 
@@ -58,6 +59,7 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
 
   } else {
     // --- NEW EMAIL FLOW ---
+    console.log(`[Gmail Send] Initiating new email flow to: ${options.to}`);
     if (!options.to || !options.subject) {
       throw new Error('The "to" and "subject" fields are required when sending a new email.');
     }
@@ -85,12 +87,14 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
   }
 
   // --- COMMON FLOW (Inject HTML and Send) ---
+  console.log(`[Gmail Send] Waiting for email body textbox...`);
   
   // Wait for the message body. 
   // role="textbox" and contenteditable="true" is locale-independent and highly stable.
   const bodySelector = 'div[role="textbox"][contenteditable="true"]';
   await page.waitForSelector(bodySelector, { visible: true, timeout: 10000 });
   
+  console.log(`[Gmail Send] Injecting HTML body...`);
   // Inject HTML using execCommand. 
   // We evaluate to find the visible one, as there might be hidden drafts in the DOM.
   await page.evaluate((selector, html) => {
@@ -120,25 +124,42 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
   await page.waitForFunction((sel) => {
     const el = document.querySelector(sel);
     return el && el.innerHTML.length > 0;
-  }, { timeout: 5000 }, bodySelector).catch(() => {});
+  }, { timeout: 5000 }, bodySelector).catch(() => {
+    console.warn(`[Gmail Send] WARNING: Timeout waiting for injected HTML to reflect in DOM.`);
+  });
 
+  console.log(`[Gmail Send] Looking for Send button...`);
   // Click Send using native Puppeteer click
   // .T-I-atl is the stable, long-standing class for the primary (blue) action button in Gmail.
   const sendButtonSelector = 'div[role="button"].T-I-atl';
   await page.waitForSelector(sendButtonSelector, { visible: true, timeout: 5000 });
   
   const sendButtons = await page.$$(sendButtonSelector);
-  for (const btn of sendButtons) {
+  console.log(`[Gmail Send] Found ${sendButtons.length} potential Send buttons.`);
+  
+  let clickedSend = false;
+  for (let i = 0; i < sendButtons.length; i++) {
+    const btn = sendButtons[i];
     const isVisible = await btn.evaluate((b) => {
       const el = b as HTMLElement;
       return el.offsetWidth > 0 && el.offsetHeight > 0;
     });
+    
+    console.log(`[Gmail Send] Button ${i} visibility: ${isVisible}`);
+    
     if (isVisible) {
+      console.log(`[Gmail Send] Clicking Send button ${i}...`);
       await btn.click();
+      clickedSend = true;
       break;
     }
   }
 
+  if (!clickedSend) {
+    console.warn(`[Gmail Send] ERROR: No visible Send button was found to click!`);
+  }
+
+  console.log(`[Gmail Send] Waiting for compose window to close...`);
   // Wait for the send button to disappear, indicating the compose window closed and the email is sending
   try {
     await page.waitForFunction((sel) => {
@@ -146,15 +167,22 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
       const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
       return !visibleButton;
     }, { timeout: 10000 }, sendButtonSelector);
+    console.log(`[Gmail Send] Compose window closed successfully.`);
   } catch (e) {
-    // Ignore timeout, it might have closed very quickly
+    console.warn(`[Gmail Send] WARNING: Compose window did not close within 10s timeout.`);
   }
   
+  console.log(`[Gmail Send] Waiting for 'Message sent' toast or network idle...`);
   // Wait for the "Message sent" toast or network idle to ensure the background request completes
-  await Promise.race([
+  const raceResult = await Promise.race([
     page.waitForFunction(() => {
-      return Array.from(document.querySelectorAll('span')).some(el => el.textContent?.includes('Message sent'));
-    }, { timeout: 5000 }),
-    page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 })
-  ]).catch(() => {});
+      return Array.from(document.querySelectorAll('span')).some(el => 
+        el.textContent?.includes('Message sent') || 
+        el.textContent?.includes('Nachricht gesendet')
+      );
+    }, { timeout: 5000 }).then(() => 'toast'),
+    page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).then(() => 'networkidle')
+  ]).catch((e) => `timeout (${e.message})`);
+  
+  console.log(`[Gmail Send] Send confirmation result: ${raceResult}`);
 }
