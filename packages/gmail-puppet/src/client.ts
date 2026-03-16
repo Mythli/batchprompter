@@ -116,6 +116,11 @@ export class GmailClient {
     async searchEmails(query?: string, limit: number = 50): Promise<EmailMetadata[]> {
         let finalQuery = query || 'in:inbox';
 
+        // Automatically exclude drafts natively via Gmail search unless the user explicitly searches for drafts
+        if (!finalQuery.toLowerCase().includes('draft')) {
+            finalQuery += ' -is:draft';
+        }
+
         const pageSize = 50;
         const numPages = Math.ceil(limit / pageSize);
 
@@ -123,7 +128,7 @@ export class GmailClient {
             const targetHash = `#search/${encodeURIComponent(finalQuery)}`;
             const targetUrl = `https://mail.google.com/mail/u/0/${targetHash}`;
             const results = await this.withAuthenticatedPage(targetUrl, page => searchEmailsOnPage(page));
-            return results.slice(0, limit);
+            return results.filter(e => !e.isDraft).slice(0, limit);
         }
 
         const pageIndices = Array.from({ length: numPages }, (_, i) => i + 1);
@@ -141,7 +146,7 @@ export class GmailClient {
         const allEmails: EmailMetadata[] = [];
         for (const results of pageResults) {
             for (const email of results) {
-                if (!allEmails.find(e => e.id === email.id)) {
+                if (!email.isDraft && !allEmails.find(e => e.id === email.id)) {
                     allEmails.push(email);
                 }
             }
