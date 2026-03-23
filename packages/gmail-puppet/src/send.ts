@@ -59,29 +59,24 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
 
   } else {
     // --- NEW EMAIL FLOW ---
-    console.log(`[Gmail Send] Initiating new email flow to: ${options.to}`);
+    console.log(`[Gmail Send] Initiating new email flow to: ${options.to} via full-page compose`);
     if (!options.to || !options.subject) {
       throw new Error('The "to" and "subject" fields are required when sending a new email.');
     }
 
-    // Click the "Compose" button (T-I-KE is the specific class for the primary compose button)
-    const composeButtonSelector = 'div[role="button"].T-I-KE';
-    await page.waitForSelector(composeButtonSelector, { visible: true, timeout: 15000 });
-    await page.click(composeButtonSelector);
-
-    // Wait for the "To" field inside the compose dialog.
+    // Wait for the "To" field inside the full-page compose view.
     // peoplekit-id is the modern Gmail identifier for recipient fields.
     // role="combobox" is a fallback for older/different rollouts.
-    // These are locale-independent, fixing issues where aria-label="To" fails in non-English languages (like German "An").
-    const toSelector = 'div[role="dialog"] input[peoplekit-id], div[role="dialog"] input[name="to"], div[role="dialog"] textarea[name="to"], div[role="dialog"] input[role="combobox"][aria-autocomplete="list"]';
-    await page.waitForSelector(toSelector, { visible: true, timeout: 10000 });
+    // These are locale-independent, fixing issues where aria-label="To" fails in non-English languages.
+    const toSelector = 'input[peoplekit-id], input[name="to"], textarea[name="to"], input[role="combobox"][aria-autocomplete="list"]';
+    await page.waitForSelector(toSelector, { visible: true, timeout: 15000 });
     
     // Type the recipient
     await page.type(toSelector, options.to, { delay: 50 });
     await page.keyboard.press('Enter');
 
     // Type the subject
-    const subjectSelector = 'div[role="dialog"] input[name="subjectbox"]';
+    const subjectSelector = 'input[name="subjectbox"]';
     await page.waitForSelector(subjectSelector, { visible: true });
     await page.type(subjectSelector, options.subject, { delay: 50 });
   }
