@@ -168,7 +168,7 @@ export class GmailClient {
     async sendEmail(options: SendEmailOptions): Promise<void> {
         const targetUrl = options.replyToId 
             ? `https://mail.google.com/mail/u/0/#inbox/${options.replyToId}`
-            : `https://mail.google.com/mail/u/0/#inbox`;
+            : `https://mail.google.com/mail/u/0/?view=cm&fs=1`; // Use full-page compose to avoid draft conflicts
             
         return this.withAuthenticatedPage(targetUrl, page => sendEmail(page, options));
     }
