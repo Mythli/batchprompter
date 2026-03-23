@@ -8,7 +8,7 @@
       "plugins": [
         {
           "type": "gmailSender",
-          "to": "tobias@butlerapp.de",
+          "to": "tobias+{{websiteAgent.decisionMaker.firstName}}@butlerapp.de",
           "subject": "{{generatedSubject}} 2",
           "body": "{{generatedEmail}}",
           "delayMin": 0,
