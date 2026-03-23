@@ -15,6 +15,7 @@
     "debug-create-images": "examples/01-rag-imagegen/run.sh",
     "debug-lead-enrich": "examples/02-lead-gen/02-enrich/2-enrich.sh /Users/tobiasanhalt/Development/batchprompt/apps/batchprompt-cli/out/02-lead-gen/Schwimmschule_enriched_small.csv /Users/tobiasanhalt/Development/batchprompt/apps/batchprompt-cli/out/02-lead-gen/Schwimmschule_enriched_small.csv",
     "debug-email": "examples/02-lead-gen/03-generate-email/4-email.sh out/02-lead-gen/Schwimmschule_enriched_small.csv",
+    "debug-send": "examples/02-lead-gen/05-send/5-send.sh",
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
