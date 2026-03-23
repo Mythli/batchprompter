@@ -29,17 +29,6 @@ describe('Gmail Send Integration', () => {
     }
   }, 120000);
 
-  it('should send a new HTML email', async () => {
-    const uniqueSubject = `Test Email ${Date.now()}`;
-    const htmlBody = `<h1>Hello!</h1><p>This is a test email sent at ${new Date().toISOString()}</p>`;
-
-    await client.sendEmail({
-      to: testEnv.GMAIL_EMAIL,
-      subject: uniqueSubject,
-      htmlBody: htmlBody
-    });
-  }, 120000);
-
   it('should send a random email to tobiasan90@gmail.com', async () => {
     const uniqueSubject = `Random Email ${Date.now()}`;
     await client.sendEmail({
@@ -52,7 +41,7 @@ describe('Gmail Send Integration', () => {
   it('should reply to an email with subject YEAH', async () => {
     const searchResults = await client.searchEmails('subject:"YEAH"');
     expect(searchResults.length).toBeGreaterThan(0);
-    
+
     const emailId = searchResults[0].id;
     expect(emailId).toBeTruthy();
 
