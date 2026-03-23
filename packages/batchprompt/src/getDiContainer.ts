@@ -186,7 +186,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         puppeteerLaunchOptions: {
             headless: config.PUPPETEER_HEADLESS,
             slowMo: config.PUPPETEER_SLOW_MO
-        }
+        } as any        // MY CHANGE
     });
 
     let gmailClient: GmailClient | undefined;
