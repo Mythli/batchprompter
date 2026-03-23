@@ -36,6 +36,20 @@ describe('Gmail Send Integration', () => {
       subject: uniqueSubject,
       htmlBody: `<h1>Hello!</h1><p>This is a random test email sent at ${new Date().toISOString()}</p>`
     });
+
+    // Verify the email was sent by searching for it in the sent folder
+    let searchResults = await client.searchEmails(`in:sent subject:"${uniqueSubject}"`);
+    let attempts = 0;
+    
+    // Poll for up to 15 seconds to allow Gmail's backend to process the sent email
+    while (searchResults.length === 0 && attempts < 15) {
+      await new Promise<void>(resolve => setTimeout(resolve, 1000));
+      searchResults = await client.searchEmails(`in:sent subject:"${uniqueSubject}"`);
+      attempts++;
+    }
+    
+    expect(searchResults.length).toBeGreaterThan(0);
+    expect(searchResults[0].subject).toContain(uniqueSubject);
   }, 120000);
 
   it('should reply to an email with subject YEAH', async () => {
