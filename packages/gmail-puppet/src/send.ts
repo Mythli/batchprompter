@@ -172,17 +172,17 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
     console.warn(`[Gmail Send] WARNING: Compose window did not close within 10s timeout.`);
   }
   
-  console.log(`[Gmail Send] Waiting for 'Message sent' toast or network idle...`);
-  // Wait for the "Message sent" toast or network idle to ensure the background request completes
-  const raceResult = await Promise.race([
-    page.waitForFunction(() => {
+  console.log(`[Gmail Send] Waiting for 'Message sent' toast...`);
+  // Wait for the "Message sent" toast to ensure the background request completes successfully
+  try {
+    await page.waitForFunction(() => {
       return Array.from(document.querySelectorAll('span')).some(el => 
         el.textContent?.includes('Message sent') || 
         el.textContent?.includes('Nachricht gesendet')
       );
-    }, { timeout: 5000 }).then(() => 'toast'),
-    page.waitForNetworkIdle({ idleTime: 500, timeout: 5000 }).then(() => 'networkidle')
-  ]).catch((e) => `timeout (${e.message})`);
-  
-  console.log(`[Gmail Send] Send confirmation result: ${raceResult}`);
+    }, { timeout: 10000 });
+    console.log(`[Gmail Send] Send confirmation toast found.`);
+  } catch (e) {
+    throw new Error(`Failed to send email: 'Message sent' toast did not appear within timeout.`);
+  }
 }
