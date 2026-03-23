@@ -28,7 +28,7 @@ function fillModelDefaults(
     pluginModel: ModelConfig | undefined,
     globalModel: ModelConfig | undefined
 ): ModelConfig | undefined {
-    const base = pluginModel || { messages: [] };
+    const base: ModelConfig = pluginModel || { messages: [] } as ModelConfig;
     return {
         ...base,
         model: base.model || globalModel?.model,
@@ -85,7 +85,7 @@ export class GmailReplierPlugin extends BasePlugin<GmailReplierConfig, GmailRepl
         
         let evaluateModel = config.evaluateModel;
         if (config.evaluateReply && !evaluateModel) {
-            evaluateModel = { messages: [] };
+            evaluateModel = { messages: [] } as ModelConfig;
         }
 
         return {

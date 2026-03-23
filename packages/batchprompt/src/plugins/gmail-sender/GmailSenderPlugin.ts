@@ -353,7 +353,7 @@ export class GmailSenderPlugin extends BasePlugin<GmailSenderConfig, GmailSender
         // If evaluateReplies is true, ensure we have an evaluationModel (fallback to global)
         let evaluationModel = config.evaluationModel;
         if (config.evaluateReplies && !evaluationModel) {
-            evaluationModel = { messages: [] }; // Empty messages, will use default prompt
+            evaluationModel = { messages: [] } as ModelConfig; // Empty messages, will use default prompt
         }
 
         return {

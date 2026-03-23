@@ -1,4 +1,4 @@
-import puppeteer, { Browser, Page, LaunchOptions as PuppeteerLaunchOptions } from 'puppeteer';
+import puppeteer, { Browser, Page, PuppeteerLaunchOptions } from 'puppeteer';
 import fs from 'fs/promises';
 import { PuppeteerPageHelper } from './PuppeteerPageHelper.js';
 import { Cache } from 'cache-manager';
