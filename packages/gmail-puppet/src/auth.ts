@@ -13,6 +13,58 @@ export interface GmailAuthOptions {
    * If not provided, defaults to the base inbox URL.
    */
   targetUrl?: string;
+  /**
+   * Optional callback to resolve CAPTCHAs if they appear during login.
+   * Receives a base64 encoded PNG of the CAPTCHA image.
+   * Should return the solved text.
+   */
+  resolveCaptcha?: (base64Image: string) => Promise<string>;
+}
+
+async function solveCaptchaIfPresent(
+  page: Page, 
+  resolveCaptcha?: (base64: string) => Promise<string>, 
+  nextButtonSelector: string = '#identifierNext',
+  passwordToRetype?: string
+): Promise<boolean> {
+  const captchaImg = await page.$('img#captchaimg');
+  if (!captchaImg) return false;
+  
+  const isVisible = await captchaImg.evaluate((el) => {
+    const style = window.getComputedStyle(el);
+    return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetWidth > 0;
+  });
+
+  if (!isVisible) return false;
+
+  if (!resolveCaptcha) {
+    throw new Error('CAPTCHA detected during login, but no resolveCaptcha function was provided.');
+  }
+
+  console.log('[Gmail Auth] CAPTCHA detected. Requesting resolution...');
+  const buffer = await captchaImg.screenshot({ encoding: 'base64' });
+  const solution = await resolveCaptcha(`data:image/png;base64,${buffer}`);
+  console.log(`[Gmail Auth] CAPTCHA solved: ${solution}`);
+  
+  const captchaInput = await page.$('input#ca');
+  if (captchaInput) {
+    await captchaInput.click({ clickCount: 3 }); // clear existing
+    await captchaInput.type(solution, { delay: 50 });
+  }
+
+  // If we are on the password step, the CAPTCHA sometimes clears the password field
+  if (passwordToRetype) {
+    const pwdInput = await page.$('input[type="password"]');
+    if (pwdInput) {
+      const val = await page.evaluate(el => (el as HTMLInputElement).value, pwdInput);
+      if (!val) {
+        await pwdInput.type(passwordToRetype, { delay: 50 });
+      }
+    }
+  }
+
+  await page.click(nextButtonSelector);
+  return true;
 }
 
 /**
@@ -57,24 +109,50 @@ export async function ensureAuthenticatedGmail(
     // 1. Enter Email
     await page.waitForSelector('input[type="email"]', { visible: true, timeout });
     await page.type('input[type="email"]', options.email, { delay: 50 });
-    
-    // Click "Next" after email
     await page.click('#identifierNext');
 
+    // Wait for password field OR captcha
+    await page.waitForFunction(() => {
+      const pwd = document.querySelector('input[type="password"]:not([disabled])');
+      const captcha = document.querySelector('img#captchaimg');
+      return pwd || (captcha && (captcha as HTMLElement).offsetWidth > 0);
+    }, { timeout });
+
+    const solvedEmailCaptcha = await solveCaptchaIfPresent(page, options.resolveCaptcha, '#identifierNext');
+    if (solvedEmailCaptcha) {
+      // Wait for password field to become active after captcha submission
+      await page.waitForFunction(() => {
+        const input = document.querySelector('input[type="password"]');
+        return input && !input.hasAttribute('disabled');
+      }, { timeout });
+    }
+
     // 2. Enter Password
-    // The password field might take a moment to become visible and interactable
     await page.waitForSelector('input[type="password"]', { visible: true, timeout });
-    
-    // Wait for the field to be fully interactable (not disabled)
     await page.waitForFunction(() => {
       const input = document.querySelector('input[type="password"]');
       return input && !input.hasAttribute('disabled');
     }, { timeout });
     
     await page.type('input[type="password"]', options.password, { delay: 50 });
-    
-    // Click "Next" after password
     await page.click('#passwordNext');
+
+    // Wait for success OR captcha
+    await page.waitForFunction(() => {
+      const isGmail = window.location.hostname === 'mail.google.com';
+      const captcha = document.querySelector('img#captchaimg');
+      return isGmail || (captcha && (captcha as HTMLElement).offsetWidth > 0);
+    }, { timeout: 60000 });
+
+    const solvedPwdCaptcha = await solveCaptchaIfPresent(page, options.resolveCaptcha, '#passwordNext', options.password);
+    if (solvedPwdCaptcha) {
+      // If we solved a captcha here, we need to wait again for success or another captcha
+      await page.waitForFunction(() => {
+        const isGmail = window.location.hostname === 'mail.google.com';
+        const captcha = document.querySelector('img#captchaimg');
+        return isGmail || (captcha && (captcha as HTMLElement).offsetWidth > 0);
+      }, { timeout: 60000 });
+    }
 
     // 3. Wait for successful login and redirect back to Gmail
     try {

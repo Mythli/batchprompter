@@ -206,7 +206,23 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
                 }) as Promise<T>;
             },
             email: config.GMAIL_EMAIL,
-            password: config.GMAIL_PASSWORD
+            password: config.GMAIL_PASSWORD,
+            resolveCaptcha: async (base64Image: string) => {
+                const response = await openai.chat.completions.create({
+                    model: defaultModel,
+                    messages: [
+                        {
+                            role: 'user',
+                            content: [
+                                { type: 'text', text: 'Read the text in this CAPTCHA image. Return ONLY the exact letters and numbers you see, with no spaces, punctuation, or extra text.' },
+                                { type: 'image_url', image_url: { url: base64Image } }
+                            ]
+                        }
+                    ],
+                    max_tokens: 10
+                });
+                return response.choices[0].message.content?.trim() || '';
+            }
         });
     }
 
