@@ -28,12 +28,12 @@ function fillModelDefaults(
     pluginModel: ModelConfig | undefined,
     globalModel: ModelConfig | undefined
 ): ModelConfig | undefined {
-    const base: ModelConfig = pluginModel || { messages: [] } as ModelConfig;
+    if (!pluginModel) return undefined;
     return {
-        ...base,
-        model: base.model || globalModel?.model,
-        temperature: base.temperature ?? globalModel?.temperature,
-        reasoning_effort: base.reasoning_effort ?? globalModel?.reasoning_effort,
+        ...pluginModel,
+        model: pluginModel.model || globalModel?.model,
+        temperature: pluginModel.temperature ?? globalModel?.temperature,
+        reasoning_effort: pluginModel.reasoning_effort ?? globalModel?.reasoning_effort,
     };
 }
 
@@ -85,12 +85,17 @@ export class GmailReplierPlugin extends BasePlugin<GmailReplierConfig, GmailRepl
         
         let evaluateModel = config.evaluateModel;
         if (config.evaluateReply && !evaluateModel) {
-            evaluateModel = { messages: [] } as ModelConfig;
+            evaluateModel = { model: undefined, temperature: undefined, reasoning_effort: undefined, messages: [] };
+        }
+
+        let draftModel = config.draftModel;
+        if (!draftModel) {
+            draftModel = { model: undefined, temperature: undefined, reasoning_effort: undefined, messages: [] };
         }
 
         return {
             ...base,
-            draftModel: fillModelDefaults(config.draftModel, globalConfig.model),
+            draftModel: fillModelDefaults(draftModel, globalConfig.model),
             evaluateModel: fillModelDefaults(evaluateModel, globalConfig.model)
         };
     }
