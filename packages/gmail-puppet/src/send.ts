@@ -153,19 +153,6 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
   if (!clickedSend) {
     console.warn(`[Gmail Send] ERROR: No visible Send button was found to click!`);
   }
-
-  console.log(`[Gmail Send] Waiting for compose window to close...`);
-  // Wait for the send button to disappear, indicating the compose window closed and the email is sending
-  try {
-    await page.waitForFunction((sel) => {
-      const buttons = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
-      const visibleButton = buttons.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
-      return !visibleButton;
-    }, { timeout: 10000 }, sendButtonSelector);
-    console.log(`[Gmail Send] Compose window closed successfully.`);
-  } catch (e) {
-    console.warn(`[Gmail Send] WARNING: Compose window did not close within 10s timeout.`);
-  }
   
   console.log(`[Gmail Send] Waiting for 'Message sent' toast...`);
   // Wait for the "Message sent" toast to ensure the background request completes successfully
