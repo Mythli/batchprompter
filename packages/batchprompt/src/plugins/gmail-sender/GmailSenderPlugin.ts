@@ -115,24 +115,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
         // 2. Markdown Conversion
         const htmlBody = await marked.parse(bodyMarkdown);
 
-        // 3. Delay Execution
-        if (config.delayMax > 0) {
-            const minMs = config.delayMin * 60 * 1000;
-            const maxMs = config.delayMax * 60 * 1000;
-            const delayMs = Math.floor(Math.random() * (maxMs - minMs + 1) + minMs);
-
-            events.emit('plugin:event', {
-                row: rowIndex,
-                step: stepIndex,
-                plugin: 'gmailSender',
-                event: 'delay:started',
-                data: { delayMs, delayMinutes: delayMs / 60000 }
-            });
-
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-
-        // 4. Authentication & Browser Setup
+        // 3. Authentication & Browser Setup
         if (!deps.gmailClient) {
             throw new Error("Gmail Sender: GMAIL_EMAIL and GMAIL_PASSWORD environment variables are required to initialize the Gmail client.");
         }
@@ -149,7 +132,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                 return match ? match[1].trim().toLowerCase() : str.trim().toLowerCase();
             };
 
-            // 5. Thread Checks
+            // 4. Thread Checks
             if (to) {
                 const toEmail = extractEmail(to);
 
@@ -283,6 +266,23 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                     history: await stepRow.getPreparedMessages(),
                     items: [{ data: status, contentParts: [] }]
                 };
+            }
+
+            // 5. Delay Execution (Only happens if we are actually going to send)
+            if (config.delayMax > 0) {
+                const minMs = config.delayMin * 60 * 1000;
+                const maxMs = config.delayMax * 60 * 1000;
+                const delayMs = Math.floor(Math.random() * (maxMs - minMs + 1) + minMs);
+
+                events.emit('plugin:event', {
+                    row: rowIndex,
+                    step: stepIndex,
+                    plugin: 'gmailSender',
+                    event: 'delay:started',
+                    data: { delayMs, delayMinutes: delayMs / 60000 }
+                });
+
+                await new Promise(resolve => setTimeout(resolve, delayMs));
             }
 
             events.emit('plugin:event', {
