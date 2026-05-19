@@ -10,17 +10,28 @@ import type { StepConfig, GlobalConfig } from '../../config/schema.js';
 import { ModelConfigSchema, ModelConfig } from '../../config/model.js';
 import { GmailClient } from 'gmail-puppet';
 
+const GmailSenderSubjectVariantSchema = z.object({
+    key: z.string().min(1),
+    subject: zHandlebars
+});
+
+const GmailSenderBodyVariantSchema = z.object({
+    key: z.string().min(1),
+    body: zHandlebars
+});
+
 export const GmailSenderConfigSchema = z.object({
     type: z.literal('gmailSender'),
     to: zHandlebars.optional(),
-    subject: zHandlebars.optional(),
-    body: zHandlebars,
+    subject: z.union([
+        zHandlebars,
+        z.array(GmailSenderSubjectVariantSchema).min(1)
+    ]).optional(),
+    body: z.union([
+        zHandlebars,
+        z.array(GmailSenderBodyVariantSchema).min(1)
+    ]),
     variant: zHandlebars.optional(),
-    variants: z.array(z.object({
-        key: z.string().min(1),
-        subject: zHandlebars.optional(),
-        body: zHandlebars.optional()
-    })).optional(),
     replyToId: zHandlebars.optional(),
     delayMin: z.number().min(0).default(0),
     delayMax: z.number().min(0).default(0),
@@ -31,7 +42,7 @@ export const GmailSenderConfigSchema = z.object({
     evaluateReplies: z.boolean().default(false),
     evaluationModel: ModelConfigSchema.optional(),
     output: PartialOutputConfigSchema.optional()
-});
+}).strict();
 
 export type GmailSenderConfig = z.output<typeof GmailSenderConfigSchema>;
 
@@ -97,8 +108,20 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
         super(stepRow, config);
     }
 
+    private getVariantSource() {
+        if (Array.isArray(this.config.body)) {
+            return this.config.body;
+        }
+
+        if (Array.isArray(this.config.subject)) {
+            return this.config.subject;
+        }
+
+        return undefined;
+    }
+
     private selectVariant(row: Record<string, any>): SelectedEmailVariant | undefined {
-        const variants = this.config.variants;
+        const variants = this.getVariantSource();
         if (!variants || variants.length === 0) {
             return undefined;
         }
@@ -128,6 +151,30 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
         };
     }
 
+    private getSelectedSubjectTemplate(emailVariant: SelectedEmailVariant | undefined): string | undefined {
+        if (typeof this.config.subject === 'string') {
+            return this.config.subject;
+        }
+
+        if (Array.isArray(this.config.subject) && emailVariant) {
+            return this.config.subject.find(variant => variant.key === emailVariant.key)?.subject;
+        }
+
+        return undefined;
+    }
+
+    private getSelectedBodyTemplate(emailVariant: SelectedEmailVariant | undefined): string | undefined {
+        if (typeof this.config.body === 'string') {
+            return this.config.body;
+        }
+
+        if (Array.isArray(this.config.body) && emailVariant) {
+            return this.config.body.find(variant => variant.key === emailVariant.key)?.body;
+        }
+
+        return undefined;
+    }
+
     async postProcess(): Promise<PluginResult> {
         const { stepRow, config, deps } = this;
         const row = stepRow.context;
@@ -137,7 +184,6 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
 
         // 1. Templating
         const emailVariant = this.selectVariant(row);
-        const selectedVariantConfig = emailVariant ? config.variants?.[emailVariant.index] : undefined;
         const templateContext = emailVariant ? { ...row, emailVariant } : row;
         const render = (template?: string) => {
             if (!template) return undefined;
@@ -145,8 +191,8 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
         };
 
         const to = render(config.to);
-        const subject = render(selectedVariantConfig?.subject ?? config.subject);
-        const bodyMarkdown = render(selectedVariantConfig?.body ?? config.body);
+        const subject = render(this.getSelectedSubjectTemplate(emailVariant));
+        const bodyMarkdown = render(this.getSelectedBodyTemplate(emailVariant));
         const replyToId = render(config.replyToId);
 
         if (!bodyMarkdown) {
@@ -394,6 +440,21 @@ export class GmailSenderPlugin extends BasePlugin<GmailSenderConfig, GmailSender
     }
 
     normalizeConfig(config: GmailSenderConfig, stepConfig: StepConfig, globalConfig: GlobalConfig): GmailSenderConfig {
+        if ((config as any).variants !== undefined) {
+            throw new Error("Gmail Sender: 'variants' is no longer supported. Use subject/body arrays instead.");
+        }
+
+        if (Array.isArray(config.subject) && Array.isArray(config.body)) {
+            const subjectKeys = config.subject.map(variant => variant.key);
+            const bodyKeys = config.body.map(variant => variant.key);
+            const mismatch = subjectKeys.length !== bodyKeys.length
+                || subjectKeys.some((key, index) => key !== bodyKeys[index]);
+
+            if (mismatch) {
+                throw new Error("Gmail Sender: subject and body variant arrays must use the same keys in the same order.");
+            }
+        }
+
         const base = super.normalizeConfig(config, stepConfig, globalConfig);
         const globalModel = globalConfig.model;
 

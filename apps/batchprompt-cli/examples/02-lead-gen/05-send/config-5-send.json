@@ -9,17 +9,23 @@
         {
           "type": "gmailSender",
           "to": "{{websiteAgent.decisionMaker.email}}",
-          "subject": "{{generatedSubject}}",
-          "body": "{{generatedEmail}}",
-          "variants": [
+          "subject": [
             {
               "key": "A",
-              "subject": "{{generatedSubject}}",
+              "subject": "{{generatedSubject}}"
+            },
+            {
+              "key": "B",
+              "subject": "{{generatedSubject}}"
+            }
+          ],
+          "body": [
+            {
+              "key": "A",
               "body": "{{generatedEmail}}"
             },
             {
               "key": "B",
-              "subject": "{{generatedSubject}}",
               "body": "{{generatedEmail}}\n\nPS: Variante {{emailVariant.key}}"
             }
           ],

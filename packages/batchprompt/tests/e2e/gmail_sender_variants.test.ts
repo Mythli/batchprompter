@@ -58,12 +58,15 @@ describe('GmailSenderPlugin variants', () => {
                 plugins: [{
                     type: 'gmailSender',
                     to: 'lead-{{id}}@example.com',
-                    subject: 'Fallback subject',
-                    body: 'Fallback body',
-                    variants: [
-                        { key: 'A', subject: 'Subject {{emailVariant.key}}', body: 'Body {{emailVariant.key}}/{{emailVariant.index}}' },
-                        { key: 'B', subject: 'Subject {{emailVariant.key}}', body: 'Body {{emailVariant.key}}/{{emailVariant.index}}' },
-                        { key: 'C', subject: 'Subject {{emailVariant.key}}', body: 'Body {{emailVariant.key}}/{{emailVariant.index}}' }
+                    subject: [
+                        { key: 'A', subject: 'Subject {{emailVariant.key}}' },
+                        { key: 'B', subject: 'Subject {{emailVariant.key}}' },
+                        { key: 'C', subject: 'Subject {{emailVariant.key}}' }
+                    ],
+                    body: [
+                        { key: 'A', body: 'Body {{emailVariant.key}}/{{emailVariant.index}}' },
+                        { key: 'B', body: 'Body {{emailVariant.key}}/{{emailVariant.index}}' },
+                        { key: 'C', body: 'Body {{emailVariant.key}}/{{emailVariant.index}}' }
                     ],
                     output: { mode: 'merge' }
                 }]
@@ -89,12 +92,14 @@ describe('GmailSenderPlugin variants', () => {
                 plugins: [{
                     type: 'gmailSender',
                     to: 'lead@example.com',
-                    subject: 'Fallback subject',
-                    body: 'Fallback body',
                     variant: '{{emailVariantColumn}}',
-                    variants: [
-                        { key: 'A', subject: 'Subject A', body: 'Body A' },
-                        { key: 'B', subject: 'Subject {{emailVariant.key}}', body: 'Body {{emailVariant.index}}' }
+                    subject: [
+                        { key: 'A', subject: 'Subject A' },
+                        { key: 'B', subject: 'Subject {{emailVariant.key}}' }
+                    ],
+                    body: [
+                        { key: 'A', body: 'Body A' },
+                        { key: 'B', body: 'Body {{emailVariant.index}}' }
                     ],
                     output: { mode: 'merge' }
                 }]
@@ -117,12 +122,14 @@ describe('GmailSenderPlugin variants', () => {
                 plugins: [{
                     type: 'gmailSender',
                     to: 'lead@example.com',
-                    subject: 'Fallback subject',
-                    body: 'Fallback body',
                     variant: '{{variantIndex}}',
-                    variants: [
-                        { key: 'A', subject: 'Subject A', body: 'Body A' },
-                        { key: 'B', subject: 'Subject B', body: 'Body B' }
+                    subject: [
+                        { key: 'A', subject: 'Subject A' },
+                        { key: 'B', subject: 'Subject B' }
+                    ],
+                    body: [
+                        { key: 'A', body: 'Body A' },
+                        { key: 'B', body: 'Body B' }
                     ],
                     output: { mode: 'merge' }
                 }]
@@ -135,7 +142,7 @@ describe('GmailSenderPlugin variants', () => {
         expect(results[0].gmailSender.emailVariant).toEqual({ key: 'B', index: 1 });
     });
 
-    it('falls back to top-level subject and body when a variant omits them', async () => {
+    it('supports subject-only variants with a shared body', async () => {
         const { executor, gmailClient } = setupGmailSenderTest();
 
         const { results } = await executor.runConfig({
@@ -144,10 +151,34 @@ describe('GmailSenderPlugin variants', () => {
                 plugins: [{
                     type: 'gmailSender',
                     to: 'lead@example.com',
-                    subject: 'Fallback subject {{emailVariant.key}}',
-                    body: 'Fallback body {{emailVariant.index}}',
-                    variants: [
-                        { key: 'A' }
+                    subject: [
+                        { key: 'A', subject: 'Subject {{emailVariant.key}}/{{emailVariant.index}}' }
+                    ],
+                    body: 'Shared body {{emailVariant.key}}',
+                    output: { mode: 'merge' }
+                }]
+            }]
+        }, [{}]);
+
+        expect(gmailClient.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+            subject: 'Subject A/0'
+        }));
+        expect(sentEmail(gmailClient).htmlBody).toContain('Shared body A');
+        expect(results[0].gmailSender.emailVariant).toEqual({ key: 'A', index: 0 });
+    });
+
+    it('supports body-only variants with a shared subject', async () => {
+        const { executor, gmailClient } = setupGmailSenderTest();
+
+        const { results } = await executor.runConfig({
+            taskConcurrency: 1,
+            steps: [{
+                plugins: [{
+                    type: 'gmailSender',
+                    to: 'lead@example.com',
+                    subject: 'Shared subject {{emailVariant.key}}',
+                    body: [
+                        { key: 'A', body: 'Body {{emailVariant.index}}' }
                     ],
                     output: { mode: 'merge' }
                 }]
@@ -155,9 +186,9 @@ describe('GmailSenderPlugin variants', () => {
         }, [{}]);
 
         expect(gmailClient.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
-            subject: 'Fallback subject A'
+            subject: 'Shared subject A'
         }));
-        expect(sentEmail(gmailClient).htmlBody).toContain('Fallback body 0');
+        expect(sentEmail(gmailClient).htmlBody).toContain('Body 0');
         expect(results[0].gmailSender.emailVariant).toEqual({ key: 'A', index: 0 });
     });
 
@@ -177,8 +208,7 @@ describe('GmailSenderPlugin variants', () => {
                     type: 'gmailSender',
                     to: 'lead@example.com',
                     subject: 'Subject',
-                    body: 'Body',
-                    variants: [{ key: 'A' }],
+                    body: [{ key: 'A', body: 'Body' }],
                     output: { mode: 'merge' }
                 }]
             }]
@@ -200,9 +230,8 @@ describe('GmailSenderPlugin variants', () => {
                     type: 'gmailSender',
                     to: 'lead@example.com',
                     subject: 'Subject',
-                    body: 'Body',
                     variant: '{{emailVariantColumn}}',
-                    variants: [{ key: 'A' }, { key: 'B' }],
+                    body: [{ key: 'A', body: 'Body A' }, { key: 'B', body: 'Body B' }],
                     output: { mode: 'merge' }
                 }]
             }]
@@ -213,7 +242,42 @@ describe('GmailSenderPlugin variants', () => {
         expect(errors[0].message).toContain("variant 'Z' was not found");
     });
 
-    it('parses the lead-gen send config with variants', async () => {
+    it('rejects the old variants field', async () => {
+        const { executor, events } = setupGmailSenderTest();
+        const errors: Error[] = [];
+        events.on('row:error', event => errors.push(event.error));
+
+        await expect(executor.runConfig({
+            taskConcurrency: 1,
+            steps: [{
+                plugins: [{
+                    type: 'gmailSender',
+                    to: 'lead@example.com',
+                    subject: 'Subject',
+                    body: [{ key: 'A', body: 'Body A' }],
+                    variants: [{ key: 'B', body: 'Body B' }]
+                }]
+            }]
+        }, [{}])).rejects.toThrow();
+    });
+
+    it('rejects subject/body variant arrays with different keys', async () => {
+        const { executor } = setupGmailSenderTest();
+
+        await expect(executor.runConfig({
+            taskConcurrency: 1,
+            steps: [{
+                plugins: [{
+                    type: 'gmailSender',
+                    to: 'lead@example.com',
+                    subject: [{ key: 'A', subject: 'Subject A' }],
+                    body: [{ key: 'B', body: 'Body B' }]
+                }]
+            }]
+        }, [{}])).rejects.toThrow('same keys');
+    });
+
+    it('parses the lead-gen send config with subject/body arrays', async () => {
         const { registry } = setupGmailSenderTest();
         const configPath = path.resolve(process.cwd(), '../../apps/batchprompt-cli/examples/02-lead-gen/05-send/config-5-send.json');
         const config = JSON.parse(await fs.readFile(configPath, 'utf-8'));
@@ -222,7 +286,8 @@ describe('GmailSenderPlugin variants', () => {
         const parsed = await schema.parseAsync(config);
         const gmailSenderConfig = parsed.steps[0].plugins[0];
 
-        expect(gmailSenderConfig.variants).toHaveLength(2);
-        expect(gmailSenderConfig.variants[0].key).toBe('A');
+        expect(gmailSenderConfig.subject).toHaveLength(2);
+        expect(gmailSenderConfig.body).toHaveLength(2);
+        expect(gmailSenderConfig.body[0].key).toBe('A');
     });
 });

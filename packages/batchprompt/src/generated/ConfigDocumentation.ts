@@ -485,17 +485,23 @@ The config uses the \`imageSearch\` plugin and an image-capable model. It writes
         {
           "type": "gmailSender",
           "to": "{{websiteAgent.decisionMaker.email}}",
-          "subject": "{{generatedSubject}}",
-          "body": "{{generatedEmail}}",
-          "variants": [
+          "subject": [
             {
               "key": "A",
-              "subject": "{{generatedSubject}}",
+              "subject": "{{generatedSubject}}"
+            },
+            {
+              "key": "B",
+              "subject": "{{generatedSubject}}"
+            }
+          ],
+          "body": [
+            {
+              "key": "A",
               "body": "{{generatedEmail}}"
             },
             {
               "key": "B",
-              "subject": "{{generatedSubject}}",
               "body": "{{generatedEmail}}\\n\\nPS: Variante {{emailVariant.key}}"
             }
           ],
@@ -607,23 +613,29 @@ Once you have manually verified the generated emails in the CSV, run the send co
 ./examples/02-lead-gen/05-send/5-send.sh
 \`\`\`
 
-The send config can define \`variants\` for A/B testing subject/body copy. If \`variant\` is not set, rows are assigned deterministically by input order: A, B, A, B...
+The send config can define A/B variants by setting \`subject\` and/or \`body\` to arrays. If \`variant\` is not set, rows are assigned deterministically by input order: A, B, A, B...
 
 \`\`\`json
 {
   "type": "gmailSender",
   "to": "{{websiteAgent.decisionMaker.email}}",
-  "subject": "{{generatedSubject}}",
-  "body": "{{generatedEmail}}",
-  "variants": [
+  "subject": [
     {
       "key": "A",
-      "subject": "{{generatedSubject}}",
+      "subject": "{{generatedSubject}}"
+    },
+    {
+      "key": "B",
+      "subject": "Kurze Frage: {{websiteAgent.topOffer.name}}"
+    }
+  ],
+  "body": [
+    {
+      "key": "A",
       "body": "{{generatedEmail}}"
     },
     {
       "key": "B",
-      "subject": "Kurze Frage: {{websiteAgent.topOffer.name}}",
       "body": "{{generatedEmail}}\\n\\nPS: Variante {{emailVariant.key}}"
     }
   ]
