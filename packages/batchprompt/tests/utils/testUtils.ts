@@ -59,7 +59,8 @@ export function createTestContext(options: TestContextOptions = {}) {
         webSearch,
         imageSearch,
         pluginRegistry: null as any,
-        llmFactory: null as any
+        llmFactory: null as any,
+        gmailClient: undefined
     };
 
     return { deps, openai, events };

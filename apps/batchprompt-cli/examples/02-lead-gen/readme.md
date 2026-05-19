@@ -3,14 +3,14 @@
 This repository contains an automated, multi-stage pipeline to find, enrich, and contact leads using AI. Because this process relies on LLM APIs and web scraping, it is designed with strict testing phases to ensure high data quality and to prevent unnecessary API costs.
 
 ## 📋 Prerequisites
-Ensure your `.env` file is configured with the necessary API keys (e.g., OpenAI/Gemini) and your Gmail credentials (`GMAIL_EMAIL` and `GMAIL_PASSWORD`) for the final sending step.
+Ensure your `.env` file is configured with the necessary API keys (e.g., OpenAI/Gemini). The search step also needs `BATCHPROMPT_SERPER_API_KEY`, and the final sending step needs Gmail credentials (`GMAIL_EMAIL` and `GMAIL_PASSWORD`).
 
 ---
 
 ## 🚀 The Process
 
 ### 1. Pre-flight: Verify Customer Database
-Before starting a new campaign, ensure that all current customer websites are up-to-date in your customer support database.  
+Before starting a new campaign, ensure that all current customer websites are up-to-date in your customer support database.
 *Note: The `1-find.sh` script automatically runs `filter-customers.cjs` at the end of its execution to cross-reference and exclude known customer URLs from your newly generated leads.*
 
 ### 2. Find Leads (Test Run)
@@ -81,10 +81,33 @@ Open `out/02-lead-gen/companies_emails.csv` and carefully read the generated ema
 If everything is perfect, run the command without the `--input-limit` flag to generate the rest.
 
 ### 8. Send Emails
-Once you have manually verified the generated emails in the CSV, run the send command. This will dispatch the emails via the configured Gmail account.
+Once you have manually verified the generated emails in the CSV, run the send command. This dispatches one email per input row via the configured Gmail account.
 
 ```bash
 ./examples/02-lead-gen/05-send/5-send.sh
 ```
 
-You can monitor the delivery status and thread IDs in the resulting `out/02-lead-gen/5-send-results.csv` file.
+The send config can define `variants` for A/B testing subject/body copy. If `variant` is not set, rows are assigned deterministically by input order: A, B, A, B...
+
+```json
+{
+  "type": "gmailSender",
+  "to": "{{websiteAgent.decisionMaker.email}}",
+  "subject": "{{generatedSubject}}",
+  "body": "{{generatedEmail}}",
+  "variants": [
+    {
+      "key": "A",
+      "subject": "{{generatedSubject}}",
+      "body": "{{generatedEmail}}"
+    },
+    {
+      "key": "B",
+      "subject": "Kurze Frage: {{websiteAgent.topOffer.name}}",
+      "body": "{{generatedEmail}}\n\nPS: Variante {{emailVariant.key}}"
+    }
+  ]
+}
+```
+
+You can monitor delivery status, selected `emailVariant`, and thread IDs in the resulting `out/02-lead-gen/5-send-results.csv` file.

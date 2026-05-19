@@ -15,6 +15,12 @@ export const GmailSenderConfigSchema = z.object({
     to: zHandlebars.optional(),
     subject: zHandlebars.optional(),
     body: zHandlebars,
+    variant: zHandlebars.optional(),
+    variants: z.array(z.object({
+        key: z.string().min(1),
+        subject: zHandlebars.optional(),
+        body: zHandlebars.optional()
+    })).optional(),
     replyToId: zHandlebars.optional(),
     delayMin: z.number().min(0).default(0),
     delayMax: z.number().min(0).default(0),
@@ -28,6 +34,11 @@ export const GmailSenderConfigSchema = z.object({
 });
 
 export type GmailSenderConfig = z.output<typeof GmailSenderConfigSchema>;
+
+type SelectedEmailVariant = {
+    key: string;
+    index: number;
+};
 
 export interface GmailSenderPluginDeps {
     gmailClient?: GmailClient;
@@ -86,6 +97,37 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
         super(stepRow, config);
     }
 
+    private selectVariant(row: Record<string, any>): SelectedEmailVariant | undefined {
+        const variants = this.config.variants;
+        if (!variants || variants.length === 0) {
+            return undefined;
+        }
+
+        const render = (template: string) => Handlebars.compile(template, { noEscape: true })(row).trim();
+        const requestedVariant = this.config.variant ? render(this.config.variant) : undefined;
+
+        let selectedIndex: number;
+        if (requestedVariant) {
+            selectedIndex = variants.findIndex(variant => variant.key === requestedVariant);
+            if (selectedIndex === -1) {
+                const numericIndex = Number(requestedVariant);
+                if (Number.isInteger(numericIndex) && numericIndex >= 0 && numericIndex < variants.length) {
+                    selectedIndex = numericIndex;
+                } else {
+                    const validVariants = variants.map(variant => variant.key).join(', ');
+                    throw new Error(`Gmail Sender: variant '${requestedVariant}' was not found. Valid variants: ${validVariants}`);
+                }
+            }
+        } else {
+            selectedIndex = this.stepRow.getOriginalIndex() % variants.length;
+        }
+
+        return {
+            key: variants[selectedIndex].key,
+            index: selectedIndex
+        };
+    }
+
     async postProcess(): Promise<PluginResult> {
         const { stepRow, config, deps } = this;
         const row = stepRow.context;
@@ -94,14 +136,17 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
         const stepIndex = stepRow.step.stepIndex;
 
         // 1. Templating
+        const emailVariant = this.selectVariant(row);
+        const selectedVariantConfig = emailVariant ? config.variants?.[emailVariant.index] : undefined;
+        const templateContext = emailVariant ? { ...row, emailVariant } : row;
         const render = (template?: string) => {
             if (!template) return undefined;
-            return Handlebars.compile(template, { noEscape: true })(row);
+            return Handlebars.compile(template, { noEscape: true })(templateContext);
         };
 
         const to = render(config.to);
-        const subject = render(config.subject);
-        const bodyMarkdown = render(config.body);
+        const subject = render(selectedVariantConfig?.subject ?? config.subject);
+        const bodyMarkdown = render(selectedVariantConfig?.body ?? config.body);
         const replyToId = render(config.replyToId);
 
         if (!bodyMarkdown) {
@@ -259,6 +304,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                     to,
                     subject,
                     replyToId: finalReplyToId,
+                    emailVariant,
                     timestamp: new Date().toISOString()
                 };
 
@@ -290,7 +336,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                 step: stepIndex,
                 plugin: 'gmailSender',
                 event: 'send:started',
-                data: { to, subject, replyToId: finalReplyToId }
+                data: { to, subject, replyToId: finalReplyToId, emailVariant }
             });
 
             // 6. Sending the Email
@@ -306,7 +352,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                 step: stepIndex,
                 plugin: 'gmailSender',
                 event: 'send:success',
-                data: { to, subject, replyToId: finalReplyToId }
+                data: { to, subject, replyToId: finalReplyToId, emailVariant }
             });
 
             // 7. Output Generation
@@ -315,6 +361,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                 to,
                 subject,
                 replyToId: finalReplyToId,
+                emailVariant,
                 timestamp: new Date().toISOString()
             };
 

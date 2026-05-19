@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
 export interface CliPluginAdapter {
-    /** The plugin type string (e.g. 'web-search', 'dedupe') */
+    /** The plugin type string matching the library schema (e.g. 'webSearch', 'dedupe') */
     pluginType: string;
 
     /** Register flags with Commander */

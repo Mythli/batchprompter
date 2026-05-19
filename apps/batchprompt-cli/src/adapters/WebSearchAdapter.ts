@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 
 export class WebSearchAdapter implements CliPluginAdapter {
-    readonly pluginType = 'web-search';
+    readonly pluginType = 'webSearch';
 
     registerOptions(program: Command) {
         program.option('--web-search-query <text>', 'Static search query');
@@ -57,7 +57,7 @@ export class WebSearchAdapter implements CliPluginAdapter {
 
         if (!query && !queryPrompt) return null;
 
-        const result: Record<string, any> = { type: 'web-search' };
+        const result: Record<string, any> = { type: 'webSearch' };
 
         if (query) result.query = query;
         if (getOpt('webSearchLimit') !== undefined) result.limit = getOpt('webSearchLimit');

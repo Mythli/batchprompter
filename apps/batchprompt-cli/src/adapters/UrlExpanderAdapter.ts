@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 
 export class UrlExpanderAdapter implements CliPluginAdapter {
-    readonly pluginType = 'url-expander';
+    readonly pluginType = 'urlExpander';
 
     registerOptions(program: Command) {
         program.option('--expand-urls', 'Enable URL expansion in prompts');
@@ -26,7 +26,7 @@ export class UrlExpanderAdapter implements CliPluginAdapter {
         const isEnabled = getOpt('expandUrls');
         if (!isEnabled) return null;
 
-        const result: Record<string, any> = { type: 'url-expander' };
+        const result: Record<string, any> = { type: 'urlExpander' };
 
         const mode = getOpt('expandUrlsMode');
         if (mode) result.mode = mode;

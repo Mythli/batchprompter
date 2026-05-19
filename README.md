@@ -1,8 +1,8 @@
 # BatchPrompt ⚡️
 
-**BatchPrompt** is a CLI tool for building **AI pipelines**. It automates the process of chaining LLMs, Web Search, and Scrapers to process data in bulk.
+**BatchPrompt** is a CLI tool for building **AI pipelines**. It automates the process of chaining LLMs, web search, browser scrapers, validation, deduping, and Gmail actions to process data in bulk.
 
-Unlike a chatbot, BatchPrompt is **data-driven**: it takes a CSV/JSON file, and for every row, it executes a pipeline of steps to generate files or structured data.
+Unlike a chatbot, BatchPrompt is **data-driven**: it reads CSV/JSON rows from stdin or config data, and for every row it executes a pipeline of steps to generate files, structured data, or side effects like sending email.
 
 ---
 
@@ -20,7 +20,7 @@ npm install -g batchprompt
 ```bash
 export BATCHPROMPT_OPENAI_BASE_URL="https://openrouter.ai/api/v1"
 export BATCHPROMPT_OPENAI_API_KEY="sk-or-..."
-export BATCHPROMPT_SERPER_API_KEY="your-serper-key" # Required for Search/Scraping
+export BATCHPROMPT_SERPER_API_KEY="your-serper-key" # Required for webSearch/imageSearch
 ```
 
 **Windows (PowerShell):**
@@ -38,11 +38,11 @@ The best way to learn BatchPrompt is by doing. We have prepared step-by-step tut
 
 | Tutorial | Difficulty | What you'll learn |
 | :--- | :--- | :--- |
-| **[1. RAG Image Generation](examples/01-rag-imagegen/README.md)** | 🟢 Easy | How to use **Search** to find reference images and guide **Image Generation**. |
-| **[2. B2B Lead Generation](examples/02-lead-gen/README.md)** | 🔴 Advanced | How to build a **Multi-Stage Pipeline** (Find -> Enrich) with **JSON config**. |
-| **[3. SEO Rank Tracker](examples/03-seo-rank/README.md)** | 🟡 Medium | How to use **Web Search** and **AI Selectors** to analyze search results. |
-| **[4. Website Style Analyzer](examples/04-describe-website-css/README.md)** | 🟡 Medium | How to use the **Style Scraper** (Vision + CSS) to reverse-engineer design systems. |
-| **[5. Logo Downloader](examples/05-logo-downloader/README.md)** | 🟡 Medium | How to use the **Logo Scraper** to extract brand assets (logos, favicons, colors). |
+| **[1. RAG Image Generation](apps/batchprompt-cli/examples/01-rag-imagegen/README.md)** | 🟢 Easy | How to use **Search** to find reference images and guide **Image Generation**. |
+| **[2. B2B Lead Generation](apps/batchprompt-cli/examples/02-lead-gen/readme.md)** | 🔴 Advanced | How to build a **Multi-Stage Pipeline** (Find -> Enrich) with **JSON config**. |
+| **[3. SEO Rank Tracker](apps/batchprompt-cli/examples/03-seo-rank/README.md)** | 🟡 Medium | How to use **Web Search** and **AI Selectors** to analyze search results. |
+| **[4. Website Style Analyzer](apps/batchprompt-cli/examples/04-describe-website-css/README.md)** | 🟡 Medium | How to use the **Style Scraper** (Vision + CSS) to reverse-engineer design systems. |
+| **[5. Logo Downloader](apps/batchprompt-cli/examples/05-logo-downloader/README.md)** | 🟡 Medium | How to use the **Logo Scraper** to extract brand assets (logos, favicons, colors). |
 
 ---
 
@@ -50,9 +50,9 @@ The best way to learn BatchPrompt is by doing. We have prepared step-by-step tut
 
 Think of BatchPrompt as an **assembly line** for your data.
 
-1.  **Input:** You feed it a CSV file. Each row is a "raw material".
+1.  **Input:** You pipe CSV/JSON rows into `batchprompt generate`, or provide data in config. Each row is a "raw material".
 2.  **The Pipeline:** You define a series of **Steps**.
-    *   **Fetch:** Plugins (Web Search, Image Search) go out and get data.
+    *   **Fetch:** Plugins (Web Search, Image Search, Website Agent, Style Scraper, Logo Scraper, Load Data) go out and get data.
     *   **Context:** The LLM receives the Row Data + Plugin Data.
     *   **Generate:** The LLM creates content (Text, Code, JSON).
 3.  **Output:** The result is saved to a file OR merged back into the row for the next step.
@@ -82,11 +82,13 @@ graph TD
 
 BatchPrompt comes with powerful built-in plugins to give your LLM access to the real world.
 
-*   **Web Search**: Google Search (Serper) with content fetching.
-*   **Image Search**: Find and download images for RAG or analysis.
-*   **Website Agent**: Autonomous scraper that navigates websites to extract specific data (JSON).
-*   **Style Scraper**: Captures screenshots (Desktop/Mobile) and computed CSS for design analysis.
-*   **Logo Scraper**: Extracts logos, favicons, and brand colors from websites.
+*   **Web Search** (`webSearch`): Google Search via Serper, with optional content fetching and AI selection.
+*   **Image Search** (`imageSearch`): Find and download images for RAG or analysis.
+*   **Website Agent** (`websiteAgent`): Browser-based extraction of structured data from websites.
+*   **Style Scraper** (`styleScraper`): Captures screenshots and computed CSS for design analysis.
+*   **Logo Scraper** (`logoScraper`): Extracts logos, favicons, and brand colors from websites.
+*   **Validation / Dedupe / Load Data** (`validation`, `dedupe`, `loadData`): Clean, validate, merge, and expand rows.
+*   **Gmail Sender / Replier** (`gmailSender`, `gmailReplier`): Send or reply to Gmail threads from pipeline rows.
 
 ---
 
@@ -96,12 +98,12 @@ You can run BatchPrompt using simple CLI flags or robust YAML/JSON configuration
 
 **CLI Mode (Simple):**
 ```bash
-batchprompt generate data.csv "Write a summary of {{topic}}" --model google/gemini-3-flash
+cat data.csv | batchprompt generate "Write a summary of {{topic}}" --model google/gemini-3-flash
 ```
 
 **Config Mode (Advanced):**
 ```bash
-batchprompt generate data.csv --config config.json
+cat data.csv | batchprompt generate --config config.json
 ```
 
 See the [Tutorials](#-tutorials) for examples of both methods.

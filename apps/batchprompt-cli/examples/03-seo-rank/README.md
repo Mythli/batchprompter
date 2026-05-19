@@ -22,7 +22,7 @@ The pipeline is defined in `config.json`:
     {
       "plugins": [
         {
-          "type": "web-search",
+          "type": "webSearch",
           "query": "{{keyword}}",
           "maxPages": 3,
           "limit": 30,
@@ -66,11 +66,11 @@ The pipeline is defined in `config.json`:
 
 ### Web Search Plugin Config
 
-The `web-search` plugin uses nested model config objects for its AI operations:
+The `webSearch` plugin uses nested model config objects for its AI operations:
 
 ```json
 {
-  "type": "web-search",
+  "type": "webSearch",
   "query": "{{keyword}}",
   "selectModel": {
     "model": "google/gemini-3-flash-preview",

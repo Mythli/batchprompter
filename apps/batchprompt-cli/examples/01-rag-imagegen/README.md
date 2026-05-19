@@ -13,4 +13,10 @@ This example demonstrates a Retrieval-Augmented Generation pipeline for images:
 - **AI Selection**: Vision Model scores candidates against a rubric
 - **Explosion**: `output.explode: true` splits selected images into separate tasks
 - **Candidates**: Multiple variations generated per reference
-- **Shell Post-Processing**: ImageMagick resize via `shell-command` plugin
+## Running
+
+```bash
+bash examples/01-rag-imagegen/run.sh
+```
+
+The config uses the `imageSearch` plugin and an image-capable model. It writes the generated artifact to `out/01-rag-imagegen/{{industry}}/HeroImage.jpg`.

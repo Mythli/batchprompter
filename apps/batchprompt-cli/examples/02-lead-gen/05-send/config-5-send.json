@@ -8,9 +8,21 @@
       "plugins": [
         {
           "type": "gmailSender",
-          "to": "tobias+{{websiteAgent.decisionMaker.firstName}}@butlerapp.de",
-          "subject": "{{generatedSubject}} 2",
+          "to": "{{websiteAgent.decisionMaker.email}}",
+          "subject": "{{generatedSubject}}",
           "body": "{{generatedEmail}}",
+          "variants": [
+            {
+              "key": "A",
+              "subject": "{{generatedSubject}}",
+              "body": "{{generatedEmail}}"
+            },
+            {
+              "key": "B",
+              "subject": "{{generatedSubject}}",
+              "body": "{{generatedEmail}}\n\nPS: Variante {{emailVariant.key}}"
+            }
+          ],
           "delayMin": 0,
           "delayMax": 0,
           "sendIfReceived": true,

@@ -8,14 +8,14 @@ cd "$(dirname "$0")/.."
 
 echo "=========================================="
 echo "Skipping Example 01: RAG Image Generation"
-echo "(Requires image-search plugin - not yet available)"
+echo "(Available, but skipped by default because it uses image search and image generation)"
 echo "=========================================="
 
 echo ""
 echo "=========================================="
-echo "Running Example 02: Lead Generation"
+echo "Skipping Example 02: Lead Generation"
+echo "(Multi-step outreach workflow; follow examples/02-lead-gen/README.md)"
 echo "=========================================="
-bash examples/02-lead-gen/run.sh
 
 echo ""
 echo "=========================================="
@@ -26,19 +26,19 @@ bash examples/03-seo-rank/run.sh
 echo ""
 echo "=========================================="
 echo "Skipping Example 04: Website Style Analysis"
-echo "(Requires style-scraper plugin - not yet available)"
+echo "(Available, but skipped by default because it uses browser scraping and vision)"
 echo "=========================================="
 
 echo ""
 echo "=========================================="
-echo "Running Example 05: Simple Chain (3 Steps)"
+echo "Running Example 05: Simple Chain"
 echo "=========================================="
 bash examples/05-simple-chain/run.sh
 
 echo ""
 echo "=========================================="
 echo "Skipping Example 05: Logo Downloader"
-echo "(Requires logo-scraper plugin - not yet available)"
+echo "(Available, but skipped by default because it uses browser scraping and vision)"
 echo "=========================================="
 
 echo ""

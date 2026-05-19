@@ -63,9 +63,9 @@ export class PuppeteerHelper {
             puppeteerLaunchOptions,
         } = this.options;
 
-        // Browser initialization
+        // Browser initialization. Preserve the profile directory so browser restarts
+        // do not wipe sessions/cookies for stateful flows such as Gmail.
         try {
-            await fs.rm(browserUserDataDir!, { recursive: true, force: true });
             await fs.mkdir(browserUserDataDir!, { recursive: true });
         } catch (error: any) {
             // console.warn(`Could not manage user data directory '${browserUserDataDir}': ${error.message}`);
@@ -75,6 +75,16 @@ export class PuppeteerHelper {
             ...puppeteerLaunchOptions,
             userDataDir: browserUserDataDir,
             pipe: true, // Use pipe instead of websocket for better process control
+        });
+
+        const launchedBrowser = this.browser;
+        launchedBrowser.on('disconnected', () => {
+            if (this.browser === launchedBrowser) {
+                this.browser = null;
+                this.initPromise = null;
+                this.pagesOpenedCount = 0;
+                this.activePagesCount = 0;
+            }
         });
 
         this.setupProcessHandlers();
@@ -158,6 +168,75 @@ export class PuppeteerHelper {
         }
     }
 
+    private async _ensureHealthyBrowser(): Promise<void> {
+        await this._ensureInitialized();
+
+        if (!this.browser || !this.browser.isConnected()) {
+            await this._restartBrowser();
+        }
+    }
+
+    private isRecoverableBrowserError(error: any): boolean {
+        const message = error?.message || String(error);
+        return [
+            'Protocol error',
+            'Connection closed',
+            'Target closed',
+            'Session closed',
+            'Browser has disconnected',
+            'browser is closed',
+            'WebSocket is not open'
+        ].some(part => message.includes(part));
+    }
+
+    private async _restartBrowser(): Promise<void> {
+        if (this.isRestarting) {
+            if (this.restartPromise) await this.restartPromise;
+            return;
+        }
+
+        this.isRestarting = true;
+
+        this.restartPromise = (async () => {
+            try {
+                // 1. Wait for active pages to close or timeout
+                if (this.activePagesCount > 0) {
+                    // console.log(`[PuppeteerHelper] Waiting for ${this.activePagesCount} active pages to close (Timeout: ${this.restartTimeout}ms)...`);
+
+                    const startTime = Date.now();
+                    while (this.activePagesCount > 0) {
+                        if (Date.now() - startTime > this.restartTimeout) {
+                            // console.warn(`[PuppeteerHelper] Restart timeout reached. Forcing close with ${this.activePagesCount} active pages.`);
+                            break;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                    }
+                }
+
+                // 2. Close existing browser
+                // console.log(`[PuppeteerHelper] Closing browser...`);
+                await this.close();
+
+                // 3. Re-initialize
+                // console.log(`[PuppeteerHelper] Starting new browser instance...`);
+                await this.init();
+
+                // console.log(`[PuppeteerHelper] Browser restarted successfully.`);
+            } catch (e: any) {
+                // console.error(`[PuppeteerHelper] Error during restart: ${e.message}`);
+                // Reset flags so we can try again or fail hard next time
+                this.isRestarting = false;
+                this.restartPromise = null;
+                throw e;
+            } finally {
+                this.isRestarting = false;
+                this.restartPromise = null;
+            }
+        })();
+
+        await this.restartPromise;
+    }
+
     private async _checkAndRestartIfNeeded(): Promise<void> {
         if (this.isRestarting) {
             if (this.restartPromise) await this.restartPromise;
@@ -166,54 +245,33 @@ export class PuppeteerHelper {
 
         if (this.pagesOpenedCount >= this.maxPagesLimit) {
             // console.log(`[PuppeteerHelper] Page limit reached (${this.pagesOpenedCount}/${this.maxPagesLimit}). Initiating restart...`);
-            this.isRestarting = true;
-            
-            this.restartPromise = (async () => {
-                try {
-                    // 1. Wait for active pages to close or timeout
-                    if (this.activePagesCount > 0) {
-                        // console.log(`[PuppeteerHelper] Waiting for ${this.activePagesCount} active pages to close (Timeout: ${this.restartTimeout}ms)...`);
-                        
-                        const startTime = Date.now();
-                        while (this.activePagesCount > 0) {
-                            if (Date.now() - startTime > this.restartTimeout) {
-                                // console.warn(`[PuppeteerHelper] Restart timeout reached. Forcing close with ${this.activePagesCount} active pages.`);
-                                break;
-                            }
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        }
-                    }
-
-                    // 2. Close existing browser
-                    // console.log(`[PuppeteerHelper] Closing browser...`);
-                    await this.close();
-
-                    // 3. Re-initialize
-                    // console.log(`[PuppeteerHelper] Starting new browser instance...`);
-                    await this.init();
-                    
-                    // console.log(`[PuppeteerHelper] Browser restarted successfully.`);
-                } catch (e: any) {
-                    // console.error(`[PuppeteerHelper] Error during restart: ${e.message}`);
-                    // Reset flags so we can try again or fail hard next time
-                    this.isRestarting = false;
-                    this.restartPromise = null;
-                    throw e;
-                } finally {
-                    this.isRestarting = false;
-                    this.restartPromise = null;
-                }
-            })();
-
-            await this.restartPromise;
+            await this._restartBrowser();
         }
+    }
+
+    private async _createTrackedPage(): Promise<Page> {
+        const page = await this.browser!.newPage();
+
+        // Track usage
+        this.pagesOpenedCount++;
+        this.activePagesCount++;
+
+        // console.log(`[PuppeteerHelper] Page opened. Total opened: ${this.pagesOpenedCount}/${this.maxPagesLimit}. Active: ${this.activePagesCount}`);
+
+        // Listen for close to decrement active count
+        page.once('close', () => {
+            this.activePagesCount = Math.max(0, this.activePagesCount - 1);
+            // console.log(`[PuppeteerHelper] Page closed. Active: ${this.activePagesCount}`);
+        });
+
+        return page;
     }
 
     /**
      * Returns the raw Puppeteer Browser instance.
      */
     public async getBrowser(): Promise<Browser> {
-        await this._ensureInitialized();
+        await this._ensureHealthyBrowser();
         return this.browser!;
     }
 
@@ -221,7 +279,7 @@ export class PuppeteerHelper {
      * Returns null, as the ad blocker has been removed.
      */
     public async getBlocker(): Promise<null> {
-        await this._ensureInitialized();
+        await this._ensureHealthyBrowser();
         return null;
     }
 
@@ -230,23 +288,18 @@ export class PuppeteerHelper {
      */
     public async getPage(): Promise<Page> {
         await this._checkAndRestartIfNeeded();
-        await this._ensureInitialized();
-        
-        const page = await this.browser!.newPage();
-        
-        // Track usage
-        this.pagesOpenedCount++;
-        this.activePagesCount++;
-        
-        // console.log(`[PuppeteerHelper] Page opened. Total opened: ${this.pagesOpenedCount}/${this.maxPagesLimit}. Active: ${this.activePagesCount}`);
+        await this._ensureHealthyBrowser();
 
-        // Listen for close to decrement active count
-        page.once('close', () => {
-            this.activePagesCount--;
-            // console.log(`[PuppeteerHelper] Page closed. Active: ${this.activePagesCount}`);
-        });
+        try {
+            return await this._createTrackedPage();
+        } catch (error: any) {
+            if (!this.isRecoverableBrowserError(error)) {
+                throw error;
+            }
 
-        return page;
+            await this._restartBrowser();
+            return this._createTrackedPage();
+        }
     }
 
     /**
