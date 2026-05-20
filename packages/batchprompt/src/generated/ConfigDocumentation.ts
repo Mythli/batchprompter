@@ -613,7 +613,7 @@ Once you have manually verified the generated emails in the CSV, run the send co
 ./examples/02-lead-gen/05-send/5-send.sh
 \`\`\`
 
-The send config can define A/B variants by setting \`subject\` and/or \`body\` to arrays. If \`variant\` is not set, rows are assigned deterministically by input order: A, B, A, B...
+The send config can define A/B variants by setting \`subject\` and/or \`body\` to arrays. If \`variant\` is not set, each array cycles independently by input row order. For example, 2 subject variants and 3 body variants produce subject A, B, A, B... and body A, B, C, A...
 
 \`\`\`json
 {
@@ -636,11 +636,13 @@ The send config can define A/B variants by setting \`subject\` and/or \`body\` t
     },
     {
       "key": "B",
-      "body": "{{generatedEmail}}\\n\\nPS: Variante {{emailVariant.key}}"
+      "body": "{{generatedEmail}}\\n\\nPS: Variante {{emailVariant.key}}\\n\\nhttps://www.butlerapp.de/Schwimmschulen?subject={{emailVariant.subject.key}}&body={{emailVariant.body.key}}"
     }
   ]
 }
 \`\`\`
+
+Inside subject/body templates, BatchPrompt exposes the selected variant as \`emailVariant\`. Use \`{{emailVariant.key}}\` for the active text variant, or \`{{emailVariant.subject.key}}\` and \`{{emailVariant.body.key}}\` when subject and body variants should be tracked separately in a URL.
 
 You can monitor delivery status, selected \`emailVariant\`, and thread IDs in the resulting \`out/02-lead-gen/5-send-results.csv\` file.
 

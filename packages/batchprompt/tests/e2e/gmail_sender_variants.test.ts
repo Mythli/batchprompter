@@ -110,7 +110,7 @@ describe('GmailSenderPlugin variants', () => {
             subject: 'Subject B'
         }));
         expect(sentEmail(gmailClient).htmlBody).toContain('Body 1');
-        expect(results[0].gmailSender.emailVariant).toEqual({ key: 'B', index: 1 });
+        expect(results[0].gmailSender.emailVariant).toEqual(expect.objectContaining({ key: 'B', index: 1 }));
     });
 
     it('selects an explicit variant by rendered numeric index', async () => {
@@ -139,7 +139,7 @@ describe('GmailSenderPlugin variants', () => {
         expect(gmailClient.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
             subject: 'Subject B'
         }));
-        expect(results[0].gmailSender.emailVariant).toEqual({ key: 'B', index: 1 });
+        expect(results[0].gmailSender.emailVariant).toEqual(expect.objectContaining({ key: 'B', index: 1 }));
     });
 
     it('supports subject-only variants with a shared body', async () => {
@@ -164,7 +164,7 @@ describe('GmailSenderPlugin variants', () => {
             subject: 'Subject A/0'
         }));
         expect(sentEmail(gmailClient).htmlBody).toContain('Shared body A');
-        expect(results[0].gmailSender.emailVariant).toEqual({ key: 'A', index: 0 });
+        expect(results[0].gmailSender.emailVariant).toEqual(expect.objectContaining({ key: 'A', index: 0 }));
     });
 
     it('supports body-only variants with a shared subject', async () => {
@@ -189,7 +189,7 @@ describe('GmailSenderPlugin variants', () => {
             subject: 'Shared subject A'
         }));
         expect(sentEmail(gmailClient).htmlBody).toContain('Body 0');
-        expect(results[0].gmailSender.emailVariant).toEqual({ key: 'A', index: 0 });
+        expect(results[0].gmailSender.emailVariant).toEqual(expect.objectContaining({ key: 'A', index: 0 }));
     });
 
     it('emits selected variant metadata on send events', async () => {
@@ -214,8 +214,8 @@ describe('GmailSenderPlugin variants', () => {
             }]
         }, [{}]);
 
-        expect(sendEvents.find(event => event.event === 'send:started')?.data.emailVariant).toEqual({ key: 'A', index: 0 });
-        expect(sendEvents.find(event => event.event === 'send:success')?.data.emailVariant).toEqual({ key: 'A', index: 0 });
+        expect(sendEvents.find(event => event.event === 'send:started')?.data.emailVariant).toEqual(expect.objectContaining({ key: 'A', index: 0 }));
+        expect(sendEvents.find(event => event.event === 'send:success')?.data.emailVariant).toEqual(expect.objectContaining({ key: 'A', index: 0 }));
     });
 
     it('fails before sending when an explicit variant key is invalid', async () => {
@@ -239,7 +239,7 @@ describe('GmailSenderPlugin variants', () => {
 
         expect(gmailClient.sendEmail).not.toHaveBeenCalled();
         expect(results).toEqual([]);
-        expect(errors[0].message).toContain("variant 'Z' was not found");
+        expect(errors[0].message).toContain("body variant 'Z' was not found");
     });
 
     it('rejects the old variants field', async () => {
@@ -261,20 +261,47 @@ describe('GmailSenderPlugin variants', () => {
         }, [{}])).rejects.toThrow();
     });
 
-    it('rejects subject/body variant arrays with different keys', async () => {
-        const { executor } = setupGmailSenderTest();
+    it('cycles subject and body arrays independently', async () => {
+        const { executor, gmailClient } = setupGmailSenderTest();
 
-        await expect(executor.runConfig({
+        const { results } = await executor.runConfig({
             taskConcurrency: 1,
             steps: [{
                 plugins: [{
                     type: 'gmailSender',
-                    to: 'lead@example.com',
-                    subject: [{ key: 'A', subject: 'Subject A' }],
-                    body: [{ key: 'B', body: 'Body B' }]
+                    to: 'lead-{{id}}@example.com',
+                    subject: [
+                        { key: 'A', subject: 'Subject {{emailVariant.key}}' },
+                        { key: 'B', subject: 'Subject {{emailVariant.key}}' }
+                    ],
+                    body: [
+                        { key: 'A', body: 'Body {{emailVariant.key}}/{{emailVariant.index}}' },
+                        { key: 'B', body: 'Body {{emailVariant.key}}/{{emailVariant.index}}' },
+                        { key: 'C', body: 'Body {{emailVariant.key}}/{{emailVariant.index}}' }
+                    ],
+                    output: { mode: 'merge' }
                 }]
             }]
-        }, [{}])).rejects.toThrow('same keys');
+        }, [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }, { id: 6 }]);
+
+        expect(gmailClient.sendEmail.mock.calls.map(call => (call[0] as any).subject)).toEqual([
+            'Subject A',
+            'Subject B',
+            'Subject A',
+            'Subject B',
+            'Subject A',
+            'Subject B'
+        ]);
+        expect(gmailClient.sendEmail.mock.calls.map(call => (call[0] as any).htmlBody)).toEqual([
+            expect.stringContaining('Body A/0'),
+            expect.stringContaining('Body B/1'),
+            expect.stringContaining('Body C/2'),
+            expect.stringContaining('Body A/0'),
+            expect.stringContaining('Body B/1'),
+            expect.stringContaining('Body C/2')
+        ]);
+        expect(results.map(result => result.gmailSender.emailVariant.subject?.key)).toEqual(['A', 'B', 'A', 'B', 'A', 'B']);
+        expect(results.map(result => result.gmailSender.emailVariant.body?.key)).toEqual(['A', 'B', 'C', 'A', 'B', 'C']);
     });
 
     it('parses the lead-gen send config with subject/body arrays', async () => {
