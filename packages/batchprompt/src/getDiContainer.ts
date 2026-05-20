@@ -164,7 +164,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     const puppeteerQueue: PQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
     attachQueueLogger(puppeteerQueue, 'Puppeteer');
 
-    const defaultModel = config.MODEL || 'google/gemini-3-flash-preview';
+    const defaultModel = config.MODEL || '~google/gemini-flash-latest';
 
     let imageSearch: ImageSearch | undefined = overrides.imageSearch;
     let webSearch: WebSearch | undefined = overrides.webSearch;

@@ -1,5 +1,5 @@
 {
-  "model": "google/gemini-3-flash-preview",
+  "model": "~google/gemini-flash-latest",
   "dataOutputPath": "out/05-simple-chain/results.csv",
   "steps": [
     {

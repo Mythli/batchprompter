@@ -98,7 +98,7 @@ You can run BatchPrompt using simple CLI flags or robust YAML/JSON configuration
 
 **CLI Mode (Simple):**
 ```bash
-cat data.csv | batchprompt generate "Write a summary of {{topic}}" --model google/gemini-3-flash
+cat data.csv | batchprompt generate "Write a summary of {{topic}}" --model ~google/gemini-flash-latest
 ```
 
 **Config Mode (Advanced):**

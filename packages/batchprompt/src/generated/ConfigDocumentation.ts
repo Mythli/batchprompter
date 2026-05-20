@@ -21,7 +21,7 @@ This package contains the core BatchPrompt pipeline runtime. The CLI wraps this 
 Model config can be supplied as a global string shorthand:
 
 \`\`\`json
-{ "model": "google/gemini-3-flash-preview" }
+{ "model": "~google/gemini-flash-latest" }
 \`\`\`
 
 or as a nested object:
@@ -29,7 +29,7 @@ or as a nested object:
 \`\`\`json
 {
   "model": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "prompt": "Summarize {{topic}}"
   }
 }
@@ -121,7 +121,7 @@ The config uses the \`imageSearch\` plugin and an image-capable model. It writes
 {
   "logLevel": "debug",
   "model": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "thinkingLevel": "high"
   },
   "output": {
@@ -182,7 +182,7 @@ The config uses the \`imageSearch\` plugin and an image-capable model. It writes
 \`\`\`
 {
   "model": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "thinkingLevel": "high"
   },
   "output": {
@@ -325,7 +325,7 @@ The config uses the \`imageSearch\` plugin and an image-capable model. It writes
 \`\`\`
 {
   "model": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "thinkingLevel": "high"
   },
   "output": {
@@ -441,7 +441,7 @@ The config uses the \`imageSearch\` plugin and an image-capable model. It writes
 \`\`\`
 {
   "model": {
-    "model": "google/gemini-3.1-pro-preview",
+    "model": "~google/gemini-pro-latest",
     "thinkingLevel": "high"
   },
   "output": {
@@ -652,7 +652,7 @@ You can monitor delivery status, selected \`emailVariant\`, and thread IDs in th
   "taskConcurrency": 1,
   "logLevel": "warn",
   "model": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "thinkingLevel": "high"
   },
   "output": {
@@ -701,7 +701,7 @@ The pipeline is defined in \`config.json\`:
 
 \`\`\`json
 {
-  "model": "google/gemini-3-flash-preview",
+  "model": "~google/gemini-flash-latest",
   "output": {
     "tmpDir": "out/03-seo-rank/.tmp"
   },
@@ -762,11 +762,11 @@ The \`webSearch\` plugin uses nested model config objects for its AI operations:
   "type": "webSearch",
   "query": "{{keyword}}",
   "selectModel": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "prompt": "Select links matching criteria..."
   },
   "queryModel": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "prompt": "Generate search queries for..."
   }
 }
@@ -800,7 +800,7 @@ bash examples/03-seo-rank/run.sh
 ../../apps/batchprompt-cli/examples/03-seo-rank/config.json
 \`\`\`
 {
-  "model": "google/gemini-3-flash-preview",
+  "model": "~google/gemini-flash-latest",
   "output": {
     "tmpDir": "out/03-seo-rank/.tmp"
   },
@@ -932,7 +932,7 @@ This example demonstrates the Logo Scraper plugin which extracts brand logos, fa
 ../../apps/batchprompt-cli/examples/05-simple-chain/config.json
 \`\`\`
 {
-  "model": "google/gemini-3-flash-preview",
+  "model": "~google/gemini-flash-latest",
   "dataOutputPath": "out/05-simple-chain/results.csv",
   "steps": [
     {
@@ -975,7 +975,7 @@ This example demonstrates the Logo Scraper plugin which extracts brand logos, fa
 \`\`\`
 {
   "model": {
-    "model": "google/gemini-3.1-pro-preview",
+    "model": "~google/gemini-pro-latest",
     "thinkingLevel": "high"
   },
   "output": {

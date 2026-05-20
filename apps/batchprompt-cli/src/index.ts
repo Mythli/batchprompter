@@ -154,7 +154,7 @@ program.command('init')
     .argument('[prompt]', 'Description of what you want to do')
     .option('-d, --data <file>', 'Path to sample data file (CSV/JSON)')
     .option('-o, --output <file>', 'Output file path')
-    .option('--model <model>', 'Model to use', 'google/gemini-3-flash-preview')
+    .option('--model <model>', 'Model to use', '~google/gemini-flash-latest')
     .action(async (promptArg, options) => {
         let puppeteerHelperInstance;
         try {

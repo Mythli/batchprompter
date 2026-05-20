@@ -96,7 +96,7 @@ You can run BatchPrompt using simple CLI flags or robust YAML/JSON configuration
 
 **CLI Mode (Simple):**
 ```bash
-batchprompt generate data.csv "Write a summary of {{topic}}" --model google/gemini-3-flash
+batchprompt generate data.csv "Write a summary of {{topic}}" --model ~google/gemini-flash-latest
 ```
 
 **Config Mode (Advanced):**
@@ -137,10 +137,10 @@ The `image-search` plugin handles the finding and selecting of reference images.
 ```json
 {
   "type": "image-search",
-  "queryModel": "google/gemini-3-flash-preview",
+  "queryModel": "~google/gemini-flash-latest",
   "queryPrompt": { "file": "examples/01-rag-imagegen/query-prompt.md" },
   "queryCount": 5,
-  "selectModel": "google/gemini-3-flash-preview",
+  "selectModel": "~google/gemini-flash-latest",
   "selectThinkingLevel": "high",
   "selectPrompt": { "file": "examples/01-rag-imagegen/select-prompt.md" },
   "maxPages": 1,
@@ -281,12 +281,12 @@ CONFIG=$(cat <<EOF
       "plugins": [
         {
           "type": "image-search",
-          "queryModel": "google/gemini-3-flash-preview",
+          "queryModel": "~google/gemini-flash-latest",
           "queryPrompt": {
             "file": "examples/01-rag-imagegen/query-prompt.md"
           },
           "queryCount": 5,
-          "selectModel": "google/gemini-3-flash-preview",
+          "selectModel": "~google/gemini-flash-latest",
           "selectThinkingLevel": "high",
           "selectPrompt": {
             "file": "examples/01-rag-imagegen/select-prompt.md"
@@ -348,7 +348,7 @@ cd "$(dirname "$0")/../.."
 CONFIG=$(cat <<EOF
 {
   "globals": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "thinkingLevel": "high",
     "tmpDir": "out/02-lead-gen/.tmp",
     "dataOutputPath": "out/02-lead-gen/companies.csv"
@@ -443,7 +443,7 @@ CONFIG=$(cat <<EOF
 {
   "data": {},
   "globals": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "thinkingLevel": "high",
     "tmpDir": "out/02-lead-gen/.tmp",
     "dataOutputPath": "out/02-lead-gen/companies_enriched.csv"
@@ -1115,7 +1115,7 @@ CONFIG=$(cat <<EOF
   },
   "globals": {
     "dataOutputPath": "out/03-seo-rank/results.csv",
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "tmpDir": "out/03-seo-rank/.tmp",
     "outputPath": "out/03-seo-rank/results.csv"
   },
@@ -1315,7 +1315,7 @@ cd "$(dirname "$0")/../.."
 CONFIG=$(cat <<EOF
 {
   "globals": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "dataOutputPath": "out/05-simple-chain/results.csv"
   },
   "steps": [

@@ -12,7 +12,7 @@ The pipeline is defined in `config.json`:
 
 ```json
 {
-  "model": "google/gemini-3-flash-preview",
+  "model": "~google/gemini-flash-latest",
   "output": {
     "tmpDir": "out/03-seo-rank/.tmp"
   },
@@ -73,11 +73,11 @@ The `webSearch` plugin uses nested model config objects for its AI operations:
   "type": "webSearch",
   "query": "{{keyword}}",
   "selectModel": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "prompt": "Select links matching criteria..."
   },
   "queryModel": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "prompt": "Generate search queries for..."
   }
 }

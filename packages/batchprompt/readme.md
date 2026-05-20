@@ -13,7 +13,7 @@ This package contains the core BatchPrompt pipeline runtime. The CLI wraps this 
 Model config can be supplied as a global string shorthand:
 
 ```json
-{ "model": "google/gemini-3-flash-preview" }
+{ "model": "~google/gemini-flash-latest" }
 ```
 
 or as a nested object:
@@ -21,7 +21,7 @@ or as a nested object:
 ```json
 {
   "model": {
-    "model": "google/gemini-3-flash-preview",
+    "model": "~google/gemini-flash-latest",
     "prompt": "Summarize {{topic}}"
   }
 }

@@ -22,7 +22,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const llm = createLlm({
     openai,
-    defaultModel: 'google/gemini-3-pro-preview',
+    defaultModel: '~google/gemini-pro-latest',
     // optional: 
     // cache: Cache instance (cache-manager)
     // queue: PQueue instance for concurrency control
@@ -303,7 +303,7 @@ const gameState = await llm.promptZod(
     history,             // Arg 1: Context
     GameStateSchema,     // Arg 2: Schema
     {                    // Arg 3: Options Override
-        model: "google/gemini-flash-1.5", 
+        model: "~google/gemini-flash-latest",
         disableJsonFixer: true, // Turn off the automatic JSON repair agent
         maxRetries: 0,          // Fail immediately on error
     }
@@ -628,13 +628,13 @@ import { createLlmClient } from './src';
 // 1. Define a CHEAP model
 const cheapClient = createLlmClient({ 
     openai, 
-    defaultModel: 'google/gemini-flash-1.5' 
+    defaultModel: '~google/gemini-flash-latest'
 });
 
 // 2. Define a STRONG model
 const strongClient = createLlmClient({ 
     openai, 
-    defaultModel: 'google/gemini-3-pro-preview' 
+    defaultModel: '~google/gemini-pro-latest'
 });
 ```
 
