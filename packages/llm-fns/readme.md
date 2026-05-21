@@ -251,7 +251,50 @@ const buffer2 = await llm.promptImage({
 
 ---
 
-# Use Case 3: Structured Data (`llm.promptJson` & `llm.promptZod`)
+# Use Case 3: Audio (`llm.promptAudio` / `llm.promptAudioStream`)
+
+Generates audio and returns it as a `Buffer`, or yields audio chunks as they arrive. This supports providers that only expose audio output through streaming Chat Completions, including OpenRouter routes to audio-capable OpenAI models.
+
+**Return Type:** `Promise<Buffer>` for `promptAudio`, `AsyncIterable<Buffer>` for `promptAudioStream`
+
+```typescript
+import fs from 'node:fs/promises';
+
+const audio = await llm.promptAudio({
+    model: 'openai/gpt-audio-mini',
+    messages: 'Say exactly: BatchPrompt audio test.',
+    modalities: ['text', 'audio'],
+    audio: {
+        voice: 'alloy',
+        format: 'pcm16'
+    },
+    audioTransport: 'chat-stream'
+});
+
+await fs.writeFile('batchprompt-audio-test.pcm', audio);
+```
+
+For callers that want to process chunks as they arrive, use `promptAudioStream`:
+
+```typescript
+const chunks: Buffer[] = [];
+
+for await (const chunk of llm.promptAudioStream({
+    model: 'openai/gpt-audio-mini',
+    messages: 'Read this sentence aloud.',
+    audio: { voice: 'alloy', format: 'pcm16' }
+})) {
+    chunks.push(chunk);
+}
+
+await fs.writeFile('streamed-audio.pcm', Buffer.concat(chunks));
+```
+
+`promptAudio` defaults to streaming transport because some providers require it for audio output. When streaming, the default audio format is `pcm16`; OpenAI rejects `mp3` for streamed `gpt-audio-mini` responses. If you need non-streaming Chat Completions audio, pass `audioTransport: 'chat'`, where the default format is `mp3`.
+
+---
+
+# Use Case 4: Structured Data (`llm.promptJson` & `llm.promptZod`)
 
 This is a high-level wrapper that employs a **Re-asking Loop**. If the LLM outputs invalid JSON or data that fails the schema validation, the client automatically feeds the error back to the LLM and asks it to fix it (up to `maxRetries`).
 
@@ -392,7 +435,7 @@ const SafeSchema = z.object({
 
 ---
 
-# Use Case 4: Agentic Retry Loops (`llm.promptTextRetry`)
+# Use Case 5: Agentic Retry Loops (`llm.promptTextRetry`)
 
 The library exposes the "Conversational Retry" engine used internally by `promptZod`. You can provide a `validate` function. If it throws a `LlmRetryError`, the error message is fed back to the LLM, and it tries again.
 
@@ -420,7 +463,7 @@ const poem = await llm.promptTextRetry({
 
 ---
 
-# Use Case 5: Iterative Refinement (`createIterativeRefiner`)
+# Use Case 6: Iterative Refinement (`createIterativeRefiner`)
 
 For complex tasks where an LLM needs to "try, check, and fix" its own output (like code generation or complex configuration), use the `IterativeRefiner`.
 
@@ -615,7 +658,7 @@ function getAllResponses(error: LlmRetryExhaustedError): string[] {
 
 ---
 
-# Use Case 6: Architecture & Composition
+# Use Case 7: Architecture & Composition
 
 How to build the client manually to enable **Fallback Chains** and **Smart Routing**.
 

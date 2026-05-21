@@ -19,7 +19,7 @@ export function isAudioResponse(completion: OpenAI.Chat.Completions.ChatCompleti
     const message = completion.choices[0]?.message as any;
     if (message?.audio) return true;
     if (Array.isArray(message?.content)) {
-        return message.content.some((part: any) => part.type === 'input_audio');
+        return message.content.some((part: any) => part.type === 'input_audio' || part.type === 'audio');
     }
     return false;
 }
@@ -75,8 +75,8 @@ export function extractAudioBuffer(completion: OpenAI.Chat.Completions.ChatCompl
     }
     // 2. Check standard content parts
     else if (Array.isArray(message?.content)) {
-        const part = message.content.find((p: any) => p.type === 'input_audio');
-        audioData = part?.input_audio?.data;
+        const part = message.content.find((p: any) => p.type === 'input_audio' || p.type === 'audio');
+        audioData = part?.input_audio?.data || part?.audio?.data || part?.data;
     }
 
     if (audioData) {
@@ -84,4 +84,22 @@ export function extractAudioBuffer(completion: OpenAI.Chat.Completions.ChatCompl
     }
 
     throw new Error("LLM returned no audio content.");
+}
+
+/**
+ * Extracts Base64 audio payloads from streamed Chat Completion chunks.
+ * OpenRouter delivers audio output at `choices[0].delta.audio.data`.
+ * Some OpenAI-compatible providers may use adjacent fields, so this accepts the
+ * common variants without widening the public client API.
+ */
+export function extractAudioDeltaData(chunk: unknown): string | undefined {
+    const delta = (chunk as any)?.choices?.[0]?.delta;
+    const audio = delta?.audio || delta?.output_audio;
+
+    if (typeof audio === 'string') return audio;
+    if (audio?.data) return audio.data;
+    if (audio?.delta) return audio.delta;
+    if (delta?.audio_data) return delta.audio_data;
+
+    return undefined;
 }

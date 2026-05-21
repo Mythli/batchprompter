@@ -35,6 +35,18 @@ export class LlmClientFactory {
             modelConfig.reasoning_effort = config.reasoning_effort;
         }
 
+        if (config.modalities) {
+            modelConfig.modalities = config.modalities;
+        }
+
+        if (config.audio) {
+            modelConfig.audio = config.audio;
+        }
+
+        if (config.audioTransport) {
+            modelConfig.audioTransport = config.audioTransport;
+        }
+
         const rawClient = createLlm({
             openai: this.openai as any,
             defaultModel: modelConfig,

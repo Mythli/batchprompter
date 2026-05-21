@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { 
     PromptFunction, 
+    PromptAudioFunction,
     LlmCommonOptions, 
     LlmPromptOptions, 
     normalizeOptions,
@@ -75,6 +76,7 @@ interface LlmRetryParams<T = any> extends LlmRetryOptions<T> {
 
 export interface CreateLlmRetryClientParams {
     prompt: PromptFunction;
+    promptAudio?: PromptAudioFunction;
     fallbackPrompt?: PromptFunction;
     retryBaseDelay?: number;
     /** Optional custom fetch implementation for binary extraction */
@@ -122,7 +124,7 @@ function constructLlmMessages(
 }
 
 export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
-    const { prompt, fallbackPrompt, retryBaseDelay: factoryRetryBaseDelay = 0, fetch: factoryFetch } = params;
+    const { prompt, promptAudio, fallbackPrompt, retryBaseDelay: factoryRetryBaseDelay = 0, fetch: factoryFetch } = params;
 
     const fetchImpl = factoryFetch ?? createDnsFetcher();
 
@@ -341,6 +343,20 @@ export function createLlmRetryClient(params: CreateLlmRetryClientParams) {
     ): Promise<T> {
         const retryParams = normalizeRetryOptions<T>(arg1, arg2);
         const userValidate = retryParams.validate;
+
+        if (promptAudio && !userValidate && !retryParams.state && !fallbackPrompt) {
+            const {
+                maxRetries,
+                validate,
+                state,
+                ...promptOptions
+            } = retryParams;
+
+            return await promptAudio({
+                ...promptOptions,
+                retries: maxRetries ?? promptOptions.retries
+            }) as T;
+        }
 
         retryParams.validate = async (completion, info) => {
             try {

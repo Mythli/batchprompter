@@ -45,6 +45,19 @@ function applyDataToTarget(
     }
 }
 
+function getArtifactType(data: any, extension: string, hasAspectRatio?: boolean): string {
+    const ext = extension.toLowerCase();
+
+    if (Buffer.isBuffer(data)) {
+        if (['.mp3', '.wav', '.flac', '.opus', '.aac', '.pcm', '.pcm16'].includes(ext)) return 'audio';
+        if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext)) return 'image';
+        return 'binary';
+    }
+
+    if (hasAspectRatio) return 'image';
+    return typeof data === 'object' ? 'json' : 'text';
+}
+
 export interface StepRowState {
     data: Record<string, any>;
     context: Record<string, any>;
@@ -149,7 +162,7 @@ export class StepRow {
                             row: this.state.originalIndex,
                             step: this.step.stepIndex + 1,
                             source: 'core',
-                            type: this.config.aspectRatio ? 'image' : (typeof item.data === 'object' ? 'json' : 'text'),
+                            type: getArtifactType(item.data, ext, this.config.aspectRatio),
                             filename: fullPath,
                             content: content,
                             tags: ['final']

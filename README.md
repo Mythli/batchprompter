@@ -2,7 +2,7 @@
 
 **BatchPrompt** is a CLI tool for building **AI pipelines**. It automates the process of chaining LLMs, web search, browser scrapers, validation, deduping, and Gmail actions to process data in bulk.
 
-Unlike a chatbot, BatchPrompt is **data-driven**: it reads CSV/JSON rows from stdin or config data, and for every row it executes a pipeline of steps to generate files, structured data, or side effects like sending email.
+Unlike a chatbot, BatchPrompt is **data-driven**: it reads CSV/JSON rows from stdin or config data, and for every row it executes a pipeline of steps to generate files, structured data, audio, or side effects like sending email.
 
 ---
 
@@ -54,7 +54,7 @@ Think of BatchPrompt as an **assembly line** for your data.
 2.  **The Pipeline:** You define a series of **Steps**.
     *   **Fetch:** Plugins (Web Search, Image Search, Website Agent, Style Scraper, Logo Scraper, Load Data) go out and get data.
     *   **Context:** The LLM receives the Row Data + Plugin Data.
-    *   **Generate:** The LLM creates content (Text, Code, JSON).
+    *   **Generate:** The LLM creates content (Text, Code, JSON, Images, Audio).
 3.  **Output:** The result is saved to a file OR merged back into the row for the next step.
 
 ### The Data Flow
@@ -107,3 +107,17 @@ cat data.csv | batchprompt generate --config config.json
 ```
 
 See the [Tutorials](#-tutorials) for examples of both methods.
+
+### Audio Output
+
+Models can request audio output by adding `modalities` and `audio` to their model config. Streaming audio models, such as `openai/gpt-audio-mini` through OpenRouter, use `audioTransport: "chat-stream"` and `pcm16` output.
+
+```yaml
+model:
+  model: openai/gpt-audio-mini
+  modalities: [text, audio]
+  audio:
+    voice: alloy
+    format: pcm16
+  audioTransport: chat-stream
+```

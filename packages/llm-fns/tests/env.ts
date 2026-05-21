@@ -10,6 +10,8 @@ const envSchema = z.object({
     TEST_BASE_URL: z.string().url().optional(),
     // Model to use for testing. Defaults to a cheaper model.
     TEST_MODEL: z.string().default("openai/gpt-oss-120b"),
+    // Audio-capable model for live audio generation tests.
+    TEST_AUDIO_MODEL: z.string().default("openai/gpt-audio-mini"),
 });
 
 export const env = envSchema.parse(process.env);

@@ -11,11 +11,31 @@ export const RawModelConfigSchema = z.object({
     temperature: z.number().min(0).max(2).optional(),
     reasoning_effort: z.enum(['low', 'medium', 'high']).optional(),
     thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    modalities: z.array(z.string()).optional(),
+    audio: z.object({
+        voice: z.string().optional(),
+        format: z.enum(['wav', 'aac', 'mp3', 'flac', 'opus', 'pcm16']).optional()
+    }).passthrough().optional(),
+    audioTransport: z.enum(['auto', 'chat', 'chat-stream']).optional(),
     system: PromptSchema.optional(),
     prompt: PromptSchema.optional()
 });
 
 export type RawModel = z.infer<(typeof RawModelConfigSchema)>;
+
+export interface ModelConfig {
+    model?: string;
+    temperature?: number;
+    reasoning_effort?: 'low' | 'medium' | 'high';
+    modalities?: string[];
+    audio?: {
+        voice?: string;
+        format?: 'wav' | 'aac' | 'mp3' | 'flac' | 'opus' | 'pcm16';
+        [key: string]: unknown;
+    };
+    audioTransport?: 'auto' | 'chat' | 'chat-stream';
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+}
 
 export function normalizePromptToParts(prompt: any): OpenAI.Chat.Completions.ChatCompletionContentPart[] {
     if (!prompt) return [];
@@ -23,7 +43,7 @@ export function normalizePromptToParts(prompt: any): OpenAI.Chat.Completions.Cha
     return [{type: 'text', text: prompt}];
 }
 
-export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema>) {
+export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema>): ModelConfig {
     const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
     if (config.system) {
@@ -48,13 +68,14 @@ export function transformModelConfig(config: z.infer<typeof RawModelConfigSchema
         model: config.model,
         temperature: config.temperature,
         reasoning_effort,
+        modalities: config.modalities,
+        audio: config.audio,
+        audioTransport: config.audioTransport,
         messages
     };
 }
 
 export const ModelConfigSchema = RawModelConfigSchema.transform(transformModelConfig);
-
-export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 
 /**
  * Merges two ModelConfig objects.
@@ -70,6 +91,9 @@ export function mergeModels(base?: ModelConfig, override?: ModelConfig): ModelCo
         model: override.model ?? base.model,
         temperature: override.temperature ?? base.temperature,
         reasoning_effort: override.reasoning_effort ?? base.reasoning_effort,
+        modalities: override.modalities ?? base.modalities,
+        audio: override.audio ?? base.audio,
+        audioTransport: override.audioTransport ?? base.audioTransport,
         messages: override.messages && override.messages.length > 0 ? override.messages : base.messages,
     };
 }

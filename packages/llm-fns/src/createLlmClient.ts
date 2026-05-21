@@ -3,7 +3,7 @@ import OpenAI from "openai";
 import type PQueue from 'p-queue';
 import { executeWithRetry } from './retryUtils.js';
 import { truncateMessages, getPromptSummary } from './util.js';
-import { extractImageBuffer, extractAudioBuffer } from './extractBinary.js';
+import { extractImageBuffer, extractAudioBuffer, extractAudioDeltaData } from './extractBinary.js';
 import { createDnsFetcher } from './createDnsFetcher.js';
 
 export class LlmFatalError extends Error {
@@ -35,6 +35,8 @@ export type OpenRouterResponseFormat =
         schema: object;
     };
 };
+
+export type LlmAudioTransport = 'auto' | 'chat' | 'chat-stream';
 
 /**
  * Request-level options passed to the OpenAI SDK.
@@ -80,6 +82,12 @@ export interface LlmCommonOptions {
     response_format?: OpenRouterResponseFormat;
     modalities?: string[];
     audio?: OpenAI.Chat.Completions.ChatCompletionAudioParam;
+    /**
+     * Selects how audio output is requested. `auto` prefers streaming because
+     * OpenRouter audio output requires it, then falls back to non-streaming chat
+     * if streaming is rejected by the provider.
+     */
+    audioTransport?: LlmAudioTransport;
     image_config?: {
         aspect_ratio?: string;
     };
@@ -95,6 +103,7 @@ export interface LlmCommonOptions {
     user?: string;
     tools?: OpenAI.Chat.Completions.ChatCompletionTool[];
     tool_choice?: OpenAI.Chat.Completions.ChatCompletionToolChoiceOption;
+    stream_options?: OpenAI.Chat.Completions.ChatCompletionStreamOptions;
 }
 
 /**
@@ -169,6 +178,50 @@ export function createLlmClient(params: CreateLlmClientParams) {
 
     const fetchImpl = factoryFetch ?? createDnsFetcher();
 
+    const getErrorMessage = (error: any): string => [
+        error?.message,
+        error?.cause?.message,
+        error?.error?.message,
+        error?.cause?.error?.message,
+        error?.response?.data?.error?.message
+    ].filter(Boolean).join('\n');
+
+    const isStreamingUnsupportedError = (error: any): boolean => {
+        const message = getErrorMessage(error);
+        return /stream(ing)?\s+(is\s+)?not\s+supported|does\s+not\s+support\s+stream|stream\s+unsupported/i.test(message);
+    };
+
+    const withAudioOutputDefaults = (
+        promptParams: LlmPromptParams,
+        defaultFormat: OpenAI.Chat.Completions.ChatCompletionAudioParam['format']
+    ): LlmPromptParams => {
+        const factoryModelConfig = typeof factoryDefaultModel === 'object' && factoryDefaultModel !== null
+            ? factoryDefaultModel
+            : {};
+        const callModelConfig = typeof promptParams.model === 'object' && promptParams.model !== null
+            ? promptParams.model
+            : {};
+        const nextModalities = [
+            ...((factoryModelConfig as any).modalities ?? []),
+            ...((callModelConfig as any).modalities ?? []),
+            ...(promptParams.modalities ?? [])
+        ];
+        if (!nextModalities.includes('text')) nextModalities.push('text');
+        if (!nextModalities.includes('audio')) nextModalities.push('audio');
+
+        return {
+            ...promptParams,
+            modalities: [...new Set(nextModalities)],
+            audio: {
+                voice: 'alloy',
+                format: defaultFormat,
+                ...((factoryModelConfig as any).audio ?? {}),
+                ...((callModelConfig as any).audio ?? {}),
+                ...(promptParams.audio ?? {})
+            }
+        };
+    };
+
     const getCompletionParams = (promptParams: LlmPromptParams) => {
         const {
             model: callSpecificModel,
@@ -176,6 +229,7 @@ export function createLlmClient(params: CreateLlmClientParams) {
             retries,
             retryBaseDelay: callSpecificRetryBaseDelay,
             requestOptions,
+            audioTransport: _audioTransport,
             ...restApiOptions
         } = promptParams;
 
@@ -294,19 +348,149 @@ export function createLlmClient(params: CreateLlmClientParams) {
     async function promptAudio(content: string, options?: LlmCommonOptions): Promise<Buffer>;
     async function promptAudio(options: LlmPromptOptions): Promise<Buffer>;
     async function promptAudio(arg1: string | LlmPromptOptions, arg2?: LlmCommonOptions): Promise<Buffer> {
-        const promptParams = normalizeOptions(arg1, arg2);
+        const normalizedParams = normalizeOptions(arg1, arg2);
+        const transport = normalizedParams.audioTransport ?? 'auto';
 
-        // Ensure modalities includes audio if not explicitly set, though user should ideally provide it.
-        // We won't force it here to avoid overriding user intent, but promptAudio implies audio output.
+        if (transport === 'chat') {
+            const response = await prompt(withAudioOutputDefaults(normalizedParams, 'mp3'));
+            return extractAudioBuffer(response);
+        }
 
-        const response = await prompt(promptParams);
-        return extractAudioBuffer(response);
+        const streamParams = withAudioOutputDefaults(normalizedParams, 'pcm16');
+
+        try {
+            return await promptAudioViaChatStream(streamParams);
+        } catch (error: any) {
+            if (transport === 'auto' && isStreamingUnsupportedError(error)) {
+                const response = await prompt(withAudioOutputDefaults(normalizedParams, 'mp3'));
+                return extractAudioBuffer(response);
+            }
+            throw error;
+        }
     }
 
-    return { prompt, promptText, promptImage, promptAudio };
+    function promptAudioStream(content: string, options?: LlmCommonOptions): AsyncIterable<Buffer>;
+    function promptAudioStream(options: LlmPromptOptions): AsyncIterable<Buffer>;
+    async function* promptAudioStream(arg1: string | LlmPromptOptions, arg2?: LlmCommonOptions): AsyncIterable<Buffer> {
+        const promptParams = withAudioOutputDefaults(normalizeOptions(arg1, arg2), 'pcm16');
+        const { completionParams, finalMessages, retries, requestOptions, retryBaseDelay: baseDelay } = getCompletionParams(promptParams);
+
+        const promptSummary = getPromptSummary(finalMessages);
+        const streamParams = {
+            ...completionParams,
+            stream: true
+        };
+
+        type StreamEvent =
+            | { type: 'chunk'; chunk: Buffer }
+            | { type: 'error'; error: unknown }
+            | { type: 'done' };
+
+        const streamEvents: StreamEvent[] = [];
+        let wakeConsumer: (() => void) | undefined;
+
+        const pushStreamEvent = (event: StreamEvent) => {
+            streamEvents.push(event);
+            wakeConsumer?.();
+            wakeConsumer = undefined;
+        };
+
+        const nextStreamEvent = async (): Promise<StreamEvent> => {
+            while (streamEvents.length === 0) {
+                await new Promise<void>(resolve => {
+                    wakeConsumer = resolve;
+                });
+            }
+            return streamEvents.shift() as StreamEvent;
+        };
+
+        let emittedChunkCount = 0;
+
+        async function readStream(): Promise<number> {
+            let chunkCount = 0;
+            try {
+                const stream = await openai.chat.completions.create(
+                    streamParams as any,
+                    requestOptions
+                ) as any;
+
+                for await (const chunk of stream) {
+                    const audioData = extractAudioDeltaData(chunk);
+                    if (audioData) {
+                        chunkCount += 1;
+                        emittedChunkCount += 1;
+                        pushStreamEvent({ type: 'chunk', chunk: Buffer.from(audioData, 'base64') });
+                    }
+                }
+                return chunkCount;
+            } catch (error: any) {
+                if (error?.status === 400 || error?.status === 401 || error?.status === 403) {
+                    throw new LlmFatalError(error.message || 'Fatal API Error', error, finalMessages);
+                }
+                throw error;
+            }
+        }
+
+        const task = () => executeWithRetry<number, number>(
+            () => readStream(),
+            async (chunkCount) => {
+                if (chunkCount === 0) {
+                    return {
+                        isValid: false,
+                        feedbackForNextAttempt: {
+                            type: 'EMPTY_AUDIO_STREAM',
+                            message: 'LLM returned no streamed audio content.'
+                        }
+                    };
+                }
+                return { isValid: true, data: chunkCount };
+            },
+            retries ?? 3,
+            undefined,
+            (error: any) => {
+                if (emittedChunkCount > 0) return false;
+                if (error instanceof LlmFatalError) return false;
+                if (error?.status === 400 || error?.status === 401 || error?.status === 403 || error?.code === 'invalid_api_key') {
+                    return false;
+                }
+                return true;
+            },
+            baseDelay
+        );
+
+        const producer = (queue
+            ? queue.add(task, { id: promptSummary, messages: finalMessages } as any)
+            : task()) as Promise<number>;
+
+        producer
+            .then(() => pushStreamEvent({ type: 'done' }))
+            .catch(error => pushStreamEvent({ type: 'error', error }));
+
+        while (true) {
+            const event = await nextStreamEvent();
+            if (event.type === 'chunk') {
+                yield event.chunk;
+            } else if (event.type === 'error') {
+                throw event.error;
+            } else {
+                break;
+            }
+        }
+    }
+
+    async function promptAudioViaChatStream(promptParams: LlmPromptParams): Promise<Buffer> {
+        const chunks: Buffer[] = [];
+        for await (const chunk of promptAudioStream(promptParams)) {
+            chunks.push(chunk);
+        }
+        return Buffer.concat(chunks);
+    }
+
+    return { prompt, promptText, promptImage, promptAudio, promptAudioStream };
 }
 
 export type PromptFunction = ReturnType<typeof createLlmClient>['prompt'];
 export type PromptTextFunction = ReturnType<typeof createLlmClient>['promptText'];
 export type PromptImageFunction = ReturnType<typeof createLlmClient>['promptImage'];
 export type PromptAudioFunction = ReturnType<typeof createLlmClient>['promptAudio'];
+export type PromptAudioStreamFunction = ReturnType<typeof createLlmClient>['promptAudioStream'];

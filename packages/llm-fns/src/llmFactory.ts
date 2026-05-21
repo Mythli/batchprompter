@@ -12,6 +12,7 @@ export function createLlm(params: CreateLlmFactoryParams) {
     
     const retryClient = createLlmRetryClient({
         prompt: baseClient.prompt,
+        promptAudio: baseClient.promptAudio,
         retryBaseDelay: params.retryBaseDelay,
         fetch: params.fetch
     });

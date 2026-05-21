@@ -87,6 +87,13 @@ export class BoundLlmClient {
         return this.client.promptText({ messages });
     }
 
+    async promptAudio(): Promise<Buffer>;
+    async promptAudio(options: PromptOptions): Promise<Buffer>;
+    async promptAudio(options?: PromptOptions): Promise<Buffer> {
+        const messages = this.buildMessages(options);
+        return this.client.promptAudio({ messages });
+    }
+
     async prompt(params: {
         messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
         requestOptions?: RequestOptions;

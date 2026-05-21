@@ -58,20 +58,28 @@ export class StandardStrategy implements GenerationStrategy {
                 ...additionalParams
             });
         } else {
-            const completion = await rawClient.prompt({
-                messages: finalMessages,
-                requestOptions,
-                ...additionalParams
-            });
-
-            if (isImageResponse(completion)) {
-                finalResult = await extractImageBuffer(completion, globalThis.fetch);
-            } else if (isAudioResponse(completion)) {
-                finalResult = extractAudioBuffer(completion);
+            if (this.requestsAudioOutput(config.model)) {
+                finalResult = await rawClient.promptAudio({
+                    messages: finalMessages,
+                    requestOptions,
+                    ...additionalParams
+                });
             } else {
-                finalResult = completion.choices[0]?.message?.content;
-                if (finalResult === null || finalResult === undefined) {
-                    throw new Error("LLM returned no text content.");
+                const completion = await rawClient.prompt({
+                    messages: finalMessages,
+                    requestOptions,
+                    ...additionalParams
+                });
+
+                if (isImageResponse(completion)) {
+                    finalResult = await extractImageBuffer(completion, globalThis.fetch);
+                } else if (isAudioResponse(completion)) {
+                    finalResult = extractAudioBuffer(completion);
+                } else {
+                    finalResult = completion.choices[0]?.message?.content;
+                    if (finalResult === null || finalResult === undefined) {
+                        throw new Error("LLM returned no text content.");
+                    }
                 }
             }
         }
@@ -87,5 +95,10 @@ export class StandardStrategy implements GenerationStrategy {
             history: finalMessages,
             items
         };
+    }
+
+    private requestsAudioOutput(modelConfig: any): boolean {
+        return Array.isArray(modelConfig?.modalities) && modelConfig.modalities.includes('audio')
+            || !!modelConfig?.audio;
     }
 }
