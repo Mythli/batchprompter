@@ -4,19 +4,20 @@ import { tmpdir } from 'os';
 import { join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { parseArgs } from 'util';
+import 'dotenv/config';
 import OpenAI from 'openai';
-import { zodResponseFormat } from 'openai/helpers/zod';
+import { createLlm } from 'llm-fns';
 import puppeteer, { type Browser, type HTTPRequest, type Page } from 'puppeteer';
-import type { z } from 'zod';
+import { z } from 'zod';
 import {
     BrandAssetScraper,
+    WebsiteStyleScraper,
     type AiBrandFetcher,
-    type AiBrandLlm,
-    type AiBrandMessage,
     type AiBrandPageLike,
-    type AiBrandPromptTextOptions,
     type AnalyzedLogo,
     type BrandColor,
+    type ElementScreenshot,
+    type InteractiveElementsResult,
     type LogoScraperResult,
     type PageActionExecutor,
     type PageActionRequest,
@@ -27,21 +28,43 @@ const DEFAULT_MODEL = 'gpt-4.1-mini';
 const DEFAULT_MAX_LOGOS = 10;
 const DEFAULT_THRESHOLD = 1;
 
-export interface DemoOptions {
+const optionalEnvString = z.preprocess(
+    value => typeof value === 'string' && value.trim() === '' ? undefined : value,
+    z.string().min(1).optional()
+);
+
+const demoEnvSchema = z.object({
+    OPENAI_API_KEY: z.preprocess(
+        value => typeof value === 'string' ? value.trim() : '',
+        z.string().min(1, 'OPENAI_API_KEY is required.')
+    ),
+    OPENAI_BASE_URL: z.preprocess(
+        value => typeof value === 'string' && value.trim() === '' ? undefined : value,
+        z.string().url('OPENAI_BASE_URL must be a valid URL.').optional()
+    ),
+    OPENAI_MODEL: optionalEnvString,
+}).passthrough();
+
+export type DemoEnv = z.infer<typeof demoEnvSchema>;
+
+export interface DemoCliOptions {
     websiteUrl: string;
     outputDir: string;
-    model: string;
-    apiKey?: string;
-    baseURL?: string;
     maxLogosToAnalyze: number;
     brandLogoScoreThreshold: number;
-    temperature?: number;
     headless: boolean;
     json: boolean;
 }
 
+export interface DemoOptions extends DemoCliOptions {
+    model: string;
+    apiKey: string;
+    baseURL?: string;
+}
+
 export interface SaveBrandAssetsOptions {
     result: LogoScraperResult;
+    styleResult?: InteractiveElementsResult;
     outputDir: string;
     url: string;
     downloadedAt?: string;
@@ -59,69 +82,22 @@ export interface SavedBrandAssets {
     manifestPath: string;
     brandColorsPath: string;
     logos: SavedLogoAsset[];
+    interactiveStyle?: SavedInteractiveStyleAssets;
 }
 
-class OpenAiBrandLlm implements AiBrandLlm {
-    private readonly client: OpenAI;
+export interface SavedInteractiveElementAsset {
+    index: number;
+    filename: string;
+    path: string;
+    type: ElementScreenshot['type'];
+    state: ElementScreenshot['state'];
+    elementIndex: number;
+}
 
-    constructor(
-        private readonly options: {
-            apiKey?: string;
-            baseURL?: string;
-            model: string;
-            temperature?: number;
-        }
-    ) {
-        const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
-        if (!apiKey) {
-            throw new Error('Missing OpenAI API key. Set OPENAI_API_KEY or pass --api-key.');
-        }
-
-        this.client = new OpenAI({
-            apiKey,
-            baseURL: options.baseURL ?? process.env.OPENAI_BASE_URL,
-        });
-    }
-
-    async promptZod<TSchema extends z.ZodTypeAny>(
-        messages: AiBrandMessage[],
-        schema: TSchema
-    ): Promise<z.infer<TSchema>> {
-        const completion = await this.client.chat.completions.parse({
-            model: this.options.model,
-            ...(this.options.temperature === undefined ? {} : { temperature: this.options.temperature }),
-            messages: [
-                {
-                    role: 'system',
-                    content: 'Return only JSON matching the requested schema.',
-                },
-                ...messages,
-            ],
-            response_format: zodResponseFormat(schema, 'brand_asset_result'),
-        });
-
-        const parsed = completion.choices[0]?.message.parsed;
-        if (!parsed) {
-            throw new Error('OpenAI returned no parsed JSON content.');
-        }
-
-        return parsed as z.infer<TSchema>;
-    }
-
-    async promptText(options: AiBrandPromptTextOptions): Promise<string> {
-        const completion = await this.client.chat.completions.create({
-            model: this.options.model,
-            ...(this.options.temperature === undefined ? {} : { temperature: this.options.temperature }),
-            messages: options.messages,
-        });
-
-        const content = completion.choices[0]?.message.content;
-        if (!content) {
-            throw new Error('OpenAI returned no text content.');
-        }
-
-        return content;
-    }
+export interface SavedInteractiveStyleAssets {
+    reportPath: string;
+    compositeImagePath?: string;
+    screenshots: SavedInteractiveElementAsset[];
 }
 
 class MemoryCache {
@@ -187,20 +163,28 @@ class PuppeteerPageActionExecutor implements PageActionExecutor {
     }
 }
 
-export function parseDemoArgs(argv: string[]): DemoOptions | { help: true } {
+export function parseDemoEnv(env: NodeJS.ProcessEnv = process.env): DemoEnv {
+    const parsed = demoEnvSchema.safeParse(env);
+    if (!parsed.success) {
+        const issues = parsed.error.issues
+            .map(issue => `- ${issue.path.join('.')}: ${issue.message}`)
+            .join('\n');
+        throw new Error(`Invalid demo environment:\n${issues}`);
+    }
+
+    return parsed.data;
+}
+
+export function parseDemoArgs(argv: string[]): DemoCliOptions | { help: true } {
     const { values, positionals } = parseArgs({
         args: argv,
         allowPositionals: true,
         options: {
-            'api-key': { type: 'string' },
-            'base-url': { type: 'string' },
             help: { type: 'boolean', short: 'h' },
             json: { type: 'boolean' },
             'max-logos': { type: 'string' },
-            model: { type: 'string' },
             out: { type: 'string', short: 'o' },
             'show-browser': { type: 'boolean' },
-            temperature: { type: 'string' },
             threshold: { type: 'string' },
         },
     });
@@ -218,29 +202,37 @@ export function parseDemoArgs(argv: string[]): DemoOptions | { help: true } {
     return {
         websiteUrl,
         outputDir: resolve(values.out ?? defaultOutputDir(websiteUrl)),
-        model: values.model ?? process.env.OPENAI_MODEL ?? DEFAULT_MODEL,
-        apiKey: values['api-key'],
-        baseURL: values['base-url'],
         maxLogosToAnalyze: parsePositiveInteger(values['max-logos'], DEFAULT_MAX_LOGOS, '--max-logos'),
         brandLogoScoreThreshold: parsePositiveInteger(values.threshold, DEFAULT_THRESHOLD, '--threshold'),
-        temperature: parseOptionalNumber(values.temperature, '--temperature'),
         headless: !values['show-browser'],
         json: values.json ?? false,
     };
 }
 
+export function resolveDemoOptions(cliOptions: DemoCliOptions, env: DemoEnv): DemoOptions {
+    return {
+        ...cliOptions,
+        apiKey: env.OPENAI_API_KEY,
+        baseURL: env.OPENAI_BASE_URL,
+        model: env.OPENAI_MODEL ?? DEFAULT_MODEL,
+    };
+}
+
 export async function runDemo(argv = process.argv.slice(2)): Promise<void> {
-    const options = parseDemoArgs(argv);
-    if ('help' in options) {
+    const cliOptions = parseDemoArgs(argv);
+    if ('help' in cliOptions) {
         printHelp();
         return;
     }
 
-    const llm = new OpenAiBrandLlm({
+    const options = resolveDemoOptions(cliOptions, parseDemoEnv());
+    const openai = new OpenAI({
         apiKey: options.apiKey,
         baseURL: options.baseURL,
-        model: options.model,
-        temperature: options.temperature,
+    });
+    const llm = createLlm({
+        openai,
+        defaultModel: options.model,
     });
     const runtime = await createPuppeteerRuntime({ headless: options.headless });
 
@@ -250,6 +242,15 @@ export async function runDemo(argv = process.argv.slice(2)): Promise<void> {
             analyzeLlm: llm,
             extractLlm: llm,
             fetcher: runtime.fetcher,
+        });
+        const styleScraper = new WebsiteStyleScraper({
+            pageExecutor: runtime.pageExecutor,
+            defaultOptions: {
+                createCompositeImage: true,
+                maxButtons: 3,
+                maxInputs: 3,
+                maxLinks: 3,
+            },
         });
 
         scraper.events.on('logo:found', event => {
@@ -267,9 +268,14 @@ export async function runDemo(argv = process.argv.slice(2)): Promise<void> {
             maxLogosToAnalyze: options.maxLogosToAnalyze,
             brandLogoScoreThreshold: options.brandLogoScoreThreshold,
         });
+        console.error('Capturing interactive element styles.');
+        const styleResult = await styleScraper.scrape({
+            url: options.websiteUrl,
+        });
 
         const saved = await saveBrandAssets({
             result,
+            styleResult,
             outputDir: options.outputDir,
             url: options.websiteUrl,
         });
@@ -282,6 +288,7 @@ export async function runDemo(argv = process.argv.slice(2)): Promise<void> {
         console.log(`Saved ${saved.logos.length} logo assets to ${saved.outputDir}`);
         console.log(`Manifest: ${saved.manifestPath}`);
         console.log(`Brand colors: ${saved.brandColorsPath}`);
+        console.log(`Interactive styles: ${saved.interactiveStyle?.reportPath}`);
     } finally {
         await runtime.cleanup();
     }
@@ -315,6 +322,13 @@ export async function saveBrandAssets(options: SaveBrandAssetsOptions): Promise<
         brandColors: BrandColor[];
     });
 
+    const interactiveStyle = options.styleResult
+        ? await saveInteractiveStyleAssets({
+            result: options.styleResult,
+            outputDir,
+        })
+        : undefined;
+
     const manifestPath = join(outputDir, 'manifest.json');
     await writeJson(manifestPath, {
         url: options.url,
@@ -322,6 +336,7 @@ export async function saveBrandAssets(options: SaveBrandAssetsOptions): Promise<
         primaryColor: options.result.primaryColor,
         brandColors: options.result.brandColors,
         logos,
+        interactiveStyle,
     });
 
     return {
@@ -329,6 +344,46 @@ export async function saveBrandAssets(options: SaveBrandAssetsOptions): Promise<
         manifestPath,
         brandColorsPath,
         logos,
+        interactiveStyle,
+    };
+}
+
+export async function saveInteractiveStyleAssets(options: {
+    result: InteractiveElementsResult;
+    outputDir: string;
+}): Promise<SavedInteractiveStyleAssets> {
+    const outputDir = resolve(options.outputDir);
+    const elementsDir = join(outputDir, 'interactive-elements');
+    await mkdir(elementsDir, { recursive: true });
+
+    let compositeImagePath: string | undefined;
+    if (options.result.compositeImageBase64) {
+        compositeImagePath = join(elementsDir, 'composite.png');
+        await writeFile(compositeImagePath, pngBufferFromDataUri(options.result.compositeImageBase64));
+    }
+
+    const screenshots: SavedInteractiveElementAsset[] = [];
+    for (const [index, screenshot] of options.result.screenshots.entries()) {
+        const filename = createInteractiveElementFilename(index, screenshot);
+        const filePath = join(elementsDir, filename);
+        await writeFile(filePath, pngBufferFromDataUri(screenshot.screenshotBase64));
+        screenshots.push({
+            index,
+            filename,
+            path: filePath,
+            type: screenshot.type,
+            state: screenshot.state,
+            elementIndex: screenshot.elementIndex,
+        });
+    }
+
+    const reportPath = join(outputDir, 'interactive-styles.md');
+    await writeFile(reportPath, formatInteractiveStylesMarkdown(options.result), 'utf8');
+
+    return {
+        reportPath,
+        compositeImagePath,
+        screenshots,
     };
 }
 
@@ -418,6 +473,25 @@ function createLogoFilename(index: number, logo: AnalyzedLogo): string {
     return `logo-${ordinal}${role}${score}.png`;
 }
 
+function createInteractiveElementFilename(index: number, screenshot: ElementScreenshot): string {
+    const ordinal = String(index + 1).padStart(2, '0');
+    const elementIndex = String(screenshot.elementIndex).padStart(2, '0');
+    return `${ordinal}-${screenshot.type}-${elementIndex}-${screenshot.state}.png`;
+}
+
+function formatInteractiveStylesMarkdown(result: InteractiveElementsResult): string {
+    if (result.screenshots.length === 0) {
+        return '# Extracted Interactive Element Styles\n\nNo interactive elements found.\n';
+    }
+
+    const sections = result.screenshots.map(screenshot => {
+        const styles = screenshot.styles.trim() || '/* No non-default computed styles captured. */';
+        return `## ${screenshot.type} #${screenshot.elementIndex} (${screenshot.state})\n\n\`\`\`css\n${styles}\n\`\`\``;
+    });
+
+    return `# Extracted Interactive Element Styles\n\n${sections.join('\n\n')}\n`;
+}
+
 function pngBufferFromDataUri(dataUri: string): Buffer {
     const match = dataUri.match(/^data:image\/png;base64,(.+)$/);
     if (!match?.[1]) {
@@ -442,18 +516,6 @@ function parsePositiveInteger(value: string | undefined, fallback: number, label
     return parsed;
 }
 
-function parseOptionalNumber(value: string | undefined, label: string): number | undefined {
-    if (value === undefined) {
-        return undefined;
-    }
-
-    const parsed = Number(value);
-    if (!Number.isFinite(parsed)) {
-        throw new Error(`${label} must be a number.`);
-    }
-    return parsed;
-}
-
 function sanitizePathSegment(value: string): string {
     return value.replace(/[^a-z0-9.-]+/gi, '-').replace(/^-+|-+$/g, '') || 'website';
 }
@@ -461,19 +523,23 @@ function sanitizePathSegment(value: string): string {
 function printHelp(): void {
     console.log(`Usage: pnpm demo <website-url> [options]
 
-Download brand/logo assets from a website into a folder.
+Download brand/logo assets and interactive design captures from a website into a folder.
 
 Options:
   -o, --out <dir>          Output folder (default: ./brand-assets/<hostname>)
-      --model <model>      OpenAI model (default: ${DEFAULT_MODEL})
-      --api-key <key>      OpenAI API key (default: OPENAI_API_KEY)
-      --base-url <url>     OpenAI-compatible base URL (default: OPENAI_BASE_URL)
       --max-logos <n>      Max logo candidates to analyze (default: ${DEFAULT_MAX_LOGOS})
       --threshold <n>      Minimum brand-logo score to save (default: ${DEFAULT_THRESHOLD})
-      --temperature <n>    Model temperature
       --json               Print saved paths as JSON
       --show-browser       Run Puppeteer visibly
   -h, --help               Show help
+
+OpenAI config is read from .env or the process environment:
+  OPENAI_API_KEY           Required
+  OPENAI_BASE_URL          Optional OpenAI-compatible base URL
+  OPENAI_MODEL             Optional model (default: ${DEFAULT_MODEL})
+
+The demo writes PNG assets, brand-colors.json, manifest.json, interactive-styles.md,
+and interactive-elements/*.png. It does not write raw stylesheet files.
 `);
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "ai-brand-scraper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Extract logos, brand colors, and interactive UI style screenshots from websites using your LLM and browser runtime.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -13,7 +13,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist tsconfig.tsbuildinfo && tsc -b --force",
     "demo": "tsx demo/index.ts",
     "prepack": "pnpm run build",
     "prepublishOnly": "pnpm run build && pnpm run test",
@@ -63,6 +63,8 @@
     "@types/css-tree": "^2.3.11",
     "@types/node": "^20.19.27",
     "@types/turndown": "^5.0.6",
+    "dotenv": "^16.6.1",
+    "llm-fns": "workspace:*",
     "puppeteer": "^22.15.0",
     "tsx": "^4.7.1",
     "typescript": "^5.9.3",

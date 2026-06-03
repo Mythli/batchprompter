@@ -15,3 +15,6 @@ test.zip
 puppeteer_user_data
 .idea
 tsconfig.tsbuildinfo
+packages/ai-brand-scraper/brand-assets/*
+!packages/ai-brand-scraper/brand-assets/example/
+!packages/ai-brand-scraper/brand-assets/example/**

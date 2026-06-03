@@ -52,20 +52,21 @@ console.log(style.compositeImageBase64);
 
 ## Demo: Download Assets
 
-Set `OPENAI_API_KEY`, then run the package demo with a website and output folder:
+Set `OPENAI_API_KEY` or copy `.env.example` to `.env`, then run the package demo with a website and output folder:
 
 ```sh
 pnpm demo https://example.com --out ./assets/example
 ```
 
-The demo saves every logo candidate that meets the score threshold as PNG files, plus `manifest.json` and `brand-colors.json`.
+The demo saves every logo candidate that meets the score threshold as PNG files, plus `manifest.json`, `brand-colors.json`, `interactive-styles.md`, and `interactive-elements/` screenshots.
+It uses `llm-fns` with the OpenAI-compatible client configured from env.
+It does not save raw stylesheet files; CSS is only used internally when finding logo candidates.
 
 ```sh
 pnpm demo example.com \
   --out ./brand-assets/example \
   --max-logos 12 \
-  --threshold 1 \
-  --model gpt-4.1-mini
+  --threshold 1
 ```
 
 Options:
@@ -73,8 +74,12 @@ Options:
 - `--out <dir>`: output folder, defaulting to `./brand-assets/<hostname>`
 - `--max-logos <n>`: maximum logo candidates to analyze, defaulting to `10`
 - `--threshold <n>`: minimum brand-logo score to save, defaulting to `1`
-- `--model <model>`: OpenAI model, defaulting to `gpt-4.1-mini`
-- `--api-key <key>` and `--base-url <url>`: override `OPENAI_API_KEY` and `OPENAI_BASE_URL`
+
+OpenAI config is env-only and validated with Zod:
+
+- `OPENAI_API_KEY`: required
+- `OPENAI_BASE_URL`: optional OpenAI-compatible base URL
+- `OPENAI_MODEL`: optional model, defaulting to `gpt-4.1-mini`
 
 ## Public API
 

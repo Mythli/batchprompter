@@ -103,6 +103,12 @@ importers:
       '@types/turndown':
         specifier: ^5.0.6
         version: 5.0.6
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
+      llm-fns:
+        specifier: workspace:*
+        version: link:../llm-fns
       puppeteer:
         specifier: ^22.15.0
         version: 22.15.0(typescript@5.9.3)
