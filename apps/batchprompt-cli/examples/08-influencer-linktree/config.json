@@ -1,0 +1,309 @@
+{
+  "logLevel": "debug",
+  "concurrency": 2,
+  "taskConcurrency": 1,
+  "model": {
+    "model": "~google/gemini-flash-latest",
+    "thinkingLevel": "high"
+  },
+  "output": {
+    "tmpDir": "out/08-influencer-linktree/.tmp"
+  },
+  "dataOutputPath": "out/08-influencer-linktree/influencers.csv",
+  "steps": [
+    {
+      "plugins": [
+        {
+          "type": "webSearch",
+          "queryModel": {
+            "prompt": "Generate distinct Google search queries to find Linktree profile pages for influencers, creators, coaches, educators, or personal brands in the {{niche}} niche. Use site:linktr.ee and vary the wording with terms like influencer, creator, Instagram, TikTok, YouTube, coach, and the niche itself. Avoid generic Linktree help, marketplace, blog, signup, login, and company pages."
+          },
+          "selectModel": {
+            "prompt": "Select up to 10 Linktree profile pages that likely belong to individual influencers, creators, coaches, educators, or personal brands in the {{niche}} niche.\n\nRules:\n- Keep only URLs on linktr.ee.\n- Prefer direct profile pages like https://linktr.ee/handle.\n- Exclude Linktree help, blog, marketplace, signup, login, admin, corporate, and generic category pages.\n- Exclude unrelated niches, directories, brand-only pages, music releases, events, and non-personal pages.\n- Prefer profiles whose title or snippet mentions {{niche}}, creator/influencer/coach/artist/educator, or social platforms."
+          },
+          "dedupeStrategy": "url",
+          "queryCount": 10,
+          "maxPages": 3,
+          "limit": 10,
+          "mode": "none",
+          "gl": "us",
+          "hl": "en",
+          "output": {
+            "mode": "merge",
+            "explode": true
+          }
+        }
+      ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "dedupe",
+          "key": "{{webSearch.link}}"
+        }
+      ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "websiteAgent",
+          "url": "{{webSearch.link}}",
+          "budget": 1,
+          "batchSize": 1,
+          "extractModel": {
+            "temperature": 0,
+            "system": "You are extracting influencer profile data from Linktree page markdown. The page has already been fetched by the browser. Extract only from the supplied markdown and visible links. Do not claim HTTP 403, access denied, forbidden, or network failure unless those exact words appear in the supplied markdown. If a field is not visible, return null and explain the missing public detail briefly in notes. Use Linktree title, profile heading, bio, social buttons, link labels, and URLs."
+          },
+          "schema": {
+            "type": "object",
+            "description": "Extract public influencer contact and profile information from the Linktree page for the {{niche}} niche. Only extract information visible on the page. Do not guess private contact details.",
+            "properties": {
+              "influencerName": {
+                "type": ["string", "null"],
+                "description": "The influencer, creator, or personal brand name shown on the Linktree page."
+              },
+              "linktreeHandle": {
+                "type": ["string", "null"],
+                "description": "The Linktree handle, usually the part after linktr.ee/."
+              },
+              "bio": {
+                "type": ["string", "null"],
+                "description": "Short bio, tagline, or profile description from the Linktree page."
+              },
+              "nicheMatchReason": {
+                "type": ["string", "null"],
+                "description": "Briefly explain why this profile appears relevant to the {{niche}} niche."
+              },
+              "contactEmail": {
+                "type": ["string", "null"],
+                "description": "Public email address shown on the Linktree page, if any. Do not infer."
+              },
+              "contactPhone": {
+                "type": ["string", "null"],
+                "description": "Public phone number or WhatsApp contact shown on the Linktree page, if any. Do not infer."
+              },
+              "contactFormUrl": {
+                "type": ["string", "null"],
+                "description": "URL for a public contact form, booking page, inquiry page, or collaboration form, if any."
+              },
+              "collaborationUrl": {
+                "type": ["string", "null"],
+                "description": "URL specifically for brand collaborations, UGC bookings, media kits, partnership inquiries, or work-with-me pages, if any."
+              },
+              "websiteUrl": {
+                "type": ["string", "null"],
+                "description": "Personal website, blog, portfolio, or main non-social website URL, if any."
+              },
+              "instagramUrl": {
+                "type": ["string", "null"],
+                "description": "Instagram profile URL, if visible."
+              },
+              "tiktokUrl": {
+                "type": ["string", "null"],
+                "description": "TikTok profile URL, if visible."
+              },
+              "youtubeUrl": {
+                "type": ["string", "null"],
+                "description": "YouTube channel/profile URL, if visible."
+              },
+              "xUrl": {
+                "type": ["string", "null"],
+                "description": "X/Twitter profile URL, if visible."
+              },
+              "threadsUrl": {
+                "type": ["string", "null"],
+                "description": "Threads profile URL, if visible."
+              },
+              "facebookUrl": {
+                "type": ["string", "null"],
+                "description": "Facebook page/profile URL, if visible."
+              },
+              "linkedinUrl": {
+                "type": ["string", "null"],
+                "description": "LinkedIn profile/page URL, if visible."
+              },
+              "pinterestUrl": {
+                "type": ["string", "null"],
+                "description": "Pinterest profile URL, if visible."
+              },
+              "snapchatUrl": {
+                "type": ["string", "null"],
+                "description": "Snapchat profile URL, if visible."
+              },
+              "twitchUrl": {
+                "type": ["string", "null"],
+                "description": "Twitch profile URL, if visible."
+              },
+              "allProfileLinks": {
+                "type": ["string", "null"],
+                "description": "CSV-friendly list of every public profile, social, storefront, contact, booking, media-kit, newsletter, community, podcast, or portfolio link visible on the Linktree page. Put one item per line in this exact format: Platform or label | URL"
+              },
+              "notes": {
+                "type": ["string", "null"],
+                "description": "Short notes about contact quality, missing contact details, or anything useful for outreach."
+              }
+            }
+          },
+          "output": {
+            "mode": "merge"
+          }
+        },
+        {
+          "type": "validation",
+          "target": "websiteAgent",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "influencerName": { "type": "string", "minLength": 1 },
+              "linktreeHandle": { "type": "string", "minLength": 1 },
+              "contactEmail": { "type": ["string", "null"] },
+              "contactPhone": { "type": ["string", "null"] },
+              "contactFormUrl": { "type": ["string", "null"] },
+              "collaborationUrl": { "type": ["string", "null"] },
+              "websiteUrl": { "type": ["string", "null"] },
+              "instagramUrl": { "type": ["string", "null"] },
+              "tiktokUrl": { "type": ["string", "null"] },
+              "youtubeUrl": { "type": ["string", "null"] },
+              "xUrl": { "type": ["string", "null"] },
+              "threadsUrl": { "type": ["string", "null"] },
+              "facebookUrl": { "type": ["string", "null"] },
+              "linkedinUrl": { "type": ["string", "null"] },
+              "pinterestUrl": { "type": ["string", "null"] },
+              "snapchatUrl": { "type": ["string", "null"] },
+              "twitchUrl": { "type": ["string", "null"] },
+              "allProfileLinks": { "type": ["string", "null"] },
+              "notes": { "type": ["string", "null"] },
+              "nicheMatchReason": { "type": ["string", "null"] }
+            },
+            "required": ["influencerName", "linktreeHandle"],
+            "anyOf": [
+              { "required": ["contactEmail"], "properties": { "contactEmail": { "type": "string", "pattern": "@" } } },
+              { "required": ["contactPhone"], "properties": { "contactPhone": { "type": "string", "minLength": 6 } } },
+              { "required": ["contactFormUrl"], "properties": { "contactFormUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["collaborationUrl"], "properties": { "collaborationUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["websiteUrl"], "properties": { "websiteUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["instagramUrl"], "properties": { "instagramUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["tiktokUrl"], "properties": { "tiktokUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["youtubeUrl"], "properties": { "youtubeUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["xUrl"], "properties": { "xUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["threadsUrl"], "properties": { "threadsUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["facebookUrl"], "properties": { "facebookUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["linkedinUrl"], "properties": { "linkedinUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["pinterestUrl"], "properties": { "pinterestUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["snapchatUrl"], "properties": { "snapchatUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["twitchUrl"], "properties": { "twitchUrl": { "type": "string", "pattern": "^https?://" } } },
+              { "required": ["allProfileLinks"], "properties": { "allProfileLinks": { "type": "string", "pattern": "https?://" } } }
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": ["notes"],
+                  "properties": {
+                    "notes": {
+                      "type": "string",
+                      "pattern": "HTTP ERROR|Too Many Requests|Access Denied|access denied|Forbidden|forbidden|ERR_CONNECTION_REFUSED|Connection refused|authorisation"
+                    }
+                  }
+                },
+                {
+                  "required": ["nicheMatchReason"],
+                  "properties": {
+                    "nicheMatchReason": {
+                      "type": "string",
+                      "pattern": "HTTP ERROR|Too Many Requests|Access Denied|access denied|Forbidden|forbidden|ERR_CONNECTION_REFUSED|Connection refused|authorisation"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "failMode": "drop"
+        }
+      ]
+    },
+    {
+      "plugins": [
+        {
+          "type": "webSearch",
+          "queryModel": {
+            "prompt": "Generate focused Google queries to find the personal LinkedIn profile for this influencer. Influencer name: {{websiteAgent.influencerName}}. Linktree handle: {{websiteAgent.linktreeHandle}}. Niche: {{niche}}. Linktree URL: {{webSearch.link}}. Use site:linkedin.com/in and vary the query with the influencer name, handle, niche, creator, coach, founder, and social profile terms. Do not search for company pages."
+          },
+          "selectModel": {
+            "prompt": "Select at most 1 LinkedIn personal profile URL that is likely to belong to {{websiteAgent.influencerName}} / {{websiteAgent.linktreeHandle}} from the {{niche}} niche.\n\nRules:\n- Keep only linkedin.com/in/ personal profile URLs.\n- Exclude linkedin.com/company, linkedin.com/posts, linkedin.com/pulse, jobs, learning, directories, and unrelated profiles.\n- Prefer results whose title or snippet matches the influencer name, Linktree handle, niche, bio, or known social/profile context.\n- If there is no strong match, select nothing. Do not guess."
+          },
+          "dedupeStrategy": "url",
+          "queryCount": 3,
+          "maxPages": 1,
+          "limit": 1,
+          "mode": "none",
+          "gl": "us",
+          "hl": "en",
+          "output": {
+            "mode": "column",
+            "column": "linkedinSearch"
+          }
+        },
+        {
+          "type": "validation",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "websiteAgent": {
+                "type": "object",
+                "properties": {
+                  "contactEmail": { "type": ["string", "null"] },
+                  "linkedinUrl": { "type": ["string", "null"] }
+                }
+              },
+              "linkedinSearch": {
+                "type": ["object", "null"],
+                "properties": {
+                  "link": { "type": ["string", "null"] }
+                }
+              }
+            },
+            "anyOf": [
+              {
+                "required": ["websiteAgent"],
+                "properties": {
+                  "websiteAgent": {
+                    "type": "object",
+                    "required": ["contactEmail"],
+                    "properties": {
+                      "contactEmail": { "type": "string", "pattern": "@" }
+                    }
+                  }
+                }
+              },
+              {
+                "required": ["websiteAgent"],
+                "properties": {
+                  "websiteAgent": {
+                    "type": "object",
+                    "required": ["linkedinUrl"],
+                    "properties": {
+                      "linkedinUrl": { "type": "string", "pattern": "^https?://([^/]+\\.)?linkedin\\.com/in/" }
+                    }
+                  }
+                }
+              },
+              {
+                "required": ["linkedinSearch"],
+                "properties": {
+                  "linkedinSearch": {
+                    "type": "object",
+                    "required": ["link"],
+                    "properties": {
+                      "link": { "type": "string", "pattern": "^https?://([^/]+\\.)?linkedin\\.com/in/" }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "failMode": "drop"
+        }
+      ]
+    }
+  ]
+}
