@@ -1,8 +1,9 @@
 import { BasePluginRow, PluginResult, PluginItem } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { StyleScraperConfig } from './StyleScraperPlugin.js';
-import { InteractiveElementScreenshoter } from '../../utils/puppeteer/InteractiveElementScreenshoter.js';
-import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
+import { WebsiteStyleScraper } from 'ai-brand-scraper';
+import type { PageActionExecutor } from 'ai-brand-scraper';
+import type { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import * as path from 'path';
 
 export class StyleScraperPluginRow extends BasePluginRow<StyleScraperConfig> {
@@ -27,8 +28,11 @@ export class StyleScraperPluginRow extends BasePluginRow<StyleScraperConfig> {
             data: { url: config.url }
         });
 
-        const screenshoter = new InteractiveElementScreenshoter(this.puppeteerHelper);
-        const result = await screenshoter.screenshot(config.url, {
+        const styleScraper = new WebsiteStyleScraper({
+            pageExecutor: this.createPageExecutor()
+        });
+        const result = await styleScraper.scrape({
+            url: config.url,
             maxButtons: config.maxButtons,
             maxInputs: config.maxInputs,
             maxLinks: config.maxLinks,
@@ -98,6 +102,27 @@ export class StyleScraperPluginRow extends BasePluginRow<StyleScraperConfig> {
                 data: { elements: elementsData },
                 contentParts
             }]
+        };
+    }
+
+    private createPageExecutor(): PageActionExecutor {
+        return {
+            executeOnPage: async ({ url, cacheKey, ttl, navigation, beforeNavigate, action }) => {
+                const pageHelper = await this.puppeteerHelper.getPageHelper();
+                return pageHelper.navigateAndCache(
+                    url,
+                    async (helper) => action(helper.getPage() as any),
+                    {
+                        ...navigation,
+                        cacheKey,
+                        ttl,
+                        closePage: true,
+                        beforeNavigate: beforeNavigate
+                            ? async (helper) => beforeNavigate(helper.getPage() as any)
+                            : undefined,
+                    }
+                );
+            },
         };
     }
 }

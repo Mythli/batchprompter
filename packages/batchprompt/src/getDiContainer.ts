@@ -16,7 +16,7 @@ import {ModelConfig} from "./config/model.js";
 import { PluginRegistryV2 } from './plugins/types.js';
 import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 import { LogoScraperPlugin } from './plugins/logo-scraper/LogoScraperPlugin.js';
-import { ImageDownloader } from './plugins/logo-scraper/utils/ImageDownloader.js';
+import { ImageDownloader } from 'ai-brand-scraper';
 import { LoadDataPlugin } from './plugins/load-data/LoadDataPlugin.js';
 import { GmailSenderPlugin } from './plugins/gmail-sender/GmailSenderPlugin.js';
 import { GmailReplierPlugin } from './plugins/gmail-replier/GmailReplierPlugin.js';
@@ -251,7 +251,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         pluginRegistry.registerFactory('imageSearch', () => new ImageSearchPlugin({ imageSearch: imageSearch! }));
     }
 
-    const imageDownloader = new ImageDownloader(fetcher as any);
+    const imageDownloader = new ImageDownloader({ fetcher: fetcher as any });
     pluginRegistry.registerFactory('logoScraper', () => new LogoScraperPlugin({ puppeteerHelper, imageDownloader }));
     
     pluginRegistry.registerFactory('loadData', () => new LoadDataPlugin());

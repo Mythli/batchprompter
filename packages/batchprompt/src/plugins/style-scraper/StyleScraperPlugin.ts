@@ -3,8 +3,8 @@ import Handlebars from 'handlebars';
 import { BasePlugin, BasePluginRow } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { PartialOutputConfigSchema, StepConfig, GlobalConfig } from '../../config/schema.js';
-import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import { StyleScraperPluginRow } from './StyleScraperPluginRow.js';
+import type { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 
 export const StyleScraperConfigSchemaV2 = z.object({
     type: z.literal('styleScraper'),

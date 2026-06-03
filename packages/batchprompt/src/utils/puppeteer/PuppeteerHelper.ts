@@ -1,13 +1,17 @@
 import puppeteer, { Browser, Page, PuppeteerLaunchOptions } from 'puppeteer';
 import fs from 'fs/promises';
 import { PuppeteerPageHelper } from './PuppeteerPageHelper.js';
-import { Cache } from 'cache-manager';
-import {Fetcher} from "llm-fns";
+import type { Fetcher } from 'llm-fns';
+
+export interface CacheLike {
+    get<T>(key: string): Promise<T | undefined | null> | T | undefined | null;
+    set(key: string, value: any, ttl?: number): Promise<any> | any;
+}
 
 export interface PuppeteerHelperOptions {
     browserUserDataDir?: string;
     puppeteerLaunchOptions?: PuppeteerLaunchOptions;
-    cache?: Cache;
+    cache?: CacheLike;
     fetcher?: Fetcher;
     maxPagesBeforeRestart?: number;
     restartTimeout?: number;
@@ -20,10 +24,9 @@ export class PuppeteerHelper {
     private options: PuppeteerHelperOptions;
     private browser: Browser | null = null;
     private initPromise: Promise<void> | null = null;
-    private cache?: Cache;
+    private cache?: CacheLike;
     private fetcher?: Fetcher;
 
-    // Restart Policy State
     private pagesOpenedCount = 0;
     private activePagesCount = 0;
     private isRestarting = false;
@@ -44,12 +47,10 @@ export class PuppeteerHelper {
 
     private setupProcessHandlers() {
         const handler = async () => {
-            // console.log('[PuppeteerHelper] Process terminating. Closing browser...');
             await this.close();
             process.exit(0);
         };
 
-        // Prevent adding multiple listeners if init is called multiple times
         process.off('SIGINT', handler);
         process.off('SIGTERM', handler);
 
@@ -57,24 +58,20 @@ export class PuppeteerHelper {
         process.on('SIGTERM', handler);
     }
 
-    private async _performInit(): Promise<void> {
+    private async performInit(): Promise<void> {
         const {
             browserUserDataDir,
             puppeteerLaunchOptions,
         } = this.options;
 
-        // Browser initialization. Preserve the profile directory so browser restarts
-        // do not wipe sessions/cookies for stateful flows such as Gmail.
         try {
             await fs.mkdir(browserUserDataDir!, { recursive: true });
-        } catch (error: any) {
-            // console.warn(`Could not manage user data directory '${browserUserDataDir}': ${error.message}`);
-        }
+        } catch {}
 
         this.browser = await puppeteer.launch({
             ...puppeteerLaunchOptions,
             userDataDir: browserUserDataDir,
-            pipe: true, // Use pipe instead of websocket for better process control
+            pipe: true,
         });
 
         const launchedBrowser = this.browser;
@@ -89,9 +86,8 @@ export class PuppeteerHelper {
 
         this.setupProcessHandlers();
 
-        // Health check
         if (!this.browser || !this.browser.isConnected()) {
-            throw new Error("Browser was not created or connected properly.");
+            throw new Error('Browser was not created or connected properly.');
         }
         try {
             const page = await this.browser.newPage();
@@ -104,40 +100,28 @@ export class PuppeteerHelper {
         }
     }
 
-    /**
-     * Initializes the Puppeteer browser instance.
-     * This must be called before any other methods are used.
-     */
     public init(): Promise<void> {
         if (!this.initPromise) {
-            this.initPromise = this._performInit();
+            this.initPromise = this.performInit();
         }
         return this.initPromise;
     }
 
-    /**
-     * Closes the Puppeteer browser and cleans up resources.
-     */
     public async close(): Promise<void> {
         if (this.initPromise) {
             await this.initPromise;
         }
         if (this.browser) {
             try {
-                // Create a timeout promise
                 const closeTimeout = new Promise((_, reject) =>
                     setTimeout(() => reject(new Error('Browser close timeout')), 5000)
                 );
 
-                // Race standard close against the timeout
                 await Promise.race([
                     this.browser.close(),
-                    closeTimeout
+                    closeTimeout,
                 ]);
-            } catch (closeError: any) {
-                // console.warn(`Error closing browser gracefully: ${closeError.message}. Force killing process.`);
-
-                // Force kill the process if graceful close failed/timed out
+            } catch {
                 const process = this.browser.process();
                 if (process) {
                     process.kill('SIGKILL');
@@ -150,29 +134,26 @@ export class PuppeteerHelper {
         this.activePagesCount = 0;
     }
 
-    private async _ensureInitialized(): Promise<void> {
-        // If we are currently restarting, wait for that to finish
+    private async ensureInitialized(): Promise<void> {
         if (this.isRestarting && this.restartPromise) {
             await this.restartPromise;
         }
 
         if (!this.initPromise) {
-            // Auto-initialize if init() wasn't called explicitly
-            // console.log("PuppeteerHelper not explicitly initialized. Calling init() automatically.");
             await this.init();
         } else {
             await this.initPromise;
         }
         if (!this.browser) {
-            throw new Error("Puppeteer initialization failed. Browser is not available.");
+            throw new Error('Puppeteer initialization failed. Browser is not available.');
         }
     }
 
-    private async _ensureHealthyBrowser(): Promise<void> {
-        await this._ensureInitialized();
+    private async ensureHealthyBrowser(): Promise<void> {
+        await this.ensureInitialized();
 
         if (!this.browser || !this.browser.isConnected()) {
-            await this._restartBrowser();
+            await this.restartBrowser();
         }
     }
 
@@ -185,11 +166,11 @@ export class PuppeteerHelper {
             'Session closed',
             'Browser has disconnected',
             'browser is closed',
-            'WebSocket is not open'
+            'WebSocket is not open',
         ].some(part => message.includes(part));
     }
 
-    private async _restartBrowser(): Promise<void> {
+    private async restartBrowser(): Promise<void> {
         if (this.isRestarting) {
             if (this.restartPromise) await this.restartPromise;
             return;
@@ -199,32 +180,19 @@ export class PuppeteerHelper {
 
         this.restartPromise = (async () => {
             try {
-                // 1. Wait for active pages to close or timeout
                 if (this.activePagesCount > 0) {
-                    // console.log(`[PuppeteerHelper] Waiting for ${this.activePagesCount} active pages to close (Timeout: ${this.restartTimeout}ms)...`);
-
                     const startTime = Date.now();
                     while (this.activePagesCount > 0) {
                         if (Date.now() - startTime > this.restartTimeout) {
-                            // console.warn(`[PuppeteerHelper] Restart timeout reached. Forcing close with ${this.activePagesCount} active pages.`);
                             break;
                         }
                         await new Promise(resolve => setTimeout(resolve, 500));
                     }
                 }
 
-                // 2. Close existing browser
-                // console.log(`[PuppeteerHelper] Closing browser...`);
                 await this.close();
-
-                // 3. Re-initialize
-                // console.log(`[PuppeteerHelper] Starting new browser instance...`);
                 await this.init();
-
-                // console.log(`[PuppeteerHelper] Browser restarted successfully.`);
             } catch (e: any) {
-                // console.error(`[PuppeteerHelper] Error during restart: ${e.message}`);
-                // Reset flags so we can try again or fail hard next time
                 this.isRestarting = false;
                 this.restartPromise = null;
                 throw e;
@@ -237,82 +205,60 @@ export class PuppeteerHelper {
         await this.restartPromise;
     }
 
-    private async _checkAndRestartIfNeeded(): Promise<void> {
+    private async checkAndRestartIfNeeded(): Promise<void> {
         if (this.isRestarting) {
             if (this.restartPromise) await this.restartPromise;
             return;
         }
 
         if (this.pagesOpenedCount >= this.maxPagesLimit) {
-            // console.log(`[PuppeteerHelper] Page limit reached (${this.pagesOpenedCount}/${this.maxPagesLimit}). Initiating restart...`);
-            await this._restartBrowser();
+            await this.restartBrowser();
         }
     }
 
-    private async _createTrackedPage(): Promise<Page> {
+    private async createTrackedPage(): Promise<Page> {
         const page = await this.browser!.newPage();
 
-        // Track usage
         this.pagesOpenedCount++;
         this.activePagesCount++;
 
-        // console.log(`[PuppeteerHelper] Page opened. Total opened: ${this.pagesOpenedCount}/${this.maxPagesLimit}. Active: ${this.activePagesCount}`);
-
-        // Listen for close to decrement active count
         page.once('close', () => {
             this.activePagesCount = Math.max(0, this.activePagesCount - 1);
-            // console.log(`[PuppeteerHelper] Page closed. Active: ${this.activePagesCount}`);
         });
 
         return page;
     }
 
-    /**
-     * Returns the raw Puppeteer Browser instance.
-     */
     public async getBrowser(): Promise<Browser> {
-        await this._ensureHealthyBrowser();
+        await this.ensureHealthyBrowser();
         return this.browser!;
     }
 
-    /**
-     * Returns null, as the ad blocker has been removed.
-     */
     public async getBlocker(): Promise<null> {
-        await this._ensureHealthyBrowser();
+        await this.ensureHealthyBrowser();
         return null;
     }
 
-    /**
-     * Creates and returns a new Puppeteer Page. The caller is responsible for closing the page.
-     */
     public async getPage(): Promise<Page> {
-        await this._checkAndRestartIfNeeded();
-        await this._ensureHealthyBrowser();
+        await this.checkAndRestartIfNeeded();
+        await this.ensureHealthyBrowser();
 
         try {
-            return await this._createTrackedPage();
+            return await this.createTrackedPage();
         } catch (error: any) {
             if (!this.isRecoverableBrowserError(error)) {
                 throw error;
             }
 
-            await this._restartBrowser();
-            return this._createTrackedPage();
+            await this.restartBrowser();
+            return this.createTrackedPage();
         }
     }
 
-    /**
-     * Creates a new Puppeteer Page and wraps it in a PuppeteerPageHelper.
-     * The helper comes pre-configured with the ad blocker.
-     * @returns A promise that resolves to a new PuppeteerPageHelper instance.
-     */
     public async getPageHelper(): Promise<PuppeteerPageHelper> {
-        // getPage handles the restart logic and counting
         const page = await this.getPage();
-        
         const pageHelper = new PuppeteerPageHelper(page, null, this.cache, this.fetcher);
-        await pageHelper.setupPage(); // Automatically setup page with blocker
+        await pageHelper.setupPage();
         return pageHelper;
     }
 }

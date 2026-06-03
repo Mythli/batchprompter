@@ -7,9 +7,9 @@ import { StepRow } from '../../StepRow.js';
 import { PartialOutputConfigSchema, StepConfig, GlobalConfig } from '../../config/schema.js';
 import { ModelConfigSchema, ModelConfig } from '../../config/model.js';
 import { zHandlebars } from '../../config/validationRules.js';
-import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
-import { ImageDownloader } from './utils/ImageDownloader.js';
 import { LogoScraperPluginRow } from './LogoScraperPluginRow.js';
+import type { ImageDownloader } from 'ai-brand-scraper';
+import type { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 
 export const LogoScraperConfigSchemaV2 = z.object({
     type: z.literal('logoScraper'),

@@ -1,10 +1,6 @@
 // @ts-ignore
 import * as csstree from 'css-tree';
-
-export interface Stylesheet {
-    url: string;
-    content: string;
-}
+import type { Stylesheet } from '../types.js';
 
 export class CssParser {
     static extractBlocksWithBackgroundImage(stylesheets: Stylesheet[]): string {

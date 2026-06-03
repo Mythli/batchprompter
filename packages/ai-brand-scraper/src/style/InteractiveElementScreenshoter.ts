@@ -1,7 +1,10 @@
-import { ElementHandle, Page } from 'puppeteer';
 import sharp from 'sharp';
-import { PuppeteerHelper } from './PuppeteerHelper.js';
-import { PuppeteerPageHelper } from './PuppeteerPageHelper.js';
+import type {
+    AiBrandPageLike,
+    PageActionExecutor,
+    WebsiteStyleElementLike,
+    WebsiteStylePageLike,
+} from '../types.js';
 
 /**
  * Creates a pseudo-random number generator.
@@ -57,16 +60,16 @@ export interface ScreenshoterOptions {
  * A class to find, interact with, and screenshot various interactive elements on a page.
  */
 export class InteractiveElementScreenshoter {
-    constructor(private puppeteerHelper: PuppeteerHelper) {}
+    constructor(private pageExecutor: PageActionExecutor) {}
 
     /**
      * Takes screenshots of interactive elements on a page.
-     * @param target A URL string to navigate to, or an existing PuppeteerPageHelper instance.
+     * @param target A URL string to navigate to, or an existing page instance.
      * @param options Configuration for the screenshot process.
      * @returns A promise that resolves to an object containing individual screenshots and an optional composite image.
      */
     public async screenshot(
-        target: string | PuppeteerPageHelper,
+        target: string | AiBrandPageLike,
         options: ScreenshoterOptions = {}
     ): Promise<InteractiveElementsResult> {
         const {
@@ -80,27 +83,26 @@ export class InteractiveElementScreenshoter {
 
         const prng = mulberry32(seed);
 
-        let pageHelper: PuppeteerPageHelper;
-        const shouldClosePageHelper = typeof target === 'string';
-
-        if (shouldClosePageHelper) {
-            pageHelper = await this.puppeteerHelper.getPageHelper();
-            await pageHelper.navigateToUrl(target as string);
-            // Wait a moment for dynamic content to load on the page.
-            // console.log('[Screenshoter] Waiting for 2 seconds for dynamic content to load...');
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        } else {
-            pageHelper = target as PuppeteerPageHelper;
+        if (typeof target === 'string') {
+            return this.pageExecutor.executeOnPage({
+                url: target,
+                cacheKey: this.getCacheKey(target, options),
+                ttl: 3600 * 1000,
+                action: async (page) => {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    return this.screenshot(page, options);
+                },
+            });
         }
 
-        let scopeHandle: ElementHandle | null = null;
+        const page = target;
+        let scopeHandle: WebsiteStyleElementLike | null = null;
         try {
-            const page = pageHelper.getPage();
             // Set a large viewport to try and get all elements into view
             await page.setViewport({ width: 1920, height: 10000 });
             // console.log('[Screenshoter] Set viewport to 1920x10000.');
 
-            let searchContext: Page | ElementHandle = page;
+            let searchContext: WebsiteStylePageLike | WebsiteStyleElementLike = page;
             if (scopeSelector) {
                 // console.log(`[Screenshoter] Scoping search to selector: ${scopeSelector}`);
                 scopeHandle = await page.$(scopeSelector);
@@ -116,19 +118,19 @@ export class InteractiveElementScreenshoter {
             // --- Buttons ---
             const buttonHandles = await this.getRandomElements(searchContext, 'button, [role="button"], input[type="submit"], input[type="button"], a[class*="button"], a[class*="btn"]', maxButtons, 'button', prng);
             for (const [i, handle] of buttonHandles.entries()) {
-                await this.processElement(pageHelper, handle, 'button', i + 1, ['normal', 'hover'], allScreenshots);
+                await this.processElement(page, handle, 'button', i + 1, ['normal', 'hover'], allScreenshots);
             }
 
             // --- Inputs ---
             const inputHandles = await this.getRandomElements(searchContext, 'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]), textarea', maxInputs, 'input', prng);
             for (const [i, handle] of inputHandles.entries()) {
-                await this.processElement(pageHelper, handle, 'input', i + 1, ['normal', 'hover', 'focus'], allScreenshots);
+                await this.processElement(page, handle, 'input', i + 1, ['normal', 'hover', 'focus'], allScreenshots);
             }
 
             // --- Links ---
             const linkHandles = await this.getRandomElements(searchContext, 'a[href]:not([class*="button"]):not([class*="btn"])', maxLinks, 'link', prng);
             for (const [i, handle] of linkHandles.entries()) {
-                await this.processElement(pageHelper, handle, 'link', i + 1, ['normal', 'hover'], allScreenshots);
+                await this.processElement(page, handle, 'link', i + 1, ['normal', 'hover'], allScreenshots);
             }
 
             let compositeImageBase64: string | undefined;
@@ -144,16 +146,24 @@ export class InteractiveElementScreenshoter {
             if (scopeHandle) {
                 await scopeHandle.dispose();
             }
-            if (shouldClosePageHelper) {
-                await pageHelper.close();
-            }
         }
     }
 
-    private async processElement(pageHelper: PuppeteerPageHelper, handle: ElementHandle, type: ElementScreenshot['type'], elementIndex: number, states: ElementScreenshot['state'][], allScreenshots: ElementScreenshot[]) {
+    private getCacheKey(url: string, options: ScreenshoterOptions): string {
+        return `ai-brand-scraper:website-style:${url}:${JSON.stringify({
+            maxButtons: options.maxButtons,
+            maxInputs: options.maxInputs,
+            maxLinks: options.maxLinks,
+            createCompositeImage: options.createCompositeImage,
+            seed: options.seed,
+            scopeSelector: options.scopeSelector,
+        })}`;
+    }
+
+    private async processElement(page: AiBrandPageLike, handle: WebsiteStyleElementLike, type: ElementScreenshot['type'], elementIndex: number, states: ElementScreenshot['state'][], allScreenshots: ElementScreenshot[]) {
         try {
             for (const state of states) {
-                const shot = await this.screenshotElementState(pageHelper, handle, state, type, elementIndex);
+                const shot = await this.screenshotElementState(page, handle, state, type, elementIndex);
                 if (shot) {
                     allScreenshots.push(shot);
                 }
@@ -165,10 +175,9 @@ export class InteractiveElementScreenshoter {
         }
     }
 
-    private async screenshotElementState(pageHelper: PuppeteerPageHelper, handle: ElementHandle, state: ElementScreenshot['state'], type: ElementScreenshot['type'], elementIndex: number): Promise<ElementScreenshot | null> {
+    private async screenshotElementState(page: AiBrandPageLike, handle: WebsiteStyleElementLike, state: ElementScreenshot['state'], type: ElementScreenshot['type'], elementIndex: number): Promise<ElementScreenshot | null> {
         try {
             const elementName = `${type} #${elementIndex} (${state})`;
-            const page = pageHelper.getPage();
 
             // Reset mouse to avoid lingering hover states from previous screenshots
             await page.mouse.move(0, 0);
@@ -248,15 +257,18 @@ export class InteractiveElementScreenshoter {
                 clip.height = viewport.height - clip.y;
             }
 
-            const buffer = await page.screenshot({
+            const screenshotData = await page.screenshot({
                 encoding: 'base64',
                 clip: clip,
             });
 
-            if (!buffer) {
+            if (!screenshotData) {
                 throw new Error(`Screenshot returned empty buffer for '${elementName}'.`);
             }
-            const screenshotBase64 = `data:image/png;base64,${buffer}`;
+            const base64 = typeof screenshotData === 'string'
+                ? screenshotData
+                : Buffer.from(screenshotData).toString('base64');
+            const screenshotBase64 = `data:image/png;base64,${base64}`;
 
             return { type, state, screenshotBase64, elementIndex, styles };
         } catch (e) {
@@ -265,12 +277,12 @@ export class InteractiveElementScreenshoter {
         }
     }
 
-    private async getRandomElements(searchContext: Page | ElementHandle, selector: string, maxCount: number, type: 'button' | 'link' | 'input', prng: () => number): Promise<ElementHandle[]> {
+    private async getRandomElements(searchContext: WebsiteStylePageLike | WebsiteStyleElementLike, selector: string, maxCount: number, type: 'button' | 'link' | 'input', prng: () => number): Promise<WebsiteStyleElementLike[]> {
         if (maxCount <= 0) return [];
 
         // console.log(`[Screenshoter] Searching for up to ${maxCount} random elements with selector: ${selector}`);
         const allHandles = await searchContext.$$(selector);
-        const validHandles: ElementHandle[] = [];
+        const validHandles: WebsiteStyleElementLike[] = [];
 
         for (const handle of allHandles) {
             try {

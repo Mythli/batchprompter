@@ -1,0 +1,69 @@
+{
+  "name": "ai-brand-scraper",
+  "version": "0.1.0",
+  "description": "Extract logos, brand colors, and interactive UI style screenshots from websites using your LLM and browser runtime.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepack": "pnpm run build",
+    "prepublishOnly": "pnpm run build && pnpm run test",
+    "test": "vitest run",
+    "watch": "tsc -b -w"
+  },
+  "keywords": [
+    "ai",
+    "brand",
+    "brand-assets",
+    "brand-colors",
+    "logo",
+    "scraper",
+    "screenshots",
+    "style",
+    "website"
+  ],
+  "author": "BatchPrompt contributors",
+  "license": "MIT",
+  "homepage": "https://github.com/Mythli/batchprompter/tree/main/packages/ai-brand-scraper#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/Mythli/batchprompter.git",
+    "directory": "packages/ai-brand-scraper"
+  },
+  "bugs": {
+    "url": "https://github.com/Mythli/batchprompter/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "cheerio": "^1.1.2",
+    "css-tree": "^2.3.1",
+    "eventemitter3": "^5.0.1",
+    "openai": "^6.15.0",
+    "sharp": "^0.33.5",
+    "sharp-ico": "^0.1.5",
+    "turndown": "^7.2.2",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "@types/css-tree": "^2.3.11",
+    "@types/node": "^20.19.27",
+    "@types/turndown": "^5.0.6",
+    "puppeteer": "^22.15.0",
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.1"
+  }
+}

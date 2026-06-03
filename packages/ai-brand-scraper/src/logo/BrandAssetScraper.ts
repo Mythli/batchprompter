@@ -1,16 +1,33 @@
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 import { z } from 'zod';
 import { EventEmitter } from 'eventemitter3';
-import { BoundLlmClient } from '../../../BoundLlmClient.js';
-import { PuppeteerHelper } from '../../../utils/puppeteer/PuppeteerHelper.js';
-import { PuppeteerPageHelper, Resolution } from '../../../utils/puppeteer/PuppeteerPageHelper.js';
-import { compressHtml } from '../../../utils/compressHtml.js';
+import { compressHtml } from '../utils/compressHtml.js';
 import { CssParser } from './CssParser.js';
 import { ImageDownloader, ImageConversionResult } from './ImageDownloader.js';
+import { CssCollector, fetchFavicons, getFinalHtml, takeScreenshots } from '../page/pageCapture.js';
+import type { AiBrandFetcher, AiBrandLlm, AiBrandMessage, AiBrandPageLike, PageActionExecutor, Resolution } from '../types.js';
 
 export interface LogoScraperOptions {
     maxLogosToAnalyze?: number;
     brandLogoScoreThreshold?: number;
+}
+
+export interface BrandAssetScrapeInput extends LogoScraperOptions {
+    url: string;
+}
+
+export interface BrandAssetScraperDeps {
+    pageExecutor: PageActionExecutor;
+    analyzeLlm: AiBrandLlm;
+    extractLlm?: AiBrandLlm;
+    fetcher?: AiBrandFetcher;
+    imageDownloader?: ImageDownloader;
+    defaultOptions?: LogoScraperOptions;
+}
+
+interface ResolvedLogoScraperOptions {
+    maxLogosToAnalyze: number;
+    brandLogoScoreThreshold: number;
 }
 
 export interface BrandColor {
@@ -74,48 +91,94 @@ Your goal is to find up to ${maxLogos} sources for images that are the primary l
 - Analyze the HTML carefully. Look for clues like 'logo' in filenames, alt text, or CSS classes.
 - Analyze the provided CSS snippets. They contain \`background-image\` properties that may point to a logo.`;
 
-export class AiLogoScraper {
-    public readonly events = new EventEmitter();
+function userMessage(content: OpenAI.Chat.Completions.ChatCompletionContentPart[]): AiBrandMessage[] {
+    return [{ role: 'user', content }];
+}
 
-    constructor(
-        private puppeteerHelper: PuppeteerHelper,
-        private analyzeLlm: BoundLlmClient,
-        private extractLlm: BoundLlmClient,
-        private imageDownloader: ImageDownloader,
-        private options: LogoScraperOptions = {}
-    ) {
-        this.options.maxLogosToAnalyze = options.maxLogosToAnalyze ?? 10;
-        this.options.brandLogoScoreThreshold = options.brandLogoScoreThreshold ?? 5;
+export class BrandAssetScraper {
+    public readonly events = new EventEmitter();
+    private readonly pageExecutor: PageActionExecutor;
+    private readonly analyzeLlm: AiBrandLlm;
+    private readonly extractLlm: AiBrandLlm;
+    private readonly imageDownloader: ImageDownloader;
+    private readonly defaultOptions: LogoScraperOptions;
+
+    constructor(deps: BrandAssetScraperDeps) {
+        const fetcher = deps.fetcher ?? globalThis.fetch;
+        this.pageExecutor = deps.pageExecutor;
+        this.analyzeLlm = deps.analyzeLlm;
+        this.extractLlm = deps.extractLlm ?? deps.analyzeLlm;
+        this.imageDownloader = deps.imageDownloader ?? new ImageDownloader({ fetcher });
+        this.defaultOptions = deps.defaultOptions ?? {};
     }
 
-    public async scrape(url: string): Promise<LogoScraperResult> {
-        const pageHelper = await this.puppeteerHelper.getPageHelper();
+    public async scrape(input: BrandAssetScrapeInput): Promise<LogoScraperResult> {
+        const { url: inputUrl, ...inputOptions } = input;
+        let url = inputUrl;
+        const options = this.resolveOptions({
+            ...this.defaultOptions,
+            ...inputOptions,
+        });
+
         try {
             const resolutions: Resolution[] = [{ width: 1280, height: 800 }];
+            let cssCollector: CssCollector | undefined;
 
             // Step 1: Navigate, dismiss cookies, and take a screenshot.
-            const { pageHtml, pageCss, siteTitle, screenshotBase64, finalUrl } = await pageHelper.navigateAndCache(
+            const {
+                pageHtml,
+                pageCss,
+                siteTitle,
+                screenshotBase64,
+                finalUrl,
+                faviconUrls,
+                inlineLogoDataUris,
+            } = await this.pageExecutor.executeOnPage({
                 url,
-                async (ph) => {
-                    const pageHtml = await ph.getFinalHtml();
-                    const pageCss = await ph.getCss();
-                    const siteTitle = await ph.getPage().title();
-                    const finalUrl = ph.getPage().url();
-                    const screenshots = await ph.takeScreenshots(resolutions);
-
-                    if (!screenshots?.[0]?.screenshotBase64) {
-                        throw new Error(`Failed to take screenshot for ${url}`);
-                    }
-                    const screenshotBase64 = screenshots[0].screenshotBase64;
-                    return { pageHtml, pageCss, siteTitle, screenshotBase64, finalUrl };
-                },
-                {
+                cacheKey: this.getCaptureCacheKey(url, options),
+                ttl: 3600 * 1000,
+                navigation: {
                     dismissCookies: true,
                     htmlOnly: false,
                     resolution: resolutions[0],
-                    ttl: 3600 * 1000 // 1 hour cache
-                }
-            );
+                },
+                beforeNavigate: async (page) => {
+                    cssCollector = await CssCollector.start(page);
+                },
+                action: async (page) => {
+                    try {
+                        const pageHtml = await getFinalHtml(page);
+                        const pageCss = cssCollector ? await cssCollector.getCss() : [];
+                        const siteTitle = await page.title();
+                        const finalUrl = page.url();
+                        const screenshots = await takeScreenshots(page, resolutions);
+
+                        if (!screenshots?.[0]?.screenshotBase64) {
+                            throw new Error(`Failed to take screenshot for ${url}`);
+                        }
+                        const screenshotBase64 = screenshots[0].screenshotBase64;
+                        const [faviconUrls, inlineLogoDataUris] = await Promise.all([
+                            fetchFavicons(finalUrl, page),
+                            this.findInlineLogosByLlm(finalUrl, pageHtml, siteTitle, screenshotBase64, page, options),
+                        ]);
+
+                        return {
+                            pageHtml,
+                            pageCss,
+                            siteTitle,
+                            screenshotBase64,
+                            finalUrl,
+                            faviconUrls,
+                            inlineLogoDataUris,
+                        };
+                    } finally {
+                        if (cssCollector) {
+                            await cssCollector.dispose();
+                            cssCollector = undefined;
+                        }
+                    }
+                },
+            });
 
             url = finalUrl;
 
@@ -123,26 +186,20 @@ export class AiLogoScraper {
             const cssSnippets = CssParser.extractBlocksWithBackgroundImage(pageCss);
 
             // Run all logo finders in parallel.
-            const faviconUrlsPromise = this.fetchFavicons(url, pageHelper);
-            const logoUrlsPromise = this.findLogoUrlsByLlm(url, pageHtml, siteTitle, screenshotBase64, cssSnippets);
-            const inlineLogosPromise = this.findInlineLogosByLlm(url, pageHtml, siteTitle, screenshotBase64, pageHelper);
+            const logoUrlsPromise = this.findLogoUrlsByLlm(url, pageHtml, siteTitle, screenshotBase64, cssSnippets, options);
 
             const results = await Promise.allSettled([
-                faviconUrlsPromise,
                 logoUrlsPromise,
-                inlineLogosPromise,
             ]);
 
-            const faviconUrls = results[0].status === 'fulfilled' ? (results[0].value as string[]) : [];
             const faviconUrlSet = new Set(faviconUrls);
 
-            const logoUrls = results[1].status === 'fulfilled' ? (results[1].value as string[]) : [];
-            const inlineLogoDataUris = results[2].status === 'fulfilled' ? (results[2].value as string[]) : [];
+            const logoUrls = results[0].status === 'fulfilled' ? (results[0].value as string[]) : [];
 
             const allLogoSources = [...new Set([...faviconUrls, ...logoUrls, ...inlineLogoDataUris])];
-            const logosToDownload = allLogoSources.slice(0, this.options.maxLogosToAnalyze);
+            const logosToDownload = allLogoSources.slice(0, options.maxLogosToAnalyze);
 
-            console.log(`[AiLogoScraper] Found ${allLogoSources.length} potential logo URLs. Downloading ${logosToDownload.length}...`);
+            console.log(`[BrandAssetScraper] Found ${allLogoSources.length} potential logo URLs. Downloading ${logosToDownload.length}...`);
             this.events.emit('logo:found', { count: allLogoSources.length, urls: allLogoSources });
 
             const allBase64PngInfo = await Promise.all(logosToDownload.map(async (logoUrlOrDataUri) => {
@@ -169,45 +226,34 @@ export class AiLogoScraper {
                 return areaB - areaA;
             });
 
-            console.log(`[AiLogoScraper] Analyzing ${sortedLogos.length} downloaded logos...`);
+            console.log(`[BrandAssetScraper] Analyzing ${sortedLogos.length} downloaded logos...`);
 
             // Step 3: Normalize and analyze
-            const finalResult = await this.normalizeLogos(url, sortedLogos, siteTitle, screenshotBase64);
+            const finalResult = await this.normalizeLogos(url, sortedLogos, siteTitle, screenshotBase64, options);
             this.events.emit('analysis:complete', finalResult);
             
             return finalResult;
 
         } catch (error) {
-            console.error(`[AiLogoScraper] Error processing ${url}:`, error);
+            console.error(`[BrandAssetScraper] Error processing ${url}:`, error);
             return { brandColors: [], logos: [] };
-        } finally {
-            await pageHelper.close();
         }
     }
 
-    private async fetchFavicons(url: string, pageHelper: PuppeteerPageHelper): Promise<string[]> {
-        // Simple Puppeteer-based favicon extraction
-        try {
-            const favicons = await pageHelper.getPage().evaluate(() => {
-                const links = Array.from(document.querySelectorAll('link[rel*="icon"]'));
-                return links.map(link => (link as HTMLLinkElement).href).filter(href => href);
-            });
-
-            // Also try default /favicon.ico
-            try {
-                const urlObj = new URL(url);
-                favicons.push(new URL('/favicon.ico', urlObj.origin).href);
-            } catch (e) {}
-
-            return [...new Set(favicons)];
-        } catch (e) {
-            return [];
-        }
+    private resolveOptions(options: LogoScraperOptions): ResolvedLogoScraperOptions {
+        return {
+            maxLogosToAnalyze: options.maxLogosToAnalyze ?? 10,
+            brandLogoScoreThreshold: options.brandLogoScoreThreshold ?? 5,
+        };
     }
 
-    private async findLogoUrlsByLlm(url: string, html: string, siteTitle: string, screenshotBase64: string, cssSnippets: string): Promise<string[]> {
+    private getCaptureCacheKey(url: string, options: ResolvedLogoScraperOptions): string {
+        return `ai-brand-scraper:brand-assets:capture:${url}:max-${options.maxLogosToAnalyze}`;
+    }
+
+    private async findLogoUrlsByLlm(url: string, html: string, siteTitle: string, screenshotBase64: string, cssSnippets: string, options: ResolvedLogoScraperOptions): Promise<string[]> {
         try {
-            const maxLogos = this.options.maxLogosToAnalyze ?? 5;
+            const maxLogos = options.maxLogosToAnalyze;
             const logoScrapingSchema = z.object({
                 logoUrls: z.array(z.string())
                     .max(maxLogos)
@@ -230,7 +276,7 @@ Return an array of these source URLs or data URIs.`;
                 { type: "image_url", image_url: { url: screenshotBase64, detail: "low" } }
             ];
 
-            const result = await this.extractLlm.promptZod({ suffix: userMessagePayload }, logoScrapingSchema);
+            const result = await this.extractLlm.promptZod(userMessage(userMessagePayload), logoScrapingSchema);
 
             const foundUrls = result.logoUrls || [];
 
@@ -246,14 +292,14 @@ Return an array of these source URLs or data URIs.`;
 
             return absoluteUrls;
         } catch (error) {
-            console.warn(`[AiLogoScraper] LLM logo extraction failed:`, error);
+            console.warn(`[BrandAssetScraper] LLM logo extraction failed:`, error);
             return [];
         }
     }
 
-    private async findInlineLogosByLlm(url: string, html: string, siteTitle: string, screenshotBase64: string, pageHelper: PuppeteerPageHelper): Promise<string[]> {
+    private async findInlineLogosByLlm(url: string, html: string, siteTitle: string, screenshotBase64: string, page: AiBrandPageLike, options: ResolvedLogoScraperOptions): Promise<string[]> {
         try {
-            const maxLogos = this.options.maxLogosToAnalyze ?? 5;
+            const maxLogos = options.maxLogosToAnalyze;
             const mainInstruction = `${LOGO_FINDER_PROMPT_BASE(url, siteTitle, maxLogos)}
 
 **Your specific task is to write a JavaScript function to extract INLINE logos (like <svg> elements) that do not have a direct \`src\` URL.**
@@ -287,14 +333,14 @@ async () => {
                 { type: "image_url", image_url: { url: screenshotBase64, detail: "low" } }
             ];
 
-            const response = await this.extractLlm.promptText({ suffix: userMessagePayload });
+            const response = await this.extractLlm.promptText({ messages: userMessage(userMessagePayload) });
 
             const match = response.match(/```javascript\n([\s\S]*?)\n```/);
             const jsCode = match ? match[1] : null;
 
             if (!jsCode) return [];
 
-            const dataUris = await pageHelper.getPage().evaluate(`(${jsCode})()`);
+            const dataUris = await page.evaluate(`(${jsCode})()`);
 
             if (Array.isArray(dataUris)) {
                 return dataUris.filter((uri): uri is string => typeof uri === 'string' && uri.startsWith('data:'));
@@ -302,12 +348,12 @@ async () => {
 
             return [];
         } catch (error) {
-            console.warn(`[AiLogoScraper] Inline logo extraction failed:`, error);
+            console.warn(`[BrandAssetScraper] Inline logo extraction failed:`, error);
             return [];
         }
     }
 
-    private async normalizeLogos(baseUrl: string, base64Logos: Array<ImageConversionResult & { isFavicon: boolean }>, siteTitle: string, screenshotBase64: string): Promise<LogoScraperResult> {
+    private async normalizeLogos(baseUrl: string, base64Logos: Array<ImageConversionResult & { isFavicon: boolean }>, siteTitle: string, screenshotBase64: string, options: ResolvedLogoScraperOptions): Promise<LogoScraperResult> {
         if (base64Logos.length === 0) {
             // Still try to get brand colors from screenshot
             try {
@@ -323,7 +369,7 @@ async () => {
                     { type: "image_url", image_url: { url: screenshotBase64, detail: "low" } }
                 ];
 
-                const colorResult = await this.analyzeLlm.promptZod({ suffix: colorPrompt }, colorOnlySchema);
+                const colorResult = await this.analyzeLlm.promptZod(userMessage(colorPrompt), colorOnlySchema);
                 const brandColors = colorResult.brandColors || [];
                 const primaryColor = brandColors.length > 0 ? brandColors[0] : undefined;
 
@@ -370,7 +416,7 @@ Accurately populate the provided JSON schema.`;
             userMessagePayload.push({ type: "image_url", image_url: { url: logo.base64PngData, detail: "low" } });
         });
 
-        const logoMetaData = await this.analyzeLlm.promptZod({ suffix: userMessagePayload }, analyseLogosSchema);
+        const logoMetaData = await this.analyzeLlm.promptZod(userMessage(userMessagePayload), analyseLogosSchema);
 
         const brandColors = logoMetaData.brandColors || [];
 
@@ -398,7 +444,7 @@ Accurately populate the provided JSON schema.`;
         });
 
         // Filter by threshold
-        const brandLogos = uniqueHighestResLogos.filter(logo => logo.brandLogoScore >= this.options.brandLogoScoreThreshold!);
+        const brandLogos = uniqueHighestResLogos.filter(logo => logo.brandLogoScore >= options.brandLogoScoreThreshold);
 
         // Sort by score, then performance, then size
         const mergedAndSorted = brandLogos.sort((a, b) => {

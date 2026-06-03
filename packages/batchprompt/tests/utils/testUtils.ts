@@ -18,10 +18,13 @@ export interface TestContextOptions {
     responses?: (string | any)[] | MockResponseResolver;
     webSearch?: any;
     imageSearch?: any;
+    puppeteerHelper?: any;
+    fetcher?: any;
+    cache?: any;
 }
 
 export function createTestContext(options: TestContextOptions = {}) {
-    const { responses = [], webSearch, imageSearch } = options;
+    const { responses = [], webSearch, imageSearch, puppeteerHelper, fetcher, cache } = options;
     const openai = createMockOpenAI(responses);
     
     // Wrap the create method with a Vitest spy so we can use toHaveBeenCalledTimes() etc.
@@ -34,16 +37,16 @@ export function createTestContext(options: TestContextOptions = {}) {
     const deps: BatchPromptDeps = {
         openai,
         events: events as any,
-        cache: undefined,
+        cache,
         gptQueue: new PQueue({ concurrency: 1 }),
         taskQueue: new PQueue({ concurrency: 1 }),
         serperQueue: new PQueue({ concurrency: 1 }),
         puppeteerQueue: new PQueue({ concurrency: 1 }),
-        puppeteerHelper: {
+        puppeteerHelper: puppeteerHelper ?? {
             getPageHelper: vi.fn(),
             close: vi.fn()
         } as any,
-        fetcher: vi.fn().mockResolvedValue({
+        fetcher: fetcher ?? vi.fn().mockResolvedValue({
             ok: false,
             status: 404,
             statusText: "Not Found",
@@ -72,6 +75,9 @@ export interface TestEnvOptions {
     schemaLoader?: any;
     webSearch?: any;
     imageSearch?: any;
+    puppeteerHelper?: any;
+    fetcher?: any;
+    cache?: any;
 }
 
 export function setupTestEnvironment(options: TestEnvOptions = {}) {
@@ -80,13 +86,19 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         plugins = [],
         schemaLoader = { load: async () => ({}) },
         webSearch,
-        imageSearch
+        imageSearch,
+        puppeteerHelper,
+        fetcher,
+        cache
     } = options;
 
     const { deps, openai, events } = createTestContext({
         responses: mockResponses,
         webSearch,
-        imageSearch
+        imageSearch,
+        puppeteerHelper,
+        fetcher,
+        cache
     });
 
     new DebugLogger(events as any);

@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import ico from 'sharp-ico';
-import { Fetcher } from "llm-fns";
+import type { AiBrandFetcher } from "../types.js";
 
 export interface ImageConversionResult {
     originalUrl: string;
@@ -12,11 +12,19 @@ export interface ImageConversionResult {
     outputPngFileSize: number;
 }
 
+export interface ImageDownloaderDeps {
+    fetcher?: AiBrandFetcher;
+}
+
 const SVG_RASTER_DENSITY = 300;
 const MAX_OUTPUT_DIMENSION = 1024;
 
 export class ImageDownloader {
-    constructor(private fetcher: Fetcher) {}
+    private readonly fetcher: AiBrandFetcher;
+
+    constructor(deps: ImageDownloaderDeps = {}) {
+        this.fetcher = deps.fetcher ?? globalThis.fetch;
+    }
 
     async downloadAndProcess(urlOrDataUri: string): Promise<ImageConversionResult> {
         try {

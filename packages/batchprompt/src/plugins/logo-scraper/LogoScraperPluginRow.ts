@@ -1,10 +1,24 @@
 import { BasePluginRow, PluginResult, PluginItem } from '../types.js';
 import { StepRow } from '../../StepRow.js';
 import { LogoScraperConfig } from './LogoScraperPlugin.js';
-import { AiLogoScraper } from './utils/AiLogoScraper.js';
-import { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
-import { ImageDownloader } from './utils/ImageDownloader.js';
+import { BrandAssetScraper } from 'ai-brand-scraper';
+import type { AiBrandLlm, ImageDownloader, PageActionExecutor } from 'ai-brand-scraper';
+import type { BoundLlmClient } from '../../BoundLlmClient.js';
+import type { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
 import * as path from 'path';
+
+function toAiBrandLlm(llm: BoundLlmClient): AiBrandLlm {
+    return {
+        promptZod(messages, schema) {
+            return llm.getRawClient().promptZod([...llm.getMessages(), ...messages], schema);
+        },
+        promptText(options) {
+            return llm.getRawClient().promptText({
+                messages: [...llm.getMessages(), ...options.messages],
+            });
+        },
+    };
+}
 
 export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
     constructor(
@@ -24,19 +38,16 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
         // Fallback to step's default model if plugin-specific models aren't provided
         const analyzeLlm = config.analyzeModel ? await stepRow.createLlm(config.analyzeModel) : await stepRow.createLlm();
         const extractLlm = config.extractModel ? await stepRow.createLlm(config.extractModel) : await stepRow.createLlm();
+        const pageExecutor = this.createPageExecutor();
 
-        const aiLogoScraper = new AiLogoScraper(
-            this.puppeteerHelper,
-            analyzeLlm,
-            extractLlm,
-            this.imageDownloader,
-            {
-                maxLogosToAnalyze: config.maxLogosToAnalyze,
-                brandLogoScoreThreshold: config.brandLogoScoreThreshold
-            }
-        );
+        const brandAssetScraper = new BrandAssetScraper({
+            pageExecutor,
+            analyzeLlm: toAiBrandLlm(analyzeLlm),
+            extractLlm: toAiBrandLlm(extractLlm),
+            imageDownloader: this.imageDownloader
+        });
 
-        aiLogoScraper.events.on('logo:found', (data) => {
+        brandAssetScraper.events.on('logo:found', (data) => {
             emit('artifact:emit', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
@@ -48,7 +59,7 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
             });
         });
 
-        aiLogoScraper.events.on('logo:downloaded', (data) => {
+        brandAssetScraper.events.on('logo:downloaded', (data) => {
             const buffer = Buffer.from(data.base64PngData.split(',')[1], 'base64');
             emit('artifact:emit', {
                 row: stepRow.getOriginalIndex(),
@@ -61,7 +72,7 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
             });
         });
 
-        aiLogoScraper.events.on('analysis:complete', (data) => {
+        brandAssetScraper.events.on('analysis:complete', (data) => {
             emit('artifact:emit', {
                 row: stepRow.getOriginalIndex(),
                 step: stepRow.step.stepIndex,
@@ -73,7 +84,11 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
             });
         });
 
-        const result = await aiLogoScraper.scrape(config.url);
+        const result = await brandAssetScraper.scrape({
+            url: config.url,
+            maxLogosToAnalyze: config.maxLogosToAnalyze,
+            brandLogoScoreThreshold: config.brandLogoScoreThreshold
+        });
         const history = await stepRow.getPreparedMessages();
 
         // If no logos found, return empty
@@ -136,6 +151,27 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
         return {
             history,
             items
+        };
+    }
+
+    private createPageExecutor(): PageActionExecutor {
+        return {
+            executeOnPage: async ({ url, cacheKey, ttl, navigation, beforeNavigate, action }) => {
+                const pageHelper = await this.puppeteerHelper.getPageHelper();
+                return pageHelper.navigateAndCache(
+                    url,
+                    async (helper) => action(helper.getPage() as any),
+                    {
+                        ...navigation,
+                        cacheKey,
+                        ttl,
+                        closePage: true,
+                        beforeNavigate: beforeNavigate
+                            ? async (helper) => beforeNavigate(helper.getPage() as any)
+                            : undefined,
+                    }
+                );
+            },
         };
     }
 }

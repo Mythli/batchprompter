@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "./packages/ai-brand-scraper" },
     { "path": "./packages/llm-fns" },
     { "path": "./packages/batchprompt" },
     { "path": "./apps/batchprompt-cli" },
