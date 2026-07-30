@@ -67,6 +67,12 @@ async function solveCaptchaIfPresent(
   return true;
 }
 
+const IDENTIFIER_INPUT_SELECTORS = [
+  '#identifierId',
+  'input[type="email"]',
+  'input[name="identifier"]',
+] as const;
+
 async function hasVisibleSelector(page: Page, selector: string): Promise<boolean> {
   const element = await page.$(selector);
   if (!element) return false;
@@ -77,11 +83,24 @@ async function hasVisibleSelector(page: Page, selector: string): Promise<boolean
   }).catch(() => false);
 }
 
+async function findVisibleIdentifierSelector(page: Page): Promise<string | null> {
+  for (const selector of IDENTIFIER_INPUT_SELECTORS) {
+    if (await hasVisibleSelector(page, selector)) {
+      return selector;
+    }
+  }
+  return null;
+}
+
+async function hasVisibleIdentifierInput(page: Page): Promise<boolean> {
+  return (await findVisibleIdentifierSelector(page)) !== null;
+}
+
 async function clickAccountChooserIfPresent(page: Page, email: string, timeout: number): Promise<void> {
   const isAccountsPage = page.url().includes('accounts.google.com');
   if (!isAccountsPage) return;
 
-  if (await hasVisibleSelector(page, 'input[type="email"]')) {
+  if (await hasVisibleIdentifierInput(page)) {
     return;
   }
 
@@ -145,11 +164,13 @@ async function clickAccountChooserIfPresent(page: Page, email: string, timeout: 
   if (!clicked) return;
 
   await page.waitForFunction(() => {
-    const emailInput = document.querySelector('input[type="email"]');
+    const identifierInput = document.querySelector('#identifierId')
+      || document.querySelector('input[type="email"]')
+      || document.querySelector('input[name="identifier"]');
     const passwordInput = document.querySelector('input[type="password"]:not([disabled])');
     const captcha = document.querySelector('img#captchaimg');
     const isGmail = window.location.hostname === 'mail.google.com';
-    return emailInput || passwordInput || isGmail || (captcha && (captcha as HTMLElement).offsetWidth > 0);
+    return identifierInput || passwordInput || isGmail || (captcha && (captcha as HTMLElement).offsetWidth > 0);
   }, { timeout });
 }
 
@@ -159,6 +180,48 @@ function isGmailUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+async function submitIdentifierIfNeeded(
+	page: Page,
+	email: string,
+	timeout: number,
+	resolveCaptcha?: (base64Image: string) => Promise<string>,
+): Promise<void> {
+	const identifierSelector = await findVisibleIdentifierSelector(page);
+	if (!identifierSelector) {
+		return;
+	}
+
+	await page.waitForSelector(identifierSelector, { visible: true, timeout });
+	await page.type(identifierSelector, email, { delay: 50 });
+	await page.click('#identifierNext');
+
+	await page.waitForFunction(
+		() => {
+			const pwd = document.querySelector(
+				'input[type="password"]:not([disabled])',
+			);
+			const captcha = document.querySelector('img#captchaimg');
+			return pwd || (captcha && (captcha as HTMLElement).offsetWidth > 0);
+		},
+		{ timeout },
+	);
+
+	const solvedEmailCaptcha = await solveCaptchaIfPresent(
+		page,
+		resolveCaptcha,
+		'#identifierNext',
+	);
+	if (solvedEmailCaptcha) {
+		await page.waitForFunction(
+			() => {
+				const input = document.querySelector('input[type="password"]');
+				return input && !input.hasAttribute('disabled');
+			},
+			{ timeout },
+		);
+	}
 }
 
 /**
@@ -202,36 +265,24 @@ export async function ensureAuthenticatedGmail(
 
     await clickAccountChooserIfPresent(page, options.email, timeout);
 
-    const needsEmail = await hasVisibleSelector(page, 'input[type="email"]');
+    await page.waitForFunction(() => {
+      const identifierInput = document.querySelector('#identifierId')
+        || document.querySelector('input[type="email"]')
+        || document.querySelector('input[name="identifier"]');
+      const isGmail = window.location.hostname === 'mail.google.com';
+      const input = document.querySelector('input[type="password"]');
+      const captcha = document.querySelector('img#captchaimg');
+      return isGmail
+        || identifierInput
+        || (input && !input.hasAttribute('disabled'))
+        || (captcha && (captcha as HTMLElement).offsetWidth > 0);
+    }, { timeout });
 
-    if (needsEmail) {
-      // 1. Enter Email
-      await page.type('input[type="email"]', options.email, { delay: 50 });
-      await page.click('#identifierNext');
-
-      // Wait for password field OR captcha
-      await page.waitForFunction(() => {
-        const pwd = document.querySelector('input[type="password"]:not([disabled])');
-        const captcha = document.querySelector('img#captchaimg');
-        return pwd || (captcha && (captcha as HTMLElement).offsetWidth > 0);
-      }, { timeout });
-
-      const solvedEmailCaptcha = await solveCaptchaIfPresent(page, options.resolveCaptcha, '#identifierNext');
-      if (solvedEmailCaptcha) {
-        // Wait for password field to become active after captcha submission
-        await page.waitForFunction(() => {
-          const input = document.querySelector('input[type="password"]');
-          return input && !input.hasAttribute('disabled');
-        }, { timeout });
-      }
-    } else {
-      await page.waitForFunction(() => {
-        const isGmail = window.location.hostname === 'mail.google.com';
-        const input = document.querySelector('input[type="password"]');
-        const captcha = document.querySelector('img#captchaimg');
-        return isGmail || (input && !input.hasAttribute('disabled')) || (captcha && (captcha as HTMLElement).offsetWidth > 0);
-      }, { timeout });
+    if (isGmailUrl(page.url())) {
+      return page;
     }
+
+    await submitIdentifierIfNeeded(page, options.email, timeout, options.resolveCaptcha);
 
     if (isGmailUrl(page.url())) {
       return page;
