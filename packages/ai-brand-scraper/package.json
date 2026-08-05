@@ -65,7 +65,7 @@
     "@types/turndown": "^5.0.6",
     "dotenv": "^16.6.1",
     "llm-fns": "workspace:*",
-    "puppeteer": "^22.15.0",
+    "puppeteer": "^25.5.0",
     "tsx": "^4.7.1",
     "typescript": "^5.9.3",
     "vitest": "^1.6.1"

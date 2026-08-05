@@ -1,4 +1,4 @@
-import puppeteer, { Browser, Page, PuppeteerLaunchOptions } from 'puppeteer';
+import puppeteer, { Browser, LaunchOptions, Page } from 'puppeteer';
 import fs from 'fs/promises';
 import { PuppeteerPageHelper } from './PuppeteerPageHelper.js';
 import type { Fetcher } from 'llm-fns';
@@ -10,7 +10,7 @@ export interface CacheLike {
 
 export interface PuppeteerHelperOptions {
     browserUserDataDir?: string;
-    puppeteerLaunchOptions?: PuppeteerLaunchOptions;
+    puppeteerLaunchOptions?: LaunchOptions;
     cache?: CacheLike;
     fetcher?: Fetcher;
     maxPagesBeforeRestart?: number;
@@ -86,7 +86,7 @@ export class PuppeteerHelper {
 
         this.setupProcessHandlers();
 
-        if (!this.browser || !this.browser.isConnected()) {
+        if (!this.browser || !this.browser.connected) {
             throw new Error('Browser was not created or connected properly.');
         }
         try {
@@ -152,7 +152,7 @@ export class PuppeteerHelper {
     private async ensureHealthyBrowser(): Promise<void> {
         await this.ensureInitialized();
 
-        if (!this.browser || !this.browser.isConnected()) {
+        if (!this.browser || !this.browser.connected) {
             await this.restartBrowser();
         }
     }

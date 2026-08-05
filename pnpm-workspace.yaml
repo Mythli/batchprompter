@@ -1,6 +1,11 @@
 packages:
   - apps/*
   - packages/*
+allowBuilds:
+  esbuild: true
+  puppeteer: true
+  sharp: true
+  sqlite3: true
 onlyBuiltDependencies:
   - puppeteer
   - sharp

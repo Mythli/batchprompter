@@ -14,18 +14,9 @@ async function fillSignInInput(page: Page, selector: string, value: string): Pro
   const input = await page.waitForSelector(selector, { visible: true });
   if (!input) throw new Error(`Could not find a visible sign-in input matching: ${selector}`);
 
-  await input.focus();
-  await input.evaluate((element, nextValue) => {
-    const htmlInput = element as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-    setter?.call(htmlInput, nextValue);
-    htmlInput.dispatchEvent(new InputEvent('input', {
-      bubbles: true,
-      inputType: 'insertText',
-      data: nextValue
-    }));
-    htmlInput.dispatchEvent(new Event('change', { bubbles: true }));
-  }, value);
+  await input.click({ count: 3 });
+  await input.press('Backspace');
+  await input.type(value, { delay: 50 });
 }
 
 async function clickSignInNext(page: Page, legacySelector: string): Promise<void> {
@@ -116,7 +107,7 @@ async function solveCaptchaIfPresent(
   
   const captchaInput = await page.$('input#ca');
   if (captchaInput) {
-    await captchaInput.click({ clickCount: 3 }); // clear existing
+    await captchaInput.click({ count: 3 }); // clear existing
     await captchaInput.type(solution, { delay: 50 });
   }
 

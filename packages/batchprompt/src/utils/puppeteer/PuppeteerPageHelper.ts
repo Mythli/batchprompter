@@ -218,7 +218,8 @@ export class PuppeteerPageHelper {
     }
 
     async setHtmlContent(html: string): Promise<void> {
-        await this.page.setContent(html, { waitUntil: 'networkidle0' });
+        await this.page.setContent(html, { waitUntil: 'domcontentloaded' });
+        await this.page.waitForNetworkIdle();
     }
 
     async getFinalHtml(timeoutMs = 15000): Promise<string> {

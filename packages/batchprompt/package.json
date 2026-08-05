@@ -12,7 +12,7 @@
     "watch": "tsc -b -w",
     "build": "tsc",
     "compile-samples": "tsx scripts/create-docs-ts.ts",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.3.0",
@@ -34,7 +34,7 @@
     "marked": "^17.0.4",
     "openai": "^6.15.0",
     "p-queue": "^9.0.1",
-    "puppeteer": "^22.15.0",
+    "puppeteer": "^25.5.0",
     "sharp": "^0.33.5",
     "sharp-ico": "^0.1.5",
     "turndown": "^7.2.2",
