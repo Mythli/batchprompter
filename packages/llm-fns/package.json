@@ -1,6 +1,6 @@
 {
   "name": "llm-fns",
-  "version": "1.0.27",
+  "version": "1.0.28",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -11,7 +11,9 @@
   "scripts": {
     "test": "vitest run",
     "release": "scripts/release.sh",
-    "build": "tsc",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "build": "pnpm run clean && tsc",
+    "prepack": "pnpm run build",
     "watch": "tsc -b -w"
   },
   "keywords": [],

@@ -20,7 +20,7 @@ pnpm run build
 # 2. Bump Version (updates package.json, creates git commit and tag)
 echo ""
 echo "📈 Step 2: Bumping version ($VERSION_TYPE)..."
-pnpm version $VERSION_TYPE
+pnpm version "$VERSION_TYPE" --tag-version-prefix=llm-fns-v
 
 # 3. Push Changes and Tags
 echo ""
