@@ -4,23 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class ImageSearchAdapter implements CliPluginAdapter {
     readonly pluginType = 'imageSearch';
 
-    registerOptions(program: Command) {
-        program.option('--image-search-query <text>', 'Static search query');
-        program.option('--image-search-limit <number>', 'Max total results (default: 5)', parseInt);
-        program.option('--image-search-query-count <number>', 'Queries to generate (default: 3)', parseInt);
-        program.option('--image-search-max-pages <number>', 'Max pages per query (default: 1)', parseInt);
-        program.option('--image-search-dedupe-strategy <strategy>', 'Deduplication: none/domain/url (default: none)');
-        program.option('--image-search-gl <country>', 'Country code for search');
-        program.option('--image-search-hl <lang>', 'Language code for search');
-        program.option('--image-search-query-model <model>', 'Model for query generation');
-        program.option('--image-search-query-prompt <text>', 'Prompt for query generation');
-        program.option('--image-search-select-model <model>', 'Model for result selection');
-        program.option('--image-search-select-prompt <text>', 'Prompt for result selection');
-        program.option('--image-search-output-mode <mode>', 'Output mode: merge/column/ignore');
-        program.option('--image-search-output-column <column>', 'Output column name');
-        program.option('--image-search-output-explode', 'Explode results into multiple rows');
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-image-search-query <text>`, `Search query for step ${s}`);
@@ -30,6 +13,7 @@ export class ImageSearchAdapter implements CliPluginAdapter {
         program.option(`--${s}-image-search-dedupe-strategy <strategy>`, `Deduplication for step ${s}`);
         program.option(`--${s}-image-search-gl <country>`, `Country code for step ${s}`);
         program.option(`--${s}-image-search-hl <lang>`, `Language code for step ${s}`);
+        program.option(`--${s}-image-search-tbs <value>`, `Google Images advanced filter for step ${s}`);
         program.option(`--${s}-image-search-query-model <model>`, `Query model for step ${s}`);
         program.option(`--${s}-image-search-query-prompt <text>`, `Query prompt for step ${s}`);
         program.option(`--${s}-image-search-select-model <model>`, `Select model for step ${s}`);
@@ -42,7 +26,7 @@ export class ImageSearchAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const query = getOpt('imageSearchQuery');
@@ -60,6 +44,7 @@ export class ImageSearchAdapter implements CliPluginAdapter {
         if (getOpt('imageSearchDedupeStrategy')) result.dedupeStrategy = getOpt('imageSearchDedupeStrategy');
         if (getOpt('imageSearchGl')) result.gl = getOpt('imageSearchGl');
         if (getOpt('imageSearchHl')) result.hl = getOpt('imageSearchHl');
+        if (getOpt('imageSearchTbs')) result.tbs = getOpt('imageSearchTbs');
 
         const qModel = getOpt('imageSearchQueryModel');
         if (queryPrompt || qModel) {

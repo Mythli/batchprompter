@@ -4,21 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class LogoScraperAdapter implements CliPluginAdapter {
     readonly pluginType = 'logoScraper';
 
-    registerOptions(program: Command) {
-        program.option('--logo-scraper-url <url>', 'URL to scrape for logos');
-        program.option('--logo-scraper-logo-output-path <path>', 'Path template to save the best logo');
-        program.option('--logo-scraper-favicon-output-path <path>', 'Path template to save the best favicon');
-        program.option('--logo-scraper-max-logos <number>', 'Max logos to analyze (default: 10)', parseInt);
-        program.option('--logo-scraper-threshold <number>', 'Brand logo score threshold (default: 5)', parseInt);
-        program.option('--logo-scraper-analyze-model <model>', 'Model for logo analysis');
-        program.option('--logo-scraper-analyze-prompt <text>', 'Prompt for logo analysis');
-        program.option('--logo-scraper-extract-model <model>', 'Model for logo extraction');
-        program.option('--logo-scraper-extract-prompt <text>', 'Prompt for logo extraction');
-        program.option('--logo-scraper-output-mode <mode>', 'Output mode: merge/column/ignore');
-        program.option('--logo-scraper-output-column <column>', 'Output column name');
-        program.option('--logo-scraper-output-explode', 'Explode results into multiple rows');
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-logo-scraper-url <url>`, `URL for step ${s}`);
@@ -38,7 +23,7 @@ export class LogoScraperAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const url = getOpt('logoScraperUrl');

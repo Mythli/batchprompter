@@ -711,7 +711,7 @@ The `website-agent` is highly configurable. You can control the specific models,
       "description": "Model used by the Navigator agent to decide which links to click."
     },
     "navigatorThinkingLevel": {
-      "enum": ["low", "medium", "high"],
+      "enum": ["low", "medium", "high", "max"],
       "description": "Reasoning effort for the Navigator model."
     },
     "navigatorTemperature": {
@@ -727,7 +727,7 @@ The `website-agent` is highly configurable. You can control the specific models,
       "description": "Model used by the Extractor agent to read page content."
     },
     "extractThinkingLevel": {
-      "enum": ["low", "medium", "high"],
+      "enum": ["low", "medium", "high", "max"],
       "description": "Reasoning effort for the Extractor model."
     },
     "extractTemperature": {
@@ -743,7 +743,7 @@ The `website-agent` is highly configurable. You can control the specific models,
       "description": "Model used by the Merger agent to consolidate data."
     },
     "mergeThinkingLevel": {
-      "enum": ["low", "medium", "high"],
+      "enum": ["low", "medium", "high", "max"],
       "description": "Reasoning effort for the Merger model."
     },
     "mergeTemperature": {
@@ -986,7 +986,7 @@ The plugin uses a **Map-Reduce** approach to handle large volumes of search resu
       "description": "Model used to generate search queries."
     },
     "queryThinkingLevel": {
-      "enum": ["low", "medium", "high"],
+      "enum": ["low", "medium", "high", "max"],
       "description": "Reasoning effort for the query model."
     },
     "queryTemperature": {
@@ -1002,7 +1002,7 @@ The plugin uses a **Map-Reduce** approach to handle large volumes of search resu
       "description": "Model used to select/filter results."
     },
     "selectThinkingLevel": {
-      "enum": ["low", "medium", "high"],
+      "enum": ["low", "medium", "high", "max"],
       "description": "Reasoning effort for the selection model."
     },
     "selectTemperature": {
@@ -1018,7 +1018,7 @@ The plugin uses a **Map-Reduce** approach to handle large volumes of search resu
       "description": "Model used to summarize page content (if mode is not 'none')."
     },
     "compressThinkingLevel": {
-      "enum": ["low", "medium", "high"],
+      "enum": ["low", "medium", "high", "max"],
       "description": "Reasoning effort for the compression model."
     },
     "compressTemperature": {
@@ -1397,4 +1397,3 @@ echo ""
 echo "All examples finished successfully!"
 
 ````
-

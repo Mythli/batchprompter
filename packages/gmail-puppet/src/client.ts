@@ -3,6 +3,7 @@ import { ensureAuthenticatedGmail, GmailAuthOptions } from './auth.js';
 import { searchEmailsOnPage, EmailMetadata } from './search.js';
 import { readThread, setThreadReadStatus, ThreadMessage, ReadThreadOptions } from './read.js';
 import { sendEmail, SendEmailOptions } from './send.js';
+import { trashThread } from './trash.js';
 
 export interface GmailClientOptions extends GmailAuthOptions {
     /**
@@ -13,6 +14,20 @@ export interface GmailClientOptions extends GmailAuthOptions {
 
 export interface ThreadWithMetadata extends EmailMetadata {
     messages: ThreadMessage[];
+}
+
+export interface SearchEmailPageOptions {
+    query?: string;
+    page?: number;
+    pageSize?: number;
+}
+
+export interface EmailPage {
+    items: EmailMetadata[];
+    page: number;
+    pageSize: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
 }
 
 /**
@@ -155,6 +170,36 @@ export class GmailClient {
         return allEmails.slice(0, limit);
     }
 
+    /**
+     * Returns one logical page of search results.
+     *
+     * Gmail exposes result pages in batches of 50. This method hides that detail
+     * and fetches one extra item so callers get a reliable hasNextPage flag.
+     */
+    async searchEmailPage(options: SearchEmailPageOptions = {}): Promise<EmailPage> {
+        const page = options.page ?? 1;
+        const pageSize = options.pageSize ?? 20;
+
+        if (!Number.isInteger(page) || page < 1) {
+            throw new Error('"page" must be a positive integer.');
+        }
+        if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 50) {
+            throw new Error('"pageSize" must be an integer between 1 and 50.');
+        }
+
+        const offset = (page - 1) * pageSize;
+        const requestedItems = offset + pageSize + 1;
+        const results = await this.searchEmails(options.query, requestedItems);
+
+        return {
+            items: results.slice(offset, offset + pageSize),
+            page,
+            pageSize,
+            hasNextPage: results.length > offset + pageSize,
+            hasPreviousPage: page > 1
+        };
+    }
+
     async readThread(threadId: string, options?: ReadThreadOptions): Promise<ThreadMessage[]> {
         const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
         return this.withAuthenticatedPage(targetUrl, page => readThread(page, options));
@@ -165,9 +210,14 @@ export class GmailClient {
         return this.withAuthenticatedPage(targetUrl, page => setThreadReadStatus(page, read));
     }
 
+    async trashThread(threadId: string): Promise<void> {
+        const targetUrl = `https://mail.google.com/mail/u/0/#all/${threadId}`;
+        return this.withAuthenticatedPage(targetUrl, page => trashThread(page, threadId));
+    }
+
     async sendEmail(options: SendEmailOptions): Promise<void> {
         const targetUrl = options.replyToId 
-            ? `https://mail.google.com/mail/u/0/#inbox/${options.replyToId}`
+            ? `https://mail.google.com/mail/u/0/#all/${options.replyToId}`
             : `https://mail.google.com/mail/u/0/?view=cm&fs=1`; // Use full-page compose to avoid draft conflicts
             
         return this.withAuthenticatedPage(targetUrl, page => sendEmail(page, options));

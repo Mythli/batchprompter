@@ -14,7 +14,6 @@ import { EventEmitter } from 'eventemitter3';
 import { BatchPromptEvents } from './events.js';
 import {ModelConfig} from "./config/model.js";
 import { PluginRegistryV2 } from './plugins/types.js';
-import { ImageSearchPlugin } from './plugins/image-search/ImageSearchPlugin.js';
 import { LogoScraperPlugin } from './plugins/logo-scraper/LogoScraperPlugin.js';
 import { ImageDownloader } from 'ai-brand-scraper';
 import { LoadDataPlugin } from './plugins/load-data/LoadDataPlugin.js';
@@ -52,6 +51,7 @@ export const configSchema = z.object({
     PUPPETEER_RESTART_TIMEOUT: z.coerce.number().int().positive().default(10000),
     PUPPETEER_HEADLESS: z.string().optional().default('true').transform(val => val !== 'false'),
     PUPPETEER_SLOW_MO: z.coerce.number().int().min(0).default(0),
+    PUPPETEER_USER_DATA_DIR: z.string().min(1).default('puppeteer_user_data'),
     GMAIL_EMAIL: z.string().optional(),
     GMAIL_PASSWORD: z.string().optional(),
     LOG_LEVEL: z.string().optional(),
@@ -112,6 +112,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         PUPPETEER_RESTART_TIMEOUT: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_RESTART_TIMEOUT', 'PUPPETEER_RESTART_TIMEOUT']),
         PUPPETEER_HEADLESS: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_HEADLESS', 'PUPPETEER_HEADLESS']),
         PUPPETEER_SLOW_MO: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_SLOW_MO', 'PUPPETEER_SLOW_MO']),
+        PUPPETEER_USER_DATA_DIR: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_USER_DATA_DIR', 'PUPPETEER_USER_DATA_DIR']),
         GMAIL_EMAIL: getEnvVar(env, ['GMAIL_EMAIL']),
         GMAIL_PASSWORD: getEnvVar(env, ['GMAIL_PASSWORD']),
         LOG_LEVEL: getEnvVar(env, ['BATCHPROMPT_LOG_LEVEL', 'LOG_LEVEL']),
@@ -179,6 +180,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     }
 
     const puppeteerHelper = new PuppeteerHelper({
+        browserUserDataDir: config.PUPPETEER_USER_DATA_DIR,
         cache: cache as any,
         fetcher: fetcher as any,
         maxPagesBeforeRestart: config.PUPPETEER_MAX_PAGES_BEFORE_RESTART,
@@ -246,10 +248,6 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         fetcher: fetcher as any,
         puppeteerQueue
     });
-
-    if (imageSearch) {
-        pluginRegistry.registerFactory('imageSearch', () => new ImageSearchPlugin({ imageSearch: imageSearch! }));
-    }
 
     const imageDownloader = new ImageDownloader({ fetcher: fetcher as any });
     pluginRegistry.registerFactory('logoScraper', () => new LogoScraperPlugin({ puppeteerHelper, imageDownloader }));

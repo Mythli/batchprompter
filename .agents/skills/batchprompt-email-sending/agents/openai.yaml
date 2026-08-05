@@ -1,0 +1,4 @@
+interface:
+  display_name: "BatchPrompt Email Sending"
+  short_description: "E-Mail-Versand sicher durchführen"
+  default_prompt: "Use $batchprompt-email-sending to test and execute an approved BatchPrompt email send."

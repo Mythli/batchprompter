@@ -1,14 +1,14 @@
 import OpenAI from 'openai';
 import Handlebars from 'handlebars';
-import path from 'path';
 import fsPromises from 'fs/promises';
 import { PipelineItem } from './types.js';
 import { StepRow, StepRowState, StageDescriptor } from './StepRow.js';
 import { StepConfig, GlobalConfig } from "./config/schema.js";
 import { PluginRegistryV2, BasePlugin } from "./plugins/types.js";
 import { BatchPromptEvents } from "./events.js";
-import { aggressiveSanitize } from './utils/fileUtils.js';
 import { renderSchemaObject } from './utils/schemaUtils.js';
+import { withRuntimeTemplateFields } from './utils/runtimeTemplateFields.js';
+import { renderOutputDirectory, renderOutputPath } from './utils/outputPaths.js';
 import { ModelConfig } from './config/model.js';
 import { EventEmitter } from "eventemitter3";
 
@@ -81,12 +81,6 @@ export class Step {
         const { config, stepIndex, globalConfig } = this;
         const stepNum = stepIndex + 1;
 
-        const sanitizedContext: Record<string, any> = {};
-        for (const [key, val] of Object.entries(context)) {
-            const stringVal = typeof val === 'object' ? JSON.stringify(val) : String(val || '');
-            sanitizedContext[key] = aggressiveSanitize(stringVal);
-        }
-
         let outputDir = '';
         const lineagePart = lineage.length > 0 ? `_v${lineage.join('-')}` : '';
         let outputBasename = `output_${originalIndex}${lineagePart}_${stepNum}`;
@@ -94,18 +88,16 @@ export class Step {
         let tempDir = '/tmp';
 
         if (config.output?.path) {
-            const rendered = this.render(config.output.path, sanitizedContext);
-            outputDir = path.resolve(path.dirname(rendered));
+            const rendered = renderOutputPath(config.output.path, context);
+            outputDir = rendered.dir;
             await fsPromises.mkdir(outputDir, { recursive: true });
 
-            const parsed = path.parse(rendered);
-            outputBasename = parsed.name;
-            outputExtension = parsed.ext;
+            outputBasename = rendered.basename;
+            outputExtension = rendered.extension;
         }
 
         if (config.output?.tmpDir) {
-            const rendered = this.render(config.output.tmpDir, sanitizedContext);
-            tempDir = path.resolve(rendered);
+            tempDir = renderOutputDirectory(config.output.tmpDir, context);
             await fsPromises.mkdir(tempDir, { recursive: true });
         }
 
@@ -172,8 +164,8 @@ export class Step {
     }
 
     async createRow(item: PipelineItem): Promise<StepRow> {
-        const context = { ...item.workspace, ...item.row };
         const lineage = item.lineage || [];
+        const context = withRuntimeTemplateFields({ ...item.workspace, ...item.row }, item.originalIndex, lineage);
         const hydratedConfig = await this.hydrate(context, item.originalIndex, lineage);
 
         const initialHistory: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [

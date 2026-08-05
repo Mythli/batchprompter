@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "paths": {
+      "gmail-puppet": ["../../packages/gmail-puppet/src/index.ts"]
+    }
+  },
+  "references": [
+    { "path": "../../packages/gmail-puppet" }
+  ],
+  "include": ["src/**/*"]
+}

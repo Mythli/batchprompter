@@ -4,7 +4,6 @@ import { StyleScraperConfig } from './StyleScraperPlugin.js';
 import { WebsiteStyleScraper } from 'ai-brand-scraper';
 import type { PageActionExecutor } from 'ai-brand-scraper';
 import type { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
-import * as path from 'path';
 
 export class StyleScraperPluginRow extends BasePluginRow<StyleScraperConfig> {
     constructor(
@@ -18,7 +17,6 @@ export class StyleScraperPluginRow extends BasePluginRow<StyleScraperConfig> {
     async prepare(): Promise<PluginResult> {
         const { stepRow, config } = this;
         const emit = stepRow.step.deps.events.emit.bind(stepRow.step.deps.events);
-        const tmpDir = await stepRow.getTempDir();
 
         emit('plugin:event', {
             row: stepRow.getOriginalIndex(),
@@ -43,12 +41,9 @@ export class StyleScraperPluginRow extends BasePluginRow<StyleScraperConfig> {
         // Emit artifacts
         if (result.compositeImageBase64) {
             const buffer = Buffer.from(result.compositeImageBase64.split(',')[1], 'base64');
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'styleScraper',
+            this.emitTmpArtifact({
                 type: 'image',
-                filename: path.join(tmpDir, `styleScraper/composite_${Date.now()}.png`),
+                filename: `styleScraper/composite_${Date.now()}.png`,
                 content: buffer,
                 tags: ['debug', 'styleScraper', 'composite']
             });
@@ -56,12 +51,9 @@ export class StyleScraperPluginRow extends BasePluginRow<StyleScraperConfig> {
 
         result.screenshots.forEach((shot) => {
             const buffer = Buffer.from(shot.screenshotBase64.split(',')[1], 'base64');
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'styleScraper',
+            this.emitTmpArtifact({
                 type: 'image',
-                filename: path.join(tmpDir, `styleScraper/elements/${shot.type}_${shot.elementIndex}_${shot.state}_${Date.now()}.png`),
+                filename: `styleScraper/elements/${shot.type}_${shot.elementIndex}_${shot.state}_${Date.now()}.png`,
                 content: buffer,
                 tags: ['debug', 'styleScraper', 'element']
             });

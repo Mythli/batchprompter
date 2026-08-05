@@ -18,29 +18,28 @@ export class CliConfigBuilder {
         config.steps = config.steps || [];
 
         // --- Global Overrides ---
-        if (options.model) config.model = options.model;
-        if (options.concurrency) config.concurrency = parseInt(String(options.concurrency), 10);
-        if (options.taskConcurrency) config.taskConcurrency = parseInt(String(options.taskConcurrency), 10);
-        if (options.dataOutputPath) config.dataOutputPath = options.dataOutputPath;
-        if (options.timeout) config.timeout = parseInt(String(options.timeout), 10);
-        
-        config.logLevel = options.logLevel || config.logLevel || process.env.BATCHPROMPT_LOG_LEVEL || process.env.LOG_LEVEL || 'info';
+        if (options.model !== undefined) config.model = options.model;
+        if (options.concurrency !== undefined) config.concurrency = options.concurrency;
+        if (options.taskConcurrency !== undefined) config.taskConcurrency = options.taskConcurrency;
+        if (options.dataOutputPath !== undefined) config.dataOutputPath = options.dataOutputPath;
+        if (options.timeout !== undefined) config.timeout = options.timeout;
+        if (options.logLevel !== undefined) config.logLevel = options.logLevel;
 
         // Global output
         if (options.outputPath || options.outputMode || options.outputColumn || options.outputExplode || options.outputTmpDir || options.outputLimit !== undefined || options.outputOffset !== undefined) {
             config.output = config.output || {};
-            if (options.outputPath) config.output.path = options.outputPath;
-            if (options.outputMode) config.output.mode = options.outputMode;
-            if (options.outputColumn) config.output.column = options.outputColumn;
+            if (options.outputPath !== undefined) config.output.path = options.outputPath;
+            if (options.outputMode !== undefined) config.output.mode = options.outputMode;
+            if (options.outputColumn !== undefined) config.output.column = options.outputColumn;
             if (options.outputExplode) config.output.explode = true;
-            if (options.outputTmpDir) config.output.tmpDir = options.outputTmpDir;
-            if (options.outputLimit !== undefined) config.output.limit = parseInt(String(options.outputLimit), 10);
-            if (options.outputOffset !== undefined) config.output.offset = parseInt(String(options.outputOffset), 10);
+            if (options.outputTmpDir !== undefined) config.output.tmpDir = options.outputTmpDir;
+            if (options.outputLimit !== undefined) config.output.limit = options.outputLimit;
+            if (options.outputOffset !== undefined) config.output.offset = options.outputOffset;
         }
 
         // Global limits
-        if (options.inputLimit !== undefined) config.inputLimit = parseInt(String(options.inputLimit), 10);
-        if (options.inputOffset !== undefined) config.inputOffset = parseInt(String(options.inputOffset), 10);
+        if (options.inputLimit !== undefined) config.inputLimit = options.inputLimit;
+        if (options.inputOffset !== undefined) config.inputOffset = options.inputOffset;
 
         // --- Step Overrides ---
         let maxStepIndex = config.steps.length;
@@ -106,7 +105,6 @@ export class CliConfigBuilder {
             }
             if (options[`${stepNum}OutputColumn`]) {
                 step.output = step.output || {};
-                step.output.mode = 'column';
                 step.output.column = options[`${stepNum}OutputColumn`];
             }
             if (options[`${stepNum}OutputExplode`]) {
@@ -115,19 +113,19 @@ export class CliConfigBuilder {
             }
             if (options[`${stepNum}OutputLimit`] !== undefined) {
                 step.output = step.output || {};
-                step.output.limit = parseInt(String(options[`${stepNum}OutputLimit`]), 10);
+                step.output.limit = options[`${stepNum}OutputLimit`];
             }
             if (options[`${stepNum}OutputOffset`] !== undefined) {
                 step.output = step.output || {};
-                step.output.offset = parseInt(String(options[`${stepNum}OutputOffset`]), 10);
+                step.output.offset = options[`${stepNum}OutputOffset`];
             }
 
             // Other step settings
-            if (options[`${stepNum}Candidates`] !== undefined) step.candidates = parseInt(String(options[`${stepNum}Candidates`]), 10);
+            if (options[`${stepNum}Candidates`] !== undefined) step.candidates = options[`${stepNum}Candidates`];
             if (options[`${stepNum}AspectRatio`]) step.aspectRatio = options[`${stepNum}AspectRatio`];
-            if (options[`${stepNum}Timeout`] !== undefined) step.timeout = parseInt(String(options[`${stepNum}Timeout`]), 10);
+            if (options[`${stepNum}Timeout`] !== undefined) step.timeout = options[`${stepNum}Timeout`];
             if (options[`${stepNum}Schema`]) step.schema = options[`${stepNum}Schema`];
-            if (options[`${stepNum}FeedbackLoops`] !== undefined) step.feedbackLoops = parseInt(String(options[`${stepNum}FeedbackLoops`]), 10);
+            if (options[`${stepNum}FeedbackLoops`] !== undefined) step.feedbackLoops = options[`${stepNum}FeedbackLoops`];
 
             // Judge
             if (options[`${stepNum}JudgePrompt`] || options[`${stepNum}JudgeModel`]) {
@@ -146,6 +144,11 @@ export class CliConfigBuilder {
             step.plugins = step.plugins || [];
 
             for (const adapter of adapters) {
+                const stepConfig = adapter.parseStepOptions?.(options, stepNum);
+                if (stepConfig) {
+                    Object.assign(step, stepConfig);
+                }
+
                 const pluginConfig = adapter.parseOptions(options, stepNum);
                 if (pluginConfig) {
                     step.plugins.push(pluginConfig);

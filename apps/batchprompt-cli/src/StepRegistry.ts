@@ -40,7 +40,7 @@ export class StepRegistry {
             program.option(`--${i}-prompt <text>`, `Prompt for step ${i}`);
             program.option(`--${i}-system <text>`, `System prompt for step ${i}`);
             program.option(`--${i}-temperature <number>`, `Temperature for step ${i}`, parseFloat);
-            program.addOption(new Option(`--${i}-thinking-level <level>`, `Thinking level for step ${i}`).choices(['low', 'medium', 'high']));
+            program.addOption(new Option(`--${i}-thinking-level <level>`, `Thinking level for step ${i}`).choices(['low', 'medium', 'high', 'max']));
 
             // Output
             program.option(`--${i}-output-path <path>`, `Output path for step ${i}`);
@@ -65,7 +65,6 @@ export class StepRegistry {
 
         // Plugin flags
         for (const adapter of this.adapters) {
-            adapter.registerOptions(program);
             for (let i = 1; i <= 10; i++) {
                 adapter.registerOptionsForStep(program, i);
             }

@@ -4,12 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class UrlExpanderAdapter implements CliPluginAdapter {
     readonly pluginType = 'urlExpander';
 
-    registerOptions(program: Command) {
-        program.option('--expand-urls', 'Enable URL expansion in prompts');
-        program.option('--expand-urls-mode <mode>', 'Expansion mode: fetch/puppeteer (default: fetch)');
-        program.option('--expand-urls-max-chars <number>', 'Max characters per expanded URL (default: 30000)', parseInt);
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-expand-urls`, `Enable URL expansion for step ${s}`);
@@ -17,25 +11,29 @@ export class UrlExpanderAdapter implements CliPluginAdapter {
         program.option(`--${s}-expand-urls-max-chars <number>`, `Max chars for step ${s}`, parseInt);
     }
 
-    parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
+    parseStepOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const isEnabled = getOpt('expandUrls');
         if (!isEnabled) return null;
 
-        const result: Record<string, any> = { type: 'urlExpander' };
+        const expandUrls: Record<string, any> = {};
 
         const mode = getOpt('expandUrlsMode');
-        if (mode) result.mode = mode;
+        if (mode) expandUrls.mode = mode;
 
         const maxChars = getOpt('expandUrlsMaxChars');
-        if (maxChars !== undefined) result.maxChars = maxChars;
+        if (maxChars !== undefined) expandUrls.maxChars = maxChars;
 
-        result.output = { mode: 'ignore' };
+        return {
+            expandUrls: Object.keys(expandUrls).length > 0 ? expandUrls : true
+        };
+    }
 
-        return result;
+    parseOptions(): Record<string, any> | null {
+        return null;
     }
 }

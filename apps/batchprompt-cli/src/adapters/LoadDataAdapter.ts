@@ -4,14 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class LoadDataAdapter implements CliPluginAdapter {
     readonly pluginType = 'loadData';
 
-    registerOptions(program: Command) {
-        program.option('--load-data-file <path>', 'Path to CSV/JSON file to load');
-        program.option('--load-data-json <json>', 'Hardcoded JSON array string');
-        program.option('--load-data-output-mode <mode>', 'Output mode: merge/column/ignore');
-        program.option('--load-data-output-column <column>', 'Output column name');
-        program.option('--load-data-output-explode', 'Explode loaded data into multiple rows');
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-load-data-file <path>`, `File to load for step ${s}`);
@@ -24,7 +16,7 @@ export class LoadDataAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const file = getOpt('loadDataFile');

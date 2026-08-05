@@ -4,26 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class WebSearchAdapter implements CliPluginAdapter {
     readonly pluginType = 'webSearch';
 
-    registerOptions(program: Command) {
-        program.option('--web-search-query <text>', 'Static search query');
-        program.option('--web-search-limit <number>', 'Max total results (default: 5)', parseInt);
-        program.option('--web-search-mode <mode>', 'Content mode: none/markdown/html (default: none)');
-        program.option('--web-search-query-count <number>', 'Queries to generate (default: 3)', parseInt);
-        program.option('--web-search-max-pages <number>', 'Max pages per query (default: 1)', parseInt);
-        program.option('--web-search-dedupe-strategy <strategy>', 'Deduplication: none/domain/url (default: none)');
-        program.option('--web-search-gl <country>', 'Country code for search');
-        program.option('--web-search-hl <lang>', 'Language code for search');
-        program.option('--web-search-query-model <model>', 'Model for query generation');
-        program.option('--web-search-query-prompt <text>', 'Prompt for query generation');
-        program.option('--web-search-select-model <model>', 'Model for result selection');
-        program.option('--web-search-select-prompt <text>', 'Prompt for result selection');
-        program.option('--web-search-compress-model <model>', 'Model for content compression');
-        program.option('--web-search-compress-prompt <text>', 'Prompt for content compression');
-        program.option('--web-search-output-mode <mode>', 'Output mode: merge/column/ignore');
-        program.option('--web-search-output-column <column>', 'Output column name');
-        program.option('--web-search-output-explode', 'Explode results into multiple rows');
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-web-search-query <text>`, `Search query for step ${s}`);
@@ -48,7 +28,7 @@ export class WebSearchAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const query = getOpt('webSearchQuery');

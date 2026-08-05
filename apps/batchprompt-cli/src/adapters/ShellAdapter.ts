@@ -4,12 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class ShellAdapter implements CliPluginAdapter {
     readonly pluginType = 'shell-command';
 
-    registerOptions(program: Command) {
-        program.option('--shell-command <cmd>', 'Shell command to run after generation');
-        program.option('--shell-verify-command <cmd>', 'Shell command to verify output');
-        program.option('--shell-skip-candidate-command', 'Skip commands for candidates');
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-shell-command <cmd>`, `Shell command for step ${s}`);
@@ -20,7 +14,7 @@ export class ShellAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const command = getOpt('shellCommand');

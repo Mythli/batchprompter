@@ -20,7 +20,8 @@ export const ImageSearchConfigSchemaV2 = z.object({
     maxPages: z.number().int().positive().default(1),
     dedupeStrategy: z.enum(['none', 'domain', 'url']).default('none'),
     gl: z.string().optional(),
-    hl: z.string().optional()
+    hl: z.string().optional(),
+    tbs: z.string().optional()
 }).strict();
 
 export type ImageSearchConfig = z.output<typeof ImageSearchConfigSchemaV2>;

@@ -1,0 +1,4 @@
+interface:
+  display_name: "BatchPrompt Basics"
+  short_description: "BatchPrompt-Pipelines sicher ausführen"
+  default_prompt: "Use $batchprompt-basics to run this BatchPrompt pipeline safely and verify its outputs."

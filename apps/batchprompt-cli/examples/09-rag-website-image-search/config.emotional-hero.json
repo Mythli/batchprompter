@@ -1,0 +1,36 @@
+{
+  "model": "~google/gemini-flash-latest",
+  "concurrency": 6,
+  "taskConcurrency": 3,
+  "logLevel": "info",
+  "dataOutputPath": "out/09-rag-website-image-search/results-emotional-hero.csv",
+  "steps": [
+    {
+      "timeout": 600,
+      "output": {
+        "mode": "ignore",
+        "tmpDir": "out/09-rag-website-image-search/images/row-{{_row_index}}-root/emotional-hero/_source"
+      },
+      "plugins": [
+        {
+          "type": "imageSearch",
+          "queryCount": 10,
+          "maxPages": 4,
+          "limit": 3,
+          "dedupeStrategy": "domain",
+          "tbs": "sur:cl",
+          "queryModel": {
+            "prompt": "Generate English Google Images search queries for real photos matching '{{course_info}}'. Use terms like swim school, swimming lessons, learn to swim class, swimming instructor, swim teacher, indoor pool, poolside, children swim class, group lesson, YMCA and aquatic center. Look for instructed lesson scenes, not vacation, hotel, beach, wellness, resort pool or free-swim images."
+          },
+          "selectModel": {
+            "prompt": "Select the 3 best real photos for an emotional website hero matching '{{course_info}}'. Rank by visible course fit in the image itself. Must show a swim-school or swimming-lesson atmosphere: instructor/teacher/adult guidance, learner or group, and pool or poolside context. Prefer images matching the course audience and level: beginner/water-acclimation with close support or swim aids, technique/advanced with coached practice, adult/women/private courses with the right learner type, mermaid courses with monofin or playful pool lesson context. Prefer warm, trustworthy scenes with usable hero composition. Reject anything that mainly looks like vacation, hotel, beach, wellness, resort pool, casual family swim, solo underwater, competition, lifeguard training, empty pool or generic stock."
+          },
+          "output": {
+            "mode": "ignore",
+            "path": "out/09-rag-website-image-search/images/row-{{_row_index}}-root/emotional-hero/source_{{artifact_index}}.{{artifact_ext}}"
+          }
+        }
+      ]
+    }
+  ]
+}

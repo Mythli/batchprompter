@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gmail Demo"
+  short_description: "Gmail sicher per CLI verwalten"
+  default_prompt: "Use $gmail-demo to inspect or manage Gmail threads safely with the gmail-demo CLI."

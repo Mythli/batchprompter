@@ -4,21 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class WebsiteAgentAdapter implements CliPluginAdapter {
     readonly pluginType = 'websiteAgent';
 
-    registerOptions(program: Command) {
-        program.option('--website-agent-url <url>', 'Starting URL to scrape');
-        program.option('--website-agent-schema <path>', 'JSON Schema for extraction');
-        program.option('--website-agent-budget <number>', 'Max pages to visit (default: 10)', parseInt);
-        program.option('--website-agent-batch-size <number>', 'Pages per batch (default: 3)', parseInt);
-        program.option('--website-agent-navigator-model <model>', 'Navigator model');
-        program.option('--website-agent-navigator-prompt <text>', 'Navigator prompt');
-        program.option('--website-agent-extract-model <model>', 'Extract model');
-        program.option('--website-agent-extract-prompt <text>', 'Extract prompt');
-        program.option('--website-agent-merge-model <model>', 'Merge model');
-        program.option('--website-agent-merge-prompt <text>', 'Merge prompt');
-        program.option('--website-agent-output-mode <mode>', 'Output mode');
-        program.option('--website-agent-output-column <column>', 'Output column');
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-website-agent-url <url>`, `URL for step ${s}`);
@@ -38,7 +23,7 @@ export class WebsiteAgentAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const url = getOpt('websiteAgentUrl');

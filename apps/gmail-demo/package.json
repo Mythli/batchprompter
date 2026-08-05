@@ -1,0 +1,27 @@
+{
+  "name": "gmail-puppet-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Commander-based Gmail thread management CLI for gmail-puppet",
+  "type": "module",
+  "bin": {
+    "gmail-demo": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "pnpm run build && node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "dotenv": "^16.6.1",
+    "gmail-puppet": "workspace:*",
+    "puppeteer": "^22.15.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.27",
+    "tsx": "^4.7.1",
+    "typescript": "^5.9.3"
+  }
+}

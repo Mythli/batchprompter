@@ -7,6 +7,8 @@ import type { ModelConfig } from "../config/model.js";
 import type { LlmClient } from 'llm-fns';
 import os from 'os';
 import path from 'path';
+import { aggressiveSanitize } from '../utils/fileUtils.js';
+import { renderOutputPath } from '../utils/outputPaths.js';
 
 export interface PluginExecutionContext {
     row: Record<string, any>;
@@ -58,10 +60,98 @@ export type LlmFactory = (config: Partial<ModelConfig>) => LlmClient;
  * Each row gets its own instance, allowing for per-row state.
  */
 export abstract class BasePluginRow<TConfig = any> {
+    private readonly emittedFinalArtifactPaths = new Set<string>();
+
     constructor(
         protected readonly stepRow: StepRow,
         protected readonly config: TConfig
     ) {}
+
+    protected emitTmpArtifact(options: {
+        type: string;
+        filename: string;
+        content: string | Buffer;
+        tags?: string[];
+        metadata?: Record<string, any>;
+        source?: string;
+    }): void {
+        const tmpDir = this.stepRow.getTempDirPath();
+        const filename = path.isAbsolute(options.filename)
+            ? options.filename
+            : path.join(tmpDir, options.filename);
+
+        this.emitRawArtifact({
+            ...options,
+            filename,
+            tags: options.tags ?? []
+        });
+    }
+
+    protected emitArtifact(options: {
+        type: string;
+        filename: string;
+        content: string | Buffer;
+        tags?: string[];
+        metadata?: Record<string, any>;
+        source?: string;
+        index?: number;
+        total?: number;
+        artifactName?: string;
+        extension?: string;
+        useOutputPath?: boolean;
+    }): void {
+        const outputConfig = (this.config as any).output as OutputConfig | undefined;
+        let filename: string;
+
+        if (outputConfig?.path && options.useOutputPath !== false) {
+            const fallbackParsed = path.parse(options.filename);
+            const ext = normalizeExtension(options.extension || fallbackParsed.ext);
+            const artifactName = options.artifactName || fallbackParsed.name || 'artifact';
+            const rendered = renderOutputPath(outputConfig.path, this.stepRow.context, {
+                artifact_index: options.index ?? 0,
+                artifact_count: options.total ?? 1,
+                artifact_name: aggressiveSanitize(artifactName),
+                artifact_ext: ext
+            });
+
+            filename = rendered.path;
+            if (this.emittedFinalArtifactPaths.has(filename)) {
+                throw new Error(`Duplicate plugin artifact output path: ${filename}. Include {{artifact_index}} in output.path when emitting multiple artifacts.`);
+            }
+            this.emittedFinalArtifactPaths.add(filename);
+        } else {
+            const tmpDir = this.stepRow.getTempDirPath();
+            filename = path.isAbsolute(options.filename)
+                ? options.filename
+                : path.join(tmpDir, options.filename);
+        }
+
+        this.emitRawArtifact({
+            ...options,
+            filename,
+            tags: options.tags ?? []
+        });
+    }
+
+    private emitRawArtifact(options: {
+        type: string;
+        filename: string;
+        content: string | Buffer;
+        tags: string[];
+        metadata?: Record<string, any>;
+        source?: string;
+    }): void {
+        this.stepRow.getEvents().emit('artifact:emit', {
+            row: this.stepRow.getOriginalIndex(),
+            step: this.stepRow.step.stepIndex,
+            source: options.source || (this.config as any).type || 'plugin',
+            type: options.type,
+            filename: options.filename,
+            content: options.content,
+            tags: options.tags,
+            metadata: options.metadata
+        });
+    }
 
     /**
      * Pre-LLM execution logic.
@@ -85,6 +175,11 @@ export abstract class BasePluginRow<TConfig = any> {
             items: [{ data: null, contentParts: [] }]
         };
     }
+}
+
+function normalizeExtension(ext: string | undefined): string {
+    if (!ext) return '';
+    return ext.startsWith('.') ? ext.slice(1) : ext;
 }
 
 const DEFAULT_TMP_DIR = path.join(os.tmpdir(), 'batchprompt');

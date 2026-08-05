@@ -1,5 +1,24 @@
-import { describe, it, expect } from 'vitest';
-import { normalizeOptions, mergeRequestOptions } from './createLlmClient.js';
+import { describe, it, expect, vi } from 'vitest';
+import { createLlmClient, normalizeOptions, mergeRequestOptions } from './createLlmClient.js';
+
+describe('createLlmClient', () => {
+    it('forwards max reasoning effort to the API request', async () => {
+        const create = vi.fn().mockResolvedValue({
+            choices: [{ message: { content: 'ok' } }]
+        });
+        const client = createLlmClient({
+            openai: { chat: { completions: { create } } } as any,
+            defaultModel: 'deepseek/deepseek-v4-flash-0731'
+        });
+
+        await client.prompt('test', { reasoning_effort: 'max' });
+
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({
+            model: 'deepseek/deepseek-v4-flash-0731',
+            reasoning_effort: 'max'
+        }), undefined);
+    });
+});
 
 describe('normalizeOptions', () => {
     it('should normalize a simple string prompt', () => {

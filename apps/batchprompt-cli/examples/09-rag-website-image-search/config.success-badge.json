@@ -1,0 +1,36 @@
+{
+  "model": "~google/gemini-flash-latest",
+  "concurrency": 6,
+  "taskConcurrency": 3,
+  "logLevel": "info",
+  "dataOutputPath": "out/09-rag-website-image-search/results-success-badge.csv",
+  "steps": [
+    {
+      "timeout": 600,
+      "output": {
+        "mode": "ignore",
+        "tmpDir": "out/09-rag-website-image-search/images/row-{{_row_index}}-root/success-badge/_source"
+      },
+      "plugins": [
+        {
+          "type": "imageSearch",
+          "queryCount": 10,
+          "maxPages": 4,
+          "limit": 3,
+          "dedupeStrategy": "domain",
+          "tbs": "sur:cl",
+          "queryModel": {
+            "prompt": "Generate English Google Images search queries for real photos matching '{{course_info}}'. Use swim school, swimming lesson, learn to swim, swim instructor, indoor pool, poolside, swimming certificate, swim badge, medal, achievement, graduation, YMCA and aquatic center terms. Include German achievement words where useful: Seepferdchen, Fruehschwimmer, Bronze, Silber, Gold, Deutsches Schwimmabzeichen, Urkunde, Abzeichen, Medaille. Avoid scans, product images, vacation, hotel, beach, wellness and resort-pool terms."
+          },
+          "selectModel": {
+            "prompt": "Select the 3 best real photos for a swim-school success image matching '{{course_info}}'. Rank by visible course fit in the image itself. Best: a learner or child in a real lesson/poolside context with an instructor nearby and a visible certificate, swim badge, medal or proud achievement moment. German signals such as Seepferdchen, Fruehschwimmer, Bronze, Silber, Gold, Deutsches Schwimmabzeichen, Urkunde, Abzeichen or Medaille are relevant when they appear in a real scene. If no certificate-style photo fits the course, choose strong real course-success moments with confidence, pride, safety or progress. Reject scans, product shots, plain certificate closeups without people, vacation, hotel, beach, wellness, resort pool, casual family swim, solo underwater and unrelated graduation/award images."
+          },
+          "output": {
+            "mode": "ignore",
+            "path": "out/09-rag-website-image-search/images/row-{{_row_index}}-root/success-badge/source_{{artifact_index}}.{{artifact_ext}}"
+          }
+        }
+      ]
+    }
+  ]
+}

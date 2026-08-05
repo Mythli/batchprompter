@@ -5,7 +5,6 @@ import { BrandAssetScraper } from 'ai-brand-scraper';
 import type { AiBrandLlm, ImageDownloader, PageActionExecutor } from 'ai-brand-scraper';
 import type { BoundLlmClient } from '../../BoundLlmClient.js';
 import type { PuppeteerHelper } from '../../utils/puppeteer/PuppeteerHelper.js';
-import * as path from 'path';
 
 function toAiBrandLlm(llm: BoundLlmClient): AiBrandLlm {
     return {
@@ -32,8 +31,6 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
 
     async prepare(): Promise<PluginResult> {
         const { stepRow, config } = this;
-        const emit = stepRow.step.deps.events.emit.bind(stepRow.step.deps.events);
-        const tmpDir = await stepRow.getTempDir();
 
         // Fallback to step's default model if plugin-specific models aren't provided
         const analyzeLlm = config.analyzeModel ? await stepRow.createLlm(config.analyzeModel) : await stepRow.createLlm();
@@ -48,12 +45,9 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
         });
 
         brandAssetScraper.events.on('logo:found', (data) => {
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'logoScraper',
+            this.emitTmpArtifact({
                 type: 'json',
-                filename: path.join(tmpDir, `logoScraper/found/found_${Date.now()}.json`),
+                filename: `logoScraper/found/found_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
                 tags: ['debug', 'logoScraper', 'found']
             });
@@ -61,24 +55,18 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
 
         brandAssetScraper.events.on('logo:downloaded', (data) => {
             const buffer = Buffer.from(data.base64PngData.split(',')[1], 'base64');
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'logoScraper',
+            this.emitTmpArtifact({
                 type: 'image',
-                filename: path.join(tmpDir, `logoScraper/downloaded/logo_${data.index}_${Date.now()}.png`),
+                filename: `logoScraper/downloaded/logo_${data.index}_${Date.now()}.png`,
                 content: buffer,
                 tags: ['debug', 'logoScraper', 'downloaded']
             });
         });
 
         brandAssetScraper.events.on('analysis:complete', (data) => {
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'logoScraper',
+            this.emitTmpArtifact({
                 type: 'json',
-                filename: path.join(tmpDir, `logoScraper/analysis/analysis_${Date.now()}.json`),
+                filename: `logoScraper/analysis/analysis_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
                 tags: ['final', 'logoScraper', 'analysis']
             });
@@ -108,27 +96,27 @@ export class LogoScraperPluginRow extends BasePluginRow<LogoScraperConfig> {
 
         if (config.logoOutputPath && bestLogo) {
             const buffer = Buffer.from(bestLogo.base64PngData.split(',')[1], 'base64');
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'logoScraper',
+            this.emitArtifact({
                 type: 'image',
                 filename: config.logoOutputPath,
                 content: buffer,
-                tags: ['final', 'logoScraper', 'logo']
+                tags: ['final', 'logoScraper', 'logo'],
+                extension: 'png',
+                artifactName: 'logo',
+                useOutputPath: false
             });
         }
 
         if (config.faviconOutputPath && bestFavicon) {
             const buffer = Buffer.from(bestFavicon.base64PngData.split(',')[1], 'base64');
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'logoScraper',
+            this.emitArtifact({
                 type: 'image',
                 filename: config.faviconOutputPath,
                 content: buffer,
-                tags: ['final', 'logoScraper', 'favicon']
+                tags: ['final', 'logoScraper', 'favicon'],
+                extension: 'png',
+                artifactName: 'favicon',
+                useOutputPath: false
             });
         }
 

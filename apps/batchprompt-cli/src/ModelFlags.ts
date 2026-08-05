@@ -25,7 +25,7 @@ export class ModelFlags {
         program.option(`--${prefix}model <model>`, `Model to use for ${descPrefix}generation`, options.defaultModel);
         program.option(`--${prefix}temperature <number>`, `Temperature for ${descPrefix}model`, parseFloat);
         program.addOption(new Option(`--${prefix}thinking-level <level>`, `Reasoning effort for ${descPrefix}model`)
-            .choices(['low', 'medium', 'high']));
+            .choices(['low', 'medium', 'high', 'max']));
 
         if (options.includePrompt) {
             program.option(`--${prefix}prompt <text>`, `Instruction prompt for ${descPrefix}(File path or raw text)`);

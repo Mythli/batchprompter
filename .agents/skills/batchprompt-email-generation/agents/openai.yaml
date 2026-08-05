@@ -1,0 +1,4 @@
+interface:
+  display_name: "BatchPrompt Email Generation"
+  short_description: "Personalisierte E-Mails erzeugen"
+  default_prompt: "Use $batchprompt-email-generation to generate and verify personalized campaign emails."

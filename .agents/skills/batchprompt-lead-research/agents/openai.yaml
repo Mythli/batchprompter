@@ -1,0 +1,4 @@
+interface:
+  display_name: "BatchPrompt Lead Research"
+  short_description: "Leads recherchieren und anreichern"
+  default_prompt: "Use $batchprompt-lead-research to research, filter, and enrich leads with BatchPrompt."

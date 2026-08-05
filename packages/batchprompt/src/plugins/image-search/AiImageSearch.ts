@@ -26,6 +26,7 @@ export class AiImageSearch {
             dedupeStrategy: 'none' | 'domain' | 'url';
             gl?: string;
             hl?: string;
+            tbs?: string;
         }
     ): Promise<ImageSearchResult[]> {
 
@@ -61,7 +62,7 @@ export class AiImageSearch {
 
         const pageResults = await Promise.all(tasks.map(async ({ query, page }, taskIndex) => {
             try {
-                const results = await this.imageSearch.search(query, 10, page, config.gl, config.hl);
+                const results = await this.imageSearch.search(query, 10, page, config.gl, config.hl, config.tbs);
 
                 // Emit raw results (metadata only to save space/time in event payload if needed, but full object is better for debug)
                 this.events.emit('search:result', {
@@ -123,6 +124,14 @@ export class AiImageSearch {
                 config.limit,
                 { phase: 'reduce' }
             );
+
+            if (finalSelection.length < config.limit) {
+                const selectedUrls = new Set(finalSelection.map(result => result.metadata.imageUrl));
+                const backfill = uniqueSurvivors
+                    .filter(result => !selectedUrls.has(result.metadata.imageUrl))
+                    .slice(0, config.limit - finalSelection.length);
+                finalSelection = [...finalSelection, ...backfill];
+            }
         } else if (uniqueSurvivors.length > config.limit) {
             finalSelection = uniqueSurvivors.slice(0, config.limit);
         }

@@ -4,12 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class ValidationAdapter implements CliPluginAdapter {
     readonly pluginType = 'validation';
 
-    registerOptions(program: Command) {
-        program.option('--validate-schema <path>', 'JSON Schema for validation');
-        program.option('--validate-target <template>', 'Data to validate (Handlebars template)');
-        program.option('--validate-fail-mode <mode>', 'Fail mode: drop/error/continue (default: error)');
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-validate-schema <path>`, `Validation schema for step ${s}`);
@@ -20,7 +14,7 @@ export class ValidationAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const schema = getOpt('validateSchema');

@@ -26,6 +26,7 @@ const SearchParametersSchema = z.object({
   engine: z.string(),
   gl: z.string().optional(),
   hl: z.string().optional(),
+  tbs: z.string().optional(),
   page: z.number().optional(),
 });
 
@@ -49,8 +50,8 @@ export class ImageSearch {
         private queue: PQueue
     ) {}
 
-    async search(query: string, num: number = 10, page: number = 1, gl?: string, hl?: string): Promise<ImageSearchResult[]> {
-        console.log(`[ImageSearch] Searching for query: "${query}" (Page: ${page}, Limit: ${num}, GL: ${gl}, HL: ${hl})`);
+    async search(query: string, num: number = 10, page: number = 1, gl?: string, hl?: string, tbs?: string): Promise<ImageSearchResult[]> {
+        console.log(`[ImageSearch] Searching for query: "${query}" (Page: ${page}, Limit: ${num}, GL: ${gl}, HL: ${hl}, TBS: ${tbs})`);
 
         const body: any = {
             q: query,
@@ -59,6 +60,7 @@ export class ImageSearch {
         };
         if (gl) body.gl = gl;
         if (hl) body.hl = hl;
+        if (tbs) body.tbs = tbs;
 
         // Use the fetcher for the network call.
         // The fetcher handles caching (including POST requests) and retries/timeouts.

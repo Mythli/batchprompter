@@ -1,6 +1,6 @@
 {
   "name": "batchprompt-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI tool for BatchPrompt",
   "type": "module",
   "bin": {
@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc -b --verbose",
+    "test": "vitest run",
     "watch": "tsc -b -w",
     "debug-init": "tsx src/index.ts init 'tell me at what ranking the website butlerapp is for the keyword kursverwaltung'",
     "debug-schema": "tsx src/index.ts schema",
@@ -36,6 +37,7 @@
     "@types/papaparse": "^5.3.14",
     "openai": "^6.15.0",
     "tsx": "^4.7.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^1.6.1"
   }
 }

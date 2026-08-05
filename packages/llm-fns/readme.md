@@ -10,6 +10,28 @@ Designed for power users who need to switch between simple string prompts and co
 npm install openai zod cache-manager p-queue ajv
 ```
 
+## Cached Fetch
+
+`createCachedFetcher` is a fetch-compatible response cache that can be injected into SDKs such as OpenAI:
+
+```typescript
+import OpenAI from 'openai';
+import { createCachedFetcher } from 'llm-fns';
+
+const cachedFetch = createCachedFetcher({
+    cache,
+    fetch: globalThis.fetch,
+    prefix: 'openai',
+    ttl: 24 * 60 * 60 * 1000,
+});
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: cachedFetch });
+```
+
+Cache keys fingerprint the effective method, URL, normalized headers, and body. Standard Fetch bodies are supported, including strings, binary data, blobs, streams, `Request` bodies, URL-encoded forms, and multipart `FormData` with file contents. Multipart boundaries and content length are ignored because they are transport details; file bytes, filenames, media types, and form fields remain part of the fingerprint. Header values, including credentials, affect the fingerprint but are never written into the cache key in plain text.
+
+The cache-key format is versioned. Version 1.0.27 intentionally does not read entries created by older releases.
+
 ## Quick Start (Factory)
 
 The `createLlm` factory bundles all functionality (Basic, Retry, Zod) into a single client.
@@ -69,7 +91,7 @@ const reasoner = createLlm({
     openai,
     defaultModel: {
         model: 'o3',
-        reasoning_effort: 'high'  // 'low' | 'medium' | 'high'
+        reasoning_effort: 'high'  // 'low' | 'medium' | 'high' | 'max'
     }
 });
 

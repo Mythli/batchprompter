@@ -5,6 +5,7 @@
     { "path": "./packages/llm-fns" },
     { "path": "./packages/batchprompt" },
     { "path": "./apps/batchprompt-cli" },
+    { "path": "./apps/gmail-demo" },
     { "path": "./apps/batchprompt-api" }
   ]
 }

@@ -1,0 +1,36 @@
+{
+  "model": "~google/gemini-flash-latest",
+  "concurrency": 6,
+  "taskConcurrency": 3,
+  "logLevel": "info",
+  "dataOutputPath": "out/09-rag-website-image-search/results-group-background.csv",
+  "steps": [
+    {
+      "timeout": 600,
+      "output": {
+        "mode": "ignore",
+        "tmpDir": "out/09-rag-website-image-search/images/row-{{_row_index}}-root/group-background/_source"
+      },
+      "plugins": [
+        {
+          "type": "imageSearch",
+          "queryCount": 10,
+          "maxPages": 4,
+          "limit": 3,
+          "dedupeStrategy": "domain",
+          "tbs": "sur:cl",
+          "queryModel": {
+            "prompt": "Generate English Google Images search queries for real photos matching '{{course_info}}'. Use terms like swim school, swimming lessons, learn to swim class, swimming instructor, swim teacher, indoor pool, poolside, group swim lesson, children swim class, YMCA and aquatic center. Look for several people in an instructed lesson scene, not vacation, hotel, beach, wellness, resort pool, empty pool or free-swim images."
+          },
+          "selectModel": {
+            "prompt": "Select the 3 best real photos for a website background matching '{{course_info}}'. Rank by visible course fit in the image itself. Must show a swim-school or swimming-lesson atmosphere with several people, a visible instructor/teacher or clearly guided group, and pool or poolside context. Prefer images matching the course audience and level: beginner children with support, advanced children with coached practice, adults/women/private courses with the right learner type, mermaid courses with playful pool lesson context. Also prefer background-friendly composition with some calm space and no awkward crop. Reject vacation, hotel, beach, wellness, resort pool, casual free-swim, empty pool, competition without lesson context, lifeguard training and generic stock."
+          },
+          "output": {
+            "mode": "ignore",
+            "path": "out/09-rag-website-image-search/images/row-{{_row_index}}-root/group-background/source_{{artifact_index}}.{{artifact_ext}}"
+          }
+        }
+      ]
+    }
+  ]
+}

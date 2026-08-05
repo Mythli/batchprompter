@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import os from 'os';
+import path from 'path';
 import { setupTestEnvironment } from '../utils/testUtils.js';
 import { WebSearch } from '../../src/plugins/web-search/WebSearch.js';
 import { ImageSearch } from '../../src/plugins/image-search/ImageSearch.js';
@@ -59,6 +61,16 @@ class MockImageSearch extends ImageSearch {
                     position: 2
                 },
                 buffer
+            },
+            {
+                metadata: {
+                    title: 'Tesla Model X',
+                    imageUrl: 'https://example.com/x.jpg',
+                    imageWidth: 100,
+                    imageHeight: 100,
+                    position: 3
+                },
+                buffer
             }
         ];
     }
@@ -68,13 +80,13 @@ async function setupSearchTest(mockResponses: any[]) {
     const mockWebSearch = new MockWebSearch();
     const mockImageSearch = new MockImageSearch();
 
-    const { executor, openai } = setupTestEnvironment({
+    const { executor, openai, events } = setupTestEnvironment({
         mockResponses,
         webSearch: mockWebSearch,
         imageSearch: mockImageSearch
     });
 
-    return { executor, openai, mockWebSearch, mockImageSearch };
+    return { executor, openai, events, mockWebSearch, mockImageSearch };
 }
 
 // =============================================================================
@@ -224,14 +236,16 @@ describe('E2E Search Plugins', () => {
         expect(row2SelectMessages).not.toContain("{{company}}");
     });
 
-    // Image Search plugin is currently disabled (needs migration to new architecture)
-    it.skip('should execute Image Search and pass base64 to next step', async () => {
+    it('should execute Image Search, emit selected images to output paths, and pass base64 to next step', async () => {
+        const outputRoot = path.join(os.tmpdir(), 'batchprompt-image-search-artifacts');
         const mockResponses = [
             // 1. Query Generation
             JSON.stringify({ queries: ["tesla model s photo"] }),
-            // 2. Selection (Reduce)
-            JSON.stringify({ selected_indices: [1], reasoning: "Model S is the requested product." }),
-            // 3. Final Generation
+            // 2. Selection (Scatter)
+            JSON.stringify({ selected_indices: [1, 2, 3], reasoning: "All images are useful product references." }),
+            // 3. Selection (Reduce) returns too few; image search should backfill to the configured limit.
+            JSON.stringify({ selected_indices: [1], reasoning: "Model S is the strongest reference." }),
+            // 4. Final Generation
             "This is a red Tesla Model S."
         ];
 
@@ -255,7 +269,11 @@ describe('E2E Search Plugins', () => {
                                 model: "gpt-mock",
                                 prompt: "Select the best image of {{product}}"
                             },
-                            limit: 1
+                            limit: 2,
+                            output: {
+                                mode: "ignore",
+                                path: path.join(outputRoot, "source_{{artifact_index}}.{{artifact_ext}}")
+                            }
                         }
                     ],
                     output: { mode: "column", column: "description" }
@@ -271,14 +289,62 @@ describe('E2E Search Plugins', () => {
         // Verify artifacts (sprite, candidate, selected)
         const artifactPaths = artifacts.map((a: any) => a.path);
         expect(artifactPaths.some((p: string) => p.includes('sprites'))).toBe(true);
+        expect(artifactPaths.some((p: string) => p.includes('candidates'))).toBe(true);
         expect(artifactPaths.some((p: string) => p.includes('selected'))).toBe(true);
+        expect(artifactPaths).toContain(path.join(outputRoot, 'source_0.png'));
+        expect(artifactPaths).toContain(path.join(outputRoot, 'source_1.png'));
 
         // Verify that the final prompt contained an image_url part
-        const finalCallArgs = (openai.chat.completions.create as any).mock.calls[2][0];
+        const finalCallArgs = (openai.chat.completions.create as any).mock.calls[3][0];
         const lastMessage = finalCallArgs.messages[finalCallArgs.messages.length - 1];
         const imagePart = lastMessage.content.find((p: any) => p.type === 'image_url');
 
         expect(imagePart).toBeDefined();
-        expect(imagePart.image_url.url).toContain('data:image/jpeg;base64,');
+        expect(imagePart.image_url.url).toContain('data:image/png;base64,');
+    });
+
+    it('should report duplicate plugin artifact output paths when multiple images render to one file', async () => {
+        const outputRoot = path.join(os.tmpdir(), 'batchprompt-image-search-artifacts-duplicate');
+        const mockResponses = [
+            JSON.stringify({ queries: ["tesla model s photo"] }),
+            JSON.stringify({ selected_indices: [1, 2, 3], reasoning: "All images are useful product references." }),
+            JSON.stringify({ selected_indices: [1], reasoning: "Model S is the strongest reference." })
+        ];
+
+        const { executor, events } = await setupSearchTest(mockResponses);
+        const rowErrors: any[] = [];
+        events.on('row:error', (payload) => rowErrors.push(payload));
+
+        const config = {
+            steps: [
+                {
+                    plugins: [
+                        {
+                            type: "imageSearch",
+                            queryModel: {
+                                model: "gpt-mock",
+                                prompt: "Generate queries for {{product}}"
+                            },
+                            selectModel: {
+                                model: "gpt-mock",
+                                prompt: "Select the best images of {{product}}"
+                            },
+                            limit: 2,
+                            output: {
+                                mode: "ignore",
+                                path: path.join(outputRoot, "source.{{artifact_ext}}")
+                            }
+                        }
+                    ]
+                }
+            ]
+        };
+
+        const { results } = await executor.runConfig(config, [{ product: "Tesla Model S" }]);
+
+        expect(results).toHaveLength(0);
+        expect(rowErrors).toHaveLength(1);
+        expect(rowErrors[0].error.message).toContain('Duplicate plugin artifact output path');
+        expect(rowErrors[0].error.message).toContain('{{artifact_index}}');
     });
 });

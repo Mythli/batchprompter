@@ -52,9 +52,10 @@ async function markCurrentThreadUnread(page: Page): Promise<void> {
     throw new Error('Could not find a visible "Mark as unread" button to click.');
   }
 
-  // When you mark a thread as unread from within the thread, Gmail automatically
-  // navigates back to the list view. Waiting for the list rows (tr.zA) confirms the action completed.
-  await page.waitForSelector('tr.zA', { timeout: 10000 });
+  // Gmail may navigate to the inbox, an empty search result, or keep the current
+  // shell mounted depending on how the thread was opened. Waiting for network
+  // idle confirms the state-changing request without assuming a specific list DOM.
+  await page.waitForNetworkIdle({ idleTime: 500, timeout: 10000 }).catch(() => {});
 }
 
 /**

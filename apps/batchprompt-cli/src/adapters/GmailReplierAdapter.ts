@@ -4,25 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class GmailReplierAdapter implements CliPluginAdapter {
     readonly pluginType = 'gmailReplier';
 
-    registerOptions(program: Command) {
-        program.option('--gmail-replier-target-query <query>', 'Query for emails to reply to');
-        program.option('--gmail-replier-limit <number>', 'Max emails to fetch (default: 100)', parseInt);
-        program.option('--gmail-replier-inspiration-query <query>', 'Query for inspiration emails');
-        program.option('--gmail-replier-inspiration-limit <number>', 'Max inspiration emails', parseInt);
-        program.option('--gmail-replier-draft-model <model>', 'Model for drafting replies');
-        program.option('--gmail-replier-draft-prompt <text>', 'Prompt for drafting replies');
-        program.option('--gmail-replier-evaluate-reply', 'Evaluate if reply is needed (default: true)');
-        program.option('--no-gmail-replier-evaluate-reply', 'Disable reply evaluation');
-        program.option('--gmail-replier-evaluate-model <model>', 'Model for evaluation');
-        program.option('--gmail-replier-evaluate-prompt <text>', 'Prompt for evaluation');
-        program.option('--gmail-replier-interactive', 'Enable interactive review (default: true)');
-        program.option('--no-gmail-replier-interactive', 'Disable interactive review');
-        program.option('--gmail-replier-auto-send', 'Auto-send if interactive is false');
-        program.option('--gmail-replier-output-mode <mode>', 'Output mode');
-        program.option('--gmail-replier-output-column <column>', 'Output column');
-        program.option('--gmail-replier-output-explode', 'Explode results');
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-gmail-replier-target-query <query>`, `Target query for step ${s}`);
@@ -46,7 +27,7 @@ export class GmailReplierAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const targetQuery = getOpt('gmailReplierTargetQuery');

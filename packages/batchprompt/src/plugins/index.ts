@@ -1,5 +1,6 @@
 import { PluginRegistryV2, BasePluginRow, LlmFactory } from './types.js';
 import { WebSearchPlugin } from './web-search/WebSearchPlugin.js';
+import { ImageSearchPlugin } from './image-search/ImageSearchPlugin.js';
 import { ValidationPlugin } from './validation/ValidationPlugin.js';
 import { DedupePlugin } from './dedupe/DedupePlugin.js';
 import { WebsiteAgentPlugin } from './website-agent/WebsiteAgentPlugin.js';
@@ -21,6 +22,8 @@ export * from './types.js';
 // Re-export plugin classes
 export { WebSearchPlugin } from './web-search/WebSearchPlugin.js';
 export { WebSearchPluginRow } from './web-search/WebSearchPluginRow.js';
+export { ImageSearchPlugin } from './image-search/ImageSearchPlugin.js';
+export { ImageSearchPluginRow } from './image-search/ImageSearchPluginRow.js';
 export { ValidationPlugin } from './validation/ValidationPlugin.js';
 export { ValidationPluginRow } from './validation/ValidationPluginRow.js';
 export { DedupePlugin } from './dedupe/DedupePlugin.js';
@@ -53,6 +56,12 @@ export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2
     if (deps.webSearch) {
         registry.registerFactory('webSearch', () => new WebSearchPlugin({
             webSearch: deps.webSearch!
+        }));
+    }
+
+    if (deps.imageSearch) {
+        registry.registerFactory('imageSearch', () => new ImageSearchPlugin({
+            imageSearch: deps.imageSearch!
         }));
     }
 

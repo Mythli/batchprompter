@@ -98,7 +98,7 @@ export interface LlmCommonOptions {
     frequency_penalty?: number;
     presence_penalty?: number;
     stop?: string | string[];
-    reasoning_effort?: 'low' | 'medium' | 'high';
+    reasoning_effort?: 'low' | 'medium' | 'high' | 'max';
     seed?: number;
     user?: string;
     tools?: OpenAI.Chat.Completions.ChatCompletionTool[];

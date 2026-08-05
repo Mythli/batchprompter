@@ -1,5 +1,73 @@
 import type { Page } from 'puppeteer';
 
+const EMAIL_SELECTOR = 'input[name="identifier"], input#identifierId, input[type="email"]';
+const PASSWORD_SELECTOR = 'input[name="Passwd"], input[type="password"]:not([name="hiddenPassword"])';
+const ACCOUNT_IDENTITY_SELECTOR = [
+  'a[href*="SignOutOptions"]',
+  'a[aria-label^="Google Account"]',
+  'a[aria-label^="Google-Konto"]',
+  '[data-email][role="button"]',
+  '[data-email][role="link"]'
+].join(', ');
+
+async function fillSignInInput(page: Page, selector: string, value: string): Promise<void> {
+  const input = await page.waitForSelector(selector, { visible: true });
+  if (!input) throw new Error(`Could not find a visible sign-in input matching: ${selector}`);
+
+  await input.focus();
+  await input.evaluate((element, nextValue) => {
+    const htmlInput = element as HTMLInputElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(htmlInput, nextValue);
+    htmlInput.dispatchEvent(new InputEvent('input', {
+      bubbles: true,
+      inputType: 'insertText',
+      data: nextValue
+    }));
+    htmlInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
+}
+
+async function clickSignInNext(page: Page, legacySelector: string): Promise<void> {
+  const clicked = await page.evaluate((oldSelector) => {
+    const candidates = [
+      document.querySelector(oldSelector),
+      document.querySelector('button[jsname="LgbsSe"]'),
+      ...Array.from(document.querySelectorAll('button')).filter((button) => {
+        const text = (button.textContent || '').trim().toLowerCase();
+        return text === 'next' || text === 'weiter';
+      })
+    ];
+    const button = candidates.find((candidate) => {
+      if (!(candidate instanceof HTMLElement)) return false;
+      const style = window.getComputedStyle(candidate);
+      return style.display !== 'none' && style.visibility !== 'hidden'
+        && candidate.offsetWidth > 0 && candidate.offsetHeight > 0;
+    });
+    (button as HTMLElement | undefined)?.click();
+    return Boolean(button);
+  }, legacySelector);
+
+  if (!clicked) {
+    throw new Error(`Could not find the Google sign-in Next button (legacy selector: ${legacySelector}).`);
+  }
+}
+
+async function getSignInError(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const messages = Array.from(document.querySelectorAll('[role="alert"], [aria-live="assertive"]'))
+      .filter((element) => {
+        const htmlElement = element as HTMLElement;
+        const style = window.getComputedStyle(htmlElement);
+        return style.display !== 'none' && style.visibility !== 'hidden'
+          && htmlElement.offsetWidth > 0 && htmlElement.offsetHeight > 0;
+      })
+      .map((element) => (element.textContent || '').trim())
+      .filter((message) => message && message.toLowerCase() !== 'welcome');
+    return messages[0] || null;
+  });
+}
+
 export interface GmailAuthOptions {
   email?: string;
   password?: string;
@@ -54,7 +122,7 @@ async function solveCaptchaIfPresent(
 
   // If we are on the password step, the CAPTCHA sometimes clears the password field
   if (passwordToRetype) {
-    const pwdInput = await page.$('input[type="password"]');
+    const pwdInput = await page.$(PASSWORD_SELECTOR);
     if (pwdInput) {
       const val = await page.evaluate(el => (el as HTMLInputElement).value, pwdInput);
       if (!val) {
@@ -63,7 +131,7 @@ async function solveCaptchaIfPresent(
     }
   }
 
-  await page.click(nextButtonSelector);
+  await clickSignInNext(page, nextButtonSelector);
   return true;
 }
 
@@ -81,7 +149,7 @@ async function clickAccountChooserIfPresent(page: Page, email: string, timeout: 
   const isAccountsPage = page.url().includes('accounts.google.com');
   if (!isAccountsPage) return;
 
-  if (await hasVisibleSelector(page, 'input[type="email"]')) {
+  if (await hasVisibleSelector(page, EMAIL_SELECTOR)) {
     return;
   }
 
@@ -145,8 +213,8 @@ async function clickAccountChooserIfPresent(page: Page, email: string, timeout: 
   if (!clicked) return;
 
   await page.waitForFunction(() => {
-    const emailInput = document.querySelector('input[type="email"]');
-    const passwordInput = document.querySelector('input[type="password"]:not([disabled])');
+    const emailInput = document.querySelector('input[name="identifier"], input#identifierId, input[type="email"]');
+    const passwordInput = document.querySelector('input[name="Passwd"], input[type="password"]:not([name="hiddenPassword"]):not([disabled])');
     const captcha = document.querySelector('img#captchaimg');
     const isGmail = window.location.hostname === 'mail.google.com';
     return emailInput || passwordInput || isGmail || (captcha && (captcha as HTMLElement).offsetWidth > 0);
@@ -159,6 +227,57 @@ function isGmailUrl(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+export async function getAuthenticatedGmailEmail(page: Page): Promise<string | null> {
+  return page.evaluate((selector) => {
+    const emailPattern = /[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+    const candidates = Array.from(document.querySelectorAll(selector));
+
+    for (const candidate of candidates) {
+      const values = [
+        candidate.getAttribute('data-email'),
+        candidate.getAttribute('data-identifier'),
+        candidate.getAttribute('aria-label'),
+        candidate.getAttribute('title'),
+        candidate.textContent
+      ];
+
+      for (const value of values) {
+        const match = value?.match(emailPattern);
+        if (match) return match[0].trim().toLowerCase();
+      }
+    }
+
+    return null;
+  }, ACCOUNT_IDENTITY_SELECTOR);
+}
+
+export async function assertAuthenticatedGmailAccount(
+  page: Page,
+  expectedEmail: string,
+  timeout: number = 30000
+): Promise<void> {
+  const expected = expectedEmail.trim().toLowerCase();
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() <= deadline) {
+    const actual = await getAuthenticatedGmailEmail(page);
+    if (actual) {
+      if (actual !== expected) {
+        throw new Error(
+          `Authenticated Gmail account "${actual}" does not match configured account "${expected}". Refusing to continue.`
+        );
+      }
+      return;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  throw new Error(
+    `Could not verify the authenticated Gmail account as "${expected}". Refusing to continue.`
+  );
 }
 
 /**
@@ -202,16 +321,16 @@ export async function ensureAuthenticatedGmail(
 
     await clickAccountChooserIfPresent(page, options.email, timeout);
 
-    const needsEmail = await hasVisibleSelector(page, 'input[type="email"]');
+    const needsEmail = await hasVisibleSelector(page, EMAIL_SELECTOR);
 
     if (needsEmail) {
       // 1. Enter Email
-      await page.type('input[type="email"]', options.email, { delay: 50 });
-      await page.click('#identifierNext');
+      await fillSignInInput(page, EMAIL_SELECTOR, options.email);
+      await clickSignInNext(page, '#identifierNext');
 
       // Wait for password field OR captcha
       await page.waitForFunction(() => {
-        const pwd = document.querySelector('input[type="password"]:not([disabled])');
+        const pwd = document.querySelector('input[name="Passwd"], input[type="password"]:not([name="hiddenPassword"]):not([disabled])');
         const captcha = document.querySelector('img#captchaimg');
         return pwd || (captcha && (captcha as HTMLElement).offsetWidth > 0);
       }, { timeout });
@@ -220,39 +339,51 @@ export async function ensureAuthenticatedGmail(
       if (solvedEmailCaptcha) {
         // Wait for password field to become active after captcha submission
         await page.waitForFunction(() => {
-          const input = document.querySelector('input[type="password"]');
+          const input = document.querySelector('input[name="Passwd"], input[type="password"]:not([name="hiddenPassword"])');
           return input && !input.hasAttribute('disabled');
         }, { timeout });
       }
     } else {
       await page.waitForFunction(() => {
         const isGmail = window.location.hostname === 'mail.google.com';
-        const input = document.querySelector('input[type="password"]');
+        const input = document.querySelector('input[name="Passwd"], input[type="password"]:not([name="hiddenPassword"])');
         const captcha = document.querySelector('img#captchaimg');
         return isGmail || (input && !input.hasAttribute('disabled')) || (captcha && (captcha as HTMLElement).offsetWidth > 0);
       }, { timeout });
     }
 
     if (isGmailUrl(page.url())) {
+      await assertAuthenticatedGmailAccount(page, options.email, timeout);
       return page;
     }
 
     // 2. Enter Password
-    await page.waitForSelector('input[type="password"]', { visible: true, timeout });
+    await page.waitForSelector(PASSWORD_SELECTOR, { visible: true, timeout });
     await page.waitForFunction(() => {
-      const input = document.querySelector('input[type="password"]');
+      const input = document.querySelector('input[name="Passwd"], input[type="password"]:not([name="hiddenPassword"])');
       return input && !input.hasAttribute('disabled');
     }, { timeout });
     
-    await page.type('input[type="password"]', options.password, { delay: 50 });
-    await page.click('#passwordNext');
+    await fillSignInInput(page, PASSWORD_SELECTOR, options.password);
+    await clickSignInNext(page, '#passwordNext');
 
     // Wait for success OR captcha
     await page.waitForFunction(() => {
       const isGmail = window.location.hostname === 'mail.google.com';
       const captcha = document.querySelector('img#captchaimg');
-      return isGmail || (captcha && (captcha as HTMLElement).offsetWidth > 0);
+      const error = Array.from(document.querySelectorAll('[role="alert"], [aria-live="assertive"]'))
+        .find((element) => {
+          const htmlElement = element as HTMLElement;
+          const message = (element.textContent || '').trim().toLowerCase();
+          return message && message !== 'welcome' && htmlElement.offsetWidth > 0 && htmlElement.offsetHeight > 0;
+        });
+      return isGmail || error || (captcha && (captcha as HTMLElement).offsetWidth > 0);
     }, { timeout: 60000 });
+
+    const signInError = await getSignInError(page);
+    if (signInError) {
+      throw new Error(`Google sign-in rejected the login attempt: ${signInError}`);
+    }
 
     const solvedPwdCaptcha = await solveCaptchaIfPresent(page, options.resolveCaptcha, '#passwordNext', options.password);
     if (solvedPwdCaptcha) {
@@ -278,6 +409,10 @@ export async function ensureAuthenticatedGmail(
   // Final verification that we are on the right domain
   if (!isGmailUrl(page.url())) {
     throw new Error(`Failed to authenticate. Ended up at unexpected URL: ${page.url()}`);
+  }
+
+  if (options.email) {
+    await assertAuthenticatedGmailAccount(page, options.email, timeout);
   }
 
   return page;

@@ -779,7 +779,7 @@ Each model config (\`queryModel\`, \`selectModel\`, \`compressModel\`) accepts:
 - \`prompt\`: Instructions for the AI
 - \`system\`: System prompt
 - \`temperature\`: Temperature setting
-- \`thinkingLevel\`: Reasoning effort (\`low\` / \`medium\` / \`high\`)
+- \`thinkingLevel\`: Reasoning effort (\`low\` / \`medium\` / \`high\` / \`max\`)
 
 ### How Web Search Works Internally
 

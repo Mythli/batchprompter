@@ -83,7 +83,7 @@ graph TD
 BatchPrompt comes with powerful built-in plugins to give your LLM access to the real world.
 
 *   **Web Search** (`webSearch`): Google Search via Serper, with optional content fetching and AI selection.
-*   **Image Search** (`imageSearch`): Find and download images for RAG or analysis.
+*   **Image Search** (`imageSearch`): Find and download images for RAG or analysis. Supports Serper/Google Images `tbs` filters such as `sur:cl` for Creative Commons results; always verify source license terms.
 *   **Website Agent** (`websiteAgent`): Browser-based extraction of structured data from websites.
 *   **Style Scraper** (`styleScraper`): Captures screenshots and computed CSS for design analysis.
 *   **Logo Scraper** (`logoScraper`): Extracts logos, favicons, and brand colors from websites.
@@ -107,6 +107,11 @@ cat data.csv | batchprompt generate --config config.json
 ```
 
 See the [Tutorials](#-tutorials) for examples of both methods.
+
+Browser-backed plugins and Gmail reuse the Chrome session stored in
+`puppeteer_user_data` by default. Set
+`BATCHPROMPT_PUPPETEER_USER_DATA_DIR=puppeteer_user_data/profiles/account-name`
+in each account-specific environment file to keep Gmail logins separate.
 
 ### Audio Output
 

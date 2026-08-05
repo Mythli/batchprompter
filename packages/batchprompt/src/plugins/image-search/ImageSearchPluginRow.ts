@@ -4,7 +4,6 @@ import { ImageSearchConfig } from './ImageSearchPlugin.js';
 import { AiImageSearch } from './AiImageSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { ImageSearch } from './ImageSearch.js';
-import * as path from 'path';
 
 export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
     constructor(
@@ -18,8 +17,6 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
     async prepare(): Promise<PluginResult> {
         const { stepRow, config } = this;
         const { context } = stepRow;
-        const emit = stepRow.step.deps.events.emit.bind(stepRow.step.deps.events);
-        const tmpDir = await stepRow.getTempDir();
 
         const queryLlm = config.queryModel ? await stepRow.createLlm(config.queryModel) : undefined;
         const selectLlm = config.selectModel ? await stepRow.createLlm(config.selectModel) : undefined;
@@ -29,12 +26,9 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
         const aiImageSearch = new AiImageSearch(this.imageSearch, queryLlm, selector);
 
         aiImageSearch.events.on('query:generated', (data) => {
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'imageSearch',
+            this.emitTmpArtifact({
                 type: 'json',
-                filename: path.join(tmpDir, `imageSearch/queries/queries_${Date.now()}.json`),
+                filename: `imageSearch/queries/queries_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
                 tags: ['debug', 'imageSearch', 'queries']
             });
@@ -42,36 +36,27 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
 
         aiImageSearch.events.on('search:result', (data) => {
             const safeQuery = data.query.replace(/[^a-z0-9]/gi, '_').substring(0, 50);
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'imageSearch',
+            this.emitTmpArtifact({
                 type: 'json',
-                filename: path.join(tmpDir, `imageSearch/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`),
+                filename: `imageSearch/scatter/scatter_${safeQuery}_p${data.page}_${Date.now()}.json`,
                 content: JSON.stringify(data, null, 2),
                 tags: ['debug', 'imageSearch', 'scatter']
             });
         });
 
         aiImageSearch.events.on('artifact:sprite', (data) => {
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'imageSearch',
+            this.emitTmpArtifact({
                 type: 'image',
-                filename: path.join(tmpDir, `imageSearch/sprites/sprite_${data.index}_${Date.now()}.jpg`),
+                filename: `imageSearch/sprites/sprite_${data.index}_${Date.now()}.jpg`,
                 content: data.buffer,
                 tags: ['debug', 'imageSearch', 'sprite']
             });
         });
 
         aiImageSearch.events.on('artifact:candidate', (data) => {
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'imageSearch',
+            this.emitTmpArtifact({
                 type: 'image',
-                filename: path.join(tmpDir, `imageSearch/candidates/candidate_${data.index}_${Date.now()}.jpg`),
+                filename: `imageSearch/candidates/candidate_${data.index}_${Date.now()}.jpg`,
                 content: data.buffer,
                 tags: ['debug', 'imageSearch', 'candidate']
             });
@@ -79,27 +64,26 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
 
         aiImageSearch.events.on('result:selected', (data) => {
             // Emit JSON metadata
-            emit('artifact:emit', {
-                row: stepRow.getOriginalIndex(),
-                step: stepRow.step.stepIndex,
-                source: 'imageSearch',
+            this.emitTmpArtifact({
                 type: 'json',
-                filename: path.join(tmpDir, `imageSearch/selected/selected_${Date.now()}.json`),
+                filename: `imageSearch/selected/selected_${Date.now()}.json`,
                 content: JSON.stringify(data.results.map((r: any) => r.metadata), null, 2),
                 tags: ['final', 'imageSearch', 'selected']
             });
 
             // Emit actual selected images
             data.results.forEach((r: any, i: number) => {
-                const ext = r.metadata.imageUrl.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
-                emit('artifact:emit', {
-                    row: stepRow.getOriginalIndex(),
-                    step: stepRow.step.stepIndex,
-                    source: 'imageSearch',
+                const { ext } = getImageFormat(r.buffer);
+                this.emitArtifact({
                     type: 'image',
-                    filename: path.join(tmpDir, `imageSearch/selected/image_${i}_${Date.now()}.${ext}`),
+                    filename: `imageSearch/selected/image_${i}_${Date.now()}.${ext}`,
                     content: r.buffer,
-                    tags: ['final', 'imageSearch', 'selected', 'image']
+                    tags: ['final', 'imageSearch', 'selected', 'image'],
+                    metadata: r.metadata,
+                    index: i,
+                    total: data.results.length,
+                    artifactName: `image_${i}`,
+                    extension: ext
                 });
             });
         });
@@ -111,14 +95,15 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
             maxPages: config.maxPages,
             dedupeStrategy: config.dedupeStrategy,
             gl: config.gl,
-            hl: config.hl
+            hl: config.hl,
+            tbs: config.tbs
         });
 
         const history = await stepRow.getPreparedMessages();
 
         const items: PluginItem[] = result.map((searchResult) => {
             const base64 = searchResult.buffer.toString('base64');
-            const mimeType = searchResult.metadata.imageUrl.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+            const { mimeType } = getImageFormat(searchResult.buffer);
             const dataUrl = `data:${mimeType};base64,${base64}`;
 
             return {
@@ -142,4 +127,35 @@ export class ImageSearchPluginRow extends BasePluginRow<ImageSearchConfig> {
             items
         };
     }
+}
+
+function getImageFormat(buffer: Buffer): { ext: string; mimeType: string } {
+    if (buffer.length >= 12
+        && buffer.toString('ascii', 0, 4) === 'RIFF'
+        && buffer.toString('ascii', 8, 12) === 'WEBP') {
+        return { ext: 'webp', mimeType: 'image/webp' };
+    }
+
+    if (buffer.length >= 8
+        && buffer[0] === 0x89
+        && buffer[1] === 0x50
+        && buffer[2] === 0x4e
+        && buffer[3] === 0x47) {
+        return { ext: 'png', mimeType: 'image/png' };
+    }
+
+    if (buffer.length >= 3
+        && buffer[0] === 0xff
+        && buffer[1] === 0xd8
+        && buffer[2] === 0xff) {
+        return { ext: 'jpg', mimeType: 'image/jpeg' };
+    }
+
+    if (buffer.length >= 6
+        && (buffer.toString('ascii', 0, 6) === 'GIF87a'
+            || buffer.toString('ascii', 0, 6) === 'GIF89a')) {
+        return { ext: 'gif', mimeType: 'image/gif' };
+    }
+
+    return { ext: 'jpg', mimeType: 'image/jpeg' };
 }

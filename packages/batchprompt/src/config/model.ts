@@ -9,8 +9,8 @@ export const PromptSchema = z.union([
 export const RawModelConfigSchema = z.object({
     model: z.string().optional(),
     temperature: z.number().min(0).max(2).optional(),
-    reasoning_effort: z.enum(['low', 'medium', 'high']).optional(),
-    thinkingLevel: z.enum(['low', 'medium', 'high']).optional(),
+    reasoning_effort: z.enum(['low', 'medium', 'high', 'max']).optional(),
+    thinkingLevel: z.enum(['low', 'medium', 'high', 'max']).optional(),
     modalities: z.array(z.string()).optional(),
     audio: z.object({
         voice: z.string().optional(),
@@ -26,7 +26,7 @@ export type RawModel = z.infer<(typeof RawModelConfigSchema)>;
 export interface ModelConfig {
     model?: string;
     temperature?: number;
-    reasoning_effort?: 'low' | 'medium' | 'high';
+    reasoning_effort?: 'low' | 'medium' | 'high' | 'max';
     modalities?: string[];
     audio?: {
         voice?: string;

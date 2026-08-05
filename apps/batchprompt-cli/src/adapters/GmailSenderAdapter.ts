@@ -4,25 +4,6 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class GmailSenderAdapter implements CliPluginAdapter {
     readonly pluginType = 'gmailSender';
 
-    registerOptions(program: Command) {
-        program.option('--gmail-to <template>', 'Recipient email address (Handlebars)');
-        program.option('--gmail-subject <template>', 'Email subject (Handlebars)');
-        program.option('--gmail-body <template>', 'Email body in Markdown (Handlebars)');
-        program.option('--gmail-reply-to-id <template>', 'Thread ID to reply to (Handlebars)');
-        program.option('--gmail-delay-min <number>', 'Minimum delay in minutes before sending', parseFloat);
-        program.option('--gmail-delay-max <number>', 'Maximum delay in minutes before sending', parseFloat);
-        program.option('--gmail-send-if-received', 'Send even if we have received an email from the recipient');
-        program.option('--gmail-skip-if-subject-match', 'Skip sending if an email with the exact subject was already sent to the recipient');
-        program.option('--gmail-reply-to-last-thread', 'Reply to the most recent thread with the recipient');
-        program.option('--gmail-require-existing-thread', 'Only send if a previous thread with the recipient exists');
-        program.option('--gmail-evaluate-replies', 'Use AI to evaluate if previous replies are just autoresponders');
-        program.option('--gmail-evaluation-model <model>', 'Model for reply evaluation');
-        program.option('--gmail-evaluation-prompt <text>', 'Prompt for reply evaluation');
-        program.option('--gmail-output-mode <mode>', 'Output mode: merge/column/ignore');
-        program.option('--gmail-output-column <column>', 'Output column name');
-        program.option('--gmail-output-explode', 'Explode results into multiple rows');
-    }
-
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-gmail-to <template>`, `Recipient for step ${s}`);
@@ -46,7 +27,7 @@ export class GmailSenderAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey] ?? options[key];
+            return options[stepKey];
         };
 
         const body = getOpt('gmailBody');

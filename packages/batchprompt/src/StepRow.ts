@@ -10,6 +10,7 @@ import { GenerationStrategy } from './strategies/GenerationStrategy.js';
 import { PluginResult, PluginItem } from './plugins/types.js';
 import { OutputConfig, StepConfig } from "./config/schema.js";
 import { ModelConfig } from "./config/model.js";
+import { withRuntimeTemplateFields } from './utils/runtimeTemplateFields.js';
 
 /**
  * Describes a single processing stage within a step.
@@ -95,13 +96,16 @@ export class StepRow {
         return this.config.plugins || [];
     }
 
-    async getTempDir() {
+    public getTempDirPath(): string {
         const baseTmp = (this.config as any).resolvedTempDir || '/tmp';
         const lineagePart = this.state.lineage.length > 0 ? `_v${this.state.lineage.join('-')}` : '';
         
         // Hierarchical isolation: /baseTmp/row_0_v1-2/step_2/
-        const dir = path.join(baseTmp, `row_${this.state.originalIndex}${lineagePart}`, `step_${this.step.stepIndex + 1}`);
-        
+        return path.join(baseTmp, `row_${this.state.originalIndex}${lineagePart}`, `step_${this.step.stepIndex + 1}`);
+    }
+
+    async getTempDir() {
+        const dir = this.getTempDirPath();
         await fsPromises.mkdir(dir, { recursive: true });
         return dir;
     }
@@ -269,7 +273,7 @@ export class StepRow {
         content: OpenAI.Chat.Completions.ChatCompletionContentPart[]
     ): StepRow {
         const newData = JSON.parse(JSON.stringify(this.state.data));
-        const newContext = { ...this.state.context };
+        let newContext = { ...this.state.context };
 
         if (data != null) {
             if (namespace) {
@@ -289,6 +293,8 @@ export class StepRow {
                 applyDataToTarget(newContext, data, { column: outputConfig.column });
             }
         }
+
+        newContext = withRuntimeTemplateFields(newContext, this.state.originalIndex, lineage);
 
         const newState: StepRowState = {
             data: newData,
