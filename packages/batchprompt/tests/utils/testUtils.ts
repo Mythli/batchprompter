@@ -17,6 +17,7 @@ export type MockResponseResolver = (messages: OpenAI.Chat.Completions.ChatComple
 export interface TestContextOptions {
     responses?: (string | any)[] | MockResponseResolver;
     webSearch?: any;
+    webSearchProviders?: any;
     imageSearch?: any;
     puppeteerHelper?: any;
     fetcher?: any;
@@ -24,7 +25,15 @@ export interface TestContextOptions {
 }
 
 export function createTestContext(options: TestContextOptions = {}) {
-    const { responses = [], webSearch, imageSearch, puppeteerHelper, fetcher, cache } = options;
+    const {
+        responses = [],
+        webSearch,
+        webSearchProviders,
+        imageSearch,
+        puppeteerHelper,
+        fetcher,
+        cache
+    } = options;
     const openai = createMockOpenAI(responses);
     
     // Wrap the create method with a Vitest spy so we can use toHaveBeenCalledTimes() etc.
@@ -41,6 +50,7 @@ export function createTestContext(options: TestContextOptions = {}) {
         gptQueue: new PQueue({ concurrency: 1 }),
         taskQueue: new PQueue({ concurrency: 1 }),
         serperQueue: new PQueue({ concurrency: 1 }),
+        dataForSeoQueue: new PQueue({ concurrency: 1 }),
         puppeteerQueue: new PQueue({ concurrency: 1 }),
         puppeteerHelper: puppeteerHelper ?? {
             getPageHelper: vi.fn(),
@@ -56,10 +66,16 @@ export function createTestContext(options: TestContextOptions = {}) {
         }) as any,
         capabilities: {
             hasSerper: !!webSearch || !!imageSearch,
+            hasDataForSeo: webSearch?.provider === 'dataforseo'
+                || !!webSearchProviders?.dataforseo,
             hasPuppeteer: true
         },
         defaultModel: 'gpt-mock',
         webSearch,
+        webSearchProviders: {
+            ...(webSearch ? { serper: webSearch } : {}),
+            ...webSearchProviders
+        },
         imageSearch,
         pluginRegistry: null as any,
         llmFactory: null as any,
@@ -74,6 +90,7 @@ export interface TestEnvOptions {
     plugins?: BasePlugin[];
     schemaLoader?: any;
     webSearch?: any;
+    webSearchProviders?: any;
     imageSearch?: any;
     puppeteerHelper?: any;
     fetcher?: any;
@@ -86,6 +103,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
         plugins = [],
         schemaLoader = { load: async () => ({}) },
         webSearch,
+        webSearchProviders,
         imageSearch,
         puppeteerHelper,
         fetcher,
@@ -95,6 +113,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     const { deps, openai, events } = createTestContext({
         responses: mockResponses,
         webSearch,
+        webSearchProviders,
         imageSearch,
         puppeteerHelper,
         fetcher,
@@ -110,6 +129,7 @@ export function setupTestEnvironment(options: TestEnvOptions = {}) {
     const pluginRegistry = createPluginRegistry({
         createLlm: createLlm as any,
         webSearch: deps.webSearch,
+        webSearchProviders: deps.webSearchProviders,
         imageSearch: deps.imageSearch,
         puppeteerHelper: deps.puppeteerHelper,
         puppeteerQueue: deps.puppeteerQueue,

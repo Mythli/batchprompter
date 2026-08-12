@@ -2,7 +2,12 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { EventEmitter } from 'eventemitter3';
 import { BoundLlmClient } from '../../BoundLlmClient.js';
-import { WebSearch, WebSearchResult, WebSearchMode } from './WebSearch.js';
+import {
+    UnsupportedWebSearchOptionError,
+    WebSearchProvider,
+    WebSearchResult,
+    WebSearchMode
+} from './WebSearchProvider.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
 import { truncateSingleMessage } from 'llm-fns';
 
@@ -10,7 +15,7 @@ export class AiWebSearch {
     public readonly events = new EventEmitter();
 
     constructor(
-        private webSearch: WebSearch,
+        private webSearch: WebSearchProvider,
         private queryLlm?: BoundLlmClient,
         private selector?: LlmListSelector,
         private compressLlm?: BoundLlmClient
@@ -28,6 +33,7 @@ export class AiWebSearch {
             dedupeStrategy: 'none' | 'domain' | 'url';
             gl?: string;
             hl?: string;
+            includeAds: boolean;
             scrapedCache?: Set<string>;
         }
     ): Promise<{ contentParts: OpenAI.Chat.Completions.ChatCompletionContentPart[], data: WebSearchResult[] }> {
@@ -68,7 +74,14 @@ export class AiWebSearch {
         const pageResults = await Promise.all(tasks.map(async ({ query, page }) => {
             try {
                 // We still fetch 10 results per page from the search engine (standard page size)
-                const results = await this.webSearch.search(query, 10, page, config.gl, config.hl);
+                const results = await this.webSearch.search(
+                    query,
+                    10,
+                    page,
+                    config.gl,
+                    config.hl,
+                    config.includeAds
+                );
                 
                 this.events.emit('search:result', {
                     query,
@@ -78,6 +91,9 @@ export class AiWebSearch {
 
                 return results;
             } catch (e) {
+                if (e instanceof UnsupportedWebSearchOptionError) {
+                    throw e;
+                }
                 // console.warn(`[AiWebSearch] Task failed for "${query}" page ${page}:`, e);
                 return [];
             }

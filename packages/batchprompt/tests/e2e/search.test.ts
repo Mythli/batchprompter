@@ -217,23 +217,21 @@ describe('E2E Search Plugins', () => {
         // 3 calls per row × 2 rows = 6 calls
         expect(createCall).toHaveBeenCalledTimes(6);
 
-        // Verify Row 1 (Tesla) hydration — calls 0, 1, 2
-        const row1QueryMessages = JSON.stringify(createCall.mock.calls[0][0].messages);
-        expect(row1QueryMessages).toContain("Generate queries about Tesla");
-        expect(row1QueryMessages).not.toContain("{{company}}");
-
-        const row1SelectMessages = JSON.stringify(createCall.mock.calls[1][0].messages);
-        expect(row1SelectMessages).toContain("Select best result for Tesla");
-        expect(row1SelectMessages).not.toContain("{{company}}");
-
-        // Verify Row 2 (Apple) hydration — calls 3, 4, 5
-        const row2QueryMessages = JSON.stringify(createCall.mock.calls[3][0].messages);
-        expect(row2QueryMessages).toContain("Generate queries about Apple");
-        expect(row2QueryMessages).not.toContain("{{company}}");
-
-        const row2SelectMessages = JSON.stringify(createCall.mock.calls[4][0].messages);
-        expect(row2SelectMessages).toContain("Select best result for Apple");
-        expect(row2SelectMessages).not.toContain("{{company}}");
+        // Rows execute concurrently, so verify hydration without assuming call order.
+        const serializedCalls = createCall.mock.calls.map((call: any[]) =>
+            JSON.stringify(call[0].messages)
+        );
+        for (const company of ['Tesla', 'Apple']) {
+            expect(serializedCalls.some((messages: string) =>
+                messages.includes(`Generate queries about ${company}`)
+            )).toBe(true);
+            expect(serializedCalls.some((messages: string) =>
+                messages.includes(`Select best result for ${company}`)
+            )).toBe(true);
+        }
+        expect(serializedCalls.every((messages: string) =>
+            !messages.includes('{{company}}')
+        )).toBe(true);
     });
 
     it('should execute Image Search, emit selected images to output paths, and pass base64 to next step', async () => {

@@ -41,4 +41,30 @@ or as a nested object:
 - `gmailSender`
 - `gmailReplier`
 
-Some plugins depend on optional services. For example, `webSearch` and `imageSearch` require Serper, browser-based plugins require Puppeteer, and Gmail plugins require `GMAIL_EMAIL` / `GMAIL_PASSWORD`.
+Some plugins depend on optional services. `webSearch` supports Serper, DataForSEO, or Puppeteer, `imageSearch` requires Serper, browser-based plugins require Puppeteer, and Gmail plugins require `GMAIL_EMAIL` / `GMAIL_PASSWORD`. Set `provider: "dataforseo"` (recommended) or `"puppeteer"` together with `includeAds: true` to return sponsored Google results; the Serper provider rejects `includeAds`.
+
+DataForSEO uses HTTP Basic authentication. Configure either the API credential pair:
+
+```dotenv
+BATCHPROMPT_DATAFORSEO_LOGIN=your-api-login
+BATCHPROMPT_DATAFORSEO_PASSWORD=your-api-password
+```
+
+or its pre-encoded Base64 token:
+
+```dotenv
+BATCHPROMPT_DATAFORSEO_AUTH_TOKEN=your-base64-login-password
+```
+
+Then select it in a web-search plugin:
+
+```json
+{
+  "type": "webSearch",
+  "provider": "dataforseo",
+  "includeAds": true,
+  "query": "car insurance quotes",
+  "gl": "us",
+  "hl": "en"
+}
+```

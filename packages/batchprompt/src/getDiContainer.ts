@@ -4,7 +4,16 @@ import Keyv from 'keyv';
 import OpenAI from "openai";
 import PQueue from 'p-queue';
 import { ImageSearch } from './plugins/image-search/ImageSearch.js';
-import { WebSearch } from './plugins/web-search/WebSearch.js';
+import { SerperWebSearch } from './plugins/web-search/SerperWebSearch.js';
+import { PuppeteerWebSearch } from './plugins/web-search/PuppeteerWebSearch.js';
+import {
+    DataForSeoCredentials,
+    DataForSeoWebSearch
+} from './plugins/web-search/DataForSeoWebSearch.js';
+import {
+    WebSearchProvider,
+    WebSearchProviderMap
+} from './plugins/web-search/WebSearchProvider.js';
 import { createPluginRegistry } from './plugins/index.js';
 import { PuppeteerHelper } from './utils/puppeteer/PuppeteerHelper.js';
 import {createAiLoggingFetcher, createCachedFetcher, createLlm, CacheLike } from "llm-fns";
@@ -23,6 +32,7 @@ import { createGmailClient, GmailClient } from 'gmail-puppet';
 
 export interface ServiceCapabilities {
     hasSerper: boolean;
+    hasDataForSeo: boolean;
     hasPuppeteer: boolean;
 }
 
@@ -43,9 +53,13 @@ export const configSchema = z.object({
     CACHE_ENABLED: z.coerce.boolean().default(true),
     SQLITE_PATH: z.string().default(".cache.sqlite"),
     SERPER_API_KEY: z.string().optional(),
+    DATAFORSEO_LOGIN: z.string().optional(),
+    DATAFORSEO_PASSWORD: z.string().optional(),
+    DATAFORSEO_AUTH_TOKEN: z.string().optional(),
     TASK_CONCURRENCY: z.coerce.number().int().positive().default(100),
     GPT_CONCURRENCY: z.coerce.number().int().positive().default(50),
     SERPER_CONCURRENCY: z.coerce.number().int().positive().default(5),
+    DATAFORSEO_CONCURRENCY: z.coerce.number().int().positive().default(5),
     PUPPETEER_CONCURRENCY: z.coerce.number().int().positive().default(3),
     PUPPETEER_MAX_PAGES_BEFORE_RESTART: z.coerce.number().int().positive().default(50),
     PUPPETEER_RESTART_TIMEOUT: z.coerce.number().int().positive().default(10000),
@@ -60,7 +74,8 @@ export const configSchema = z.object({
 export type ConfigOverrides = {
     concurrency?: number;
     imageSearch?: ImageSearch;
-    webSearch?: WebSearch;
+    webSearch?: WebSearchProvider;
+    webSearchProviders?: WebSearchProviderMap;
     openai?: OpenAI;
     retryBaseDelay?: number;
 };
@@ -85,11 +100,13 @@ export interface BatchPromptDeps {
     gptQueue: PQueue;
     taskQueue: PQueue;
     serperQueue: PQueue;
+    dataForSeoQueue: PQueue;
     puppeteerQueue: PQueue;
     puppeteerHelper: PuppeteerHelper;
     fetcher: ReturnType<typeof createCachedFetcher>;
     imageSearch: ImageSearch | undefined;
-    webSearch: WebSearch | undefined;
+    webSearch: WebSearchProvider | undefined;
+    webSearchProviders: WebSearchProviderMap;
     capabilities: ServiceCapabilities;
     defaultModel: string;
     pluginRegistry: PluginRegistryV2;
@@ -104,9 +121,13 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         AI_API_URL: getEnvVar(env, ['BATCHPROMPT_OPENAI_BASE_URL', 'OPENAI_BASE_URL', 'AI_API_URL']),
         MODEL: getEnvVar(env, ['BATCHPROMPT_OPENAI_MODEL', 'OPENAI_MODEL', 'MODEL']),
         SERPER_API_KEY: getEnvVar(env, ['BATCHPROMPT_SERPER_API_KEY', 'SERPER_API_KEY']),
+        DATAFORSEO_LOGIN: getEnvVar(env, ['BATCHPROMPT_DATAFORSEO_LOGIN', 'DATAFORSEO_LOGIN']),
+        DATAFORSEO_PASSWORD: getEnvVar(env, ['BATCHPROMPT_DATAFORSEO_PASSWORD', 'DATAFORSEO_PASSWORD']),
+        DATAFORSEO_AUTH_TOKEN: getEnvVar(env, ['BATCHPROMPT_DATAFORSEO_AUTH_TOKEN', 'DATAFORSEO_AUTH_TOKEN']),
         TASK_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_TASK_CONCURRENCY', 'TASK_CONCURRENCY']),
         GPT_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_GPT_CONCURRENCY', 'GPT_CONCURRENCY']),
         SERPER_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_SERPER_CONCURRENCY', 'SERPER_CONCURRENCY']),
+        DATAFORSEO_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_DATAFORSEO_CONCURRENCY', 'DATAFORSEO_CONCURRENCY']),
         PUPPETEER_CONCURRENCY: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_CONCURRENCY', 'PUPPETEER_CONCURRENCY']),
         PUPPETEER_MAX_PAGES_BEFORE_RESTART: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_MAX_PAGES_BEFORE_RESTART', 'PUPPETEER_MAX_PAGES_BEFORE_RESTART']),
         PUPPETEER_RESTART_TIMEOUT: getEnvVar(env, ['BATCHPROMPT_PUPPETEER_RESTART_TIMEOUT', 'PUPPETEER_RESTART_TIMEOUT']),
@@ -119,9 +140,33 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     };
 
     const config = configSchema.parse(rawConfig);
+    if (
+        !config.DATAFORSEO_AUTH_TOKEN
+        && Boolean(config.DATAFORSEO_LOGIN) !== Boolean(config.DATAFORSEO_PASSWORD)
+    ) {
+        throw new Error(
+            'DataForSEO requires both BATCHPROMPT_DATAFORSEO_LOGIN and '
+            + 'BATCHPROMPT_DATAFORSEO_PASSWORD.'
+        );
+    }
+
+    const dataForSeoCredentials: DataForSeoCredentials | undefined = config.DATAFORSEO_AUTH_TOKEN
+        ? { authToken: config.DATAFORSEO_AUTH_TOKEN }
+        : config.DATAFORSEO_LOGIN && config.DATAFORSEO_PASSWORD
+            ? {
+                login: config.DATAFORSEO_LOGIN,
+                password: config.DATAFORSEO_PASSWORD
+            }
+            : undefined;
 
     const capabilities: ServiceCapabilities = {
-        hasSerper: !!config.SERPER_API_KEY || !!overrides.imageSearch || !!overrides.webSearch,
+        hasSerper: !!config.SERPER_API_KEY
+            || !!overrides.imageSearch
+            || !!overrides.webSearch
+            || !!overrides.webSearchProviders?.serper,
+        hasDataForSeo: !!dataForSeoCredentials
+            || overrides.webSearch?.provider === 'dataforseo'
+            || !!overrides.webSearchProviders?.dataforseo,
         hasPuppeteer: true
     };
 
@@ -162,20 +207,24 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     const serperQueue: PQueue = new PQueue({ concurrency: config.SERPER_CONCURRENCY });
     attachQueueLogger(serperQueue, 'Serper');
 
+    const dataForSeoQueue: PQueue = new PQueue({ concurrency: config.DATAFORSEO_CONCURRENCY });
+    attachQueueLogger(dataForSeoQueue, 'DataForSEO');
+
     const puppeteerQueue: PQueue = new PQueue({ concurrency: config.PUPPETEER_CONCURRENCY });
     attachQueueLogger(puppeteerQueue, 'Puppeteer');
 
     const defaultModel = config.MODEL || '~google/gemini-flash-latest';
 
     let imageSearch: ImageSearch | undefined = overrides.imageSearch;
-    let webSearch: WebSearch | undefined = overrides.webSearch;
+    let webSearch: WebSearchProvider | undefined = overrides.webSearch
+        || overrides.webSearchProviders?.serper;
 
     if (capabilities.hasSerper) {
         if (!imageSearch && config.SERPER_API_KEY) {
             imageSearch = new ImageSearch(config.SERPER_API_KEY, fetcher as any, serperQueue);
         }
         if (!webSearch && config.SERPER_API_KEY) {
-            webSearch = new WebSearch(config.SERPER_API_KEY, fetcher as any, serperQueue);
+            webSearch = new SerperWebSearch(config.SERPER_API_KEY, fetcher as any, serperQueue);
         }
     }
 
@@ -190,6 +239,25 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
             slowMo: config.PUPPETEER_SLOW_MO
         }
     });
+
+    const webSearchProviders: WebSearchProviderMap = {
+        ...overrides.webSearchProviders,
+        serper: overrides.webSearchProviders?.serper || webSearch,
+        dataforseo: overrides.webSearchProviders?.dataforseo || (
+            dataForSeoCredentials
+                ? new DataForSeoWebSearch(
+                    dataForSeoCredentials,
+                    fetcher as any,
+                    dataForSeoQueue
+                )
+                : undefined
+        ),
+        puppeteer: overrides.webSearchProviders?.puppeteer || new PuppeteerWebSearch(
+            puppeteerHelper,
+            fetcher as any,
+            puppeteerQueue
+        )
+    };
 
     let gmailClient: GmailClient | undefined;
     if (config.GMAIL_EMAIL && config.GMAIL_PASSWORD) {
@@ -242,6 +310,7 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
 
     const pluginRegistry = createPluginRegistry({
         webSearch,
+        webSearchProviders,
         imageSearch,
         puppeteerHelper,
         createLlm: createTheLlm,
@@ -271,11 +340,13 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
         gptQueue,
         taskQueue,
         serperQueue,
+        dataForSeoQueue,
         puppeteerQueue,
         puppeteerHelper,
         fetcher,
         imageSearch,
         webSearch,
+        webSearchProviders,
         capabilities,
         defaultModel,
         pluginRegistry,

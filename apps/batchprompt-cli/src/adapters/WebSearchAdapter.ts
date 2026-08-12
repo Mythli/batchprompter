@@ -4,6 +4,28 @@ import { CliPluginAdapter } from '../interfaces/CliPluginAdapter.js';
 export class WebSearchAdapter implements CliPluginAdapter {
     readonly pluginType = 'webSearch';
 
+    registerOptions(program: Command) {
+        program.option('--web-search-query <text>', 'Static search query');
+        program.option('--web-search-limit <number>', 'Max total results (default: 5)', parseInt);
+        program.option('--web-search-mode <mode>', 'Content mode: none/markdown/html (default: none)');
+        program.option('--web-search-query-count <number>', 'Queries to generate (default: 3)', parseInt);
+        program.option('--web-search-max-pages <number>', 'Max pages per query (default: 1)', parseInt);
+        program.option('--web-search-dedupe-strategy <strategy>', 'Deduplication: none/domain/url (default: none)');
+        program.option('--web-search-provider <provider>', 'Search provider: serper/dataforseo/puppeteer (default: serper)');
+        program.option('--web-search-include-ads', 'Include Google Ads (DataForSEO or Puppeteer)');
+        program.option('--web-search-gl <country>', 'Country code for search');
+        program.option('--web-search-hl <lang>', 'Language code for search');
+        program.option('--web-search-query-model <model>', 'Model for query generation');
+        program.option('--web-search-query-prompt <text>', 'Prompt for query generation');
+        program.option('--web-search-select-model <model>', 'Model for result selection');
+        program.option('--web-search-select-prompt <text>', 'Prompt for result selection');
+        program.option('--web-search-compress-model <model>', 'Model for content compression');
+        program.option('--web-search-compress-prompt <text>', 'Prompt for content compression');
+        program.option('--web-search-output-mode <mode>', 'Output mode: merge/column/ignore');
+        program.option('--web-search-output-column <column>', 'Output column name');
+        program.option('--web-search-output-explode', 'Explode results into multiple rows');
+    }
+
     registerOptionsForStep(program: Command, stepIndex: number) {
         const s = stepIndex;
         program.option(`--${s}-web-search-query <text>`, `Search query for step ${s}`);
@@ -12,6 +34,8 @@ export class WebSearchAdapter implements CliPluginAdapter {
         program.option(`--${s}-web-search-query-count <number>`, `Queries to generate for step ${s}`, parseInt);
         program.option(`--${s}-web-search-max-pages <number>`, `Max pages for step ${s}`, parseInt);
         program.option(`--${s}-web-search-dedupe-strategy <strategy>`, `Deduplication for step ${s}`);
+        program.option(`--${s}-web-search-provider <provider>`, `Search provider for step ${s}: serper/dataforseo/puppeteer`);
+        program.option(`--${s}-web-search-include-ads`, `Include Google Ads for step ${s} (DataForSEO or Puppeteer)`);
         program.option(`--${s}-web-search-gl <country>`, `Country code for step ${s}`);
         program.option(`--${s}-web-search-hl <lang>`, `Language code for step ${s}`);
         program.option(`--${s}-web-search-query-model <model>`, `Query model for step ${s}`);
@@ -28,7 +52,7 @@ export class WebSearchAdapter implements CliPluginAdapter {
     parseOptions(options: Record<string, any>, stepIndex: number): Record<string, any> | null {
         const getOpt = (key: string) => {
             const stepKey = `${stepIndex}${key.charAt(0).toUpperCase()}${key.slice(1)}`;
-            return options[stepKey];
+            return options[stepKey] ?? options[key];
         };
 
         const query = getOpt('webSearchQuery');
@@ -45,6 +69,8 @@ export class WebSearchAdapter implements CliPluginAdapter {
         if (getOpt('webSearchQueryCount') !== undefined) result.queryCount = getOpt('webSearchQueryCount');
         if (getOpt('webSearchMaxPages') !== undefined) result.maxPages = getOpt('webSearchMaxPages');
         if (getOpt('webSearchDedupeStrategy')) result.dedupeStrategy = getOpt('webSearchDedupeStrategy');
+        if (getOpt('webSearchProvider')) result.provider = getOpt('webSearchProvider');
+        if (getOpt('webSearchIncludeAds')) result.includeAds = true;
         if (getOpt('webSearchGl')) result.gl = getOpt('webSearchGl');
         if (getOpt('webSearchHl')) result.hl = getOpt('webSearchHl');
 

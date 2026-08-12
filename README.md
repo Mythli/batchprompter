@@ -20,7 +20,9 @@ npm install -g batchprompt
 ```bash
 export BATCHPROMPT_OPENAI_BASE_URL="https://openrouter.ai/api/v1"
 export BATCHPROMPT_OPENAI_API_KEY="sk-or-..."
-export BATCHPROMPT_SERPER_API_KEY="your-serper-key" # Required for webSearch/imageSearch
+export BATCHPROMPT_SERPER_API_KEY="your-serper-key" # Required for Serper webSearch and imageSearch
+export BATCHPROMPT_DATAFORSEO_LOGIN="your-api-login"
+export BATCHPROMPT_DATAFORSEO_PASSWORD="your-api-password" # Required for DataForSEO webSearch
 ```
 
 **Windows (PowerShell):**
@@ -28,6 +30,8 @@ export BATCHPROMPT_SERPER_API_KEY="your-serper-key" # Required for webSearch/ima
 $env:BATCHPROMPT_OPENAI_BASE_URL="https://openrouter.ai/api/v1"
 $env:BATCHPROMPT_OPENAI_API_KEY="sk-or-..."
 $env:BATCHPROMPT_SERPER_API_KEY="your-serper-key"
+$env:BATCHPROMPT_DATAFORSEO_LOGIN="your-api-login"
+$env:BATCHPROMPT_DATAFORSEO_PASSWORD="your-api-password"
 ```
 
 ---
@@ -82,13 +86,26 @@ graph TD
 
 BatchPrompt comes with powerful built-in plugins to give your LLM access to the real world.
 
-*   **Web Search** (`webSearch`): Google Search via Serper, with optional content fetching and AI selection.
+*   **Web Search** (`webSearch`): Google Search via Serper, DataForSEO, or Puppeteer, with optional content fetching and AI selection. DataForSEO and Puppeteer can include sponsored Google Ads.
 *   **Image Search** (`imageSearch`): Find and download images for RAG or analysis. Supports Serper/Google Images `tbs` filters such as `sur:cl` for Creative Commons results; always verify source license terms.
 *   **Website Agent** (`websiteAgent`): Browser-based extraction of structured data from websites.
 *   **Style Scraper** (`styleScraper`): Captures screenshots and computed CSS for design analysis.
 *   **Logo Scraper** (`logoScraper`): Extracts logos, favicons, and brand colors from websites.
 *   **Validation / Dedupe / Load Data** (`validation`, `dedupe`, `loadData`): Clean, validate, merge, and expand rows.
 *   **Gmail Sender / Replier** (`gmailSender`, `gmailReplier`): Send or reply to Gmail threads from pipeline rows.
+
+To include Google Ads, select DataForSEO (recommended for reliable automation) or Puppeteer:
+
+```json
+{
+  "type": "webSearch",
+  "provider": "dataforseo",
+  "includeAds": true,
+  "query": "{{keyword}}"
+}
+```
+
+`provider` defaults to `"serper"` for backwards compatibility. Serper does not expose ads through this integration and throws an `UnsupportedWebSearchOptionError` when called with `includeAds: true`. DataForSEO requires `BATCHPROMPT_DATAFORSEO_LOGIN` plus `BATCHPROMPT_DATAFORSEO_PASSWORD`, or a `BATCHPROMPT_DATAFORSEO_AUTH_TOKEN`.
 
 ---
 

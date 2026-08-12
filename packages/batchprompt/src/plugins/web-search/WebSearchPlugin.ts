@@ -8,7 +8,11 @@ import {
 import { StepRow } from '../../StepRow.js';
 import { PartialOutputConfigSchema, StepConfig, GlobalConfig } from '../../config/schema.js';
 import { ModelConfigSchema, ModelConfig } from '../../config/model.js';
-import { WebSearch } from './WebSearch.js';
+import {
+    WebSearchProvider,
+    WebSearchProviderMap,
+    WebSearchProviderName
+} from './WebSearchProvider.js';
 import { WebSearchPluginRow } from './WebSearchPluginRow.js';
 
 export const WebSearchConfigSchemaV2 = z.object({
@@ -25,6 +29,8 @@ export const WebSearchConfigSchemaV2 = z.object({
     queryCount: z.number().int().positive().default(3),
     maxPages: z.number().int().positive().default(1),
     dedupeStrategy: z.enum(['none', 'domain', 'url']).default('none'),
+    provider: z.enum(['serper', 'puppeteer', 'dataforseo']).default('serper'),
+    includeAds: z.boolean().default(false),
     gl: z.string().optional(),
     hl: z.string().optional()
 }).strict();
@@ -92,7 +98,7 @@ export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig
 
     constructor(
         private deps: {
-            webSearch: WebSearch;
+            webSearchProviders: WebSearchProviderMap;
         }
     ) {
         super();
@@ -136,6 +142,19 @@ export class WebSearchPlugin extends BasePlugin<WebSearchConfig, WebSearchConfig
     }
 
     createRow(stepRow: StepRow, config: WebSearchConfig): BasePluginRow<WebSearchConfig> {
-        return new WebSearchPluginRow(stepRow, config, this.deps.webSearch, this.scrapedCache);
+        const providerName: WebSearchProviderName = config.provider;
+        const webSearch: WebSearchProvider | undefined = this.deps.webSearchProviders[providerName];
+        if (!webSearch) {
+            throw new Error(
+                `Web search provider "${providerName}" is not available. `
+                + (providerName === 'serper'
+                    ? 'Configure BATCHPROMPT_SERPER_API_KEY or select another provider.'
+                    : providerName === 'dataforseo'
+                        ? 'Configure the DataForSEO login/password pair or auth token.'
+                        : 'Puppeteer is not available in this runtime.')
+            );
+        }
+
+        return new WebSearchPluginRow(stepRow, config, webSearch, this.scrapedCache);
     }
 }

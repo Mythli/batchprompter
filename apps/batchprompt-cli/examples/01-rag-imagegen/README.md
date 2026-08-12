@@ -21,4 +21,4 @@ bash examples/01-rag-imagegen/run.sh
 
 The config uses the `imageSearch` plugin and an image-capable model. It writes the generated artifact to `out/01-rag-imagegen/{{industry}}/HeroImage.jpg`.
 
-To bias searches toward Google Images results with Creative Commons license metadata, add `"tbs": "sur:cl"` to the `imageSearch` plugin config, or pass `--1-image-search-tbs sur:cl` in CLI mode. This is a search filter, not a license guarantee; verify the source page before reuse.
+To bias searches toward Google Images results with Creative Commons license metadata, add `"tbs": "sur:cl"` to the `imageSearch` plugin config, or pass `--image-search-tbs sur:cl` in CLI mode. This is a search filter, not a license guarantee; verify the source page before reuse.

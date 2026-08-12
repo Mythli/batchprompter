@@ -3,13 +3,13 @@ import { StepRow } from '../../StepRow.js';
 import { WebSearchConfig } from './WebSearchPlugin.js';
 import { AiWebSearch } from './AiWebSearch.js';
 import { LlmListSelector } from '../../utils/LlmListSelector.js';
-import { WebSearch } from './WebSearch.js';
+import { WebSearchProvider } from './WebSearchProvider.js';
 
 export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
     constructor(
         stepRow: StepRow,
         config: WebSearchConfig,
-        private webSearch: WebSearch,
+        private webSearch: WebSearchProvider,
         private scrapedCache: Set<string>
     ) {
         super(stepRow, config);
@@ -93,6 +93,7 @@ export class WebSearchPluginRow extends BasePluginRow<WebSearchConfig> {
             dedupeStrategy: config.dedupeStrategy,
             gl: config.gl,
             hl: config.hl,
+            includeAds: config.includeAds,
             scrapedCache: this.scrapedCache
         });
 

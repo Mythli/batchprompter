@@ -49,7 +49,7 @@ or as a nested object:
 - \`gmailSender\`
 - \`gmailReplier\`
 
-Some plugins depend on optional services. For example, \`webSearch\` and \`imageSearch\` require Serper, browser-based plugins require Puppeteer, and Gmail plugins require \`GMAIL_EMAIL\` / \`GMAIL_PASSWORD\`.
+Some plugins depend on optional services. \`webSearch\` supports Serper, DataForSEO, or Puppeteer; \`imageSearch\` requires Serper; browser-based plugins require Puppeteer; and Gmail plugins require \`GMAIL_EMAIL\` / \`GMAIL_PASSWORD\`.
 
 \`\`\`
 
@@ -762,6 +762,8 @@ The \`webSearch\` plugin uses nested model config objects for its AI operations:
 \`\`\`json
 {
   "type": "webSearch",
+  "provider": "dataforseo",
+  "includeAds": true,
   "query": "{{keyword}}",
   "selectModel": {
     "model": "~google/gemini-flash-latest",
@@ -794,6 +796,8 @@ Each model config (\`queryModel\`, \`selectModel\`, \`compressModel\`) accepts:
 \`\`\`bash
 export BATCHPROMPT_OPENAI_API_KEY="sk-..."
 export BATCHPROMPT_SERPER_API_KEY="..."
+export BATCHPROMPT_DATAFORSEO_LOGIN="..."
+export BATCHPROMPT_DATAFORSEO_PASSWORD="..."
 bash examples/03-seo-rank/run.sh
 \`\`\`
 

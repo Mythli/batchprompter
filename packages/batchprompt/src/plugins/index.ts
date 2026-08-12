@@ -10,7 +10,10 @@ import { UrlHandlerRegistry } from './url-expander/utils/UrlHandlerRegistry.js';
 import { GenericFetchHandler } from './url-expander/utils/GenericFetchHandler.js';
 import { GenericPuppeteerHandler } from './url-expander/utils/GenericPuppeteerHandler.js';
 import { WikipediaHandler } from './url-expander/utils/sites/WikipediaHandler.js';
-import { WebSearch } from './web-search/WebSearch.js';
+import {
+    WebSearchProvider,
+    WebSearchProviderMap
+} from './web-search/WebSearchProvider.js';
 import { ImageSearch } from './image-search/ImageSearch.js';
 import { PuppeteerHelper } from '../utils/puppeteer/PuppeteerHelper.js';
 import { Fetcher } from 'llm-fns';
@@ -37,7 +40,8 @@ export { StyleScraperPluginRow } from './style-scraper/StyleScraperPluginRow.js'
 
 export interface PluginDependencies {
     createLlm: LlmFactory;
-    webSearch?: WebSearch;
+    webSearch?: WebSearchProvider;
+    webSearchProviders?: WebSearchProviderMap;
     imageSearch?: ImageSearch;
     puppeteerHelper?: PuppeteerHelper;
     puppeteerQueue?: PQueue;
@@ -52,10 +56,18 @@ import PQueue from 'p-queue';
 export function createPluginRegistry(deps: PluginDependencies): PluginRegistryV2 {
     const registry = new PluginRegistryV2();
 
-    // 1. Web Search (Requires Serper)
-    if (deps.webSearch) {
+    const webSearchProviders: WebSearchProviderMap = {
+        ...deps.webSearchProviders
+    };
+    if (deps.webSearch && !webSearchProviders.serper) {
+        // Backwards compatibility for callers that inject the former WebSearch class.
+        webSearchProviders.serper = deps.webSearch;
+    }
+
+    // 1. Web Search (Serper, DataForSEO, and/or Puppeteer)
+    if (Object.keys(webSearchProviders).length > 0) {
         registry.registerFactory('webSearch', () => new WebSearchPlugin({
-            webSearch: deps.webSearch!
+            webSearchProviders
         }));
     }
 
