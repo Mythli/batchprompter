@@ -1,0 +1,36 @@
+model: ~google/gemini-flash-latest
+taskConcurrency: 1
+dataOutputPath: out/10-codex-agent/results.csv
+steps:
+  - plugins:
+      - type: codexAgent
+        prompt: >-
+          You are processing one BatchPrompt row. Analyze {{company}} for the audience
+          {{audience}}. Do not modify files. Return a concise summary and one recommendation.
+        workingDirectory: .
+        sandbox: read-only
+        approvalPolicy: never
+        ephemeral: true
+        outputSchema:
+          type: object
+          additionalProperties: false
+          properties:
+            summary:
+              type: string
+            recommendation:
+              type: string
+            confidence:
+              type: number
+              minimum: 0
+              maximum: 1
+          required: [summary, recommendation, confidence]
+        output:
+          mode: column
+          column: codex
+  - model:
+      prompt: >-
+        Turn this Codex analysis into a one-sentence follow-up action:
+        {{codex.summary}} Recommendation: {{codex.recommendation}}
+    output:
+      mode: column
+      column: followUp

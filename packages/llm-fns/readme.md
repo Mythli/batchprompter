@@ -32,6 +32,34 @@ Cache keys fingerprint the effective method, URL, normalized headers, and body. 
 
 The cache-key format is versioned. Version 1.0.27 intentionally does not read entries created by older releases.
 
+## Training Data Logging Fetch
+
+`createTrainingDataLoggingFetcher` records successful, non-streaming OpenAI Chat Completions as JSONL-ready training rows. Each row has the upstream-friendly shape `{ id, messages, metadata }`; the request messages are followed by the returned assistant message.
+
+```typescript
+import path from 'node:path';
+import OpenAI from 'openai';
+import {
+    createCachedFetcher,
+    createJsonlTrainingDataLogger,
+    createTrainingDataLoggingFetcher,
+} from 'llm-fns';
+
+const cachedFetch = createCachedFetcher({
+    cache,
+    fetch: globalThis.fetch,
+    prefix: 'openai',
+});
+const loggedFetch = createTrainingDataLoggingFetcher({
+    fetch: cachedFetch,
+    logger: createJsonlTrainingDataLogger(path.join(logDirectory, 'ai-training-data.jsonl')),
+    metadata: { application: 'my-app' },
+});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, fetch: loggedFetch });
+```
+
+This order wraps the logger around the cache, so both cache hits and misses produce training rows while only misses reach the provider. Put the logger inside `createCachedFetcher` instead when only real provider calls should be recorded. `metadata` can also be an async function of `{ request, response, url }`. Logging errors are non-fatal and can be observed with `onError`.
+
 ## Quick Start (Factory)
 
 The `createLlm` factory bundles all functionality (Basic, Retry, Zod) into a single client.

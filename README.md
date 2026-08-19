@@ -93,6 +93,40 @@ BatchPrompt comes with powerful built-in plugins to give your LLM access to the 
 *   **Logo Scraper** (`logoScraper`): Extracts logos, favicons, and brand colors from websites.
 *   **Validation / Dedupe / Load Data** (`validation`, `dedupe`, `loadData`): Clean, validate, merge, and expand rows.
 *   **Gmail Sender / Replier** (`gmailSender`, `gmailReplier`): Send or reply to Gmail threads from pipeline rows.
+*   **Codex Agent** (`codexAgent`): Run the Codex CLI once per row with a Handlebars prompt, optional structured output, and normal pipeline output handling.
+
+### Codex Agent
+
+The CLI-specific `codexAgent` plugin runs `codex exec` non-interactively. Codex must be installed and authenticated on the machine running BatchPrompt. Prompts, working directories, image paths, and additional directories support Handlebars fields from the current row.
+
+```yaml
+steps:
+  - plugins:
+      - type: codexAgent
+        prompt: |
+          Analyze {{company}} for {{audience}} and return the requested JSON.
+        workingDirectory: .
+        sandbox: read-only
+        approvalPolicy: never
+        ephemeral: true
+        outputSchema:
+          type: object
+          additionalProperties: false
+          properties:
+            summary: { type: string }
+            confidence: { type: number }
+          required: [summary, confidence]
+        output:
+          mode: column
+          column: codex
+  - model:
+      prompt: "Continue from the Codex finding: {{codex.summary}}"
+    output:
+      mode: column
+      column: followUp
+```
+
+Structured responses are parsed into row data automatically, so later steps can use paths such as `{{codex.summary}}`. Put consumers in a later step: all Handlebars templates for one step are hydrated before that step starts. The default sandbox is `read-only`; use `workspace-write` only when the agent is intended to edit files. Keep `taskConcurrency` low for agent workloads, and isolate working directories when multiple agents may write concurrently.
 
 To include Google Ads, select DataForSEO (recommended for reliable automation) or Puppeteer:
 

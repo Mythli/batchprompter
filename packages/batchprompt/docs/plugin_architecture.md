@@ -26,3 +26,10 @@ Current built-in plugin types:
 - `loadData`
 - `gmailSender`
 - `gmailReplier`
+
+CLI-specific plugin types registered by `batchprompt-cli`:
+
+- `shell-command`
+- `codexAgent`
+
+`codexAgent` runs during `prepare()`, returns the Codex final message as text or parsed JSON, and therefore participates in the same merge/column/ignore output handling as core plugins. Its output is available to Handlebars templates in subsequent steps.
