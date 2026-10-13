@@ -140,6 +140,23 @@ async function clickAccountChooserIfPresent(page: Page, email: string, timeout: 
   const isAccountsPage = page.url().includes('accounts.google.com');
   if (!isAccountsPage) return;
 
+  // Google sometimes restores the last identifier on a dedicated
+  // `confirmidentifier` page. That page is not an account chooser and does not
+  // expose an email input; the user has to press Next before the password field
+  // is rendered. Treating the displayed address as an account-chooser entry
+  // leaves us waiting forever for a password field.
+  if (page.url().includes('/signin/confirmidentifier')) {
+    await clickSignInNext(page, '#identifierNext');
+    await page.waitForFunction(() => {
+      const emailInput = document.querySelector('input[name="identifier"], input#identifierId, input[type="email"]');
+      const passwordInput = document.querySelector('input[name="Passwd"], input[type="password"]:not([name="hiddenPassword"]):not([disabled])');
+      const captcha = document.querySelector('img#captchaimg');
+      const isGmail = window.location.hostname === 'mail.google.com';
+      return emailInput || passwordInput || isGmail || (captcha && (captcha as HTMLElement).offsetWidth > 0);
+    }, { timeout });
+    return;
+  }
+
   if (await hasVisibleSelector(page, EMAIL_SELECTOR)) {
     return;
   }

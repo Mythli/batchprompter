@@ -21,6 +21,39 @@ function unflatten(obj: Record<string, any>): Record<string, any> {
     return result;
 }
 
+export function parseJsonData(content: string): Record<string, any>[] | undefined {
+    if (!content.startsWith('[') && !content.startsWith('{')) {
+        return undefined;
+    }
+
+    try {
+        const data = JSON.parse(content);
+        if (Array.isArray(data)) {
+            return data;
+        }
+        if (typeof data === 'object' && data !== null) {
+            return [data];
+        }
+    } catch {
+        // A stream of newline-delimited JSON objects is not one valid JSON
+        // document. Parse every non-empty physical line before falling back to
+        // CSV; this keeps large JSONL campaign inputs lossless.
+        const lines = content.split(/\r?\n/).filter(line => line.trim().length > 0);
+        if (lines.length > 1) {
+            try {
+                const rows = lines.map(line => JSON.parse(line));
+                if (rows.every(row => typeof row === 'object' && row !== null && !Array.isArray(row))) {
+                    return rows;
+                }
+            } catch {
+                return undefined;
+            }
+        }
+    }
+
+    return undefined;
+}
+
 export async function loadData(): Promise<Record<string, any>[] | undefined> {
     if (process.stdin.isTTY) {
         // No data piped
@@ -38,18 +71,9 @@ export async function loadData(): Promise<Record<string, any>[] | undefined> {
         return undefined;
     }
 
-    // Simple heuristic for JSON
-    if (content.startsWith('[') || content.startsWith('{')) {
-        try {
-            const data = JSON.parse(content);
-            if (Array.isArray(data)) {
-                return data;
-            } else if (typeof data === 'object' && data !== null) {
-                return [data];
-            }
-        } catch (e) {
-            // Fall through to CSV if JSON parse fails
-        }
+    const jsonData = parseJsonData(content);
+    if (jsonData) {
+        return jsonData;
     }
 
     // CSV parsing

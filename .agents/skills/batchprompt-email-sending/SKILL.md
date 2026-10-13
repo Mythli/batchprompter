@@ -22,7 +22,7 @@ The plugin accepts:
 - subject/body variant arrays with keys;
 - optional `variant` and `replyToId`;
 - `delayMin` and `delayMax`;
-- `sendIfReceived`, `skipIfSubjectMatch`;
+- `sendIfReceived`, `skipIfAnySentToRecipient`, `skipIfSubjectMatch`;
 - `replyToLastThread`, `requireExistingThread`;
 - `evaluateReplies` and `evaluationModel`;
 - plugin `output`.
@@ -33,6 +33,8 @@ approves a different policy.
 Semantics:
 
 - `sendIfReceived: false` skips a recipient when Gmail has received mail from them.
+- `skipIfAnySentToRecipient: true` skips a recipient when the active Gmail account
+  has ever sent mail to that address, regardless of subject.
 - `skipIfSubjectMatch: true` skips an already-sent exact subject.
 - `replyToLastThread: true` replies to the latest sent thread when found.
 - `requireExistingThread: true` skips when no sent thread exists.
@@ -56,8 +58,8 @@ sender. Show the complete test message and recorded status. Proceed only when ev
 required test row reports `gmailSender.status = success`.
 
 Write every result to a dedicated output file. Count `success`, `skipped`, and
-failures and report skip reasons such as `received_email`, `subject_match`, or
-`no_existing_thread`. Process startup is not evidence of delivery.
+failures and report skip reasons such as `received_email`, `sent_to_recipient`,
+`subject_match`, or `no_existing_thread`. Process startup is not evidence of delivery.
 
 Use `gmailReplier` only when the user asks to inspect or draft replies. Respect
 `targetQuery`, limits, evaluation, and interactive review settings from the reply

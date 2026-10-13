@@ -36,7 +36,9 @@ export const GmailSenderConfigSchema = z.object({
     delayMin: z.number().min(0).default(0),
     delayMax: z.number().min(0).default(0),
     sendIfReceived: z.boolean().default(true),
+    skipIfAnySentToRecipient: z.boolean().default(false),
     skipIfSubjectMatch: z.boolean().default(false),
+    skipIfThreadBodyContains: zHandlebars.optional(),
     replyToLastThread: z.boolean().default(false),
     requireExistingThread: z.boolean().default(false),
     evaluateReplies: z.boolean().default(false),
@@ -60,6 +62,7 @@ type EmailVariantContext = {
 
 export interface GmailSenderPluginDeps {
     gmailClient?: GmailClient;
+    senderEmail?: string;
 }
 
 /**
@@ -212,6 +215,7 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
             bodyVariant ? this.createEmailVariantContext(undefined, bodyVariant) : emailVariant
         );
         const replyToId = render(config.replyToId);
+        const skipIfThreadBodyContains = render(config.skipIfThreadBodyContains)?.trim();
 
         if (!bodyMarkdown) {
             throw new Error("Gmail Sender: 'body' is required.");
@@ -307,11 +311,31 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                     }
                 }
 
+                // Check if we have ever sent an email to this recipient
+                if (!skipSend && config.skipIfAnySentToRecipient) {
+                    const sentToRecipientQuery = `in:sent to:${toEmail}`;
+
+                    events.emit('plugin:event', {
+                        row: rowIndex,
+                        step: stepIndex,
+                        plugin: 'gmailSender',
+                        event: 'search:started',
+                        data: { query: sentToRecipientQuery }
+                    });
+
+                    const sentResults = await gmailClient.searchEmails(sentToRecipientQuery);
+
+                    if (sentResults.length > 0) {
+                        skipSend = true;
+                        skipReason = 'sent_to_recipient';
+                    }
+                }
+
                 // Check if we already sent an email with the exact subject
-                if (!skipSend && config.skipIfSubjectMatch && subject) {
+                if (!skipSend && config.skipIfSubjectMatch && subject && !config.replyToLastThread && !replyToId) {
                     const safeSubject = subject.replace(/"/g, '\\"');
                     const subjectQuery = `to:${toEmail} subject:"${safeSubject}"`;
-                    
+
                     events.emit('plugin:event', {
                         row: rowIndex,
                         step: stepIndex,
@@ -328,29 +352,6 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                     }
                 }
 
-                // Check for existing threads to reply to
-                if (!skipSend && (config.replyToLastThread || config.requireExistingThread)) {
-                    events.emit('plugin:event', {
-                        row: rowIndex,
-                        step: stepIndex,
-                        plugin: 'gmailSender',
-                        event: 'search:started',
-                        data: { query: `to:${toEmail}` }
-                    });
-
-                    const searchResults = await gmailClient.searchEmails(`to:${toEmail}`);
-
-                    if (searchResults.length === 0) {
-                        if (config.requireExistingThread) {
-                            skipSend = true;
-                            skipReason = 'no_existing_thread';
-                        }
-                    } else {
-                        if (config.replyToLastThread) {
-                            finalReplyToId = searchResults[0].id;
-                        }
-                    }
-                }
             }
 
             if (skipSend) {
@@ -393,6 +394,109 @@ class GmailSenderPluginRow extends BasePluginRow<GmailSenderConfig> {
                 });
 
                 await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+
+            // Re-check every thread for this recipient immediately before sending.
+            // An explicit replyToId is authoritative; replyToLastThread is only a
+            // fallback when no approved thread ID was supplied. Inspecting every
+            // matching thread also catches replies sent from a different address
+            // (for example a personal alias) that an exact from: search misses.
+            if (to) {
+                const toEmail = extractEmail(to);
+                const mustInspectRecipientThreads = Boolean(
+                    replyToId ||
+                    config.replyToLastThread ||
+                    config.requireExistingThread ||
+                    skipIfThreadBodyContains ||
+                    !config.sendIfReceived
+                );
+
+                if (mustInspectRecipientThreads) {
+                    events.emit('plugin:event', {
+                        row: rowIndex,
+                        step: stepIndex,
+                        plugin: 'gmailSender',
+                        event: 'search:started',
+                        data: { query: `to:${toEmail}` }
+                    });
+
+                    const searchResults = await gmailClient.searchEmails(`to:${toEmail}`);
+                    const selectedThread = replyToId
+                        ? searchResults.find(result => result.id === replyToId)
+                        : searchResults[0];
+
+                    if (!selectedThread && config.requireExistingThread) {
+                        skipSend = true;
+                        skipReason = 'no_existing_thread';
+                    } else if (!replyToId && config.replyToLastThread && selectedThread) {
+                        finalReplyToId = selectedThread.id;
+                    }
+
+                    if (!skipSend && !config.sendIfReceived && !deps.senderEmail) {
+                        throw new Error("Gmail Sender: 'sendIfReceived: false' requires the sender email so recipient threads can be checked safely.");
+                    }
+
+                    for (const thread of searchResults) {
+                        if (skipSend) break;
+
+                        const threadMessages = await gmailClient.readThread(thread.id, {
+                            setReadStatus: !thread.isUnread,
+                            wasUnread: thread.isUnread
+                        });
+
+                        if (!config.sendIfReceived) {
+                            const senderEmail = extractEmail(deps.senderEmail!);
+                            const hasIncomingMessage = threadMessages.some(message => {
+                                if (!message.senderEmail) return false;
+                                return extractEmail(message.senderEmail) !== senderEmail;
+                            });
+
+                            if (hasIncomingMessage) {
+                                skipSend = true;
+                                skipReason = 'thread_received_email';
+                                break;
+                            }
+                        }
+
+                        if (skipIfThreadBodyContains) {
+                            const markerFound = threadMessages.some(message =>
+                                message.textBody.includes(skipIfThreadBodyContains) ||
+                                message.htmlBody.includes(skipIfThreadBodyContains)
+                            );
+
+                            if (markerFound) {
+                                skipSend = true;
+                                skipReason = 'thread_body_match';
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (skipSend) {
+                events.emit('plugin:event', {
+                    row: rowIndex,
+                    step: stepIndex,
+                    plugin: 'gmailSender',
+                    event: 'send:skipped',
+                    data: { to, reason: skipReason }
+                });
+
+                const status = {
+                    status: 'skipped',
+                    reason: skipReason,
+                    to,
+                    subject,
+                    replyToId: finalReplyToId,
+                    emailVariant,
+                    timestamp: new Date().toISOString()
+                };
+
+                return {
+                    history: await stepRow.getPreparedMessages(),
+                    items: [{ data: status, contentParts: [] }]
+                };
             }
 
             events.emit('plugin:event', {

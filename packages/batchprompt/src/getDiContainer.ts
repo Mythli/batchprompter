@@ -324,7 +324,8 @@ export const initConfig = async (env: Record<string, any>, overrides: ConfigOver
     pluginRegistry.registerFactory('loadData', () => new LoadDataPlugin());
 
     pluginRegistry.registerFactory('gmailSender', () => new GmailSenderPlugin({
-        gmailClient
+        gmailClient,
+        senderEmail: config.GMAIL_EMAIL
     }));
 
     pluginRegistry.registerFactory('gmailReplier', () => new GmailReplierPlugin({

@@ -21,6 +21,169 @@ export interface SendEmailOptions {
 }
 
 /**
+ * The Send button was clicked, but Gmail did not expose a definitive success
+ * signal. Retrying the whole action could send the same message twice, so the
+ * client must surface this state to the caller without another send attempt.
+ */
+export class GmailSendUnconfirmedError extends Error {
+  readonly retryable = false;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'GmailSendUnconfirmedError';
+  }
+}
+
+async function pasteHtmlIntoVisibleBody(page: Page, selector: string, html: string): Promise<'clipboard' | 'keyboard-clipboard' | 'fallback'> {
+  // A native rich-text paste is important for inline data images. Gmail turns
+  // them into real embedded message images; direct DOM insertion leaves a data
+  // URL that Gmail may silently refuse to send.
+  const clipboardReady = await page.browserContext()
+    .overridePermissions('https://mail.google.com', ['clipboard-read', 'clipboard-write'])
+    .then(() => true)
+    .catch(() => false);
+
+  if (clipboardReady) {
+    await page.bringToFront();
+    const clipboardResult = await page.evaluate(async (bodySelector, bodyHtml) => {
+      const boxes = Array.from(document.querySelectorAll(bodySelector)) as HTMLElement[];
+      const visibleBox = boxes.find(box => box.offsetWidth > 0 && box.offsetHeight > 0);
+      if (!visibleBox) {
+        return { copied: false, reason: 'no_visible_body' };
+      }
+      if (!navigator.clipboard) {
+        return { copied: false, reason: 'clipboard_api_unavailable' };
+      }
+      if (typeof ClipboardItem === 'undefined') {
+        return { copied: false, reason: 'clipboard_item_unavailable' };
+      }
+
+      const plainText = bodyHtml
+        .replace(/<br\s*\/?\s*>/gi, '\n')
+        .replace(/<\/p\s*>/gi, '\n\n')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/&amp;/gi, '&')
+        .replace(/&lt;/gi, '<')
+        .replace(/&gt;/gi, '>');
+
+      try {
+        visibleBox.focus();
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'text/html': new Blob([bodyHtml], { type: 'text/html' }),
+            'text/plain': new Blob([plainText], { type: 'text/plain' })
+          })
+        ]);
+        return { copied: true, reason: '' };
+      } catch (error) {
+        return {
+          copied: false,
+          reason: error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+        };
+      }
+    }, selector, html);
+
+    if (clipboardResult.copied) {
+      const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+      await page.keyboard.down(modifier);
+      await page.keyboard.press('V');
+      await page.keyboard.up(modifier);
+      return 'clipboard';
+    }
+
+    console.warn(`[Gmail Send] Native clipboard insertion unavailable: ${clipboardResult.reason}`);
+  }
+
+  // Chromium can deny navigator.clipboard.write() in automation even after the
+  // permission is granted. Insert once as a temporary source, then use real
+  // keyboard copy/paste inside the active Gmail editor. The final editor change
+  // therefore follows Gmail's trusted rich-text paste path.
+  const fallbackInserted = await page.evaluate((bodySelector, bodyHtml) => {
+    const boxes = Array.from(document.querySelectorAll(bodySelector)) as HTMLElement[];
+    const visibleBox = boxes.find(box => box.offsetWidth > 0 && box.offsetHeight > 0);
+    if (!visibleBox) return false;
+
+    visibleBox.focus();
+    try {
+      document.execCommand('insertHTML', false, bodyHtml);
+    } catch {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.setData('text/html', bodyHtml);
+      dataTransfer.setData('text/plain', bodyHtml);
+      visibleBox.dispatchEvent(new ClipboardEvent('paste', {
+        clipboardData: dataTransfer,
+        bubbles: true,
+        cancelable: true
+      }));
+    }
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(visibleBox);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    return visibleBox.innerHTML.length > 0;
+  }, selector, html);
+
+  if (fallbackInserted) {
+    if (/data:image\/[a-z0-9.+-]+;base64,/i.test(html)) {
+      await page.waitForFunction((bodySelector) => {
+        const boxes = Array.from(document.querySelectorAll(bodySelector)) as HTMLElement[];
+        const visibleBox = boxes.find(box => box.offsetWidth > 0 && box.offsetHeight > 0);
+        if (!visibleBox) return false;
+
+        const images = Array.from(visibleBox.querySelectorAll('img'));
+        return images.length > 0 && images.every(image => {
+          const src = image.getAttribute('src') || '';
+          const embeddedId = image.getAttribute('data-surl') || '';
+          return src.length > 0 &&
+            !src.startsWith('data:') &&
+            image.complete &&
+            image.naturalWidth > 0 &&
+            embeddedId.startsWith('cid:');
+        });
+      }, { timeout: 30000 }, selector);
+    }
+
+    await page.evaluate((bodySelector) => {
+      const boxes = Array.from(document.querySelectorAll(bodySelector)) as HTMLElement[];
+      const visibleBox = boxes.find(box => box.offsetWidth > 0 && box.offsetHeight > 0);
+      if (!visibleBox) return;
+
+      visibleBox.focus();
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(visibleBox);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }, selector);
+
+    const modifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+    await page.keyboard.down(modifier);
+    await page.keyboard.press('C');
+    await page.keyboard.up(modifier);
+
+    await page.evaluate((bodySelector) => {
+      const boxes = Array.from(document.querySelectorAll(bodySelector)) as HTMLElement[];
+      const visibleBox = boxes.find(box => box.offsetWidth > 0 && box.offsetHeight > 0);
+      visibleBox?.focus();
+    }, selector);
+    await page.keyboard.down(modifier);
+    await page.keyboard.press('A');
+    await page.keyboard.up(modifier);
+    await page.keyboard.press('Backspace');
+
+    await page.keyboard.down(modifier);
+    await page.keyboard.press('V');
+    await page.keyboard.up(modifier);
+    return 'keyboard-clipboard';
+  }
+
+  throw new Error('Gmail Send: Unable to insert the HTML body into the active editor.');
+}
+
+/**
  * Sends an HTML email or replies to an existing thread.
  * Assumes the page is already authenticated and navigated to the correct URL 
  * (either the inbox for a new email, or the specific thread for a reply).
@@ -41,21 +204,28 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
     // Click the Reply button. 
     // .ams.bkH is the "Reply" text button. .hB is the reply arrow icon.
     // These are locale-independent structural classes.
-    const replyButtonSelector = '.ams.bkH, div[role="button"].hB';
-    await page.waitForSelector(replyButtonSelector, { visible: true, timeout: 5000 });
+    const replyButtonSelector = '.ams.bkH, button.DILLkc, div[role="button"].hB';
+    await page.waitForSelector(replyButtonSelector, { visible: true, timeout: 15000 });
     
-    // Click the first visible reply button using native Puppeteer click
+    // Reply to the newest visible message in the thread. Gmail renders older
+    // message reply controls first in DOM order.
     const replyButtons = await page.$$(replyButtonSelector);
+    const visibleReplyButtons = [];
     for (const btn of replyButtons) {
       const isVisible = await btn.evaluate((b) => {
         const el = b as HTMLElement;
         return el.offsetWidth > 0 && el.offsetHeight > 0;
       });
       if (isVisible) {
-        await btn.click();
-        break;
+        visibleReplyButtons.push(btn);
       }
     }
+
+    const newestReplyButton = visibleReplyButtons.at(-1);
+    if (!newestReplyButton) {
+      throw new Error('Gmail Send: No visible reply button was found.');
+    }
+    await newestReplyButton.click();
 
   } else {
     // --- NEW EMAIL FLOW ---
@@ -87,41 +257,46 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
   // Wait for the message body. 
   // role="textbox" and contenteditable="true" is locale-independent and highly stable.
   const bodySelector = 'div[role="textbox"][contenteditable="true"]';
-  await page.waitForSelector(bodySelector, { visible: true, timeout: 10000 });
+  // Gmail occasionally needs longer than ten seconds to mount the reply editor,
+  // especially for older threads with inline media. A short timeout incorrectly
+  // classified an unopened editor as a failed send even though the thread page
+  // itself was healthy. Keep this wait before body insertion, so extending it
+  // cannot create an ambiguous post-send retry.
+  await page.waitForSelector(bodySelector, { visible: true, timeout: 30000 });
   
   console.log(`[Gmail Send] Injecting HTML body...`);
-  // Inject HTML using execCommand. 
-  // We evaluate to find the visible one, as there might be hidden drafts in the DOM.
-  await page.evaluate((selector, html) => {
-    const boxes = Array.from(document.querySelectorAll(selector)) as HTMLElement[];
-    const visibleBox = boxes.find(b => b.offsetWidth > 0 && b.offsetHeight > 0);
-    if (visibleBox) {
-      visibleBox.focus();
-      try {
-        // This might fail if CSP TrustedTypes is enforced and setBypassCSP didn't catch it
-        document.execCommand('insertHTML', false, html);
-      } catch (err) {
-        // Fallback: Simulate a rich-text paste event. 
-        // Gmail's internal event listeners will catch this, sanitize it via their own TrustedTypes policy, and insert it.
-        const dt = new DataTransfer();
-        dt.setData('text/html', html);
-        dt.setData('text/plain', html);
-        visibleBox.dispatchEvent(new ClipboardEvent('paste', {
-          clipboardData: dt,
-          bubbles: true,
-          cancelable: true
-        }));
-      }
-    }
-  }, bodySelector, options.htmlBody);
+  const insertionMethod = await pasteHtmlIntoVisibleBody(page, bodySelector, options.htmlBody);
+  console.log(`[Gmail Send] HTML body inserted via ${insertionMethod}.`);
 
   // Wait for the injected HTML to be reflected in the DOM
   await page.waitForFunction((sel) => {
-    const el = document.querySelector(sel);
-    return el && el.innerHTML.length > 0;
+    const boxes = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+    const visibleBox = boxes.find(box => box.offsetWidth > 0 && box.offsetHeight > 0);
+    return visibleBox && visibleBox.innerHTML.length > 0;
   }, { timeout: 5000 }, bodySelector).catch(() => {
     console.warn(`[Gmail Send] WARNING: Timeout waiting for injected HTML to reflect in DOM.`);
   });
+
+  if (/data:image\/[a-z0-9.+-]+;base64,/i.test(options.htmlBody)) {
+    console.log(`[Gmail Send] Waiting for Gmail to embed inline data image(s)...`);
+    await page.waitForFunction((sel) => {
+      const boxes = Array.from(document.querySelectorAll(sel)) as HTMLElement[];
+      const visibleBox = boxes.find(box => box.offsetWidth > 0 && box.offsetHeight > 0);
+      if (!visibleBox) return false;
+
+      const images = Array.from(visibleBox.querySelectorAll('img'));
+      return images.length > 0 && images.every(image => {
+        const src = image.getAttribute('src') || '';
+        const embeddedId = image.getAttribute('data-surl') || '';
+        return src.length > 0 &&
+          !src.startsWith('data:') &&
+          image.complete &&
+          image.naturalWidth > 0 &&
+          embeddedId.startsWith('cid:');
+      });
+    }, { timeout: 30000 }, bodySelector);
+    console.log(`[Gmail Send] Inline data image(s) converted to embedded Gmail image(s).`);
+  }
 
   console.log(`[Gmail Send] Looking for Send button...`);
   // Click Send using native Puppeteer click
@@ -132,27 +307,42 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
   const sendButtons = await page.$$(sendButtonSelector);
   console.log(`[Gmail Send] Found ${sendButtons.length} potential Send buttons.`);
   
-  let clickedSend = false;
+  const activeSendButtons = [];
   for (let i = 0; i < sendButtons.length; i++) {
     const btn = sendButtons[i];
-    const isVisible = await btn.evaluate((b) => {
+    const state = await btn.evaluate((b, composeBodySelector) => {
       const el = b as HTMLElement;
-      return el.offsetWidth > 0 && el.offsetHeight > 0;
-    });
+      const boxes = Array.from(document.querySelectorAll(composeBodySelector)) as HTMLElement[];
+      const visibleBox = boxes.find(box => box.offsetWidth > 0 && box.offsetHeight > 0);
+      const composeRegion = visibleBox?.closest('[role="region"]');
+      return {
+        visible: el.offsetWidth > 0 && el.offsetHeight > 0,
+        hasLabelText: (el.textContent || '').trim().length > 0,
+        belongsToActiveComposer: composeRegion ? composeRegion.contains(el) : true
+      };
+    }, bodySelector);
     
-    console.log(`[Gmail Send] Button ${i} visibility: ${isVisible}`);
+    console.log(`[Gmail Send] Button ${i} state: ${JSON.stringify(state)}`);
     
-    if (isVisible) {
-      console.log(`[Gmail Send] Clicking Send button ${i}...`);
-      await btn.click();
-      clickedSend = true;
-      break;
+    if (state.visible && state.hasLabelText && state.belongsToActiveComposer) {
+      activeSendButtons.push({ btn, index: i });
     }
   }
 
-  if (!clickedSend) {
-    console.warn(`[Gmail Send] ERROR: No visible Send button was found to click!`);
+  const selectedSendButton = activeSendButtons.at(0);
+
+  if (!selectedSendButton) {
+    throw new Error('Gmail Send: No visible Send button was found to click.');
   }
+
+  // Gmail's reply composer can ignore an automated pointer click even though
+  // Puppeteer reports it as successful. Focus plus Enter produces a trusted
+  // keyboard activation on the already validated primary Send control.
+  // Only one activation is attempted; if confirmation is absent, the caller
+  // receives a non-retryable error to avoid duplicate messages.
+  console.log(`[Gmail Send] Activating Send button ${selectedSendButton.index} via keyboard...`);
+  await selectedSendButton.btn.focus();
+  await page.keyboard.press('Enter');
   
   console.log(`[Gmail Send] Waiting for 'Message sent' toast...`);
   // Wait for the "Message sent" toast to ensure the background request completes successfully
@@ -162,9 +352,35 @@ export async function sendEmail(page: Page, options: SendEmailOptions): Promise<
         el.textContent?.includes('Message sent') || 
         el.textContent?.includes('Nachricht gesendet')
       );
-    }, { timeout: 10000 });
+    }, { timeout: 30000 });
     console.log(`[Gmail Send] Send confirmation toast found.`);
   } catch (e) {
-    throw new Error(`Failed to send email: 'Message sent' toast did not appear within timeout.`);
+    const failureState = await page.evaluate((composeBodySelector) => {
+      const visibleText = (element: Element) => {
+        const htmlElement = element as HTMLElement;
+        return htmlElement.offsetWidth > 0 && htmlElement.offsetHeight > 0;
+      };
+      const boxes = Array.from(document.querySelectorAll(composeBodySelector)) as HTMLElement[];
+      const visibleBox = boxes.find(box => box.offsetWidth > 0 && box.offsetHeight > 0);
+      const images = visibleBox ? Array.from(visibleBox.querySelectorAll('img')) : [];
+
+      return {
+        url: location.href,
+        alerts: Array.from(document.querySelectorAll('[role="alert"], [role="dialog"]'))
+          .filter(visibleText)
+          .map(element => (element.textContent || '').trim().slice(0, 500))
+          .filter(Boolean)
+          .slice(0, 10),
+        composeStillVisible: Boolean(visibleBox),
+        imageStates: images.map(image => ({
+          src: (image.getAttribute('src') || '').slice(0, 80),
+          embeddedId: image.getAttribute('data-surl') || '',
+          complete: image.complete,
+          naturalWidth: image.naturalWidth
+        }))
+      };
+    }, bodySelector).catch(error => ({ diagnosticError: String(error) }));
+    console.error(`[Gmail Send] Unconfirmed send state: ${JSON.stringify(failureState)}`);
+    throw new GmailSendUnconfirmedError(`Failed to confirm email send after clicking Send: 'Message sent' toast did not appear within timeout.`);
   }
 }

@@ -8,12 +8,15 @@ import { setupTestEnvironment } from '../utils/testUtils.js';
 function setupGmailSenderTest() {
     const gmailClient = {
         sendEmail: vi.fn(async (_options: any) => {}),
-        searchEmails: vi.fn(async () => []),
-        readThread: vi.fn(async () => [])
+        searchEmails: vi.fn(async (): Promise<any[]> => []),
+        readThread: vi.fn(async (): Promise<any[]> => [])
     };
 
     const { executor, events, registry } = setupTestEnvironment({
-        plugins: [new GmailSenderPlugin({ gmailClient: gmailClient as any })]
+        plugins: [new GmailSenderPlugin({
+            gmailClient: gmailClient as any,
+            senderEmail: 'tobias@example.com'
+        })]
     });
 
     return { executor, events, registry, gmailClient };
@@ -304,6 +307,213 @@ describe('GmailSenderPlugin variants', () => {
         expect(results.map(result => result.gmailSender.emailVariant.body?.key)).toEqual(['A', 'B', 'C', 'A', 'B', 'C']);
     });
 
+    it('skips an initial outreach when any email was already sent to the recipient', async () => {
+        const { executor, gmailClient } = setupGmailSenderTest();
+        gmailClient.searchEmails.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+            id: 'existing-sent-thread'
+        } as any]);
+
+        const { results } = await executor.runConfig({
+            taskConcurrency: 1,
+            steps: [{
+                plugins: [{
+                    type: 'gmailSender',
+                    to: 'Lead <LEAD@example.com>',
+                    subject: 'A completely different subject',
+                    body: 'Initial outreach body',
+                    sendIfReceived: false,
+                    skipIfAnySentToRecipient: true,
+                    skipIfSubjectMatch: true,
+                    replyToLastThread: false,
+                    requireExistingThread: false,
+                    output: { mode: 'merge' }
+                }]
+            }]
+        }, [{}]);
+
+        expect(gmailClient.searchEmails).toHaveBeenNthCalledWith(1, 'from:lead@example.com');
+        expect(gmailClient.searchEmails).toHaveBeenNthCalledWith(2, 'in:sent to:lead@example.com');
+        expect(gmailClient.sendEmail).not.toHaveBeenCalled();
+        expect(results[0].gmailSender).toEqual(expect.objectContaining({
+            status: 'skipped',
+            reason: 'sent_to_recipient'
+        }));
+    });
+
+    it('skips a resumed reply when the campaign marker is already in the thread', async () => {
+        const { executor, gmailClient } = setupGmailSenderTest();
+        gmailClient.searchEmails.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+            id: 'thread-1',
+            isUnread: false
+        } as any]);
+        gmailClient.readThread.mockResolvedValueOnce([{
+            senderName: 'Tobias',
+            senderEmail: 'tobias@example.com',
+            date: 'today',
+            textBody: 'Video ansehen',
+            htmlBody: '<a href="https://example.com/follow-up-marker">Video ansehen</a>'
+        }]);
+
+        const { results } = await executor.runConfig({
+            taskConcurrency: 1,
+            steps: [{
+                plugins: [{
+                    type: 'gmailSender',
+                    to: 'lead@example.com',
+                    subject: 'Original subject',
+                    body: 'Follow-up body',
+                    sendIfReceived: false,
+                    skipIfSubjectMatch: true,
+                    skipIfThreadBodyContains: 'follow-up-marker',
+                    replyToLastThread: true,
+                    requireExistingThread: true,
+                    output: { mode: 'merge' }
+                }]
+            }]
+        }, [{}]);
+
+        expect(gmailClient.sendEmail).not.toHaveBeenCalled();
+        expect(gmailClient.readThread).toHaveBeenCalledWith('thread-1', {
+            setReadStatus: true,
+            wasUnread: false
+        });
+        expect(results[0].gmailSender).toEqual(expect.objectContaining({
+            status: 'skipped',
+            reason: 'thread_body_match',
+            replyToId: 'thread-1'
+        }));
+    });
+
+    it('sends a reply when the campaign marker is absent and ignores the original subject match', async () => {
+        const { executor, gmailClient } = setupGmailSenderTest();
+        gmailClient.searchEmails.mockResolvedValueOnce([]).mockResolvedValueOnce([{
+            id: 'thread-2',
+            isUnread: true
+        } as any]);
+        gmailClient.readThread.mockResolvedValueOnce([{
+            senderName: 'Tobias',
+            senderEmail: 'tobias@example.com',
+            date: 'today',
+            textBody: 'Original contact',
+            htmlBody: '<p>Original contact</p>'
+        }]);
+
+        await executor.runConfig({
+            taskConcurrency: 1,
+            steps: [{
+                plugins: [{
+                    type: 'gmailSender',
+                    to: 'lead@example.com',
+                    subject: 'Original subject',
+                    body: 'Follow-up with follow-up-marker',
+                    sendIfReceived: false,
+                    skipIfSubjectMatch: true,
+                    skipIfThreadBodyContains: 'follow-up-marker',
+                    replyToLastThread: true,
+                    requireExistingThread: true,
+                    output: { mode: 'merge' }
+                }]
+            }]
+        }, [{}]);
+
+        expect(gmailClient.searchEmails).toHaveBeenCalledTimes(2);
+        expect(gmailClient.readThread).toHaveBeenCalledWith('thread-2', {
+            setReadStatus: false,
+            wasUnread: true
+        });
+        expect(gmailClient.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'lead@example.com',
+            subject: 'Original subject',
+            replyToId: 'thread-2'
+        }));
+    });
+
+    it('keeps an explicit reply thread and skips a reply sent from an alias in another matching thread', async () => {
+        const { executor, gmailClient } = setupGmailSenderTest();
+        gmailClient.searchEmails.mockResolvedValueOnce([]).mockResolvedValueOnce([
+            { id: 'newer-thread', isUnread: true } as any,
+            { id: 'approved-thread', isUnread: false } as any
+        ]);
+        gmailClient.readThread
+            .mockResolvedValueOnce([{
+                senderName: 'Manager',
+                senderEmail: 'manager@example.com',
+                date: 'today',
+                textBody: 'Please call me.',
+                htmlBody: '<p>Please call me.</p>'
+            }])
+            .mockResolvedValueOnce([{
+                senderName: 'Tobias',
+                senderEmail: 'tobias@example.com',
+                date: 'yesterday',
+                textBody: 'Original contact',
+                htmlBody: '<p>Original contact</p>'
+            }]);
+
+        const { results } = await executor.runConfig({
+            taskConcurrency: 1,
+            steps: [{
+                plugins: [{
+                    type: 'gmailSender',
+                    to: 'lead@example.com',
+                    subject: 'Original subject',
+                    body: 'Follow-up with follow-up-marker',
+                    replyToId: 'approved-thread',
+                    sendIfReceived: false,
+                    skipIfThreadBodyContains: 'follow-up-marker',
+                    replyToLastThread: true,
+                    requireExistingThread: true,
+                    output: { mode: 'merge' }
+                }]
+            }]
+        }, [{}]);
+
+        expect(gmailClient.sendEmail).not.toHaveBeenCalled();
+        expect(results[0].gmailSender).toEqual(expect.objectContaining({
+            status: 'skipped',
+            reason: 'thread_received_email',
+            replyToId: 'approved-thread'
+        }));
+    });
+
+    it('keeps an explicit reply thread when another self-only thread is newer', async () => {
+        const { executor, gmailClient } = setupGmailSenderTest();
+        gmailClient.searchEmails.mockResolvedValueOnce([]).mockResolvedValueOnce([
+            { id: 'newer-thread', isUnread: false } as any,
+            { id: 'approved-thread', isUnread: false } as any
+        ]);
+        gmailClient.readThread.mockResolvedValue([{
+            senderName: 'Tobias',
+            senderEmail: 'tobias@example.com',
+            date: 'today',
+            textBody: 'Original contact',
+            htmlBody: '<p>Original contact</p>'
+        }]);
+
+        await executor.runConfig({
+            taskConcurrency: 1,
+            steps: [{
+                plugins: [{
+                    type: 'gmailSender',
+                    to: 'lead@example.com',
+                    subject: 'Original subject',
+                    body: 'Follow-up with follow-up-marker',
+                    replyToId: 'approved-thread',
+                    sendIfReceived: false,
+                    skipIfThreadBodyContains: 'follow-up-marker',
+                    replyToLastThread: true,
+                    requireExistingThread: true,
+                    output: { mode: 'merge' }
+                }]
+            }]
+        }, [{}]);
+
+        expect(gmailClient.sendEmail).toHaveBeenCalledWith(expect.objectContaining({
+            to: 'lead@example.com',
+            replyToId: 'approved-thread'
+        }));
+    });
+
     it('parses the lead-gen send config with subject/body arrays', async () => {
         const { registry } = setupGmailSenderTest();
         const configPath = path.resolve(process.cwd(), '../../apps/batchprompt-cli/examples/02-lead-gen/05-send/config-5-send.json');
@@ -316,5 +526,6 @@ describe('GmailSenderPlugin variants', () => {
         expect(gmailSenderConfig.subject).toHaveLength(2);
         expect(gmailSenderConfig.body).toHaveLength(2);
         expect(gmailSenderConfig.body[0].key).toBe('A');
+        expect(gmailSenderConfig.skipIfAnySentToRecipient).toBe(true);
     });
 });

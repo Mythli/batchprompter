@@ -77,6 +77,15 @@ export class Pipeline {
             const queue = this.deps.taskQueue;
 
             /**
+             * Creates an execution deadline when a queued task actually starts.
+             * Queue wait time must not consume a task's timeout budget.
+             */
+            const createDeadline = (stepIndex: number) => {
+                const step = this.steps[stepIndex];
+                return Date.now() + (step.config.timeout || 180) * 1000;
+            };
+
+            /**
              * Enqueues a single completed item for the next step, or emits row:end
              * if all steps are done. Uses priority = stepIndex for depth-first scheduling.
              */
@@ -131,10 +140,11 @@ export class Pipeline {
 
                     // Multiple results (explosion) — enqueue each for remaining stages
                     // Each branch becomes an independent task in the queue with
-                    // priority = stepIndex for depth-first scheduling
+                    // priority = stepIndex for depth-first scheduling. Its timeout
+                    // starts only when the queued branch actually begins executing.
                     for (const row of resultRows) {
                         queue.add(
-                            () => processStepRowSafe(row, stepIndex, stages, i + 1, deadline),
+                            () => processStepRowSafe(row, stepIndex, stages, i + 1),
                             { priority: stepIndex }
                         );
                     }
@@ -156,9 +166,9 @@ export class Pipeline {
                 stepRow: StepRow,
                 stepIndex: number,
                 stages: StageDescriptor[],
-                currentStage: number,
-                deadline: number
+                currentStage: number
             ) => {
+                const deadline = createDeadline(stepIndex);
                 try {
                     await processStepRow(stepRow, stepIndex, stages, currentStage, deadline);
                 } catch (err: any) {
@@ -182,8 +192,7 @@ export class Pipeline {
                 const { item, stepIndex } = payload;
                 const step = this.steps[stepIndex];
                 const stepNum = stepIndex + 1;
-                const timeoutMs = (step.config.timeout || 180) * 1000;
-                const deadline = Date.now() + timeoutMs;
+                const deadline = createDeadline(stepIndex);
 
                 events.emit('step:start', { row: item.originalIndex, step: stepNum });
 

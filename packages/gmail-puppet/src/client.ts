@@ -109,6 +109,11 @@ export class GmailClient {
                     return await action(page);
                 });
             } catch (error) {
+                if ((error as { retryable?: boolean })?.retryable === false) {
+                    console.error(`[GmailClient] Action reached a non-retryable state. Refusing to repeat it.`);
+                    throw error;
+                }
+
                 if (attempt >= maxRetries) {
                     console.error(`[GmailClient] Action failed after ${maxRetries} attempts. Throwing error.`);
                     throw error;

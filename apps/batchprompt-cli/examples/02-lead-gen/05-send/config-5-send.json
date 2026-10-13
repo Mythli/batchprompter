@@ -32,6 +32,7 @@
           "delayMin": 0,
           "delayMax": 0,
           "sendIfReceived": true,
+          "skipIfAnySentToRecipient": true,
           "skipIfSubjectMatch": true,
           "replyToLastThread": false,
           "requireExistingThread": false,

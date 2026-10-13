@@ -1,4 +1,7 @@
 import OpenAI from 'openai';
+import fsPromises from 'node:fs/promises';
+import path from 'node:path';
+import sharp from 'sharp';
 import { z } from 'zod';
 import { createCandidateSelector } from 'llm-fns';
 import { GenerationStrategy } from './GenerationStrategy.js';
@@ -34,6 +37,7 @@ export class CandidateStrategy implements GenerationStrategy {
             candidateCount,
             generate: async (_, i, salt) => {
                 const result = await this.standardStrategy.execute(salt);
+                await this.persistImageCandidate(result, i);
                 return { result, candidateIndex: i };
             },
             judge: async (_, candidates) => {
@@ -106,15 +110,15 @@ export class CandidateStrategy implements GenerationStrategy {
 
             // Get first item's data from the result
             const val = cand.result.items[0]?.data;
-            const valStr = typeof val === 'string' ? val : JSON.stringify(val);
+            const judgeImageUrl = await this.prepareJudgeImage(val);
 
-            // Heuristic for images
-            if (valStr && (valStr.startsWith('http') || valStr.startsWith('data:image'))) {
+            if (judgeImageUrl) {
                 candidatePresentationParts.push({
                     type: 'image_url',
-                    image_url: { url: valStr }
+                    image_url: { url: judgeImageUrl }
                 });
             } else {
+                const valStr = typeof val === 'string' ? val : JSON.stringify(val);
                 candidatePresentationParts.push({ type: 'text', text: valStr || '' });
             }
         }
@@ -144,5 +148,76 @@ export class CandidateStrategy implements GenerationStrategy {
             },
             JudgeSchema
         );
+    }
+
+    private async prepareJudgeImage(value: unknown): Promise<string | undefined> {
+        if (typeof value === 'string' && /^https?:\/\//.test(value)) return value;
+
+        let source: Buffer;
+        if (Buffer.isBuffer(value)) {
+            source = value;
+        } else if (typeof value === 'string') {
+            const match = value.match(/^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/s);
+            if (!match) return undefined;
+            source = Buffer.from(match[1], 'base64');
+        } else {
+            return undefined;
+        }
+
+        try {
+            const judgeCopy = await sharp(source)
+                .rotate()
+                .resize({
+                    width: 512,
+                    height: 512,
+                    fit: 'inside',
+                    withoutEnlargement: true
+                })
+                .jpeg({ quality: 65, mozjpeg: true })
+                .toBuffer();
+            return `data:image/jpeg;base64,${judgeCopy.toString('base64')}`;
+        } catch {
+            return undefined;
+        }
+    }
+
+    private async persistImageCandidate(result: PluginResult, candidateIndex: number): Promise<void> {
+        const value = result.items[0]?.data;
+        let imageBuffer: Buffer;
+        let sourceFormat: string | undefined;
+
+        if (Buffer.isBuffer(value)) {
+            imageBuffer = value;
+        } else if (typeof value === 'string') {
+            const match = value.match(/^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/s);
+            if (!match) return;
+            sourceFormat = match[1].toLowerCase();
+            imageBuffer = Buffer.from(match[2], 'base64');
+        } else {
+            return;
+        }
+
+        const extensionByMime: Record<string, string> = {
+            jpeg: 'jpg',
+            jpg: 'jpg',
+            png: 'png',
+            webp: 'webp',
+            gif: 'gif'
+        };
+
+        try {
+            const metadata = await sharp(imageBuffer).metadata();
+            const extension = extensionByMime[sourceFormat ?? metadata.format ?? ''] ?? 'img';
+            const tempDir = await this.stepRow.getTempDir();
+            const candidateName = `candidate-${String(candidateIndex + 1).padStart(2, '0')}.${extension}`;
+            await fsPromises.writeFile(path.join(tempDir, candidateName), imageBuffer);
+        } catch (error: any) {
+            this.events.emit('step:progress', {
+                row: this.stepRow.getOriginalIndex(),
+                step: this.stepRow.step.stepIndex,
+                type: 'warn',
+                message: `Could not preserve candidate ${candidateIndex + 1}: ${error.message}`
+            });
+        }
     }
 }
